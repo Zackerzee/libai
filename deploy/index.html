@@ -82,6 +82,13 @@
                     <span id="empty-result" aria-hidden="true"></span>
                     <img id="result-preview" alt="生成的拼豆图纸预览" hidden />
                   </button>
+                  <div class="mobile-preview-width-control" aria-label="手机端图纸宽度快捷调整">
+                    <label for="mobile-granularity-input">
+                      <span>图纸宽度</span>
+                      <output id="mobile-granularity-output">50</output>
+                    </label>
+                    <input id="mobile-granularity-input" type="range" min="10" max="500" value="50" />
+                  </div>
                 </div>
 
                 <section class="panel preview-stats-panel" aria-label="色号与数量统计">

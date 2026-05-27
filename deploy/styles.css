@@ -4165,3 +4165,135 @@ button:active:not(:disabled),
     font-size: 11px;
   }
 }
+
+/* Emergency mobile layout repair: preview stays directly below the blank-canvas entry */
+.mobile-preview-width-control {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .studio-main {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "intro"
+      "preview"
+      "settings"
+      "tools" !important;
+    gap: 10px !important;
+  }
+
+  .generator-intro {
+    grid-area: intro !important;
+  }
+
+  .preview-column {
+    display: contents !important;
+  }
+
+  .preview-main-shell {
+    grid-area: preview !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .settings-grid {
+    grid-area: settings !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    min-width: 0;
+  }
+
+  .settings-panel,
+  .export-panel {
+    grid-area: auto !important;
+    position: static !important;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .smart-tools-panel {
+    grid-area: tools !important;
+    order: initial !important;
+  }
+
+  .preview-column .workspace-stage {
+    position: relative !important;
+    top: auto !important;
+    grid-area: auto !important;
+    height: clamp(360px, 68vh, 620px) !important;
+    height: clamp(360px, 68svh, 620px) !important;
+    min-height: 0 !important;
+    max-height: calc(100vh - 128px) !important;
+    max-height: calc(100svh - 128px) !important;
+  }
+
+  .preview-stage {
+    padding: 10px 10px 78px !important;
+  }
+
+  .mobile-preview-width-control {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    z-index: 5;
+    display: grid;
+    gap: 6px;
+    padding: 10px 12px;
+    border: 1px solid rgba(17, 24, 39, 0.12);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+    backdrop-filter: blur(16px);
+  }
+
+  .mobile-preview-width-control label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .mobile-preview-width-control output {
+    min-width: 38px;
+    color: var(--primary);
+    text-align: right;
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  .mobile-preview-width-control input {
+    width: 100%;
+    accent-color: var(--primary);
+  }
+
+  .settings-panel .range-block:first-of-type {
+    display: none;
+  }
+
+  .export-panel {
+    margin-top: 0 !important;
+  }
+
+  .export-panel .option-line {
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 700px) and (max-height: 740px) {
+  .preview-stage {
+    padding: 78px 10px 10px !important;
+  }
+
+  .mobile-preview-width-control {
+    top: 12px;
+    bottom: auto;
+  }
+}

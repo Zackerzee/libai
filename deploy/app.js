@@ -517,6 +517,8 @@ const els = {
   granularityOutput: document.querySelector("#granularity-output"),
   granularityNumber: document.querySelector("#granularity-number"),
   granularityApply: document.querySelector("#granularity-apply"),
+  mobileGranularityInput: document.querySelector("#mobile-granularity-input"),
+  mobileGranularityOutput: document.querySelector("#mobile-granularity-output"),
   similarityInput: document.querySelector("#similarity-input"),
   similarityOutput: document.querySelector("#similarity-output"),
   similarityNumber: document.querySelector("#similarity-number"),
@@ -746,6 +748,10 @@ function bindEvents() {
     button.addEventListener("click", () => selectBrand(button.dataset.brand || DEFAULT_BRAND));
   });
   bindRangePair("granularity", 10, 500);
+  els.mobileGranularityInput?.addEventListener("input", () => {
+    syncRangeControls("granularity", els.mobileGranularityInput.value, 10, 500);
+    scheduleLivePreview("宽度已更新");
+  });
   bindRangePair("similarity", 0, 100);
   els.paletteSelect.addEventListener("change", () => {
     updatePaletteCount();
@@ -921,6 +927,10 @@ function syncRangeControls(name, value, min, max) {
   if (range) range.value = String(next);
   if (number) number.value = String(next);
   if (output) output.textContent = String(next);
+  if (name === "granularity") {
+    if (els.mobileGranularityInput) els.mobileGranularityInput.value = String(next);
+    if (els.mobileGranularityOutput) els.mobileGranularityOutput.textContent = String(next);
+  }
   return next;
 }
 
