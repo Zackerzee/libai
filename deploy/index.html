@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta
+      name="description"
+      content="里白造物公益拼豆图纸生成器，上传图片，调整精细度，一键生成像素画拼豆图纸。"
+    />
+    <title>里白造物拼豆图纸生成器 | LiBai Maker Studio</title>
+    <link rel="icon" href="/libai-logo-pixel.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css?v=20260527-independent-site" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="topbar-inner">
+          <a class="brand" href="#" aria-label="里白造物拼豆图纸生成器">
+            <img src="/libai-logo-pixel.svg" alt="" />
+            <span>
+              <strong>里白造物</strong>
+              <small>LiBai Maker Studio</small>
+            </span>
+          </a>
+
+          <nav class="mode-tabs" aria-label="工作模式">
+            <button type="button" disabled>生成模式</button>
+            <button type="button" id="fullscreen-button">全屏模式</button>
+          </nav>
+
+          <div class="top-actions">
+            <a class="soft-button home-button" href="/index.html">主页</a>
+            <button type="button" class="soft-button hide-sm" id="register-open-button">邀请注册</button>
+          </div>
+        </div>
+      </header>
+
+      <main class="workspace-wrap">
+        <div class="workspace-grid">
+          <section class="studio-main" aria-label="拼豆图纸工作区">
+            <input
+              id="file-input"
+              class="file-input-hidden"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,.jpg,.jpeg,.png,.webp,.gif,.bmp"
+            />
+            <select id="board-select" hidden></select>
+
+            <section class="generator-intro" aria-labelledby="generator-title">
+              <p class="section-kicker">LiBai Maker Studio</p>
+              <h1 id="generator-title">拼豆图纸生成器</h1>
+              <p>上传图片、选择色卡和宽度，实时生成带色号、豆数和成品尺寸的高清图纸。</p>
+
+              <div class="start-panel">
+                <label
+                  class="start-card upload-zone"
+                  id="upload-zone"
+                  for="file-input"
+                  role="button"
+                  tabindex="0"
+                >
+                  <img id="source-preview" alt="已上传图片预览" hidden />
+                  <span class="upload-icon" aria-hidden="true"></span>
+                  <span class="start-title">把图片拖到这里，或点击选择</span>
+                  <span class="start-meta">PNG / JPG / WebP · 10 MB</span>
+                </label>
+
+                <button class="start-card blank-start-card" id="blank-board-button" type="button">
+                  <span class="start-title">＋ 从空白画布开始</span>
+                  <span class="start-meta">使用当前宽度创建正方形画布，直接绘制拼豆图纸。</span>
+                </button>
+              </div>
+            </section>
+
+            <div class="preview-column">
+              <div class="preview-main-shell">
+                <div class="workspace-stage">
+                  <div class="stage-image" aria-hidden="true"></div>
+                  <div class="stage-glass" aria-hidden="true"></div>
+
+                  <button class="preview-stage empty" id="preview-stage" type="button" disabled>
+                    <span id="empty-result" aria-hidden="true"></span>
+                    <img id="result-preview" alt="生成的拼豆图纸预览" hidden />
+                  </button>
+                </div>
+
+                <section class="panel preview-stats-panel" aria-label="色号与数量统计">
+                  <div class="panel-head">
+                    <h2>拼豆清单</h2>
+                    <span class="muted-label" id="stats-total-label">未生成</span>
+                  </div>
+                  <label class="scheme-name-field">
+                    <span>方案名</span>
+                    <input id="scheme-name-input" type="text" maxlength="24" value="里白造物图纸" />
+                  </label>
+                  <div class="result-metrics" id="result-metrics">
+                    <span>0 x 0</span>
+                    <span>0 色</span>
+                  </div>
+                  <div class="stats-summary" id="stats-summary">还没有图纸</div>
+                  <div class="stats-list" id="stats-list"></div>
+                </section>
+              </div>
+
+              <div class="preview-action-row">
+                <button
+                  class="preview-download-button"
+                  id="preview-download-button"
+                  type="button"
+                  hidden
+                  disabled
+                >
+                  下载预览图
+                </button>
+                <button class="primary-action" id="download-button" type="button">
+                  下载图纸
+                </button>
+                <button class="outline-button" id="print-a4-button" type="button">
+                  下载A4打印分版
+                </button>
+              </div>
+
+              <section class="panel smart-tools-panel" aria-labelledby="smart-tools-title">
+                <div class="panel-head">
+                  <h2 id="smart-tools-title">智能工具</h2>
+                  <button class="text-link-button" id="tutorial-button" type="button">使用教程</button>
+                </div>
+                <div class="smart-tool-grid">
+                  <button class="smart-tool-card" id="smart-photo-button" type="button">
+                    <span class="tool-icon pixel-icon pixel-icon-image" aria-hidden="true"></span>
+                    <strong>照片转图纸</strong>
+                    <small>将图片智能转化为拼豆图案</small>
+                  </button>
+                  <button class="smart-tool-card" id="smart-restore-button" type="button">
+                    <span class="tool-icon pixel-icon pixel-icon-restore" aria-hidden="true"></span>
+                    <strong>像素图直标</strong>
+                    <small>已是像素图时只映射色号，不重绘</small>
+                  </button>
+                  <button class="smart-tool-card" id="smart-ocr-button" type="button" hidden>
+                    <span class="tool-icon pixel-icon pixel-icon-scan" aria-hidden="true"></span>
+                    <strong>OCR 识别图纸</strong>
+                    <small>清晰色号图纸识别，待接入 OCR</small>
+                  </button>
+                  <button class="smart-tool-card" id="smart-link-button" type="button">
+                    <span class="tool-icon pixel-icon pixel-icon-link" aria-hidden="true"></span>
+                    <strong>从链接导入</strong>
+                    <small>粘贴直链图片，提取图片到本地</small>
+                  </button>
+                </div>
+              </section>
+            </div>
+
+            <div class="settings-grid">
+              <section class="panel settings-panel" aria-labelledby="source-title">
+                <div class="panel-head">
+                  <h1 id="source-title">参数设置</h1>
+                  <span class="status-pill" id="status-pill">待上传</span>
+                </div>
+
+                <div class="range-block">
+                  <label for="granularity-input">
+                    图纸宽度 <span>(横向颗数，拖动即预览)</span>
+                  </label>
+                  <p class="field-hint">参考 PixelBeads：拉动宽度会自动重算预览。</p>
+                  <div class="range-row">
+                    <input id="granularity-input" type="range" min="10" max="500" value="50" />
+                    <output id="granularity-output">50</output>
+                  </div>
+                  <div class="manual-row">
+                    <span>手动输入</span>
+                    <input id="granularity-number" type="number" min="10" max="500" value="50" />
+                    <button id="granularity-apply" type="button">确认</button>
+                  </div>
+                </div>
+
+                <div class="range-block">
+                  <label for="similarity-input">
+                    颜色合并阈值 <span>(推荐 30)</span>
+                  </label>
+                  <p class="field-hint">数值越高，越会把相近颜色合并成同一色号。</p>
+                  <div class="range-row">
+                    <input id="similarity-input" type="range" min="0" max="100" value="30" />
+                    <output id="similarity-output">30</output>
+                  </div>
+                  <div class="manual-row">
+                    <span>手动输入</span>
+                    <input id="similarity-number" type="number" min="0" max="100" value="30" />
+                    <button id="similarity-apply" type="button">确认</button>
+                  </div>
+                </div>
+
+                <label class="field">
+                  <span>处理模式</span>
+                  <select id="mode-select">
+                    <option value="dominant" selected>卡通 (主色)</option>
+                    <option value="average">真实 (平均)</option>
+                    <option value="dither">抖动 (误差扩散)</option>
+                    <option value="smooth">平滑 (强化合并)</option>
+                    <option value="palette">调色板映射 (纯映射)</option>
+                  </select>
+                </label>
+
+                <label class="field">
+                  <span>背景处理</span>
+                  <select id="background-mode-select">
+                    <option value="auto" selected>智能判断背景</option>
+                    <option value="keep">保留整张背景</option>
+                    <option value="remove">强制去周边背景色</option>
+                  </select>
+                </label>
+                <p class="field-hint">透明或四角同色的连通背景会留空，并保护主体里的白色。</p>
+
+                <div class="button-stack">
+                  <button class="primary-action" id="process-button" type="button" disabled>
+                    生成图纸
+                  </button>
+                </div>
+              </section>
+
+              <section class="panel export-panel" aria-label="色板与导出">
+                <div class="panel-head">
+                  <h2>色板与导出</h2>
+                  <span class="muted-label">可用色 <b id="palette-count">291</b></span>
+                </div>
+
+                <div class="option-line">
+                  <span>品牌：</span>
+                  <button class="chip active" type="button" data-brand="mard" aria-pressed="true">
+                    MARD
+                  </button>
+                  <button class="chip" type="button" data-brand="coco" aria-pressed="false">
+                    COCO
+                  </button>
+                  <button class="chip" type="button" data-brand="manman" aria-pressed="false">
+                    漫漫
+                  </button>
+                  <button class="chip" type="button" data-brand="panpan" aria-pressed="false">
+                    盼盼
+                  </button>
+                  <button class="chip" type="button" data-brand="mixiaowo" aria-pressed="false">
+                    咪小窝
+                  </button>
+                </div>
+
+                <label class="field compact-field">
+                  <span>色号：</span>
+                  <select id="palette-select">
+                    <option value="291" selected>291 色</option>
+                    <option value="264">264 色</option>
+                    <option value="221">221 色</option>
+                    <option value="144">144 色</option>
+                    <option value="90">90 色</option>
+                    <option value="72">72 色</option>
+                    <option value="64">64 色</option>
+                    <option value="48">48 色</option>
+                  </select>
+                </label>
+                <p class="field-hint">MARD 使用 2026 修订版 291 色 HEX 色表。</p>
+
+                <label class="field compact-field">
+                  <span>分版：</span>
+                  <select id="tile-size-select">
+                    <option value="0">不分版</option>
+                    <option value="52" selected>52 x 52 小版</option>
+                    <option value="78">78 x 78 中版</option>
+                    <option value="104">104 x 104 大版</option>
+                  </select>
+                </label>
+
+                <label class="field compact-field">
+                  <span>镜像：</span>
+                  <select id="mirror-select">
+                    <option value="normal" selected>正向图纸</option>
+                    <option value="mirror">镜像图纸（特殊烫）</option>
+                  </select>
+                </label>
+
+                <label class="field compact-field">
+                  <span>A4打印：</span>
+                  <select id="print-layout-select">
+                    <option value="portrait" selected>A4竖版分页</option>
+                    <option value="landscape">A4横版分页</option>
+                  </select>
+                </label>
+
+                <label class="field compact-field">
+                  <span>页边距：</span>
+                  <input id="print-margin-input" type="number" min="5" max="20" value="10" />
+                </label>
+                <p class="field-hint">A4分页按纸张可打印区域切割，和拼豆板分版不同。</p>
+
+                <div class="export-actions">
+                  <button class="outline-button" id="edit-button" type="button" disabled>
+                    画板修改
+                  </button>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <aside class="side-panel" aria-label="公益邀请注册">
+            <section class="panel invite-panel">
+              <div class="invite-logo" aria-hidden="true">
+                <img src="/libai-logo-pixel.svg" alt="" />
+              </div>
+              <p class="invite-kicker">公益项目</p>
+              <h2>邀请制使用</h2>
+              <p>
+                里白造物拼豆图纸生成器面向受邀创作者开放。注册后可继续使用下载、分版和高清导出能力。
+              </p>
+              <div class="invite-status" id="invite-status">未注册</div>
+              <button type="button" class="quick-button" id="register-open-button-side">
+                输入邀请码注册
+              </button>
+            </section>
+          </aside>
+        </div>
+      </main>
+
+      <section class="gallery-section" aria-labelledby="gallery-title">
+        <div class="gallery-head">
+          <div>
+            <p class="section-kicker">Generated Patterns</p>
+            <h2 id="gallery-title">最近生成图纸</h2>
+            <p>每次生成或修改保存后，图纸会自动出现在这里，方便回看和挑选。</p>
+          </div>
+          <div class="gallery-tools">
+            <label class="gallery-search">
+              <span>搜索</span>
+              <input id="gallery-search" type="search" placeholder="搜索名称、尺寸、色号" />
+            </label>
+            <button class="outline-button" id="gallery-clear-button" type="button">清空记录</button>
+          </div>
+        </div>
+        <div class="gallery-count" id="gallery-count">0 张图纸</div>
+        <div class="generated-gallery" id="generated-gallery"></div>
+        <p class="gallery-empty" id="gallery-empty">生成第一张拼豆图纸后，会自动展示在这里。</p>
+      </section>
+
+      <footer class="site-footer">
+        <strong>里白造物拼豆图纸生成器 © 2026</strong>
+        <p>本站为纯前端公益工具，您的图片仅在本地浏览器处理，本站不收集、不存储任何用户隐私与图片，请放心使用。</p>
+        <p>本站与 Perler®、Hama® 等品牌无任何官方关联，相关商标版权归其各自所有者所有。</p>
+        <details class="compliance-disclosure">
+          <summary>网站免责与合规声明</summary>
+          <p>
+            本站为开源/公益性拼豆图纸本地生成工具。所有图片转换、像素化处理均在用户本地浏览器（客户端）完成，本站服务器不存储、不传输、不审核任何用户上传的图片。用户使用本工具生成的任何拼豆图纸，其原始图片版权及由此引发的法律责任完全由操作用户本人承担。本站严禁任何用户利用本工具生成涉及政治敏感、暴恐、色情、侵权等违反国家法律法规的内容。图纸中所附带的“网站 Logo 与名称”仅作为工具技术出处的数字水印，不代表本站赞同、认可或审核过该生成内容。任何恶意生成违规内容并传播者，本站将积极配合有关部门追究其法律责任。
+          </p>
+        </details>
+      </footer>
+
+      <nav class="mobile-tabbar" aria-label="移动端快捷操作">
+        <div class="mobile-tabbar-row mobile-primary-row">
+          <button type="button" id="mobile-import-button">导入</button>
+          <button type="button" id="mobile-process-button">生成</button>
+          <button type="button" id="mobile-download-button">下载</button>
+        </div>
+        <div class="mobile-tabbar-row mobile-download-row">
+          <button type="button" id="mobile-preview-download-button" disabled>下载预览图</button>
+          <button type="button" id="mobile-chart-download-button" disabled>下载图纸</button>
+          <button type="button" id="mobile-print-a4-button" disabled>下载A4分版</button>
+        </div>
+      </nav>
+    </div>
+
+    <dialog class="modal preview-modal" id="preview-modal">
+      <div class="modal-head">
+        <strong>图纸预览</strong>
+        <div class="icon-row">
+          <button class="icon-button" id="preview-zoom-out" type="button" title="缩小">−</button>
+          <button class="icon-button" id="preview-zoom-reset" type="button" title="重置">⟳</button>
+          <button class="icon-button" id="preview-zoom-in" type="button" title="放大">+</button>
+          <button class="icon-button close-button" data-close="preview-modal" type="button" title="关闭">
+            ×
+          </button>
+        </div>
+      </div>
+      <div class="preview-viewport">
+        <img id="modal-preview-image" alt="图纸大图预览" />
+      </div>
+    </dialog>
+
+    <dialog class="modal register-modal" id="register-modal">
+      <form class="register-form" id="register-form" method="dialog">
+        <div class="modal-head">
+          <strong>邀请注册</strong>
+          <button class="icon-button close-button" data-close="register-modal" type="button" title="关闭">
+            ×
+          </button>
+        </div>
+        <div class="register-body">
+          <img src="/libai-logo-pixel.svg" alt="" />
+          <label class="field">
+            <span>创作者名称</span>
+            <input id="register-name" type="text" autocomplete="name" placeholder="请输入你的名称" />
+          </label>
+          <label class="field">
+            <span>邀请码</span>
+            <input id="invite-code" type="text" autocomplete="off" value="LBPD2026" />
+          </label>
+          <p class="form-message" id="register-message">
+            邀请码由项目维护者发放。公益项目不展示购买入口。
+          </p>
+        </div>
+        <div class="modal-foot">
+          <button class="outline-button" data-close="register-modal" type="button">取消</button>
+          <button class="primary-action" id="register-submit" type="submit">完成注册</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal link-import-modal" id="link-import-modal">
+      <form class="register-form" id="link-import-form" method="dialog">
+        <div class="modal-head">
+          <strong>从链接导入</strong>
+          <button class="icon-button close-button" data-close="link-import-modal" type="button" title="关闭">
+            ×
+          </button>
+        </div>
+        <div class="register-body">
+          <label class="field">
+            <span>图片直链</span>
+            <input
+              id="link-import-url"
+              type="url"
+              autocomplete="off"
+              placeholder="https://example.com/image.png"
+            />
+          </label>
+          <p class="form-message" id="link-import-message">
+            支持可直接访问的 JPG / PNG / WEBP 图片链接。
+          </p>
+        </div>
+        <div class="modal-foot">
+          <button class="outline-button" data-close="link-import-modal" type="button">取消</button>
+          <button class="primary-action" type="submit">导入图片</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal editor-modal" id="editor-modal">
+      <div class="modal-head">
+        <strong id="editor-title">画板修改</strong>
+        <div class="icon-row">
+          <button class="icon-button" id="editor-more-tools-button" type="button" title="更多工具">☰</button>
+          <button class="icon-button" id="editor-zoom-out" type="button" title="缩小">−</button>
+          <span class="zoom-label" id="editor-zoom-label">100%</span>
+          <button class="icon-button" id="editor-zoom-in" type="button" title="放大">+</button>
+          <button class="icon-button" id="editor-zoom-reset" type="button" title="重置">⟳</button>
+          <button class="icon-button close-button" data-close="editor-modal" type="button" title="关闭">
+            ×
+          </button>
+        </div>
+      </div>
+
+      <div class="editor-body">
+        <aside class="editor-sidebar">
+          <div class="editor-tool-dock" id="editor-tool-dock">
+            <div class="editor-tool-head">
+              <strong>创作工具</strong>
+              <button class="text-link-button" id="editor-tools-collapse" type="button">收起</button>
+            </div>
+            <div class="editor-tool-grid" role="toolbar" aria-label="画布工具">
+              <button class="tool-button active" type="button" data-editor-tool="pencil">铅笔</button>
+              <button class="tool-button" type="button" data-editor-tool="eraser">橡皮擦</button>
+              <button class="tool-button" type="button" data-editor-tool="eyedropper">吸管</button>
+              <button class="tool-button" type="button" data-editor-tool="cut">剪切移动</button>
+              <button class="tool-button" type="button" data-editor-tool="copy">复制移动</button>
+            </div>
+          </div>
+
+          <label class="field">
+            <span>编辑色板</span>
+            <select id="editor-palette-select">
+              <option value="291" selected>291 色</option>
+              <option value="264">264 色</option>
+              <option value="221">221 色</option>
+              <option value="144">144 色</option>
+              <option value="90">90 色</option>
+              <option value="72">72 色</option>
+              <option value="64">64 色</option>
+              <option value="48">48 色</option>
+            </select>
+          </label>
+
+          <div class="selection-strip">
+            <span id="current-selection">留空</span>
+            <span class="current-swatch empty" id="current-swatch"></span>
+          </div>
+
+          <button class="outline-button wide" id="clear-color-button" type="button">画笔挖空</button>
+          <button class="outline-button wide" id="undo-paint-button" type="button" disabled>
+            撤回上一笔
+          </button>
+
+          <div class="floating-tools" id="floating-tools" hidden>
+            <strong id="floating-title">待放置图案</strong>
+            <small class="field-hint">拖动画布中的蓝框到目标位置，再应用。</small>
+            <div class="replace-actions">
+              <button class="primary-action" id="apply-floating-button" type="button">应用</button>
+              <button class="outline-button" id="cancel-floating-button" type="button">取消</button>
+            </div>
+          </div>
+
+          <div class="replace-box">
+            <strong>区域替换 / 一键换色 / 挖空</strong>
+            <small class="field-hint">目标色选“挖空”，即可清空同色格子。</small>
+            <select id="replace-from"></select>
+            <select id="replace-to"></select>
+            <div class="replace-actions">
+              <button class="primary-action" id="replace-button" type="button" disabled>执行</button>
+              <button class="outline-button" id="undo-replace-button" type="button" disabled>
+                撤回换色
+              </button>
+            </div>
+          </div>
+
+          <details class="more-tools-panel" id="more-tools-panel" open>
+            <summary>更多工具</summary>
+            <div class="tool-section">
+              <strong>视图与辅助</strong>
+              <label><input id="toggle-editor-grid" type="checkbox" checked /> 显示网格</label>
+              <label><input id="toggle-editor-codes" type="checkbox" checked /> 显示豆名</label>
+              <label><input id="toggle-editor-coords" type="checkbox" checked /> 显示坐标</label>
+              <label><input id="toggle-editor-snap" type="checkbox" checked /> 坐标吸附</label>
+              <select id="editor-toolbar-position">
+                <option value="left" selected>工具栏左侧</option>
+                <option value="right">工具栏右侧</option>
+              </select>
+            </div>
+
+            <div class="tool-section">
+              <strong>图层与导入</strong>
+              <div class="replace-actions">
+                <button class="outline-button" id="flip-horizontal-button" type="button">水平翻转</button>
+                <button class="outline-button" id="flip-vertical-button" type="button">垂直翻转</button>
+              </div>
+              <div class="replace-actions">
+                <button class="outline-button" id="scale-down-button" type="button">缩小 50%</button>
+                <button class="outline-button" id="scale-up-button" type="button">放大 200%</button>
+              </div>
+              <input id="reference-image-input" type="file" accept="image/*" hidden />
+              <div class="replace-actions">
+                <button class="outline-button" id="reference-image-button" type="button">背景/参考图</button>
+                <button class="outline-button" id="clear-reference-button" type="button">移除参考</button>
+              </div>
+              <select id="library-import-select">
+                <option value="">从作品库导入</option>
+              </select>
+              <button class="outline-button wide" id="import-library-button" type="button" disabled>
+                导入到画布
+              </button>
+            </div>
+
+            <div class="tool-section">
+              <strong>清理工具</strong>
+              <div class="replace-actions">
+                <button class="outline-button" id="trim-artwork-button" type="button">裁剪空白</button>
+                <button class="outline-button" id="fit-editor-button" type="button">适应屏幕</button>
+              </div>
+              <button class="outline-button wide danger-action" id="clear-artwork-button" type="button">
+                清空作品
+              </button>
+            </div>
+          </details>
+
+          <div class="palette-groups" id="palette-groups"></div>
+        </aside>
+
+        <div class="editor-canvas-wrap">
+          <canvas id="editor-canvas"></canvas>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <input id="artwork-name-input" class="artwork-name-input" type="text" placeholder="作品命名" />
+        <button class="outline-button" id="cancel-edit-button" type="button">取消</button>
+        <button class="outline-button" id="assembly-mode-button" type="button">开始拼豆</button>
+        <button class="outline-button" id="save-library-button" type="button">保存作品库</button>
+        <button class="outline-button" id="download-editor-button" type="button">下载本地</button>
+        <button class="outline-button" id="publish-community-button" type="button">发布社区</button>
+        <button class="primary-action" id="save-edit-button" type="button">保存修改</button>
+      </div>
+    </dialog>
+
+    <script src="/app.js?v=20260527-independent-site" defer></script>
+  </body>
+</html>

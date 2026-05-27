@@ -38,7 +38,6 @@ const A4_DPI = 300;
 const A4_SIZE_MM = { width: 210, height: 297 };
 const EDITOR_CELL_SIZE = 30;
 const EDITOR_MARGIN = 42;
-const MAX_LOCAL_IMAGE_WIDTH = 1024;
 const TFJS_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js";
 const NSFWJS_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/nsfwjs@4.2.1/dist/nsfwjs.min.js";
 const SAFETY_SCRIPT_LOAD_TIMEOUT = 8000;
@@ -491,6 +490,9 @@ const els = {
   mobileImportButton: document.querySelector("#mobile-import-button"),
   mobileProcessButton: document.querySelector("#mobile-process-button"),
   mobileDownloadButton: document.querySelector("#mobile-download-button"),
+  mobilePreviewDownloadButton: document.querySelector("#mobile-preview-download-button"),
+  mobileChartDownloadButton: document.querySelector("#mobile-chart-download-button"),
+  mobilePrintA4Button: document.querySelector("#mobile-print-a4-button"),
   fullscreenButton: document.querySelector("#fullscreen-button"),
   registerOpenButton: document.querySelector("#register-open-button"),
   registerOpenButtonSide: document.querySelector("#register-open-button-side"),
@@ -723,6 +725,9 @@ function bindEvents() {
   els.mobileImportButton?.addEventListener("click", startManualImport);
   els.mobileProcessButton?.addEventListener("click", processImage);
   els.mobileDownloadButton?.addEventListener("click", downloadPattern);
+  els.mobilePreviewDownloadButton?.addEventListener("click", downloadPreviewImage);
+  els.mobileChartDownloadButton?.addEventListener("click", downloadPattern);
+  els.mobilePrintA4Button?.addEventListener("click", downloadA4PrintPattern);
   els.fullscreenButton?.addEventListener("click", toggleFullscreen);
   els.registerOpenButton?.addEventListener("click", openRegisterModal);
   els.registerOpenButtonSide?.addEventListener("click", openRegisterModal);
@@ -1278,7 +1283,7 @@ async function loadFile(file) {
   }
 
   try {
-    setStatus("本地预处理");
+    setStatus("读取图片");
     els.processButton.disabled = true;
     const prepared = await prepareLocalImage(file);
     setStatus("本地审查中");
@@ -1333,28 +1338,8 @@ async function loadFile(file) {
 
 async function prepareLocalImage(file) {
   const dataUrl = await readFileAsDataUrl(file);
-  const image = await loadImage(dataUrl);
-  const sourceWidth = Math.max(1, image.naturalWidth || image.width || 1);
-  const sourceHeight = Math.max(1, image.naturalHeight || image.height || 1);
-  const scale = Math.min(1, MAX_LOCAL_IMAGE_WIDTH / sourceWidth);
-  const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
-  const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
-  const canvas = document.createElement("canvas");
-  canvas.width = targetWidth;
-  canvas.height = targetHeight;
-  const context = canvas.getContext("2d", { willReadFrequently: false });
-  if (!context) throw new Error("浏览器不支持图片预处理");
-  context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = "high";
-  context.clearRect(0, 0, targetWidth, targetHeight);
-  context.drawImage(image, 0, 0, targetWidth, targetHeight);
-  const outputType = file.type === "image/png" || file.type === "image/webp" ? "image/png" : "image/jpeg";
-  const outputDataUrl =
-    outputType === "image/jpeg" ? canvas.toDataURL(outputType, 0.88) : canvas.toDataURL(outputType);
   return {
-    dataUrl: outputDataUrl,
-    width: targetWidth,
-    height: targetHeight,
+    dataUrl,
   };
 }
 
@@ -2961,6 +2946,10 @@ function updateResultUi() {
     els.previewDownloadButton.hidden = !hasResult;
     els.previewDownloadButton.disabled = !hasResult;
   }
+  if (els.mobileDownloadButton) els.mobileDownloadButton.disabled = !hasResult;
+  if (els.mobilePreviewDownloadButton) els.mobilePreviewDownloadButton.disabled = !hasResult;
+  if (els.mobileChartDownloadButton) els.mobileChartDownloadButton.disabled = !hasResult;
+  if (els.mobilePrintA4Button) els.mobilePrintA4Button.disabled = !hasResult;
   els.editButton.disabled = !hasResult;
   els.downloadButton.disabled = false;
   if (els.downloadButtonTop) els.downloadButtonTop.disabled = false;

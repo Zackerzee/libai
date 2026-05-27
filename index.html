@@ -8,15 +8,15 @@
       content="里白造物公益拼豆图纸生成器，上传图片，调整精细度，一键生成像素画拼豆图纸。"
     />
     <title>里白造物拼豆图纸生成器 | LiBai Maker Studio</title>
-    <link rel="icon" href="./libai-logo-pixel.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=20260527-compliance-local" />
+    <link rel="icon" href="/libai-logo-pixel.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css?v=20260527-independent-site" />
   </head>
   <body>
     <div class="app-shell">
       <header class="topbar">
         <div class="topbar-inner">
           <a class="brand" href="#" aria-label="里白造物拼豆图纸生成器">
-            <img src="./libai-logo-pixel.svg" alt="" />
+            <img src="/libai-logo-pixel.svg" alt="" />
             <span>
               <strong>里白造物</strong>
               <small>LiBai Maker Studio</small>
@@ -29,7 +29,7 @@
           </nav>
 
           <div class="top-actions">
-            <a class="soft-button home-button" href="./index.html">主页</a>
+            <a class="soft-button home-button" href="/index.html">主页</a>
             <button type="button" class="soft-button hide-sm" id="register-open-button">邀请注册</button>
           </div>
         </div>
@@ -301,7 +301,7 @@
           <aside class="side-panel" aria-label="公益邀请注册">
             <section class="panel invite-panel">
               <div class="invite-logo" aria-hidden="true">
-                <img src="./libai-logo-pixel.svg" alt="" />
+                <img src="/libai-logo-pixel.svg" alt="" />
               </div>
               <p class="invite-kicker">公益项目</p>
               <h2>邀请制使用</h2>
@@ -350,9 +350,16 @@
       </footer>
 
       <nav class="mobile-tabbar" aria-label="移动端快捷操作">
-        <button type="button" id="mobile-import-button">导入</button>
-        <button type="button" id="mobile-process-button">生成</button>
-        <button type="button" id="mobile-download-button">下载</button>
+        <div class="mobile-tabbar-row mobile-primary-row">
+          <button type="button" id="mobile-import-button">导入</button>
+          <button type="button" id="mobile-process-button">生成</button>
+          <button type="button" id="mobile-download-button">下载</button>
+        </div>
+        <div class="mobile-tabbar-row mobile-download-row">
+          <button type="button" id="mobile-preview-download-button" disabled>下载预览图</button>
+          <button type="button" id="mobile-chart-download-button" disabled>下载图纸</button>
+          <button type="button" id="mobile-print-a4-button" disabled>下载A4分版</button>
+        </div>
       </nav>
     </div>
 
@@ -382,7 +389,7 @@
           </button>
         </div>
         <div class="register-body">
-          <img src="./libai-logo-pixel.svg" alt="" />
+          <img src="/libai-logo-pixel.svg" alt="" />
           <label class="field">
             <span>创作者名称</span>
             <input id="register-name" type="text" autocomplete="name" placeholder="请输入你的名称" />
@@ -576,6 +583,6 @@
       </div>
     </dialog>
 
-    <script src="./app.js?v=20260527-compliance-local" defer></script>
+    <script src="/app.js?v=20260527-independent-site" defer></script>
   </body>
 </html>
