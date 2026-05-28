@@ -38,6 +38,8 @@ const A4_DPI = 300;
 const A4_SIZE_MM = { width: 210, height: 297 };
 const EDITOR_CELL_SIZE = 30;
 const EDITOR_MARGIN = 42;
+const DIRECT_PATTERN_COLOR_TOLERANCE = 38;
+const DIRECT_PATTERN_MIN_COLOR_COUNT = 3;
 const TFJS_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js";
 const NSFWJS_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/nsfwjs@4.2.1/dist/nsfwjs.min.js";
 const SAFETY_SCRIPT_LOAD_TIMEOUT = 8000;
@@ -483,6 +485,7 @@ const els = {
   editorPaletteSelect: document.querySelector("#editor-palette-select"),
   uploadZone: document.querySelector("#upload-zone"),
   fileInput: document.querySelector("#file-input"),
+  directPatternFileInput: document.querySelector("#direct-pattern-file-input"),
   sourcePreview: document.querySelector("#source-preview"),
   sourceTitle: document.querySelector("#source-title"),
   statusPill: document.querySelector("#status-pill"),
@@ -490,6 +493,7 @@ const els = {
   mobileImportButton: document.querySelector("#mobile-import-button"),
   mobileProcessButton: document.querySelector("#mobile-process-button"),
   mobileDownloadButton: document.querySelector("#mobile-download-button"),
+  mobileStartAssemblyButton: document.querySelector("#mobile-start-assembly-button"),
   mobilePreviewDownloadButton: document.querySelector("#mobile-preview-download-button"),
   mobileChartDownloadButton: document.querySelector("#mobile-chart-download-button"),
   mobilePrintA4Button: document.querySelector("#mobile-print-a4-button"),
@@ -504,6 +508,7 @@ const els = {
   registerMessage: document.querySelector("#register-message"),
   smartPhotoButton: document.querySelector("#smart-photo-button"),
   smartRestoreButton: document.querySelector("#smart-restore-button"),
+  smartDirectButton: document.querySelector("#smart-direct-button"),
   smartOcrButton: document.querySelector("#smart-ocr-button"),
   smartLinkButton: document.querySelector("#smart-link-button"),
   tutorialButton: document.querySelector("#tutorial-button"),
@@ -511,6 +516,25 @@ const els = {
   linkImportForm: document.querySelector("#link-import-form"),
   linkImportUrl: document.querySelector("#link-import-url"),
   linkImportMessage: document.querySelector("#link-import-message"),
+  directPatternModal: document.querySelector("#direct-pattern-modal"),
+  directPatternForm: document.querySelector("#direct-pattern-form"),
+  directPatternWidth: document.querySelector("#direct-pattern-width"),
+  directPatternHeight: document.querySelector("#direct-pattern-height"),
+  directPatternMessage: document.querySelector("#direct-pattern-message"),
+  assemblyModal: document.querySelector("#assembly-modal"),
+  assemblyProgressLabel: document.querySelector("#assembly-progress-label"),
+  assemblySummary: document.querySelector("#assembly-summary"),
+  assemblyColorList: document.querySelector("#assembly-color-list"),
+  assemblyBoard: document.querySelector("#pixel-board-container"),
+  assemblyClearFocusButton: document.querySelector("#assembly-clear-focus-button"),
+  assemblyResetProgressButton: document.querySelector("#assembly-reset-progress-button"),
+  exitModal: document.querySelector("#exit-modal"),
+  exitConfirmButton: document.querySelector("#btn-confirm-exit"),
+  exitCancelButton: document.querySelector("#btn-cancel-exit"),
+  donateModal: document.querySelector("#donate-modal"),
+  donateOpenButton: document.querySelector("#btn-open-donate"),
+  donateCloseButton: document.querySelector("#btn-close-donate"),
+  donateQrcode: document.querySelector("#donate-qrcode"),
   downloadButtonTop: document.querySelector("#download-button-top"),
   blankBoardButton: document.querySelector("#blank-board-button"),
   granularityInput: document.querySelector("#granularity-input"),
@@ -536,6 +560,8 @@ const els = {
   statsSummary: document.querySelector("#stats-summary"),
   statsList: document.querySelector("#stats-list"),
   editButton: document.querySelector("#edit-button"),
+  startAssemblyButton: document.querySelector("#start-assembly-button"),
+  startAssemblyPanelButton: document.querySelector("#start-assembly-panel-button"),
   downloadButton: document.querySelector("#download-button"),
   printA4Button: document.querySelector("#print-a4-button"),
   previewModal: document.querySelector("#preview-modal"),
@@ -627,6 +653,15 @@ const state = {
   },
   assemblyMode: false,
   assemblyHighlightCode: "",
+  playActiveCode: "",
+  currentSelectedColor: null,
+  playCompletedBeads: new Set(),
+  playStorageKey: "",
+  playHoverRow: "",
+  playHoverCol: "",
+  assemblyHistoryActive: false,
+  assemblyHideCellText: false,
+  directPatternFile: null,
   paintUndo: [],
   replaceUndo: [],
   isPainting: false,
@@ -727,6 +762,7 @@ function bindEvents() {
   els.mobileImportButton?.addEventListener("click", startManualImport);
   els.mobileProcessButton?.addEventListener("click", processImage);
   els.mobileDownloadButton?.addEventListener("click", downloadPattern);
+  els.mobileStartAssemblyButton?.addEventListener("click", openAssemblyPlayer);
   els.mobilePreviewDownloadButton?.addEventListener("click", downloadPreviewImage);
   els.mobileChartDownloadButton?.addEventListener("click", downloadPattern);
   els.mobilePrintA4Button?.addEventListener("click", downloadA4PrintPattern);
@@ -736,10 +772,13 @@ function bindEvents() {
   els.registerForm?.addEventListener("submit", registerWithInvite);
   els.smartPhotoButton?.addEventListener("click", startPhotoImport);
   els.smartRestoreButton?.addEventListener("click", startRestoreImport);
+  els.smartDirectButton?.addEventListener("click", startDirectPatternImport);
   els.smartOcrButton?.addEventListener("click", startOcrImport);
   els.smartLinkButton?.addEventListener("click", openLinkImportModal);
   els.tutorialButton?.addEventListener("click", showTutorialHint);
   els.linkImportForm?.addEventListener("submit", importImageFromLink);
+  els.directPatternFileInput?.addEventListener("change", handleDirectPatternFileChange);
+  els.directPatternForm?.addEventListener("submit", handleDirectPatternSubmit);
   els.gallerySearch?.addEventListener("input", renderGeneratedGallery);
   els.galleryClearButton?.addEventListener("click", clearGeneratedGallery);
   els.downloadButtonTop?.addEventListener("click", downloadPattern);
@@ -822,6 +861,33 @@ function bindEvents() {
   els.downloadButton.addEventListener("click", downloadPattern);
   els.printA4Button?.addEventListener("click", downloadA4PrintPattern);
   els.editButton.addEventListener("click", openEditor);
+  els.startAssemblyButton?.addEventListener("click", openAssemblyPlayer);
+  els.startAssemblyPanelButton?.addEventListener("click", openAssemblyPlayer);
+  els.assemblyBoard?.addEventListener("click", handleAssemblyBoardClick);
+  els.assemblyBoard?.addEventListener("pointerover", handleAssemblyBoardPointerOver);
+  els.assemblyBoard?.addEventListener("pointerleave", clearAssemblyCrosshair);
+  els.assemblyClearFocusButton?.addEventListener("click", () => selectAssemblyColor(""));
+  els.assemblyResetProgressButton?.addEventListener("click", resetAssemblyProgress);
+  els.exitConfirmButton?.addEventListener("click", confirmAssemblyExit);
+  els.exitCancelButton?.addEventListener("click", hideExitModal);
+  els.exitModal?.addEventListener("click", (event) => {
+    if (event.target === els.exitModal) hideExitModal();
+  });
+  els.exitModal?.addEventListener("close", () => {
+    els.exitModal.setAttribute("aria-hidden", "true");
+  });
+  els.donateOpenButton?.addEventListener("click", openDonateModal);
+  els.donateCloseButton?.addEventListener("click", closeDonateModal);
+  els.donateModal?.addEventListener("click", (event) => {
+    if (event.target === els.donateModal) closeDonateModal();
+  });
+  els.donateQrcode?.addEventListener("load", () => {
+    els.donateQrcode.closest(".qrcode-container")?.classList.add("has-qrcode");
+  });
+  els.donateQrcode?.addEventListener("error", () => {
+    els.donateQrcode.closest(".qrcode-container")?.classList.add("is-missing");
+  });
+  window.addEventListener("popstate", handleAssemblyPopState);
 
   els.previewZoomOut.addEventListener("click", () => setPreviewZoom(state.previewZoom - 0.2));
   els.previewZoomIn.addEventListener("click", () => setPreviewZoom(state.previewZoom + 0.2));
@@ -887,16 +953,38 @@ function bindEvents() {
   });
 
   document.querySelectorAll("[data-close]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
+      if (button.dataset.close === "assembly-modal") {
+        event.preventDefault();
+        showExitModal();
+        return;
+      }
       document.querySelector(`#${button.dataset.close}`)?.close();
     });
   });
 
-  [els.previewModal, els.registerModal, els.linkImportModal, els.editorModal].forEach((modal) => {
+  [
+    els.previewModal,
+    els.registerModal,
+    els.linkImportModal,
+    els.directPatternModal,
+    els.assemblyModal,
+    els.editorModal,
+  ].forEach((modal) => {
     if (!modal) return;
     modal.addEventListener("click", (event) => {
-      if (event.target === modal) modal.close();
+      if (event.target !== modal) return;
+      if (modal === els.assemblyModal) {
+        showExitModal();
+        return;
+      }
+      modal.close();
     });
+  });
+  els.assemblyModal?.addEventListener("close", clearAssemblyFocusMode);
+  els.assemblyModal?.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    showExitModal();
   });
 }
 
@@ -1155,6 +1243,65 @@ function startRestoreImport() {
   setStatus("像素图直标");
   els.fileInput.value = "";
   els.fileInput.click();
+}
+
+function startDirectPatternImport() {
+  state.importMode = "directPattern";
+  state.directPatternFile = null;
+  setStatus("已有图纸直接拼");
+  if (els.directPatternMessage) {
+    els.directPatternMessage.textContent = "请选择已经做好的像素图纸，再填写横向和纵向格数。";
+  }
+  if (els.directPatternFileInput) {
+    els.directPatternFileInput.value = "";
+    els.directPatternFileInput.click();
+  }
+}
+
+function handleDirectPatternFileChange(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (!isImageFile(file)) {
+    setStatus("请用 PNG/JPG");
+    return;
+  }
+  state.directPatternFile = file;
+  const defaultWidth = Number(els.granularityInput?.value || DEFAULT_GRANULARITY);
+  if (els.directPatternWidth) els.directPatternWidth.value = String(clamp(defaultWidth, 1, 500));
+  if (els.directPatternHeight) els.directPatternHeight.value = String(clamp(defaultWidth, 1, 500));
+  if (els.directPatternMessage) {
+    els.directPatternMessage.textContent = `已选择：${file.name}。请填写图纸实际格数。`;
+  }
+  els.directPatternModal?.showModal();
+  els.directPatternWidth?.focus();
+}
+
+async function handleDirectPatternSubmit(event) {
+  event.preventDefault();
+  const file = state.directPatternFile;
+  const gridWidth = Math.floor(Number(els.directPatternWidth?.value || 0));
+  const gridHeight = Math.floor(Number(els.directPatternHeight?.value || 0));
+  if (!file) {
+    if (els.directPatternMessage) els.directPatternMessage.textContent = "请先选择一张图纸图片。";
+    return;
+  }
+  if (gridWidth < 1 || gridHeight < 1 || gridWidth > 500 || gridHeight > 500) {
+    if (els.directPatternMessage) els.directPatternMessage.textContent = "格数需要在 1 到 500 之间。";
+    return;
+  }
+  try {
+    setStatus("扫描图纸中");
+    if (els.directPatternMessage) els.directPatternMessage.textContent = "正在读取每个格子的中心颜色...";
+    await scanReadyMadePattern(file, gridWidth, gridHeight);
+    els.directPatternModal?.close();
+    openAssemblyPlayer();
+  } catch (error) {
+    console.error(error);
+    setStatus("扫描失败");
+    if (els.directPatternMessage) {
+      els.directPatternMessage.textContent = "扫描失败，请确认图片清晰，并且格数填写正确。";
+    }
+  }
 }
 
 function startOcrImport() {
@@ -1484,6 +1631,7 @@ async function processImage(options = {}) {
     state.backgroundDecision = result.backgroundDecision || "";
     state.paletteLabel = getCurrentPaletteLabel();
     state.stats = calculateStats(state.grid);
+    state.assemblyHideCellText = false;
     refreshChartUrl();
     updateResultUi();
     if (options.saveGallery !== false) saveCurrentToGallery();
@@ -1640,6 +1788,177 @@ function loadImage(src) {
     image.onerror = () => reject(new Error("图片无法解码或读取"));
     image.src = src;
   });
+}
+
+async function scanReadyMadePattern(file, gridWidth, gridHeight) {
+  const dataUrl = await readFileAsDataUrl(file);
+  const safety = await runLocalContentSafetyCheck(dataUrl);
+  if (!safety.allowed) {
+    window.alert("检测到图片可能包含违规内容，无法生成");
+    throw new Error("blocked image");
+  }
+
+  const image = await loadImage(dataUrl);
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("canvas context unavailable");
+
+  canvas.width = image.naturalWidth || image.width;
+  canvas.height = image.naturalHeight || image.height;
+  context.imageSmoothingEnabled = false;
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  const cellPixelWidth = canvas.width / gridWidth;
+  const cellPixelHeight = canvas.height / gridHeight;
+  const rawMatrix = [];
+
+  for (let rowIndex = 0; rowIndex < gridHeight; rowIndex += 1) {
+    const row = [];
+    for (let colIndex = 0; colIndex < gridWidth; colIndex += 1) {
+      const centerX = clamp(Math.floor((colIndex + 0.5) * cellPixelWidth), 0, canvas.width - 1);
+      const centerY = clamp(Math.floor((rowIndex + 0.5) * cellPixelHeight), 0, canvas.height - 1);
+      const pixel = context.getImageData(centerX, centerY, 1, 1).data;
+      if (pixel[3] < 24 || isNearWhiteRgb(pixel)) {
+        row.push(null);
+      } else {
+        row.push(rgbToHex([pixel[0], pixel[1], pixel[2]]));
+      }
+    }
+    rawMatrix.push(row);
+  }
+
+  const simplified = sanitizeAndSimplifyDirectColors(rawMatrix, {
+    tolerance: DIRECT_PATTERN_COLOR_TOLERANCE,
+    minCount: DIRECT_PATTERN_MIN_COLOR_COUNT,
+  });
+
+  state.grid = simplified.grid;
+  state.width = gridWidth;
+  state.height = gridHeight;
+  state.stats = simplified.stats;
+  state.sourceDataUrl = dataUrl;
+  state.sourceName = file.name || "direct-pattern";
+  state.sourceSafetyChecked = true;
+  state.paletteLabel = `直接拼-C色号-${simplified.stats.length}色`;
+  state.backgroundDecision = `已合并相似色，过滤 ${simplified.removedCount} 个杂色格`;
+  state.assemblyHideCellText = true;
+
+  if (els.sourcePreview) {
+    els.sourcePreview.src = dataUrl;
+    els.sourcePreview.hidden = false;
+  }
+  els.uploadZone?.classList.add("has-image");
+  refreshChartUrl();
+  updateResultUi();
+  saveCurrentToGallery();
+  setStatus("已扫描，可开始拼");
+}
+
+function sanitizeAndSimplifyDirectColors(rawMatrix, options = {}) {
+  const tolerance = options.tolerance ?? DIRECT_PATTERN_COLOR_TOLERANCE;
+  const minCount = options.minCount ?? DIRECT_PATTERN_MIN_COLOR_COUNT;
+  const clusters = [];
+  const clusterMatrix = rawMatrix.map((row) =>
+    row.map((hexColor) => {
+      if (!hexColor) return null;
+      const rgbValue = hexToRgb(hexColor);
+      if (isNearWhiteRgb(rgbValue)) return null;
+      let clusterIndex = clusters.findIndex((cluster) => getColorDistance(cluster.rgb, rgbValue) <= tolerance);
+      if (clusterIndex < 0) {
+        clusterIndex =
+          clusters.push({
+            sum: [0, 0, 0],
+            rgb: [...rgbValue],
+            count: 0,
+          }) - 1;
+      }
+      const cluster = clusters[clusterIndex];
+      cluster.sum[0] += rgbValue[0];
+      cluster.sum[1] += rgbValue[1];
+      cluster.sum[2] += rgbValue[2];
+      cluster.count += 1;
+      cluster.rgb = cluster.sum.map((value) => value / cluster.count);
+      return clusterIndex;
+    }),
+  );
+
+  let keptClusters = clusters
+    .map((cluster, index) => ({
+      index,
+      count: cluster.count,
+      hex: rgbToHex(cluster.rgb),
+      rgb: cluster.rgb.map((value) => Math.round(clamp(value, 0, 255))),
+    }))
+    .filter((cluster) => cluster.count >= minCount);
+
+  if (!keptClusters.length && clusters.length) {
+    const largest = clusters
+      .map((cluster, index) => ({ index, count: cluster.count, hex: rgbToHex(cluster.rgb), rgb: cluster.rgb }))
+      .sort((a, b) => b.count - a.count)[0];
+    keptClusters = [
+      {
+        ...largest,
+        rgb: largest.rgb.map((value) => Math.round(clamp(value, 0, 255))),
+      },
+    ];
+  }
+
+  keptClusters.sort((a, b) => b.count - a.count || a.hex.localeCompare(b.hex));
+  const colorByCluster = new Map();
+  const stats = keptClusters.map((cluster, index) => {
+    const color = colorFromHex(`C${index + 1}`, cluster.hex, cluster.count);
+    colorByCluster.set(cluster.index, color);
+    return color;
+  });
+
+  let removedCount = 0;
+  const grid = clusterMatrix.map((row) =>
+    row.map((clusterIndex) => {
+      if (clusterIndex === null) return null;
+      const color = colorByCluster.get(clusterIndex);
+      if (!color) {
+        removedCount += 1;
+        return null;
+      }
+      return cloneColor(color);
+    }),
+  );
+
+  return { grid, stats, removedCount };
+}
+
+function extractAndCountColors(rawMatrix) {
+  const colorCounts = new Map();
+  for (const row of rawMatrix) {
+    for (const hexColor of row) {
+      if (!hexColor) continue;
+      colorCounts.set(hexColor, (colorCounts.get(hexColor) || 0) + 1);
+    }
+  }
+  return [...colorCounts.entries()]
+    .map(([color, count]) => ({ color, count }))
+    .sort((a, b) => b.count - a.count || a.color.localeCompare(b.color));
+}
+
+function getColorDistance(rgb1, rgb2) {
+  return Math.hypot(rgb1[0] - rgb2[0], rgb1[1] - rgb2[1], rgb1[2] - rgb2[2]);
+}
+
+function colorFromHex(code, hex, count = 0) {
+  return {
+    code,
+    hex,
+    rgb: hexToRgb(hex),
+    sourceHex: hex,
+    count,
+  };
+}
+
+function isNearWhiteRgb(pixel) {
+  const red = pixel[0];
+  const green = pixel[1];
+  const blue = pixel[2];
+  return red >= 248 && green >= 248 && blue >= 248;
 }
 
 function rasterizeImage(image, palette) {
@@ -2275,7 +2594,7 @@ function getActivePaletteKeyForStorage() {
 
 function serializeGridForLibrary(grid) {
   return grid
-    .map((row) => row.map((color) => (color ? color.code : ".")).join(","))
+    .map((row) => row.map((color) => (color ? `${color.code}|${rgbToHex(color.rgb)}` : ".")).join(","))
     .join(";");
 }
 
@@ -2284,7 +2603,12 @@ function deserializeGridFromLibrary(item) {
   const rows = String(item.gridData)
     .split(";")
     .map((row) =>
-      row.split(",").map((code) => (code && code !== "." ? cloneColor(findColorByCode(code, item.paletteKey)) : null)),
+      row.split(",").map((token) => {
+        if (!token || token === ".") return null;
+        const [code, hex] = token.split("|");
+        if (hex && /^#[0-9a-f]{6}$/i.test(hex)) return colorFromHex(code, hex);
+        return cloneColor(findColorByCode(code, item.paletteKey));
+      }),
     );
   return rows.length && rows[0]?.length ? rows : null;
 }
@@ -2957,10 +3281,13 @@ function updateResultUi() {
     els.previewDownloadButton.disabled = !hasResult;
   }
   if (els.mobileDownloadButton) els.mobileDownloadButton.disabled = !hasResult;
+  if (els.mobileStartAssemblyButton) els.mobileStartAssemblyButton.disabled = !hasResult;
   if (els.mobilePreviewDownloadButton) els.mobilePreviewDownloadButton.disabled = !hasResult;
   if (els.mobileChartDownloadButton) els.mobileChartDownloadButton.disabled = !hasResult;
   if (els.mobilePrintA4Button) els.mobilePrintA4Button.disabled = !hasResult;
   els.editButton.disabled = !hasResult;
+  if (els.startAssemblyButton) els.startAssemblyButton.disabled = !hasResult;
+  if (els.startAssemblyPanelButton) els.startAssemblyPanelButton.disabled = !hasResult;
   els.downloadButton.disabled = false;
   if (els.downloadButtonTop) els.downloadButtonTop.disabled = false;
   document.body.classList.toggle("has-result", hasResult);
@@ -3536,6 +3863,320 @@ const CRC_TABLE = (() => {
   }
   return table;
 })();
+
+function openAssemblyPlayer() {
+  if (!state.grid.length) {
+    setStatus("请先生成图纸，再开始拼");
+    return;
+  }
+  state.playStorageKey = getAssemblyStorageKey();
+  state.playCompletedBeads = loadAssemblyProgress(state.playStorageKey);
+  state.playActiveCode = "";
+  state.currentSelectedColor = null;
+  syncAssemblyFocusMode();
+  renderAssemblyColorList();
+  renderInteractiveBoard();
+  updateAssemblyProgressUi();
+  pushAssemblyHistoryState();
+  els.assemblyModal?.showModal();
+}
+
+function pushAssemblyHistoryState() {
+  if (state.assemblyHistoryActive) return;
+  try {
+    window.history.pushState({ libaiAssembly: true }, "", window.location.href);
+    state.assemblyHistoryActive = true;
+  } catch (error) {
+    console.warn("History state unavailable", error);
+  }
+}
+
+function handleAssemblyPopState() {
+  if (!state.assemblyHistoryActive || !els.assemblyModal?.open) return;
+  try {
+    window.history.pushState({ libaiAssembly: true }, "", window.location.href);
+  } catch (error) {
+    console.warn("History restore unavailable", error);
+  }
+  showExitModal();
+}
+
+function showExitModal() {
+  if (!els.assemblyModal?.open || !els.exitModal) return;
+  els.exitModal.setAttribute("aria-hidden", "false");
+  if (!els.exitModal.open) {
+    try {
+      els.exitModal.showModal();
+    } catch (error) {
+      console.warn("Exit dialog unavailable", error);
+    }
+  }
+  els.exitConfirmButton?.focus();
+}
+
+function hideExitModal() {
+  if (!els.exitModal) return;
+  els.exitModal.setAttribute("aria-hidden", "true");
+  if (els.exitModal.open) els.exitModal.close();
+}
+
+function confirmAssemblyExit() {
+  hideExitModal();
+  state.assemblyHistoryActive = false;
+  clearAssemblyCrosshair();
+  els.assemblyModal?.close();
+  setStatus("已退出开始拼");
+}
+
+function openDonateModal() {
+  if (!els.donateModal) return;
+  if (!els.donateModal.open) {
+    try {
+      els.donateModal.showModal();
+    } catch (error) {
+      console.warn("Donate dialog unavailable", error);
+    }
+  }
+  els.donateCloseButton?.focus();
+}
+
+function closeDonateModal() {
+  if (els.donateModal?.open) els.donateModal.close();
+}
+
+function getAssemblyStorageKey() {
+  const signature = [
+    getSchemeName() || state.sourceName || "local",
+    `${state.width}x${state.height}`,
+    state.paletteLabel || getCurrentPaletteLabel(),
+    state.stats.map((item) => `${item.code}:${item.count}`).join(","),
+  ].join("|");
+  return `libai-maker-assembly-${fnv1aHash(signature)}`;
+}
+
+function loadAssemblyProgress(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    const values = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(values) ? values : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveAssemblyProgress() {
+  if (!state.playStorageKey) return;
+  localStorage.setItem(state.playStorageKey, JSON.stringify([...state.playCompletedBeads]));
+}
+
+function renderAssemblyColorList() {
+  if (!els.assemblyColorList) return;
+  els.assemblyColorList.replaceChildren();
+  for (const item of state.stats) {
+    const itemColor = rgb(item);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `assembly-color-chip${state.playActiveCode === item.code ? " active" : ""}${
+      isDark(item.rgb) ? " light-text" : ""
+    }`;
+    button.style.backgroundColor = itemColor;
+    button.dataset.code = item.code;
+    button.dataset.color = itemColor;
+    button.innerHTML = `<strong>${item.code}</strong><span>${formatCount(item.count)}</span>`;
+    button.addEventListener("click", () => selectAssemblyColor(item.code));
+    els.assemblyColorList.append(button);
+  }
+}
+
+function selectAssemblyColor(code) {
+  if (!code || state.playActiveCode === code) {
+    state.playActiveCode = "";
+    state.currentSelectedColor = null;
+  } else {
+    const activeItem = state.stats.find((item) => item.code === code);
+    state.playActiveCode = code;
+    state.currentSelectedColor = activeItem ? rgb(activeItem) : null;
+  }
+  syncAssemblyFocusMode();
+  renderAssemblyColorList();
+  renderInteractiveBoard();
+  updateAssemblyProgressUi();
+}
+
+function getAssemblyActiveColor() {
+  return state.currentSelectedColor || "";
+}
+
+function syncAssemblyFocusMode() {
+  const activeColor = getAssemblyActiveColor();
+  document.body.classList.toggle("is-focus-mode", Boolean(activeColor));
+  document.body.dataset.activeBeadColor = activeColor || "";
+  document.documentElement.style.setProperty("--active-bead-color", activeColor || "transparent");
+}
+
+function clearAssemblyFocusMode() {
+  state.playActiveCode = "";
+  state.currentSelectedColor = null;
+  state.assemblyHistoryActive = false;
+  document.body.classList.remove("is-focus-mode");
+  document.body.dataset.activeBeadColor = "";
+  document.documentElement.style.setProperty("--active-bead-color", "transparent");
+  hideExitModal();
+  renderAssemblyColorList();
+}
+
+function getAssemblyLineClasses(rowIndex, colIndex) {
+  const classes = [];
+  if (Number.isInteger(colIndex)) {
+    if ((colIndex + 1) % 10 === 0) classes.push("line-10-col");
+    else if ((colIndex + 1) % 5 === 0) classes.push("line-5-col");
+  }
+  if (Number.isInteger(rowIndex)) {
+    if ((rowIndex + 1) % 10 === 0) classes.push("line-10-row");
+    else if ((rowIndex + 1) % 5 === 0) classes.push("line-5-row");
+  }
+  return classes.join(" ");
+}
+
+function createAxisCell(type, label, rowIndex, colIndex) {
+  const axis = document.createElement("span");
+  const lineClasses = getAssemblyLineClasses(rowIndex, colIndex);
+  axis.className = `axis-cell ${type}${lineClasses ? ` ${lineClasses}` : ""}`;
+  axis.textContent = label;
+  axis.setAttribute("aria-hidden", "true");
+  if (Number.isInteger(rowIndex)) axis.dataset.assemblyRow = String(rowIndex);
+  if (Number.isInteger(colIndex)) axis.dataset.assemblyCol = String(colIndex);
+  return axis;
+}
+
+function renderInteractiveBoard() {
+  const container = els.assemblyBoard;
+  if (!container) return;
+  const rows = state.grid.length;
+  const columns = state.grid[0]?.length || 0;
+  const activeColor = getAssemblyActiveColor();
+  state.playHoverRow = "";
+  state.playHoverCol = "";
+  container.replaceChildren();
+  container.style.setProperty("--assembly-columns", String(columns));
+  container.classList.toggle("hide-cell-text", state.assemblyHideCellText);
+
+  container.append(createAxisCell("axis-corner", "", null, null));
+  for (let colIndex = 0; colIndex < columns; colIndex += 1) {
+    const label = colIndex % 10 === 0 ? String(colIndex + 1) : "";
+    container.append(createAxisCell("axis-top", label, null, colIndex));
+  }
+
+  for (let rowIndex = 0; rowIndex < rows; rowIndex += 1) {
+    const axisLabel = rowIndex % 10 === 0 ? String(rowIndex + 1) : "";
+    container.append(createAxisCell("axis-left", axisLabel, rowIndex, null));
+
+    for (let colIndex = 0; colIndex < columns; colIndex += 1) {
+      const bead = state.grid[rowIndex][colIndex];
+      const cell = document.createElement("button");
+      const coordKey = `${rowIndex}_${colIndex}`;
+      const lineClasses = getAssemblyLineClasses(rowIndex, colIndex);
+      cell.type = "button";
+      cell.className = `bead-cell${lineClasses ? ` ${lineClasses}` : ""}`;
+      cell.dataset.coord = coordKey;
+      cell.dataset.row = String(rowIndex);
+      cell.dataset.col = String(colIndex);
+      cell.dataset.assemblyRow = String(rowIndex);
+      cell.dataset.assemblyCol = String(colIndex);
+      cell.setAttribute("aria-label", `行 ${rowIndex + 1}，列 ${colIndex + 1}`);
+
+      if (!bead) {
+        cell.classList.add("is-empty");
+        cell.setAttribute("aria-disabled", "true");
+      } else {
+        const beadColor = rgb(bead);
+        cell.dataset.code = bead.code;
+        cell.dataset.color = beadColor;
+        cell.style.backgroundColor = beadColor;
+        cell.title = `${bead.code} · 行 ${rowIndex + 1} · 列 ${colIndex + 1}`;
+        if (!state.assemblyHideCellText) {
+          cell.innerHTML = `<span class="bead-code">${escapeHtml(bead.code)}</span>`;
+        }
+        if (state.playCompletedBeads.has(coordKey)) cell.classList.add("is-completed");
+        if (activeColor && beadColor === activeColor) cell.classList.add("is-focus-target");
+      }
+
+      container.append(cell);
+    }
+  }
+}
+
+function handleAssemblyBoardPointerOver(event) {
+  const cell = event.target.closest?.(".bead-cell");
+  if (!cell || !els.assemblyBoard?.contains(cell)) return;
+  setAssemblyCrosshair(cell.dataset.row || "", cell.dataset.col || "");
+}
+
+function setAssemblyCrosshair(row, col) {
+  if (state.playHoverRow === row && state.playHoverCol === col) return;
+  clearAssemblyCrosshair();
+  const container = els.assemblyBoard;
+  if (!container || row === "" || col === "") return;
+  state.playHoverRow = row;
+  state.playHoverCol = col;
+  container.querySelectorAll(`[data-assembly-row="${row}"]`).forEach((node) => {
+    node.classList.add("is-row-hover");
+  });
+  container.querySelectorAll(`[data-assembly-col="${col}"]`).forEach((node) => {
+    node.classList.add("is-col-hover");
+  });
+}
+
+function clearAssemblyCrosshair() {
+  const container = els.assemblyBoard;
+  if (!container) return;
+  container.querySelectorAll(".is-row-hover, .is-col-hover").forEach((node) => {
+    node.classList.remove("is-row-hover", "is-col-hover");
+  });
+  state.playHoverRow = "";
+  state.playHoverCol = "";
+}
+
+function handleAssemblyBoardClick(event) {
+  const cell = event.target.closest?.(".bead-cell");
+  if (!cell || cell.classList.contains("is-empty")) return;
+  const coordKey = cell.dataset.coord;
+  if (!coordKey) return;
+  if (state.playCompletedBeads.has(coordKey)) {
+    state.playCompletedBeads.delete(coordKey);
+  } else {
+    state.playCompletedBeads.add(coordKey);
+  }
+  saveAssemblyProgress();
+  renderInteractiveBoard();
+  updateAssemblyProgressUi();
+}
+
+function resetAssemblyProgress() {
+  if (!state.playCompletedBeads.size) return;
+  if (!window.confirm("确认清空当前图纸的拼豆进度？")) return;
+  state.playCompletedBeads.clear();
+  saveAssemblyProgress();
+  renderInteractiveBoard();
+  updateAssemblyProgressUi();
+}
+
+function updateAssemblyProgressUi() {
+  const total = state.stats.reduce((sum, item) => sum + item.count, 0);
+  let completed = 0;
+  state.playCompletedBeads.forEach((key) => {
+    const [row, col] = key.split("_").map(Number);
+    if (state.grid[row]?.[col]) completed += 1;
+  });
+  const percent = total ? Math.round((completed / total) * 100) : 0;
+  const activeText = state.playActiveCode ? ` · 当前高亮 ${state.playActiveCode}` : "";
+  if (els.assemblyProgressLabel) {
+    els.assemblyProgressLabel.textContent = `${formatCount(completed)} / ${formatCount(total)} · ${percent}%`;
+  }
+  if (els.assemblySummary) {
+    els.assemblySummary.textContent = `点击色号可高亮同色，点击格子可标记已拼${activeText}。进度只保存在本机浏览器。`;
+  }
+}
 
 function padNumber(value) {
   return String(value).padStart(2, "0");
@@ -4280,6 +4921,7 @@ function saveEditor() {
   }
   state.paletteLabel = getPaletteLabelForKey(els.editorPaletteSelect.value);
   state.stats = calculateStats(state.grid);
+  state.assemblyHideCellText = false;
   refreshChartUrl();
   updateResultUi();
   saveCurrentToGallery();
@@ -4295,6 +4937,7 @@ function saveEditorToLibrary() {
   }
   state.paletteLabel = getPaletteLabelForKey(els.editorPaletteSelect.value);
   state.stats = calculateStats(state.grid);
+  state.assemblyHideCellText = false;
   refreshChartUrl();
   updateResultUi();
   saveCurrentToGallery();
@@ -4362,6 +5005,7 @@ function createBlankBoard(options = {}) {
   state.height = size;
   state.paletteLabel = getCurrentPaletteLabel();
   state.stats = [];
+  state.assemblyHideCellText = false;
   refreshChartUrl();
   updateResultUi();
   setStatus("空白画板");
@@ -4393,6 +5037,7 @@ function clearResult() {
   state.backgroundDecision = "";
   state.width = 0;
   state.height = 0;
+  state.assemblyHideCellText = false;
   updateResultUi();
 }
 
