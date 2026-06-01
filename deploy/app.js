@@ -55,7 +55,7 @@ const MARD_COLOR_SOURCE_VERSION = "MARD 2026";
 const MARD_EXPECTED_COLOR_COUNT = 291;
 const PALETTE_SIZE_OPTIONS = [48, 64, 72, 90, 144, 221, 264, 291];
 const CANVAS_FONT_STACK =
-  '"Maple Mono", DottedPixel, "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif';
+  'DottedPixel, "Maple Mono", "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif';
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/pjpeg",
@@ -523,6 +523,10 @@ const els = {
   directPatternMessage: document.querySelector("#direct-pattern-message"),
   assemblyModal: document.querySelector("#assembly-modal"),
   assemblyProgressLabel: document.querySelector("#assembly-progress-label"),
+  assemblyBoardPicker: document.querySelector("#assembly-board-picker"),
+  assemblyBoardLabel: document.querySelector("#assembly-board-label"),
+  assemblyBoardRange: document.querySelector("#assembly-board-range"),
+  assemblyBoardButtons: document.querySelector("#assembly-board-buttons"),
   assemblySummary: document.querySelector("#assembly-summary"),
   assemblyColorList: document.querySelector("#assembly-color-list"),
   assemblyBoard: document.querySelector("#pixel-board-container"),
@@ -662,6 +666,8 @@ const state = {
   assemblyHistoryActive: false,
   assemblyHideCellText: false,
   assemblyEngine: null,
+  assemblyBoardRow: 0,
+  assemblyBoardCol: 0,
   directPatternFile: null,
   paintUndo: [],
   replaceUndo: [],
@@ -4131,12 +4137,14 @@ class HardCodedEngine {
     this.canvas = typeof canvas === "string" ? document.getElementById(canvas) : canvas;
     this.ctx = this.canvas?.getContext("2d");
     this.matrix = matrix;
-    this.cols = matrix[0]?.length || 0;
-    this.rows = matrix.length;
-    this.cellSize = config.cellSize || (Math.max(this.cols, this.rows) > 220 ? 18 : 24);
+    this.totalCols = matrix[0]?.length || 0;
+    this.totalRows = matrix.length;
+    this.boardSize = config.boardSize || Math.max(this.totalCols, this.totalRows, 1);
+    this.currentBoardRow = config.currentBoardRow || 0;
+    this.currentBoardCol = config.currentBoardCol || 0;
+    this.fixedCellSize = Boolean(config.cellSize);
+    this.cellSize = config.cellSize || this.getDefaultCellSize(this.boardSize);
     this.axisSize = config.axisSize || 34;
-    this.boardWidth = this.axisSize + this.cols * this.cellSize;
-    this.boardHeight = this.axisSize + this.rows * this.cellSize;
     this.config = {
       maskColor: "rgba(30, 30, 30, 0.85)",
       highlightColor: null,
@@ -4146,6 +4154,7 @@ class HardCodedEngine {
       onHover: null,
       ...config,
     };
+    this.refreshBoardBounds();
     this.completedSets = new Set(this.config.completedSets || []);
     this.hoverCell = null;
     this.pointers = new Map();
@@ -4165,6 +4174,30 @@ class HardCodedEngine {
     this.resize({ fit: true });
     this.preRenderStaticMap();
     this.render();
+  }
+
+  getDefaultCellSize(boardSize) {
+    if (boardSize <= 52) return 32;
+    if (boardSize <= 78) return 28;
+    if (boardSize <= 104) return 24;
+    return 20;
+  }
+
+  refreshBoardBounds() {
+    this.boardSize = Math.max(1, Number(this.config.boardSize || this.boardSize || 52));
+    if (!this.fixedCellSize) this.cellSize = this.getDefaultCellSize(this.boardSize);
+    const maxBoardRow = Math.max(0, Math.ceil(this.totalRows / this.boardSize) - 1);
+    const maxBoardCol = Math.max(0, Math.ceil(this.totalCols / this.boardSize) - 1);
+    this.currentBoardRow = clamp(Number(this.config.currentBoardRow || 0), 0, maxBoardRow);
+    this.currentBoardCol = clamp(Number(this.config.currentBoardCol || 0), 0, maxBoardCol);
+    this.startRow = this.currentBoardRow * this.boardSize;
+    this.startCol = this.currentBoardCol * this.boardSize;
+    this.endRow = Math.min(this.startRow + this.boardSize, this.totalRows);
+    this.endCol = Math.min(this.startCol + this.boardSize, this.totalCols);
+    this.rows = Math.max(0, this.endRow - this.startRow);
+    this.cols = Math.max(0, this.endCol - this.startCol);
+    this.boardWidth = this.axisSize + this.cols * this.cellSize;
+    this.boardHeight = this.axisSize + this.rows * this.cellSize;
   }
 
   destroy() {
@@ -4205,17 +4238,24 @@ class HardCodedEngine {
   updateConfig(newConfig = {}) {
     const nextHighlight = newConfig.highlightColor ?? this.config.highlightColor;
     const nextShowText = newConfig.showCellText ?? this.config.showCellText;
+    const nextBoardSize = newConfig.boardSize ?? this.config.boardSize ?? this.boardSize;
+    const nextBoardRow = newConfig.currentBoardRow ?? this.config.currentBoardRow ?? this.currentBoardRow;
+    const nextBoardCol = newConfig.currentBoardCol ?? this.config.currentBoardCol ?? this.currentBoardCol;
     const needsBake =
       nextHighlight !== this.config.highlightColor ||
       nextShowText !== this.config.showCellText ||
+      nextBoardSize !== (this.config.boardSize ?? this.boardSize) ||
+      nextBoardRow !== (this.config.currentBoardRow ?? this.currentBoardRow) ||
+      nextBoardCol !== (this.config.currentBoardCol ?? this.currentBoardCol) ||
       newConfig.matrix;
     this.config = { ...this.config, ...newConfig };
     if (newConfig.matrix) {
       this.matrix = newConfig.matrix;
-      this.cols = this.matrix[0]?.length || 0;
-      this.rows = this.matrix.length;
-      this.boardWidth = this.axisSize + this.cols * this.cellSize;
-      this.boardHeight = this.axisSize + this.rows * this.cellSize;
+      this.totalCols = this.matrix[0]?.length || 0;
+      this.totalRows = this.matrix.length;
+    }
+    if (needsBake) {
+      this.refreshBoardBounds();
       this.offscreenCanvas.width = this.boardWidth;
       this.offscreenCanvas.height = this.boardHeight;
       this.fitToViewport();
@@ -4253,20 +4293,27 @@ class HardCodedEngine {
     const sequenceMap = new Map();
     if (highlightColor) {
       let counter = 1;
-      for (let r = 0; r < this.rows; r += 1) {
-        for (let c = 0; c < this.cols; c += 1) {
+      for (let r = 0; r < this.totalRows; r += 1) {
+        for (let c = 0; c < this.totalCols; c += 1) {
           const beadColor = this.getCellColor(this.matrix[r]?.[c]);
-          if (beadColor === highlightColor) sequenceMap.set(`${r}_${c}`, counter++);
+          if (beadColor === highlightColor) {
+            if (r >= this.startRow && r < this.endRow && c >= this.startCol && c < this.endCol) {
+              sequenceMap.set(`${r}_${c}`, counter);
+            }
+            counter += 1;
+          }
         }
       }
     }
 
-    for (let r = 0; r < this.rows; r += 1) {
-      for (let c = 0; c < this.cols; c += 1) {
+    for (let r = this.startRow; r < this.endRow; r += 1) {
+      for (let c = this.startCol; c < this.endCol; c += 1) {
         const bead = this.matrix[r][c];
         const beadColor = this.getCellColor(bead);
-        const x = axis + c * size;
-        const y = axis + r * size;
+        const localCol = c - this.startCol;
+        const localRow = r - this.startRow;
+        const x = axis + localCol * size;
+        const y = axis + localRow * size;
         ctx.save();
 
         if (beadColor) {
@@ -4283,14 +4330,16 @@ class HardCodedEngine {
 
         if (highlightColor && beadColor === highlightColor) {
           const seqNum = sequenceMap.get(`${r}_${c}`);
+          const seqText = String(seqNum || "");
           ctx.fillStyle = this.getContrastColor(beadColor);
-          ctx.font = `900 ${size >= 22 ? 10 : 8}px ${CANVAS_FONT_STACK}`;
+          const seqSize = seqText.length >= 5 ? 9 : seqText.length >= 4 ? 11 : size >= 28 ? 14 : 10;
+          ctx.font = `900 ${seqSize}px ${CANVAS_FONT_STACK}`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(String(seqNum), x + size / 2, y + size / 2, size - 3);
+          ctx.fillText(seqText, x + size / 2, y + size / 2, size - 3);
           ctx.strokeStyle = "#00ff66";
-          ctx.lineWidth = 1.5;
-          ctx.strokeRect(x + 0.75, y + 0.75, size - 1.5, size - 1.5);
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
         } else if (showCellText && bead?.code && size >= 18) {
           ctx.fillStyle = this.getContrastColor(beadColor);
           ctx.globalAlpha = highlightColor ? 0.22 : 0.72;
@@ -4361,7 +4410,9 @@ class HardCodedEngine {
     this.drawHoverOverlay(ctx);
     this.completedSets.forEach((coordKey) => {
       const [r, c] = coordKey.split("_").map(Number);
-      this.drawCheckMark(c, r);
+      if (r >= this.startRow && r < this.endRow && c >= this.startCol && c < this.endCol) {
+        this.drawCheckMark(c, r);
+      }
     });
     ctx.restore();
   }
@@ -4369,25 +4420,28 @@ class HardCodedEngine {
   drawHoverOverlay(ctx) {
     if (!this.hoverCell) return;
     const { row, col } = this.hoverCell;
+    if (row < this.startRow || row >= this.endRow || col < this.startCol || col >= this.endCol) return;
+    const localRow = row - this.startRow;
+    const localCol = col - this.startCol;
     const size = this.cellSize;
     const axis = this.axisSize;
     ctx.save();
     ctx.fillStyle = "rgba(0, 113, 227, 0.16)";
-    ctx.fillRect(axis, axis + row * size, this.cols * size, size);
-    ctx.fillRect(axis + col * size, axis, size, this.rows * size);
+    ctx.fillRect(axis, axis + localRow * size, this.cols * size, size);
+    ctx.fillRect(axis + localCol * size, axis, size, this.rows * size);
     ctx.fillStyle = "rgba(255, 179, 64, 0.30)";
-    ctx.fillRect(axis + col * size, axis + row * size, size, size);
+    ctx.fillRect(axis + localCol * size, axis + localRow * size, size, size);
     ctx.strokeStyle = "rgba(17, 24, 39, 0.72)";
     ctx.lineWidth = 2;
-    ctx.strokeRect(axis + col * size + 1, axis + row * size + 1, size - 2, size - 2);
+    ctx.strokeRect(axis + localCol * size + 1, axis + localRow * size + 1, size - 2, size - 2);
     ctx.restore();
   }
 
   drawCheckMark(col, row) {
     const ctx = this.ctx;
     const size = this.cellSize;
-    const x = this.axisSize + col * size;
-    const y = this.axisSize + row * size;
+    const x = this.axisSize + (col - this.startCol) * size;
+    const y = this.axisSize + (row - this.startRow) * size;
     ctx.save();
     ctx.fillStyle = "rgba(255, 255, 255, 0.72)";
     ctx.fillRect(x, y, size, size);
@@ -4531,10 +4585,10 @@ class HardCodedEngine {
     const rect = this.canvas.getBoundingClientRect();
     const boardX = (clientX - rect.left - this.offsetX) / this.scale;
     const boardY = (clientY - rect.top - this.offsetY) / this.scale;
-    const col = Math.floor((boardX - this.axisSize) / this.cellSize);
-    const row = Math.floor((boardY - this.axisSize) / this.cellSize);
-    if (row < 0 || col < 0 || row >= this.rows || col >= this.cols) return null;
-    return { row, col };
+    const localCol = Math.floor((boardX - this.axisSize) / this.cellSize);
+    const localRow = Math.floor((boardY - this.axisSize) / this.cellSize);
+    if (localRow < 0 || localCol < 0 || localRow >= this.rows || localCol >= this.cols) return null;
+    return { row: this.startRow + localRow, col: this.startCol + localCol };
   }
 
   getCellColor(bead) {
@@ -4569,7 +4623,10 @@ function openAssemblyPlayer() {
   state.playCompletedBeads = loadAssemblyProgress(state.playStorageKey);
   state.playActiveCode = "";
   state.currentSelectedColor = null;
+  state.assemblyBoardRow = 0;
+  state.assemblyBoardCol = 0;
   syncAssemblyFocusMode();
+  renderAssemblyBoardPicker();
   renderAssemblyColorList();
   pushAssemblyHistoryState();
   els.assemblyModal?.showModal();
@@ -4729,18 +4786,98 @@ function destroyAssemblyEngine() {
   state.assemblyEngine = null;
 }
 
+function getAssemblyBoardSize() {
+  const selectedSize = getSelectedTileSize();
+  if (selectedSize > 0) return selectedSize;
+  return Math.max(state.grid.length, state.grid[0]?.length || 0, 1);
+}
+
+function getAssemblyBoardMeta() {
+  const rows = state.grid.length;
+  const columns = state.grid[0]?.length || 0;
+  const boardSize = getAssemblyBoardSize();
+  const tileRows = Math.max(1, Math.ceil(rows / boardSize));
+  const tileColumns = Math.max(1, Math.ceil(columns / boardSize));
+  state.assemblyBoardRow = clamp(state.assemblyBoardRow || 0, 0, tileRows - 1);
+  state.assemblyBoardCol = clamp(state.assemblyBoardCol || 0, 0, tileColumns - 1);
+  const startRow = state.assemblyBoardRow * boardSize;
+  const startCol = state.assemblyBoardCol * boardSize;
+  const endRow = Math.min(startRow + boardSize, rows);
+  const endCol = Math.min(startCol + boardSize, columns);
+  const index = state.assemblyBoardRow * tileColumns + state.assemblyBoardCol + 1;
+  const total = tileRows * tileColumns;
+  return {
+    boardSize,
+    tileRows,
+    tileColumns,
+    startRow,
+    startCol,
+    endRow,
+    endCol,
+    index,
+    total,
+  };
+}
+
+function renderAssemblyBoardPicker() {
+  if (!els.assemblyBoardPicker || !els.assemblyBoardButtons) return null;
+  const meta = getAssemblyBoardMeta();
+  els.assemblyBoardPicker.hidden = !state.grid.length;
+  if (!state.grid.length) {
+    els.assemblyBoardButtons.replaceChildren();
+    return meta;
+  }
+
+  const rangeText = `第 ${meta.index} / ${meta.total} 板 · 行 ${meta.startRow + 1}-${meta.endRow} · 列 ${
+    meta.startCol + 1
+  }-${meta.endCol}`;
+  if (els.assemblyBoardLabel) els.assemblyBoardLabel.textContent = `${meta.boardSize} x ${meta.boardSize} 分版`;
+  if (els.assemblyBoardRange) els.assemblyBoardRange.textContent = rangeText;
+
+  els.assemblyBoardButtons.replaceChildren();
+  for (let row = 0; row < meta.tileRows; row += 1) {
+    for (let col = 0; col < meta.tileColumns; col += 1) {
+      const button = document.createElement("button");
+      const index = row * meta.tileColumns + col + 1;
+      button.type = "button";
+      button.className = `assembly-board-chip${
+        row === state.assemblyBoardRow && col === state.assemblyBoardCol ? " active" : ""
+      }`;
+      button.textContent = `${index}`;
+      button.title = `第 ${index} 板，R${row + 1} C${col + 1}`;
+      button.addEventListener("click", () => switchActiveBoard(row, col));
+      els.assemblyBoardButtons.append(button);
+    }
+  }
+  return meta;
+}
+
+function switchActiveBoard(boardRow, boardCol) {
+  state.assemblyBoardRow = boardRow;
+  state.assemblyBoardCol = boardCol;
+  renderAssemblyBoardPicker();
+  renderInteractiveBoard();
+  updateAssemblyProgressUi();
+}
+
 function renderInteractiveBoard() {
   const canvas = els.assemblyBoard;
   if (!canvas) return;
   const rows = state.grid.length;
   const columns = state.grid[0]?.length || 0;
   const activeColor = getAssemblyActiveColor();
+  const meta = renderAssemblyBoardPicker();
   state.playHoverRow = "";
   state.playHoverCol = "";
-  const signature = `${columns}x${rows}:${state.paletteLabel}:${state.stats
+  const signature = `${columns}x${rows}:${meta?.boardSize || 0}:${state.assemblyBoardRow}:${state.assemblyBoardCol}:${
+    state.paletteLabel
+  }:${state.stats
     .map((item) => `${item.code}:${item.count}`)
     .join(",")}`;
   const config = {
+    boardSize: meta?.boardSize || Math.max(columns, rows, 1),
+    currentBoardRow: state.assemblyBoardRow,
+    currentBoardCol: state.assemblyBoardCol,
     highlightColor: activeColor || null,
     showCellText: !state.assemblyHideCellText,
     completedSets: state.playCompletedBeads,
@@ -4817,19 +4954,31 @@ function resetAssemblyProgress() {
 }
 
 function updateAssemblyProgressUi() {
+  const meta = getAssemblyBoardMeta();
   const total = state.stats.reduce((sum, item) => sum + item.count, 0);
   let completed = 0;
+  let boardTotal = 0;
+  let boardCompleted = 0;
   state.playCompletedBeads.forEach((key) => {
     const [row, col] = key.split("_").map(Number);
     if (state.grid[row]?.[col]) completed += 1;
   });
+  for (let row = meta.startRow; row < meta.endRow; row += 1) {
+    for (let col = meta.startCol; col < meta.endCol; col += 1) {
+      if (!state.grid[row]?.[col]) continue;
+      boardTotal += 1;
+      if (state.playCompletedBeads.has(`${row}_${col}`)) boardCompleted += 1;
+    }
+  }
   const percent = total ? Math.round((completed / total) * 100) : 0;
   const activeText = state.playActiveCode ? ` · 当前高亮 ${state.playActiveCode}` : "";
   if (els.assemblyProgressLabel) {
     els.assemblyProgressLabel.textContent = `${formatCount(completed)} / ${formatCount(total)} · ${percent}%`;
   }
   if (els.assemblySummary) {
-    els.assemblySummary.textContent = `点击色号可高亮同色，点击格子可标记已拼${activeText}。进度只保存在本机浏览器。`;
+    els.assemblySummary.textContent = `当前第 ${meta.index}/${meta.total} 板：${formatCount(boardCompleted)} / ${formatCount(
+      boardTotal,
+    )}。点击色号高亮同色，点击格子标记已拼${activeText}。`;
   }
 }
 

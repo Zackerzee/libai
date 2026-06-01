@@ -31,7 +31,7 @@
   --focus-outer: #435ee5;
   --panel-shadow: none;
   --soft-shadow: none;
-  font-family: "Maple Mono", DottedPixel, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-family: DottedPixel, "Maple Mono", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   color: var(--ink);
   background: var(--page);
   font-synthesis: weight;
@@ -50,7 +50,7 @@ input,
 button,
 select,
 textarea {
-  font-family: "Maple Mono", DottedPixel, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif !important;
+  font-family: DottedPixel, "Maple Mono", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif !important;
 }
 
 [hidden] {
@@ -1255,7 +1255,7 @@ input:focus-visible {
 }
 
 .donate-script {
-  font-family: "Comic Sans MS", "Comic Sans", "Marker Felt", "Maple Mono", cursive;
+  font-family: "Comic Sans MS", "Comic Sans", "Marker Felt", DottedPixel, cursive;
   font-size: 24px;
   font-weight: 900;
   line-height: 1;
@@ -2061,7 +2061,7 @@ input:focus-visible {
   --pixel-black: #020203;
   --panel-shadow: 8px 8px 0 var(--pixel-black);
   --soft-shadow: 6px 6px 0 var(--pixel-black);
-  font-family: "Maple Mono", "Courier New", "PingFang SC", "Microsoft YaHei", monospace;
+  font-family: DottedPixel, "Maple Mono", "Courier New", "PingFang SC", "Microsoft YaHei", monospace;
   letter-spacing: 0;
 }
 
@@ -2630,7 +2630,7 @@ input:focus-visible {
   --focus-outer: rgba(0, 113, 227, 0.28);
   --panel-shadow: 0 24px 70px rgba(0, 0, 0, 0.08);
   --soft-shadow: 0 12px 34px rgba(0, 0, 0, 0.06);
-  font-family: "Maple Mono",
+  font-family: DottedPixel, "Maple Mono",
     -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI",
     "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
@@ -4854,6 +4854,55 @@ button:active:not(:disabled),
   line-height: 1.55;
 }
 
+.assembly-board-picker {
+  padding: 10px;
+  border-radius: 18px;
+  background: #ffffff;
+  border: 1px solid var(--line-soft);
+}
+
+.assembly-board-picker-head {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.assembly-board-picker-head strong {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.assembly-board-picker-head span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.assembly-board-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.assembly-board-chip {
+  min-width: 0;
+  min-height: 34px;
+  border: 1px solid var(--line-soft);
+  border-radius: 11px;
+  background: #f5f5f7;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.assembly-board-chip.active {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: #ffffff;
+}
+
 .assembly-color-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -5380,9 +5429,19 @@ body.is-focus-mode .bead-cell.is-focus-target.is-completed {
   }
 
   .assembly-sidebar {
-    max-height: 236px;
+    max-height: 248px;
     border-right: 0;
     border-bottom: 1px solid var(--line-soft);
+  }
+
+  .assembly-board-buttons {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+
+  .assembly-board-chip {
+    min-height: 28px;
+    border-radius: 9px;
+    font-size: 10px;
   }
 
   .assembly-color-list {

@@ -9,8 +9,7 @@
     />
     <title>里白造物拼豆图纸生成器 | LiBai Maker Studio</title>
     <link rel="icon" href="./libai-logo-pixel.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=20260601-canvas-font-coffee" />
-    <link href="https://cdn.jsdelivr.net/npm/@fontsource/maple-mono@5.0.0/index.css" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css?v=20260601-font-local-2" />
   </head>
   <body>
     <div class="app-shell">
@@ -535,6 +534,13 @@
 
       <div class="assembly-body">
         <aside class="assembly-sidebar">
+          <div class="assembly-board-picker" id="assembly-board-picker" hidden>
+            <div class="assembly-board-picker-head">
+              <strong id="assembly-board-label">第 1 板</strong>
+              <span id="assembly-board-range">R1 C1</span>
+            </div>
+            <div class="assembly-board-buttons" id="assembly-board-buttons"></div>
+          </div>
           <div class="assembly-summary" id="assembly-summary">点击色号可高亮同色，点击格子可标记已拼。</div>
           <button class="outline-button wide" id="assembly-clear-focus-button" type="button">
             取消同色高亮
@@ -734,6 +740,6 @@
       </div>
     </dialog>
 
-    <script src="./app.js?v=20260601-canvas-font-coffee" defer></script>
+    <script src="./app.js?v=20260601-font-local-2" defer></script>
   </body>
 </html>
