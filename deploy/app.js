@@ -4164,11 +4164,10 @@ class HardCodedEngine {
     this.offsetY = 0;
     this.minScale = 0.18;
     this.maxScale = 5;
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.dpr = this.getDevicePixelRatio();
     this.offscreenCanvas = document.createElement("canvas");
     this.offscreenCtx = this.offscreenCanvas.getContext("2d");
-    this.offscreenCanvas.width = this.boardWidth;
-    this.offscreenCanvas.height = this.boardHeight;
+    this.configureOffscreenCanvas(true);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     if (this.canvas?.parentElement) this.resizeObserver.observe(this.canvas.parentElement);
     this.resize({ fit: true });
@@ -4181,6 +4180,39 @@ class HardCodedEngine {
     if (boardSize <= 78) return 28;
     if (boardSize <= 104) return 24;
     return 20;
+  }
+
+  getDevicePixelRatio() {
+    return Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
+  }
+
+  getOffscreenPixelRatio() {
+    const maxCanvasSide = 8192;
+    const maxCanvasPixels = 32000000;
+    const sideScale = Math.min(maxCanvasSide / this.boardWidth, maxCanvasSide / this.boardHeight);
+    const areaScale = Math.sqrt(maxCanvasPixels / Math.max(1, this.boardWidth * this.boardHeight));
+    return Math.max(1, Math.min(this.dpr, sideScale, areaScale));
+  }
+
+  disableImageSmoothing(context) {
+    if (!context) return;
+    context.imageSmoothingEnabled = false;
+    context.mozImageSmoothingEnabled = false;
+    context.webkitImageSmoothingEnabled = false;
+    context.msImageSmoothingEnabled = false;
+  }
+
+  configureOffscreenCanvas(force = false) {
+    if (!this.offscreenCanvas || !this.offscreenCtx) return;
+    this.offscreenDpr = this.getOffscreenPixelRatio();
+    const width = Math.max(1, Math.round(this.boardWidth * this.offscreenDpr));
+    const height = Math.max(1, Math.round(this.boardHeight * this.offscreenDpr));
+    if (force || this.offscreenCanvas.width !== width || this.offscreenCanvas.height !== height) {
+      this.offscreenCanvas.width = width;
+      this.offscreenCanvas.height = height;
+    }
+    this.offscreenCtx.setTransform(this.offscreenDpr, 0, 0, this.offscreenDpr, 0, 0);
+    this.disableImageSmoothing(this.offscreenCtx);
   }
 
   refreshBoardBounds() {
@@ -4213,11 +4245,17 @@ class HardCodedEngine {
     const height = Math.max(320, parent?.clientHeight || window.innerHeight - 120);
     this.viewportWidth = width;
     this.viewportHeight = height;
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const nextDpr = this.getDevicePixelRatio();
+    const shouldRebake = nextDpr !== this.dpr;
+    this.dpr = nextDpr;
     this.canvas.width = Math.round(width * this.dpr);
     this.canvas.height = Math.round(height * this.dpr);
     this.canvas.style.width = `${width}px`;
     this.canvas.style.height = `${height}px`;
+    if (shouldRebake) {
+      this.configureOffscreenCanvas(true);
+      this.preRenderStaticMap();
+    }
     if (options.fit) this.fitToViewport();
     else this.clampViewport();
     this.render();
@@ -4256,8 +4294,7 @@ class HardCodedEngine {
     }
     if (needsBake) {
       this.refreshBoardBounds();
-      this.offscreenCanvas.width = this.boardWidth;
-      this.offscreenCanvas.height = this.boardHeight;
+      this.configureOffscreenCanvas(true);
       this.fitToViewport();
     }
     if (newConfig.completedSets) this.completedSets = new Set(newConfig.completedSets);
@@ -4271,10 +4308,11 @@ class HardCodedEngine {
     const axis = this.axisSize;
     const { highlightColor, maskColor, showCellText } = this.config;
 
+    this.configureOffscreenCanvas();
     ctx.clearRect(0, 0, this.boardWidth, this.boardHeight);
+    this.disableImageSmoothing(ctx);
     ctx.fillStyle = "#fffdf7";
     ctx.fillRect(0, 0, this.boardWidth, this.boardHeight);
-    ctx.imageSmoothingEnabled = false;
 
     ctx.fillStyle = "#e8eefb";
     ctx.fillRect(0, 0, this.boardWidth, axis);
@@ -4336,7 +4374,7 @@ class HardCodedEngine {
           ctx.font = `900 ${seqSize}px ${CANVAS_FONT_STACK}`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(seqText, x + size / 2, y + size / 2, size - 3);
+          ctx.fillText(seqText, x + size / 2, y + size / 2, size * 0.82);
           ctx.strokeStyle = "#00ff66";
           ctx.lineWidth = 2;
           ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
@@ -4346,7 +4384,7 @@ class HardCodedEngine {
           ctx.font = `900 ${size >= 22 ? 9 : 7}px ${CANVAS_FONT_STACK}`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(bead.code, x + size / 2, y + size / 2, size - 3);
+          ctx.fillText(bead.code, x + size / 2, y + size / 2, size * 0.82);
         }
 
         ctx.restore();
@@ -4402,11 +4440,21 @@ class HardCodedEngine {
     const ctx = this.ctx;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, this.viewportWidth, this.viewportHeight);
-    ctx.imageSmoothingEnabled = false;
+    this.disableImageSmoothing(ctx);
     ctx.save();
     ctx.translate(this.offsetX, this.offsetY);
     ctx.scale(this.scale, this.scale);
-    ctx.drawImage(this.offscreenCanvas, 0, 0);
+    ctx.drawImage(
+      this.offscreenCanvas,
+      0,
+      0,
+      this.offscreenCanvas.width,
+      this.offscreenCanvas.height,
+      0,
+      0,
+      this.boardWidth,
+      this.boardHeight,
+    );
     this.drawHoverOverlay(ctx);
     this.completedSets.forEach((coordKey) => {
       const [r, c] = coordKey.split("_").map(Number);

@@ -55,7 +55,7 @@ const MARD_COLOR_SOURCE_VERSION = "MARD 2026";
 const MARD_EXPECTED_COLOR_COUNT = 291;
 const PALETTE_SIZE_OPTIONS = [48, 64, 72, 90, 144, 221, 264, 291];
 const CANVAS_FONT_STACK =
-  'DottedPixel, "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif';
+  'DottedPixel, "Maple Mono", "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif';
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/pjpeg",
@@ -523,6 +523,10 @@ const els = {
   directPatternMessage: document.querySelector("#direct-pattern-message"),
   assemblyModal: document.querySelector("#assembly-modal"),
   assemblyProgressLabel: document.querySelector("#assembly-progress-label"),
+  assemblyBoardPicker: document.querySelector("#assembly-board-picker"),
+  assemblyBoardLabel: document.querySelector("#assembly-board-label"),
+  assemblyBoardRange: document.querySelector("#assembly-board-range"),
+  assemblyBoardButtons: document.querySelector("#assembly-board-buttons"),
   assemblySummary: document.querySelector("#assembly-summary"),
   assemblyColorList: document.querySelector("#assembly-color-list"),
   assemblyBoard: document.querySelector("#pixel-board-container"),
@@ -661,6 +665,9 @@ const state = {
   playHoverCol: "",
   assemblyHistoryActive: false,
   assemblyHideCellText: false,
+  assemblyEngine: null,
+  assemblyBoardRow: 0,
+  assemblyBoardCol: 0,
   directPatternFile: null,
   paintUndo: [],
   replaceUndo: [],
@@ -863,9 +870,12 @@ function bindEvents() {
   els.editButton.addEventListener("click", openEditor);
   els.startAssemblyButton?.addEventListener("click", openAssemblyPlayer);
   els.startAssemblyPanelButton?.addEventListener("click", openAssemblyPlayer);
-  els.assemblyBoard?.addEventListener("click", handleAssemblyBoardClick);
-  els.assemblyBoard?.addEventListener("pointerover", handleAssemblyBoardPointerOver);
-  els.assemblyBoard?.addEventListener("pointerleave", clearAssemblyCrosshair);
+  els.assemblyBoard?.addEventListener("pointerdown", handleAssemblyBoardPointerDown);
+  els.assemblyBoard?.addEventListener("pointermove", handleAssemblyBoardPointerMove);
+  els.assemblyBoard?.addEventListener("pointerup", handleAssemblyBoardPointerUp);
+  els.assemblyBoard?.addEventListener("pointercancel", handleAssemblyBoardPointerCancel);
+  els.assemblyBoard?.addEventListener("pointerleave", handleAssemblyBoardPointerLeave);
+  els.assemblyBoard?.addEventListener("wheel", handleAssemblyBoardWheel, { passive: false });
   els.assemblyClearFocusButton?.addEventListener("click", () => selectAssemblyColor(""));
   els.assemblyResetProgressButton?.addEventListener("click", resetAssemblyProgress);
   els.exitConfirmButton?.addEventListener("click", confirmAssemblyExit);
@@ -882,10 +892,10 @@ function bindEvents() {
     if (event.target === els.donateModal) closeDonateModal();
   });
   els.donateQrcode?.addEventListener("load", () => {
-    els.donateQrcode.closest(".qrcode-container")?.classList.add("has-qrcode");
+    els.donateQrcode.closest(".qrcode-container, .bmc-qr-wrapper")?.classList.add("has-qrcode");
   });
   els.donateQrcode?.addEventListener("error", () => {
-    els.donateQrcode.closest(".qrcode-container")?.classList.add("is-missing");
+    els.donateQrcode.closest(".qrcode-container, .bmc-qr-wrapper")?.classList.add("is-missing");
   });
   window.addEventListener("popstate", handleAssemblyPopState);
 
@@ -3490,8 +3500,8 @@ async function downloadA4PrintPattern() {
   const orientation = getPrintOrientation();
   const marginMm = getPrintMarginMm();
   const printSet = splitGridIntoA4Pages(grid, orientation, marginMm);
-  const files = [];
   const mirrorLabel = getMirrorLabel();
+  const pageCanvases = [];
 
   for (const tile of printSet.tiles) {
     const canvas = createA4PageCanvas(tile, {
@@ -3506,19 +3516,277 @@ async function downloadA4PrintPattern() {
       fullWidth: grid[0]?.length || 0,
       fullHeight: grid.length,
     });
-    files.push({
-      name: `a4-page-${padNumber(tile.index)}_cols-${tile.x0 + 1}-${tile.x1}_rows-${tile.y0 + 1}-${tile.y1}.png`,
-      blob: await canvasToBlob(canvas),
-    });
+    pageCanvases.push(canvas);
   }
 
-  if (files.length === 1) {
-    downloadBlob(files[0].blob, buildA4DownloadName("png"));
-  } else {
-    const zipBlob = await createZipBlob(files);
-    downloadBlob(zipBlob, buildA4DownloadName("zip"));
+  const materialCanvases = createA4MaterialListCanvases(printSet, grid, {
+    marginMm,
+    mirrorLabel,
+  });
+
+  try {
+    setStatus("正在生成A4打印 PDF...");
+    await exportA4PrintPdf(materialCanvases, pageCanvases, orientation);
+    setStatus(`已生成A4打印 PDF：${materialCanvases.length} 页清单，${pageCanvases.length} 页图纸`);
+  } catch (error) {
+    console.error("A4 PDF export failed", error);
+    alert("PDF 导出失败，请检查网络后重试。");
+    setStatus("A4 PDF 导出失败");
   }
-  setStatus(`已生成A4打印 ${files.length} 页`);
+}
+
+let jsPdfLoadPromise = null;
+
+function loadJsPdf() {
+  if (window.jspdf?.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
+  if (jsPdfLoadPromise) return jsPdfLoadPromise;
+
+  jsPdfLoadPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector("script[data-libms-jspdf]");
+    if (existing) {
+      existing.addEventListener("load", () => resolve(window.jspdf?.jsPDF), { once: true });
+      existing.addEventListener("error", reject, { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js";
+    script.async = true;
+    script.dataset.libmsJspdf = "true";
+    script.onload = () => {
+      if (window.jspdf?.jsPDF) resolve(window.jspdf.jsPDF);
+      else reject(new Error("jsPDF 未正确加载"));
+    };
+    script.onerror = () => reject(new Error("jsPDF 加载失败"));
+    document.head.append(script);
+  });
+
+  return jsPdfLoadPromise;
+}
+
+async function exportA4PrintPdf(materialCanvases, pageCanvases, orientation) {
+  const JsPDF = await loadJsPdf();
+  const isLandscape = orientation === "landscape";
+  const doc = new JsPDF({
+    orientation,
+    unit: "mm",
+    format: "a4",
+    compress: true,
+  });
+  const pageWidthMm = isLandscape ? A4_SIZE_MM.height : A4_SIZE_MM.width;
+  const pageHeightMm = isLandscape ? A4_SIZE_MM.width : A4_SIZE_MM.height;
+  const pages = [...materialCanvases, ...pageCanvases];
+
+  pages.forEach((canvas, index) => {
+    if (index > 0) doc.addPage();
+    doc.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pageWidthMm, pageHeightMm, undefined, "FAST");
+  });
+
+  doc.save(buildA4DownloadName("pdf"));
+}
+
+function createA4MaterialListCanvases(printSet, grid, details = {}) {
+  const pageWidth = printSet.pageWidth;
+  const pageHeight = printSet.pageHeight;
+  const margin = Math.max(96, Math.round(printSet.marginPx * 0.88));
+  const stats = calculateStats(grid);
+  const total = stats.reduce((sum, item) => sum + item.count, 0);
+  const difficulty = getPatternDifficulty(grid, stats);
+  const columns = Math.max(3, Math.floor((pageWidth - margin * 2) / 420));
+  const itemHeight = 92;
+  const startY = 650;
+  const rowsPerPage = Math.max(8, Math.floor((pageHeight - startY - margin) / itemHeight));
+  const itemsPerPage = Math.max(columns, columns * rowsPerPage);
+  const pageCount = Math.max(1, Math.ceil(stats.length / itemsPerPage));
+  const canvases = [];
+  const generatedAt = new Date().toLocaleString("zh-CN");
+
+  for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
+    const canvas = document.createElement("canvas");
+    canvas.width = pageWidth;
+    canvas.height = pageHeight;
+    const context = canvas.getContext("2d");
+    const slice = stats.slice(pageIndex * itemsPerPage, (pageIndex + 1) * itemsPerPage);
+
+    context.fillStyle = "#fffefa";
+    context.fillRect(0, 0, pageWidth, pageHeight);
+    drawMaterialListHeader(context, {
+      pageWidth,
+      pageHeight,
+      margin,
+      pageIndex,
+      pageCount,
+      generatedAt,
+      total,
+      statsCount: stats.length,
+      difficulty,
+      mirrorLabel: details.mirrorLabel,
+      marginMm: details.marginMm,
+      pages: printSet.tiles.length,
+      columns: grid[0]?.length || 0,
+      rows: grid.length,
+    });
+
+    drawMaterialListItems(context, slice, {
+      margin,
+      startY,
+      pageWidth,
+      columns,
+      itemHeight,
+      indexOffset: pageIndex * itemsPerPage,
+    });
+
+    context.fillStyle = "rgba(17, 24, 39, 0.48)";
+    context.font = `700 24px ${CANVAS_FONT_STACK}`;
+    context.textAlign = "center";
+    context.fillText(
+      `材料清单 ${pageIndex + 1} / ${pageCount}`,
+      pageWidth / 2,
+      pageHeight - Math.max(44, margin * 0.4),
+    );
+
+    canvases.push(canvas);
+  }
+
+  return canvases;
+}
+
+function drawMaterialListHeader(context, details) {
+  const {
+    pageWidth,
+    margin,
+    pageIndex,
+    pageCount,
+    generatedAt,
+    total,
+    statsCount,
+    difficulty,
+    mirrorLabel,
+    marginMm,
+    pages,
+    columns,
+    rows,
+  } = details;
+  const logoSize = 108;
+  const logoX = margin;
+  const logoY = 68;
+  drawLogoMark(context, logoX, logoY, logoSize);
+
+  const textX = logoX + logoSize + 28;
+  context.textAlign = "left";
+  context.fillStyle = "#111827";
+  context.font = `900 42px ${CANVAS_FONT_STACK}`;
+  context.fillText("里白造物拼豆图纸 - 精确材料清单", textX, 108, pageWidth - textX - margin);
+  context.fillStyle = "#4b5563";
+  context.font = `800 24px ${CANVAS_FONT_STACK}`;
+  context.fillText("LiBai Maker Studio · A4 Printable PDF", textX, 148, pageWidth - textX - margin);
+  context.font = `700 20px ${CANVAS_FONT_STACK}`;
+  context.fillText(`生成时间：${generatedAt}`, textX, 186, pageWidth - textX - margin);
+
+  context.textAlign = "right";
+  context.fillStyle = "rgba(17, 24, 39, 0.52)";
+  context.font = `800 22px ${CANVAS_FONT_STACK}`;
+  context.fillText(`清单 ${pageIndex + 1}/${pageCount}`, pageWidth - margin, 112);
+
+  context.strokeStyle = "rgba(17, 24, 39, 0.16)";
+  context.lineWidth = 2;
+  context.beginPath();
+  context.moveTo(margin, 228);
+  context.lineTo(pageWidth - margin, 228);
+  context.stroke();
+
+  const cards = [
+    ["格数", `${columns}×${rows}`],
+    ["难度", difficulty.label],
+    ["预计耗时", difficulty.timeLabel],
+    ["尺寸", formatFinishedSize(columns, rows).replace(" x ", "×")],
+    ["A4", `${pages} 页`],
+    ["材料", `${statsCount} 色 · ${formatCount(total)} 颗`],
+  ];
+  const gap = 18;
+  const cardColumns = Math.min(3, cards.length);
+  const cardWidth = (pageWidth - margin * 2 - gap * (cardColumns - 1)) / cardColumns;
+  const cardHeight = 118;
+  cards.forEach(([label, value], index) => {
+    const row = Math.floor(index / cardColumns);
+    const col = index % cardColumns;
+    const x = margin + col * (cardWidth + gap);
+    const y = 276 + row * (cardHeight + gap);
+    context.fillStyle = "#ffffff";
+    roundedRect(context, x, y, cardWidth, cardHeight, 28);
+    context.fill();
+    context.strokeStyle = "rgba(17, 24, 39, 0.10)";
+    context.lineWidth = 2;
+    context.stroke();
+    context.fillStyle = "#8ba0bc";
+    context.font = `800 22px ${CANVAS_FONT_STACK}`;
+    context.textAlign = "center";
+    context.fillText(label, x + cardWidth / 2, y + 42);
+    context.fillStyle = "#111827";
+    context.font = `900 30px ${CANVAS_FONT_STACK}`;
+    context.fillText(value, x + cardWidth / 2, y + 84, cardWidth - 28);
+  });
+
+  const noteY = 276 + 2 * (cardHeight + gap) + 8;
+  context.fillStyle = "#f4f5f7";
+  roundedRect(context, margin, noteY, pageWidth - margin * 2, 64, 26);
+  context.fill();
+  context.fillStyle = "#6b7280";
+  context.font = `800 20px ${CANVAS_FONT_STACK}`;
+  context.textAlign = "center";
+  context.fillText(
+    `${getChartPaletteLabel()} · 页边距 ${marginMm}mm${mirrorLabel ? ` · ${mirrorLabel}` : ""} · 请按色号和数量备料`,
+    pageWidth / 2,
+    noteY + 40,
+    pageWidth - margin * 2 - 48,
+  );
+}
+
+function drawMaterialListItems(context, items, details) {
+  const { margin, startY, pageWidth, columns, itemHeight, indexOffset } = details;
+  const columnWidth = (pageWidth - margin * 2) / columns;
+  context.textAlign = "left";
+
+  items.forEach((item, index) => {
+    const col = index % columns;
+    const row = Math.floor(index / columns);
+    const x = margin + col * columnWidth;
+    const y = startY + row * itemHeight;
+    const swatch = 54;
+    const color = rgb(item);
+
+    context.fillStyle = "#ffffff";
+    roundedRect(context, x + 5, y + 5, columnWidth - 18, itemHeight - 14, 20);
+    context.fill();
+    context.strokeStyle = "rgba(17, 24, 39, 0.10)";
+    context.lineWidth = 2;
+    context.stroke();
+
+    context.fillStyle = color;
+    roundedRect(context, x + 22, y + 19, swatch, swatch, 14);
+    context.fill();
+    context.strokeStyle = "rgba(17, 24, 39, 0.20)";
+    context.lineWidth = 2;
+    context.stroke();
+
+    context.fillStyle = isDark(item.rgb) ? "#ffffff" : "#111827";
+    context.font = `900 16px ${CANVAS_FONT_STACK}`;
+    context.textAlign = "center";
+    context.fillText(item.code, x + 22 + swatch / 2, y + 52, swatch - 8);
+
+    context.textAlign = "left";
+    context.fillStyle = "#111827";
+    context.font = `900 22px ${CANVAS_FONT_STACK}`;
+    context.fillText(item.code, x + 92, y + 42, columnWidth - 110);
+    context.fillStyle = "#8ba0bc";
+    context.font = `900 20px ${CANVAS_FONT_STACK}`;
+    context.fillText(`${formatCount(item.count)} 颗`, x + 92, y + 70, columnWidth - 110);
+
+    context.fillStyle = "rgba(17, 24, 39, 0.35)";
+    context.font = `700 14px ${CANVAS_FONT_STACK}`;
+    context.textAlign = "right";
+    context.fillText(`#${indexOffset + index + 1}`, x + columnWidth - 24, y + 38);
+  });
 }
 
 function splitGridIntoTiles(grid, tileSize) {
@@ -3864,6 +4132,536 @@ const CRC_TABLE = (() => {
   return table;
 })();
 
+class HardCodedEngine {
+  constructor(canvas, matrix, config = {}) {
+    this.canvas = typeof canvas === "string" ? document.getElementById(canvas) : canvas;
+    this.ctx = this.canvas?.getContext("2d");
+    this.matrix = matrix;
+    this.totalCols = matrix[0]?.length || 0;
+    this.totalRows = matrix.length;
+    this.boardSize = config.boardSize || Math.max(this.totalCols, this.totalRows, 1);
+    this.currentBoardRow = config.currentBoardRow || 0;
+    this.currentBoardCol = config.currentBoardCol || 0;
+    this.fixedCellSize = Boolean(config.cellSize);
+    this.cellSize = config.cellSize || this.getDefaultCellSize(this.boardSize);
+    this.axisSize = config.axisSize || 34;
+    this.config = {
+      maskColor: "rgba(30, 30, 30, 0.85)",
+      highlightColor: null,
+      showCellText: true,
+      completedSets: new Set(),
+      onToggle: null,
+      onHover: null,
+      ...config,
+    };
+    this.refreshBoardBounds();
+    this.completedSets = new Set(this.config.completedSets || []);
+    this.hoverCell = null;
+    this.pointers = new Map();
+    this.pinchState = null;
+    this.scale = 1;
+    this.offsetX = 0;
+    this.offsetY = 0;
+    this.minScale = 0.18;
+    this.maxScale = 5;
+    this.dpr = this.getDevicePixelRatio();
+    this.offscreenCanvas = document.createElement("canvas");
+    this.offscreenCtx = this.offscreenCanvas.getContext("2d");
+    this.configureOffscreenCanvas(true);
+    this.resizeObserver = new ResizeObserver(() => this.resize());
+    if (this.canvas?.parentElement) this.resizeObserver.observe(this.canvas.parentElement);
+    this.resize({ fit: true });
+    this.preRenderStaticMap();
+    this.render();
+  }
+
+  getDefaultCellSize(boardSize) {
+    if (boardSize <= 52) return 32;
+    if (boardSize <= 78) return 28;
+    if (boardSize <= 104) return 24;
+    return 20;
+  }
+
+  getDevicePixelRatio() {
+    return Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
+  }
+
+  getOffscreenPixelRatio() {
+    const maxCanvasSide = 8192;
+    const maxCanvasPixels = 32000000;
+    const sideScale = Math.min(maxCanvasSide / this.boardWidth, maxCanvasSide / this.boardHeight);
+    const areaScale = Math.sqrt(maxCanvasPixels / Math.max(1, this.boardWidth * this.boardHeight));
+    return Math.max(1, Math.min(this.dpr, sideScale, areaScale));
+  }
+
+  disableImageSmoothing(context) {
+    if (!context) return;
+    context.imageSmoothingEnabled = false;
+    context.mozImageSmoothingEnabled = false;
+    context.webkitImageSmoothingEnabled = false;
+    context.msImageSmoothingEnabled = false;
+  }
+
+  configureOffscreenCanvas(force = false) {
+    if (!this.offscreenCanvas || !this.offscreenCtx) return;
+    this.offscreenDpr = this.getOffscreenPixelRatio();
+    const width = Math.max(1, Math.round(this.boardWidth * this.offscreenDpr));
+    const height = Math.max(1, Math.round(this.boardHeight * this.offscreenDpr));
+    if (force || this.offscreenCanvas.width !== width || this.offscreenCanvas.height !== height) {
+      this.offscreenCanvas.width = width;
+      this.offscreenCanvas.height = height;
+    }
+    this.offscreenCtx.setTransform(this.offscreenDpr, 0, 0, this.offscreenDpr, 0, 0);
+    this.disableImageSmoothing(this.offscreenCtx);
+  }
+
+  refreshBoardBounds() {
+    this.boardSize = Math.max(1, Number(this.config.boardSize || this.boardSize || 52));
+    if (!this.fixedCellSize) this.cellSize = this.getDefaultCellSize(this.boardSize);
+    const maxBoardRow = Math.max(0, Math.ceil(this.totalRows / this.boardSize) - 1);
+    const maxBoardCol = Math.max(0, Math.ceil(this.totalCols / this.boardSize) - 1);
+    this.currentBoardRow = clamp(Number(this.config.currentBoardRow || 0), 0, maxBoardRow);
+    this.currentBoardCol = clamp(Number(this.config.currentBoardCol || 0), 0, maxBoardCol);
+    this.startRow = this.currentBoardRow * this.boardSize;
+    this.startCol = this.currentBoardCol * this.boardSize;
+    this.endRow = Math.min(this.startRow + this.boardSize, this.totalRows);
+    this.endCol = Math.min(this.startCol + this.boardSize, this.totalCols);
+    this.rows = Math.max(0, this.endRow - this.startRow);
+    this.cols = Math.max(0, this.endCol - this.startCol);
+    this.boardWidth = this.axisSize + this.cols * this.cellSize;
+    this.boardHeight = this.axisSize + this.rows * this.cellSize;
+  }
+
+  destroy() {
+    this.resizeObserver?.disconnect();
+    this.pointers.clear();
+    this.pinchState = null;
+  }
+
+  resize(options = {}) {
+    if (!this.canvas || !this.ctx) return;
+    const parent = this.canvas.parentElement;
+    const width = Math.max(320, parent?.clientWidth || window.innerWidth);
+    const height = Math.max(320, parent?.clientHeight || window.innerHeight - 120);
+    this.viewportWidth = width;
+    this.viewportHeight = height;
+    const nextDpr = this.getDevicePixelRatio();
+    const shouldRebake = nextDpr !== this.dpr;
+    this.dpr = nextDpr;
+    this.canvas.width = Math.round(width * this.dpr);
+    this.canvas.height = Math.round(height * this.dpr);
+    this.canvas.style.width = `${width}px`;
+    this.canvas.style.height = `${height}px`;
+    if (shouldRebake) {
+      this.configureOffscreenCanvas(true);
+      this.preRenderStaticMap();
+    }
+    if (options.fit) this.fitToViewport();
+    else this.clampViewport();
+    this.render();
+  }
+
+  fitToViewport() {
+    const fitScale = Math.min(
+      (this.viewportWidth - 28) / this.boardWidth,
+      (this.viewportHeight - 28) / this.boardHeight,
+      1.35,
+    );
+    this.scale = clamp(fitScale, this.minScale, this.maxScale);
+    this.offsetX = (this.viewportWidth - this.boardWidth * this.scale) / 2;
+    this.offsetY = (this.viewportHeight - this.boardHeight * this.scale) / 2;
+    this.clampViewport();
+  }
+
+  updateConfig(newConfig = {}) {
+    const nextHighlight = newConfig.highlightColor ?? this.config.highlightColor;
+    const nextShowText = newConfig.showCellText ?? this.config.showCellText;
+    const nextBoardSize = newConfig.boardSize ?? this.config.boardSize ?? this.boardSize;
+    const nextBoardRow = newConfig.currentBoardRow ?? this.config.currentBoardRow ?? this.currentBoardRow;
+    const nextBoardCol = newConfig.currentBoardCol ?? this.config.currentBoardCol ?? this.currentBoardCol;
+    const needsBake =
+      nextHighlight !== this.config.highlightColor ||
+      nextShowText !== this.config.showCellText ||
+      nextBoardSize !== (this.config.boardSize ?? this.boardSize) ||
+      nextBoardRow !== (this.config.currentBoardRow ?? this.currentBoardRow) ||
+      nextBoardCol !== (this.config.currentBoardCol ?? this.currentBoardCol) ||
+      newConfig.matrix;
+    this.config = { ...this.config, ...newConfig };
+    if (newConfig.matrix) {
+      this.matrix = newConfig.matrix;
+      this.totalCols = this.matrix[0]?.length || 0;
+      this.totalRows = this.matrix.length;
+    }
+    if (needsBake) {
+      this.refreshBoardBounds();
+      this.configureOffscreenCanvas(true);
+      this.fitToViewport();
+    }
+    if (newConfig.completedSets) this.completedSets = new Set(newConfig.completedSets);
+    if (needsBake) this.preRenderStaticMap();
+    this.render();
+  }
+
+  preRenderStaticMap() {
+    const ctx = this.offscreenCtx;
+    const size = this.cellSize;
+    const axis = this.axisSize;
+    const { highlightColor, maskColor, showCellText } = this.config;
+
+    this.configureOffscreenCanvas();
+    ctx.clearRect(0, 0, this.boardWidth, this.boardHeight);
+    this.disableImageSmoothing(ctx);
+    ctx.fillStyle = "#fffdf7";
+    ctx.fillRect(0, 0, this.boardWidth, this.boardHeight);
+
+    ctx.fillStyle = "#e8eefb";
+    ctx.fillRect(0, 0, this.boardWidth, axis);
+    ctx.fillRect(0, 0, axis, this.boardHeight);
+    ctx.fillStyle = "#526078";
+    ctx.font = `900 11px ${CANVAS_FONT_STACK}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (let c = 0; c < this.cols; c += 1) {
+      if (c % 10 === 0) ctx.fillText(String(c + 1), axis + c * size + size / 2, axis / 2);
+    }
+    for (let r = 0; r < this.rows; r += 1) {
+      if (r % 10 === 0) ctx.fillText(String(r + 1), axis / 2, axis + r * size + size / 2);
+    }
+
+    const sequenceMap = new Map();
+    if (highlightColor) {
+      let counter = 1;
+      for (let r = 0; r < this.totalRows; r += 1) {
+        for (let c = 0; c < this.totalCols; c += 1) {
+          const beadColor = this.getCellColor(this.matrix[r]?.[c]);
+          if (beadColor === highlightColor) {
+            if (r >= this.startRow && r < this.endRow && c >= this.startCol && c < this.endCol) {
+              sequenceMap.set(`${r}_${c}`, counter);
+            }
+            counter += 1;
+          }
+        }
+      }
+    }
+
+    for (let r = this.startRow; r < this.endRow; r += 1) {
+      for (let c = this.startCol; c < this.endCol; c += 1) {
+        const bead = this.matrix[r][c];
+        const beadColor = this.getCellColor(bead);
+        const localCol = c - this.startCol;
+        const localRow = r - this.startRow;
+        const x = axis + localCol * size;
+        const y = axis + localRow * size;
+        ctx.save();
+
+        if (beadColor) {
+          ctx.fillStyle = beadColor;
+          ctx.fillRect(x, y, size, size);
+          if (highlightColor && beadColor !== highlightColor) {
+            ctx.fillStyle = maskColor;
+            ctx.fillRect(x, y, size, size);
+          }
+        } else {
+          ctx.fillStyle = "#fffdf7";
+          ctx.fillRect(x, y, size, size);
+        }
+
+        if (highlightColor && beadColor === highlightColor) {
+          const seqNum = sequenceMap.get(`${r}_${c}`);
+          const seqText = String(seqNum || "");
+          ctx.fillStyle = this.getContrastColor(beadColor);
+          const seqSize = seqText.length >= 5 ? 9 : seqText.length >= 4 ? 11 : size >= 28 ? 14 : 10;
+          ctx.font = `900 ${seqSize}px ${CANVAS_FONT_STACK}`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(seqText, x + size / 2, y + size / 2, size * 0.82);
+          ctx.strokeStyle = "#00ff66";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+        } else if (showCellText && bead?.code && size >= 18) {
+          ctx.fillStyle = this.getContrastColor(beadColor);
+          ctx.globalAlpha = highlightColor ? 0.22 : 0.72;
+          ctx.font = `900 ${size >= 22 ? 9 : 7}px ${CANVAS_FONT_STACK}`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(bead.code, x + size / 2, y + size / 2, size * 0.82);
+        }
+
+        ctx.restore();
+      }
+    }
+
+    this.drawGridLines(ctx);
+  }
+
+  drawGridLines(ctx) {
+    const size = this.cellSize;
+    const axis = this.axisSize;
+    const width = this.cols * size;
+    const height = this.rows * size;
+    ctx.save();
+    ctx.lineCap = "butt";
+
+    for (let c = 0; c <= this.cols; c += 1) {
+      const x = axis + c * size + 0.5;
+      const isTen = c % 10 === 0;
+      const isFive = c % 5 === 0;
+      ctx.beginPath();
+      ctx.setLineDash(isFive && !isTen ? [6, 5] : []);
+      ctx.strokeStyle = isTen ? "rgba(75, 85, 99, 0.92)" : isFive ? "rgba(92, 101, 116, 0.74)" : "rgba(107, 114, 128, 0.48)";
+      ctx.lineWidth = isTen ? 2.5 : isFive ? 1.6 : 1;
+      ctx.moveTo(x, axis);
+      ctx.lineTo(x, axis + height);
+      ctx.stroke();
+    }
+
+    for (let r = 0; r <= this.rows; r += 1) {
+      const y = axis + r * size + 0.5;
+      const isTen = r % 10 === 0;
+      const isFive = r % 5 === 0;
+      ctx.beginPath();
+      ctx.setLineDash(isFive && !isTen ? [6, 5] : []);
+      ctx.strokeStyle = isTen ? "rgba(75, 85, 99, 0.92)" : isFive ? "rgba(92, 101, 116, 0.74)" : "rgba(107, 114, 128, 0.48)";
+      ctx.lineWidth = isTen ? 2.5 : isFive ? 1.6 : 1;
+      ctx.moveTo(axis, y);
+      ctx.lineTo(axis + width, y);
+      ctx.stroke();
+    }
+
+    ctx.setLineDash([]);
+    ctx.strokeStyle = "rgba(17, 24, 39, 0.82)";
+    ctx.lineWidth = 2.8;
+    ctx.strokeRect(axis + 0.5, axis + 0.5, width, height);
+    ctx.restore();
+  }
+
+  render() {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.clearRect(0, 0, this.viewportWidth, this.viewportHeight);
+    this.disableImageSmoothing(ctx);
+    ctx.save();
+    ctx.translate(this.offsetX, this.offsetY);
+    ctx.scale(this.scale, this.scale);
+    ctx.drawImage(
+      this.offscreenCanvas,
+      0,
+      0,
+      this.offscreenCanvas.width,
+      this.offscreenCanvas.height,
+      0,
+      0,
+      this.boardWidth,
+      this.boardHeight,
+    );
+    this.drawHoverOverlay(ctx);
+    this.completedSets.forEach((coordKey) => {
+      const [r, c] = coordKey.split("_").map(Number);
+      if (r >= this.startRow && r < this.endRow && c >= this.startCol && c < this.endCol) {
+        this.drawCheckMark(c, r);
+      }
+    });
+    ctx.restore();
+  }
+
+  drawHoverOverlay(ctx) {
+    if (!this.hoverCell) return;
+    const { row, col } = this.hoverCell;
+    if (row < this.startRow || row >= this.endRow || col < this.startCol || col >= this.endCol) return;
+    const localRow = row - this.startRow;
+    const localCol = col - this.startCol;
+    const size = this.cellSize;
+    const axis = this.axisSize;
+    ctx.save();
+    ctx.fillStyle = "rgba(0, 113, 227, 0.16)";
+    ctx.fillRect(axis, axis + localRow * size, this.cols * size, size);
+    ctx.fillRect(axis + localCol * size, axis, size, this.rows * size);
+    ctx.fillStyle = "rgba(255, 179, 64, 0.30)";
+    ctx.fillRect(axis + localCol * size, axis + localRow * size, size, size);
+    ctx.strokeStyle = "rgba(17, 24, 39, 0.72)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(axis + localCol * size + 1, axis + localRow * size + 1, size - 2, size - 2);
+    ctx.restore();
+  }
+
+  drawCheckMark(col, row) {
+    const ctx = this.ctx;
+    const size = this.cellSize;
+    const x = this.axisSize + (col - this.startCol) * size;
+    const y = this.axisSize + (row - this.startRow) * size;
+    ctx.save();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.72)";
+    ctx.fillRect(x, y, size, size);
+    ctx.fillStyle = "#00a552";
+    ctx.font = `900 ${Math.max(10, size * 0.55)}px ${CANVAS_FONT_STACK}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("✓", x + size / 2, y + size / 2 + 0.5);
+    ctx.restore();
+  }
+
+  handlePointerDown(event) {
+    event.preventDefault();
+    this.canvas.setPointerCapture?.(event.pointerId);
+    this.pointers.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+      startX: event.clientX,
+      startY: event.clientY,
+      dragged: false,
+    });
+    if (this.pointers.size === 2) this.startPinch();
+  }
+
+  handlePointerMove(event) {
+    const pointer = this.pointers.get(event.pointerId);
+    if (!pointer) {
+      this.updateHover(event.clientX, event.clientY);
+      return;
+    }
+    event.preventDefault();
+    const dx = event.clientX - pointer.x;
+    const dy = event.clientY - pointer.y;
+    pointer.x = event.clientX;
+    pointer.y = event.clientY;
+    if (Math.hypot(pointer.x - pointer.startX, pointer.y - pointer.startY) > 5) pointer.dragged = true;
+
+    if (this.pointers.size >= 2 && this.pinchState) {
+      this.updatePinch();
+      return;
+    }
+
+    this.offsetX += dx;
+    this.offsetY += dy;
+    this.clampViewport();
+    this.updateHover(event.clientX, event.clientY);
+    this.render();
+  }
+
+  handlePointerUp(event) {
+    const pointer = this.pointers.get(event.pointerId);
+    this.pointers.delete(event.pointerId);
+    this.canvas.releasePointerCapture?.(event.pointerId);
+    if (this.pinchState && this.pointers.size < 2) {
+      this.pinchState = null;
+      return;
+    }
+    if (pointer && !pointer.dragged) {
+      const cell = this.getCellAtClient(event.clientX, event.clientY);
+      if (cell && this.matrix[cell.row]?.[cell.col]) {
+        this.config.onToggle?.(cell.row, cell.col);
+      }
+    }
+  }
+
+  handlePointerCancel(event) {
+    this.pointers.delete(event.pointerId);
+    if (this.pointers.size < 2) this.pinchState = null;
+  }
+
+  handlePointerLeave() {
+    this.hoverCell = null;
+    this.config.onHover?.("", "");
+    this.render();
+  }
+
+  handleWheel(event) {
+    event.preventDefault();
+    const factor = event.deltaY > 0 ? 0.9 : 1.1;
+    this.zoomAt(event.clientX, event.clientY, this.scale * factor);
+  }
+
+  startPinch() {
+    const [a, b] = [...this.pointers.values()];
+    const center = this.getPointerCenter(a, b);
+    const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+    this.pinchState = {
+      distance,
+      scale: this.scale,
+      boardX: (center.x - this.canvas.getBoundingClientRect().left - this.offsetX) / this.scale,
+      boardY: (center.y - this.canvas.getBoundingClientRect().top - this.offsetY) / this.scale,
+    };
+  }
+
+  updatePinch() {
+    const [a, b] = [...this.pointers.values()];
+    const center = this.getPointerCenter(a, b);
+    const rect = this.canvas.getBoundingClientRect();
+    const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+    const nextScale = clamp((this.pinchState.scale * distance) / this.pinchState.distance, this.minScale, this.maxScale);
+    this.scale = nextScale;
+    this.offsetX = center.x - rect.left - this.pinchState.boardX * nextScale;
+    this.offsetY = center.y - rect.top - this.pinchState.boardY * nextScale;
+    a.dragged = true;
+    b.dragged = true;
+    this.clampViewport();
+    this.render();
+  }
+
+  getPointerCenter(a, b) {
+    return {
+      x: (a.x + b.x) / 2,
+      y: (a.y + b.y) / 2,
+    };
+  }
+
+  zoomAt(clientX, clientY, nextScale) {
+    const rect = this.canvas.getBoundingClientRect();
+    const sx = clientX - rect.left;
+    const sy = clientY - rect.top;
+    const boardX = (sx - this.offsetX) / this.scale;
+    const boardY = (sy - this.offsetY) / this.scale;
+    this.scale = clamp(nextScale, this.minScale, this.maxScale);
+    this.offsetX = sx - boardX * this.scale;
+    this.offsetY = sy - boardY * this.scale;
+    this.clampViewport();
+    this.render();
+  }
+
+  updateHover(clientX, clientY) {
+    const cell = this.getCellAtClient(clientX, clientY);
+    const nextKey = cell ? `${cell.row}_${cell.col}` : "";
+    const currentKey = this.hoverCell ? `${this.hoverCell.row}_${this.hoverCell.col}` : "";
+    if (nextKey === currentKey) return;
+    this.hoverCell = cell;
+    this.config.onHover?.(cell ? String(cell.row) : "", cell ? String(cell.col) : "");
+    this.render();
+  }
+
+  getCellAtClient(clientX, clientY) {
+    const rect = this.canvas.getBoundingClientRect();
+    const boardX = (clientX - rect.left - this.offsetX) / this.scale;
+    const boardY = (clientY - rect.top - this.offsetY) / this.scale;
+    const localCol = Math.floor((boardX - this.axisSize) / this.cellSize);
+    const localRow = Math.floor((boardY - this.axisSize) / this.cellSize);
+    if (localRow < 0 || localCol < 0 || localRow >= this.rows || localCol >= this.cols) return null;
+    return { row: this.startRow + localRow, col: this.startCol + localCol };
+  }
+
+  getCellColor(bead) {
+    return bead ? rgb(bead) : "";
+  }
+
+  getContrastColor(color) {
+    const match = String(color || "").match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/i);
+    const values = match
+      ? [Number(match[1]), Number(match[2]), Number(match[3])]
+      : /^#([a-f\d]{6})$/i.test(color)
+        ? [parseInt(color.slice(1, 3), 16), parseInt(color.slice(3, 5), 16), parseInt(color.slice(5, 7), 16)]
+        : [255, 255, 255];
+    const yiq = (values[0] * 299 + values[1] * 587 + values[2] * 114) / 1000;
+    return yiq >= 128 ? "#111827" : "#ffffff";
+  }
+
+  clampViewport() {
+    const slackX = this.viewportWidth * 0.72;
+    const slackY = this.viewportHeight * 0.72;
+    this.offsetX = clamp(this.offsetX, this.viewportWidth - this.boardWidth * this.scale - slackX, slackX);
+    this.offsetY = clamp(this.offsetY, this.viewportHeight - this.boardHeight * this.scale - slackY, slackY);
+  }
+}
+
 function openAssemblyPlayer() {
   if (!state.grid.length) {
     setStatus("请先生成图纸，再开始拼");
@@ -3873,12 +4671,17 @@ function openAssemblyPlayer() {
   state.playCompletedBeads = loadAssemblyProgress(state.playStorageKey);
   state.playActiveCode = "";
   state.currentSelectedColor = null;
+  state.assemblyBoardRow = 0;
+  state.assemblyBoardCol = 0;
   syncAssemblyFocusMode();
+  renderAssemblyBoardPicker();
   renderAssemblyColorList();
-  renderInteractiveBoard();
-  updateAssemblyProgressUi();
   pushAssemblyHistoryState();
   els.assemblyModal?.showModal();
+  requestAnimationFrame(() => {
+    renderInteractiveBoard();
+    updateAssemblyProgressUi();
+  });
 }
 
 function pushAssemblyHistoryState() {
@@ -4018,6 +4821,7 @@ function clearAssemblyFocusMode() {
   state.playActiveCode = "";
   state.currentSelectedColor = null;
   state.assemblyHistoryActive = false;
+  destroyAssemblyEngine();
   document.body.classList.remove("is-focus-mode");
   document.body.dataset.activeBeadColor = "";
   document.documentElement.style.setProperty("--active-bead-color", "transparent");
@@ -4025,130 +4829,166 @@ function clearAssemblyFocusMode() {
   renderAssemblyColorList();
 }
 
-function getAssemblyLineClasses(rowIndex, colIndex) {
-  const classes = [];
-  if (Number.isInteger(colIndex)) {
-    if ((colIndex + 1) % 10 === 0) classes.push("line-10-col");
-    else if ((colIndex + 1) % 5 === 0) classes.push("line-5-col");
-  }
-  if (Number.isInteger(rowIndex)) {
-    if ((rowIndex + 1) % 10 === 0) classes.push("line-10-row");
-    else if ((rowIndex + 1) % 5 === 0) classes.push("line-5-row");
-  }
-  return classes.join(" ");
+function destroyAssemblyEngine() {
+  state.assemblyEngine?.destroy();
+  state.assemblyEngine = null;
 }
 
-function createAxisCell(type, label, rowIndex, colIndex) {
-  const axis = document.createElement("span");
-  const lineClasses = getAssemblyLineClasses(rowIndex, colIndex);
-  axis.className = `axis-cell ${type}${lineClasses ? ` ${lineClasses}` : ""}`;
-  axis.textContent = label;
-  axis.setAttribute("aria-hidden", "true");
-  if (Number.isInteger(rowIndex)) axis.dataset.assemblyRow = String(rowIndex);
-  if (Number.isInteger(colIndex)) axis.dataset.assemblyCol = String(colIndex);
-  return axis;
+function getAssemblyBoardSize() {
+  const selectedSize = getSelectedTileSize();
+  if (selectedSize > 0) return selectedSize;
+  return Math.max(state.grid.length, state.grid[0]?.length || 0, 1);
+}
+
+function getAssemblyBoardMeta() {
+  const rows = state.grid.length;
+  const columns = state.grid[0]?.length || 0;
+  const boardSize = getAssemblyBoardSize();
+  const tileRows = Math.max(1, Math.ceil(rows / boardSize));
+  const tileColumns = Math.max(1, Math.ceil(columns / boardSize));
+  state.assemblyBoardRow = clamp(state.assemblyBoardRow || 0, 0, tileRows - 1);
+  state.assemblyBoardCol = clamp(state.assemblyBoardCol || 0, 0, tileColumns - 1);
+  const startRow = state.assemblyBoardRow * boardSize;
+  const startCol = state.assemblyBoardCol * boardSize;
+  const endRow = Math.min(startRow + boardSize, rows);
+  const endCol = Math.min(startCol + boardSize, columns);
+  const index = state.assemblyBoardRow * tileColumns + state.assemblyBoardCol + 1;
+  const total = tileRows * tileColumns;
+  return {
+    boardSize,
+    tileRows,
+    tileColumns,
+    startRow,
+    startCol,
+    endRow,
+    endCol,
+    index,
+    total,
+  };
+}
+
+function renderAssemblyBoardPicker() {
+  if (!els.assemblyBoardPicker || !els.assemblyBoardButtons) return null;
+  const meta = getAssemblyBoardMeta();
+  els.assemblyBoardPicker.hidden = !state.grid.length;
+  if (!state.grid.length) {
+    els.assemblyBoardButtons.replaceChildren();
+    return meta;
+  }
+
+  const rangeText = `第 ${meta.index} / ${meta.total} 板 · 行 ${meta.startRow + 1}-${meta.endRow} · 列 ${
+    meta.startCol + 1
+  }-${meta.endCol}`;
+  if (els.assemblyBoardLabel) els.assemblyBoardLabel.textContent = `${meta.boardSize} x ${meta.boardSize} 分版`;
+  if (els.assemblyBoardRange) els.assemblyBoardRange.textContent = rangeText;
+
+  els.assemblyBoardButtons.replaceChildren();
+  for (let row = 0; row < meta.tileRows; row += 1) {
+    for (let col = 0; col < meta.tileColumns; col += 1) {
+      const button = document.createElement("button");
+      const index = row * meta.tileColumns + col + 1;
+      button.type = "button";
+      button.className = `assembly-board-chip${
+        row === state.assemblyBoardRow && col === state.assemblyBoardCol ? " active" : ""
+      }`;
+      button.textContent = `${index}`;
+      button.title = `第 ${index} 板，R${row + 1} C${col + 1}`;
+      button.addEventListener("click", () => switchActiveBoard(row, col));
+      els.assemblyBoardButtons.append(button);
+    }
+  }
+  return meta;
+}
+
+function switchActiveBoard(boardRow, boardCol) {
+  state.assemblyBoardRow = boardRow;
+  state.assemblyBoardCol = boardCol;
+  renderAssemblyBoardPicker();
+  renderInteractiveBoard();
+  updateAssemblyProgressUi();
 }
 
 function renderInteractiveBoard() {
-  const container = els.assemblyBoard;
-  if (!container) return;
+  const canvas = els.assemblyBoard;
+  if (!canvas) return;
   const rows = state.grid.length;
   const columns = state.grid[0]?.length || 0;
   const activeColor = getAssemblyActiveColor();
+  const meta = renderAssemblyBoardPicker();
   state.playHoverRow = "";
   state.playHoverCol = "";
-  container.replaceChildren();
-  container.style.setProperty("--assembly-columns", String(columns));
-  container.classList.toggle("hide-cell-text", state.assemblyHideCellText);
+  const signature = `${columns}x${rows}:${meta?.boardSize || 0}:${state.assemblyBoardRow}:${state.assemblyBoardCol}:${
+    state.paletteLabel
+  }:${state.stats
+    .map((item) => `${item.code}:${item.count}`)
+    .join(",")}`;
+  const config = {
+    boardSize: meta?.boardSize || Math.max(columns, rows, 1),
+    currentBoardRow: state.assemblyBoardRow,
+    currentBoardCol: state.assemblyBoardCol,
+    highlightColor: activeColor || null,
+    showCellText: !state.assemblyHideCellText,
+    completedSets: state.playCompletedBeads,
+    onToggle: toggleAssemblyCoord,
+    onHover: setAssemblyCrosshair,
+  };
 
-  container.append(createAxisCell("axis-corner", "", null, null));
-  for (let colIndex = 0; colIndex < columns; colIndex += 1) {
-    const label = colIndex % 10 === 0 ? String(colIndex + 1) : "";
-    container.append(createAxisCell("axis-top", label, null, colIndex));
-  }
-
-  for (let rowIndex = 0; rowIndex < rows; rowIndex += 1) {
-    const axisLabel = rowIndex % 10 === 0 ? String(rowIndex + 1) : "";
-    container.append(createAxisCell("axis-left", axisLabel, rowIndex, null));
-
-    for (let colIndex = 0; colIndex < columns; colIndex += 1) {
-      const bead = state.grid[rowIndex][colIndex];
-      const cell = document.createElement("button");
-      const coordKey = `${rowIndex}_${colIndex}`;
-      const lineClasses = getAssemblyLineClasses(rowIndex, colIndex);
-      cell.type = "button";
-      cell.className = `bead-cell${lineClasses ? ` ${lineClasses}` : ""}`;
-      cell.dataset.coord = coordKey;
-      cell.dataset.row = String(rowIndex);
-      cell.dataset.col = String(colIndex);
-      cell.dataset.assemblyRow = String(rowIndex);
-      cell.dataset.assemblyCol = String(colIndex);
-      cell.setAttribute("aria-label", `行 ${rowIndex + 1}，列 ${colIndex + 1}`);
-
-      if (!bead) {
-        cell.classList.add("is-empty");
-        cell.setAttribute("aria-disabled", "true");
-      } else {
-        const beadColor = rgb(bead);
-        cell.dataset.code = bead.code;
-        cell.dataset.color = beadColor;
-        cell.style.backgroundColor = beadColor;
-        cell.title = `${bead.code} · 行 ${rowIndex + 1} · 列 ${colIndex + 1}`;
-        if (!state.assemblyHideCellText) {
-          cell.innerHTML = `<span class="bead-code">${escapeHtml(bead.code)}</span>`;
-        }
-        if (state.playCompletedBeads.has(coordKey)) cell.classList.add("is-completed");
-        if (activeColor && beadColor === activeColor) cell.classList.add("is-focus-target");
-      }
-
-      container.append(cell);
-    }
+  if (!state.assemblyEngine || state.assemblyEngine.signature !== signature) {
+    destroyAssemblyEngine();
+    state.assemblyEngine = new HardCodedEngine(canvas, state.grid, config);
+    state.assemblyEngine.signature = signature;
+  } else {
+    state.assemblyEngine.updateConfig(config);
   }
 }
 
-function handleAssemblyBoardPointerOver(event) {
-  const cell = event.target.closest?.(".bead-cell");
-  if (!cell || !els.assemblyBoard?.contains(cell)) return;
-  setAssemblyCrosshair(cell.dataset.row || "", cell.dataset.col || "");
+function handleAssemblyBoardPointerDown(event) {
+  state.assemblyEngine?.handlePointerDown(event);
+}
+
+function handleAssemblyBoardPointerMove(event) {
+  state.assemblyEngine?.handlePointerMove(event);
+}
+
+function handleAssemblyBoardPointerUp(event) {
+  state.assemblyEngine?.handlePointerUp(event);
+}
+
+function handleAssemblyBoardPointerCancel(event) {
+  state.assemblyEngine?.handlePointerCancel(event);
+}
+
+function handleAssemblyBoardPointerLeave() {
+  state.assemblyEngine?.handlePointerLeave();
+}
+
+function handleAssemblyBoardWheel(event) {
+  state.assemblyEngine?.handleWheel(event);
 }
 
 function setAssemblyCrosshair(row, col) {
-  if (state.playHoverRow === row && state.playHoverCol === col) return;
-  clearAssemblyCrosshair();
-  const container = els.assemblyBoard;
-  if (!container || row === "" || col === "") return;
   state.playHoverRow = row;
   state.playHoverCol = col;
-  container.querySelectorAll(`[data-assembly-row="${row}"]`).forEach((node) => {
-    node.classList.add("is-row-hover");
-  });
-  container.querySelectorAll(`[data-assembly-col="${col}"]`).forEach((node) => {
-    node.classList.add("is-col-hover");
-  });
 }
 
 function clearAssemblyCrosshair() {
-  const container = els.assemblyBoard;
-  if (!container) return;
-  container.querySelectorAll(".is-row-hover, .is-col-hover").forEach((node) => {
-    node.classList.remove("is-row-hover", "is-col-hover");
-  });
   state.playHoverRow = "";
   state.playHoverCol = "";
+  if (state.assemblyEngine) {
+    state.assemblyEngine.hoverCell = null;
+    state.assemblyEngine.render();
+  }
 }
 
-function handleAssemblyBoardClick(event) {
-  const cell = event.target.closest?.(".bead-cell");
-  if (!cell || cell.classList.contains("is-empty")) return;
-  const coordKey = cell.dataset.coord;
-  if (!coordKey) return;
+function toggleAssemblyCoord(row, col) {
+  const coordKey = `${row}_${col}`;
   if (state.playCompletedBeads.has(coordKey)) {
     state.playCompletedBeads.delete(coordKey);
   } else {
     state.playCompletedBeads.add(coordKey);
   }
   saveAssemblyProgress();
-  renderInteractiveBoard();
+  state.assemblyEngine?.updateConfig({ completedSets: state.playCompletedBeads });
   updateAssemblyProgressUi();
 }
 
@@ -4162,19 +5002,31 @@ function resetAssemblyProgress() {
 }
 
 function updateAssemblyProgressUi() {
+  const meta = getAssemblyBoardMeta();
   const total = state.stats.reduce((sum, item) => sum + item.count, 0);
   let completed = 0;
+  let boardTotal = 0;
+  let boardCompleted = 0;
   state.playCompletedBeads.forEach((key) => {
     const [row, col] = key.split("_").map(Number);
     if (state.grid[row]?.[col]) completed += 1;
   });
+  for (let row = meta.startRow; row < meta.endRow; row += 1) {
+    for (let col = meta.startCol; col < meta.endCol; col += 1) {
+      if (!state.grid[row]?.[col]) continue;
+      boardTotal += 1;
+      if (state.playCompletedBeads.has(`${row}_${col}`)) boardCompleted += 1;
+    }
+  }
   const percent = total ? Math.round((completed / total) * 100) : 0;
   const activeText = state.playActiveCode ? ` · 当前高亮 ${state.playActiveCode}` : "";
   if (els.assemblyProgressLabel) {
     els.assemblyProgressLabel.textContent = `${formatCount(completed)} / ${formatCount(total)} · ${percent}%`;
   }
   if (els.assemblySummary) {
-    els.assemblySummary.textContent = `点击色号可高亮同色，点击格子可标记已拼${activeText}。进度只保存在本机浏览器。`;
+    els.assemblySummary.textContent = `当前第 ${meta.index}/${meta.total} 板：${formatCount(boardCompleted)} / ${formatCount(
+      boardTotal,
+    )}。点击色号高亮同色，点击格子标记已拼${activeText}。`;
   }
 }
 
