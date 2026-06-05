@@ -9,7 +9,7 @@
     />
     <title>里白造物拼豆图纸生成器 | LiBai Maker Studio</title>
     <link rel="icon" href="./libai-logo-pixel.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=20260528-assembly-flow" />
+    <link rel="stylesheet" href="./styles.css?v=20260605-width-1000-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -93,7 +93,7 @@
                       <span>图纸宽度</span>
                       <output id="mobile-granularity-output">50</output>
                     </label>
-                    <input id="mobile-granularity-input" type="range" min="10" max="500" value="50" />
+                    <input id="mobile-granularity-input" type="range" min="10" max="1000" value="50" />
                   </div>
                 </div>
 
@@ -151,12 +151,12 @@
                   </label>
                   <p class="field-hint">参考 PixelBeads：拉动宽度会自动重算预览。</p>
                   <div class="range-row">
-                    <input id="granularity-input" type="range" min="10" max="500" value="50" />
+                    <input id="granularity-input" type="range" min="10" max="1000" value="50" />
                     <output id="granularity-output">50</output>
                   </div>
                   <div class="manual-row">
                     <span>手动输入</span>
-                    <input id="granularity-number" type="number" min="10" max="500" value="50" />
+                    <input id="granularity-number" type="number" min="10" max="1000" value="50" />
                     <button id="granularity-apply" type="button">确认</button>
                   </div>
                 </div>
@@ -369,8 +369,15 @@
           <p>本站与 Perler®、Hama® 等品牌无任何官方关联，相关商标版权归其各自所有者所有。</p>
           <div class="donation-wrapper">
             <button id="btn-open-donate" class="btn-donate" type="button">
-              <span class="donate-icon" aria-hidden="true">奶茶</span>
-              请作者喝一杯奶茶
+              <span class="donate-cup" aria-hidden="true">
+                <svg viewBox="0 0 44 44" focusable="false">
+                  <path d="M13 12h20l-2.2 24H15.2L13 12Z"></path>
+                  <path d="M12 12h22"></path>
+                  <path d="M16 6h14c2.5 0 4 1.1 4 3s-1.5 3-4 3H16c-2.5 0-4-1.1-4-3s1.5-3 4-3Z"></path>
+                  <path d="M31 16h4.5c3.1 0 5.5 2.2 5.5 5.1s-2.4 5.1-5.5 5.1H32"></path>
+                </svg>
+              </span>
+              <span class="donate-script">Buy me a coffee</span>
             </button>
           </div>
           <div class="friend-links">
@@ -381,7 +388,7 @@
               rel="noopener noreferrer"
               class="aff-link"
             >
-              <img src="./libai-logo-pixel.svg" alt="" class="link-logo" />
+              <img src="./images.png" alt="" class="link-logo" />
               <span class="link-text">句乐部</span>
             </a>
           </div>
@@ -498,11 +505,11 @@
           <div class="direct-pattern-fields">
             <label class="field">
               <span>横向格数</span>
-              <input id="direct-pattern-width" type="number" min="1" max="500" value="48" />
+              <input id="direct-pattern-width" type="number" min="1" max="1000" value="48" />
             </label>
             <label class="field">
               <span>纵向格数</span>
-              <input id="direct-pattern-height" type="number" min="1" max="500" value="48" />
+              <input id="direct-pattern-height" type="number" min="1" max="1000" value="48" />
             </label>
           </div>
           <p class="field-hint">系统会读取每个格子的中心点颜色，避开网格线和坐标数字。</p>
@@ -527,6 +534,13 @@
 
       <div class="assembly-body">
         <aside class="assembly-sidebar">
+          <div class="assembly-board-picker" id="assembly-board-picker" hidden>
+            <div class="assembly-board-picker-head">
+              <strong id="assembly-board-label">第 1 板</strong>
+              <span id="assembly-board-range">R1 C1</span>
+            </div>
+            <div class="assembly-board-buttons" id="assembly-board-buttons"></div>
+          </div>
           <div class="assembly-summary" id="assembly-summary">点击色号可高亮同色，点击格子可标记已拼。</div>
           <button class="outline-button wide" id="assembly-clear-focus-button" type="button">
             取消同色高亮
@@ -538,7 +552,7 @@
         </aside>
 
         <div class="assembly-board-wrap">
-          <div class="pixel-board-container" id="pixel-board-container" aria-label="开始拼交互画布"></div>
+          <canvas class="pixel-board-container" id="pixel-board-container" aria-label="开始拼交互画布"></canvas>
         </div>
       </div>
     </dialog>
@@ -557,18 +571,27 @@
       </div>
     </dialog>
 
-    <dialog id="donate-modal" class="donate-modal" aria-labelledby="donate-title">
-      <div class="donate-card">
-        <p class="donate-title" id="donate-title">
-          开源项目是作者和用户紧紧联系在一起的社群，如果您希望这个项目继续发展，可以请作者喝一杯奶茶。
-        </p>
-        <p class="donate-subtitle">您的支持是作者把项目继续下去的动力。</p>
-        <div class="qrcode-container">
-          <img id="donate-qrcode" src="./your-reward-code.png" alt="微信赞赏码" class="donate-qrcode" />
-          <span class="donate-qrcode-placeholder">放入 your-reward-code.png 后自动显示赞赏码</span>
+    <dialog id="donate-modal" class="donate-modal bmc-donate-modal" aria-labelledby="donate-title">
+      <div class="bmc-luxury-card">
+        <div class="bmc-header-banner">
+          <div class="bmc-logo-group">
+            <span class="bmc-cup-icon" aria-hidden="true">☕</span>
+            <span class="bmc-text-brand">Buy me a coffee</span>
+          </div>
         </div>
-        <div class="donate-tip">微信扫描上方赞赏码，请作者喝一杯奶茶。</div>
-        <button id="btn-close-donate" class="btn-close-text" type="button">继续使用工具</button>
+        <div class="bmc-body-content">
+          <h3 id="donate-title">请作者喝杯咖啡</h3>
+          <p class="bmc-main-text">
+            开源项目是作者和用户紧紧联系在一起的社群。如果您觉得这个拼豆工具对您有所帮助、让您的手工制作更加便捷，可以请作者喝一杯咖啡鼓励一下。
+          </p>
+          <p class="bmc-sub-text">您的支持是本公益站长期维护和升级的动力。</p>
+          <div class="bmc-qr-wrapper">
+            <img id="donate-qrcode" src="./your-reward-code.png" alt="微信赞赏码" class="bmc-qr-img" />
+            <span class="donate-qrcode-placeholder">请将微信赞赏码图片命名为 your-reward-code.png 后放到网站根目录。</span>
+          </div>
+          <p class="bmc-scan-footer">微信扫描上方赞赏码，请作者喝一杯咖啡</p>
+          <button id="btn-close-donate" class="bmc-btn-close" type="button">继续使用工具</button>
+        </div>
       </div>
     </dialog>
 
@@ -717,6 +740,6 @@
       </div>
     </dialog>
 
-    <script src="./app.js?v=20260528-assembly-flow" defer></script>
+    <script src="./app.js?v=20260605-width-1000-1" defer></script>
   </body>
 </html>

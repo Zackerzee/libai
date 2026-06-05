@@ -28,6 +28,10 @@ const BOARD_SIZES = [
 ];
 
 const DEFAULT_GRANULARITY = 50;
+const MIN_GRANULARITY = 10;
+const MAX_GRANULARITY = 1000;
+const MAX_DIRECT_PATTERN_GRID = 1000;
+const MAX_PIXEL_ART_DETECTION_SIDE = 4096;
 const LIVE_PREVIEW_DELAY = 320;
 const EXPORT_MIN_LONG_SIDE = 8192;
 const DEFAULT_INVITE_CODE = "LBPD2026";
@@ -739,7 +743,7 @@ function init() {
     });
     els.boardSelect.value = "custom";
   }
-  syncRangeControls("granularity", DEFAULT_GRANULARITY, 10, 500);
+  syncRangeControls("granularity", DEFAULT_GRANULARITY, MIN_GRANULARITY, MAX_GRANULARITY);
   syncRangeControls("similarity", 30, 0, 100);
   updatePaletteOptions();
   updateEditorPaletteOptions();
@@ -793,9 +797,9 @@ function bindEvents() {
   els.brandButtons.forEach((button) => {
     button.addEventListener("click", () => selectBrand(button.dataset.brand || DEFAULT_BRAND));
   });
-  bindRangePair("granularity", 10, 500);
+  bindRangePair("granularity", MIN_GRANULARITY, MAX_GRANULARITY);
   els.mobileGranularityInput?.addEventListener("input", () => {
-    syncRangeControls("granularity", els.mobileGranularityInput.value, 10, 500);
+    syncRangeControls("granularity", els.mobileGranularityInput.value, MIN_GRANULARITY, MAX_GRANULARITY);
     scheduleLivePreview("宽度已更新");
   });
   bindRangePair("similarity", 0, 100);
@@ -1036,8 +1040,8 @@ function getGranularity() {
   return syncRangeControls(
     "granularity",
     els.granularityInput?.value || DEFAULT_GRANULARITY,
-    10,
-    500,
+    MIN_GRANULARITY,
+    MAX_GRANULARITY,
   );
 }
 
@@ -1277,8 +1281,8 @@ function handleDirectPatternFileChange(event) {
   }
   state.directPatternFile = file;
   const defaultWidth = Number(els.granularityInput?.value || DEFAULT_GRANULARITY);
-  if (els.directPatternWidth) els.directPatternWidth.value = String(clamp(defaultWidth, 1, 500));
-  if (els.directPatternHeight) els.directPatternHeight.value = String(clamp(defaultWidth, 1, 500));
+  if (els.directPatternWidth) els.directPatternWidth.value = String(clamp(defaultWidth, 1, MAX_DIRECT_PATTERN_GRID));
+  if (els.directPatternHeight) els.directPatternHeight.value = String(clamp(defaultWidth, 1, MAX_DIRECT_PATTERN_GRID));
   if (els.directPatternMessage) {
     els.directPatternMessage.textContent = `已选择：${file.name}。请填写图纸实际格数。`;
   }
@@ -1295,8 +1299,15 @@ async function handleDirectPatternSubmit(event) {
     if (els.directPatternMessage) els.directPatternMessage.textContent = "请先选择一张图纸图片。";
     return;
   }
-  if (gridWidth < 1 || gridHeight < 1 || gridWidth > 500 || gridHeight > 500) {
-    if (els.directPatternMessage) els.directPatternMessage.textContent = "格数需要在 1 到 500 之间。";
+  if (
+    gridWidth < 1 ||
+    gridHeight < 1 ||
+    gridWidth > MAX_DIRECT_PATTERN_GRID ||
+    gridHeight > MAX_DIRECT_PATTERN_GRID
+  ) {
+    if (els.directPatternMessage) {
+      els.directPatternMessage.textContent = `格数需要在 1 到 ${MAX_DIRECT_PATTERN_GRID} 之间。`;
+    }
     return;
   }
   try {
@@ -1685,16 +1696,25 @@ function applyRestoreSizing(image) {
   if (naturalWidth < 10 || naturalHeight < 10) return;
   const detectedWidth = detectPixelArtLogicalWidth(image);
   if (detectedWidth) {
-    syncRangeControls("granularity", detectedWidth, 10, 500);
+    syncRangeControls("granularity", detectedWidth, MIN_GRANULARITY, MAX_GRANULARITY);
     return;
   }
-  if (naturalWidth <= 500) syncRangeControls("granularity", naturalWidth, 10, 500);
+  if (naturalWidth <= MAX_GRANULARITY) {
+    syncRangeControls("granularity", naturalWidth, MIN_GRANULARITY, MAX_GRANULARITY);
+  }
 }
 
 function detectPixelArtLogicalWidth(image) {
   const width = Number(image.naturalWidth || 0);
   const height = Number(image.naturalHeight || 0);
-  if (width < 48 || height < 48 || width > 1800 || height > 1800) return null;
+  if (
+    width < 48 ||
+    height < 48 ||
+    width > MAX_PIXEL_ART_DETECTION_SIDE ||
+    height > MAX_PIXEL_ART_DETECTION_SIDE
+  ) {
+    return null;
+  }
 
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d", { willReadFrequently: true });
@@ -1720,7 +1740,7 @@ function detectPixelArtLogicalWidth(image) {
   const bestCellSize = pickLikelyPixelCellSize(runLengths, Math.min(width, height));
   if (!bestCellSize) return null;
   const logicalWidth = Math.round(width / bestCellSize);
-  if (logicalWidth < 10 || logicalWidth > 500) return null;
+  if (logicalWidth < MIN_GRANULARITY || logicalWidth > MAX_GRANULARITY) return null;
   const fitError = Math.abs(width / bestCellSize - logicalWidth);
   return fitError <= 0.18 ? logicalWidth : null;
 }
@@ -1974,7 +1994,7 @@ function isNearWhiteRgb(pixel) {
 function rasterizeImage(image, palette) {
   const width = getGranularity();
   const ratio = image.naturalWidth ? image.naturalHeight / image.naturalWidth : 1;
-  const height = Math.max(1, Math.min(500, Math.round(width * ratio)));
+  const height = Math.max(1, Math.min(MAX_GRANULARITY, Math.round(width * ratio)));
   const mode = els.modeSelect?.value || "dominant";
   const threshold = getSimilarityThreshold();
 
