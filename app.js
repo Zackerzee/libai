@@ -27,7 +27,7 @@ const BOARD_SIZES = [
   ["120x120", "120x120 极限板"],
 ];
 
-const DEFAULT_GRANULARITY = 50;
+const DEFAULT_GRANULARITY = 52;
 const MIN_GRANULARITY = 10;
 const MAX_GRANULARITY = 1000;
 const MAX_DIRECT_PATTERN_GRID = 1000;
@@ -502,6 +502,7 @@ const els = {
   mobileChartDownloadButton: document.querySelector("#mobile-chart-download-button"),
   mobilePrintA4Button: document.querySelector("#mobile-print-a4-button"),
   fullscreenButton: document.querySelector("#fullscreen-button"),
+  historyButton: document.querySelector("#history-button"),
   registerOpenButton: document.querySelector("#register-open-button"),
   registerOpenButtonSide: document.querySelector("#register-open-button-side"),
   registerModal: document.querySelector("#register-modal"),
@@ -549,12 +550,20 @@ const els = {
   granularityOutput: document.querySelector("#granularity-output"),
   granularityNumber: document.querySelector("#granularity-number"),
   granularityApply: document.querySelector("#granularity-apply"),
+  gridHeightNumber: document.querySelector("#grid-height-number"),
+  ratioLockButton: document.querySelector("#ratio-lock-button"),
+  ratioHelp: document.querySelector("#ratio-help"),
   mobileGranularityInput: document.querySelector("#mobile-granularity-input"),
   mobileGranularityOutput: document.querySelector("#mobile-granularity-output"),
   similarityInput: document.querySelector("#similarity-input"),
   similarityOutput: document.querySelector("#similarity-output"),
   similarityNumber: document.querySelector("#similarity-number"),
   similarityApply: document.querySelector("#similarity-apply"),
+  colorLimitSelect: document.querySelector("#color-limit-select"),
+  isolationInput: document.querySelector("#isolation-input"),
+  isolationOutput: document.querySelector("#isolation-output"),
+  smartPresetButton: document.querySelector("#smart-preset-button"),
+  applyCleanupButton: document.querySelector("#apply-cleanup-button"),
   modeSelect: document.querySelector("#mode-select"),
   backgroundModeSelect: document.querySelector("#background-mode-select"),
   processButton: document.querySelector("#process-button"),
@@ -643,6 +652,9 @@ const state = {
   paletteLabel: "",
   width: 0,
   height: 0,
+  sourceAspectRatio: 1,
+  ratioLocked: true,
+  optimizationSummary: "",
   previewZoom: 1,
   editorZoom: 1,
   selectedBrand: DEFAULT_BRAND,
@@ -745,6 +757,8 @@ function init() {
   }
   syncRangeControls("granularity", DEFAULT_GRANULARITY, MIN_GRANULARITY, MAX_GRANULARITY);
   syncRangeControls("similarity", 30, 0, 100);
+  syncIsolationControl();
+  updateRatioLockUi();
   updatePaletteOptions();
   updateEditorPaletteOptions();
   updatePaletteCount();
@@ -778,6 +792,7 @@ function bindEvents() {
   els.mobileChartDownloadButton?.addEventListener("click", downloadPattern);
   els.mobilePrintA4Button?.addEventListener("click", downloadA4PrintPattern);
   els.fullscreenButton?.addEventListener("click", toggleFullscreen);
+  els.historyButton?.addEventListener("click", scrollToHistory);
   els.registerOpenButton?.addEventListener("click", openRegisterModal);
   els.registerOpenButtonSide?.addEventListener("click", openRegisterModal);
   els.registerForm?.addEventListener("submit", registerWithInvite);
@@ -802,7 +817,16 @@ function bindEvents() {
     syncRangeControls("granularity", els.mobileGranularityInput.value, MIN_GRANULARITY, MAX_GRANULARITY);
     scheduleLivePreview("宽度已更新");
   });
+  els.gridHeightNumber?.addEventListener("input", handleGridHeightInput);
+  els.gridHeightNumber?.addEventListener("change", handleGridHeightInput);
+  els.ratioLockButton?.addEventListener("click", toggleRatioLock);
   bindRangePair("similarity", 0, 100);
+  els.colorLimitSelect?.addEventListener("change", () => scheduleLivePreview("颜色聚类已更新"));
+  els.isolationInput?.addEventListener("input", () => {
+    syncIsolationControl();
+    scheduleLivePreview("孤立色块阈值已更新");
+  });
+  document.addEventListener("click", handleSmartOptimizationClick);
   els.paletteSelect.addEventListener("change", () => {
     updatePaletteCount();
     updateEditorPaletteOptions();
@@ -1017,6 +1041,7 @@ function bindRangePair(name, min, max) {
     syncRangeControls(name, number.value, min, max);
     scheduleLivePreview(name === "granularity" ? "宽度已更新" : "颜色合并已更新");
   };
+  if (name === "granularity") number.addEventListener("input", commit);
   number.addEventListener("change", commit);
   apply?.addEventListener("click", commit);
 }
@@ -1032,6 +1057,7 @@ function syncRangeControls(name, value, min, max) {
   if (name === "granularity") {
     if (els.mobileGranularityInput) els.mobileGranularityInput.value = String(next);
     if (els.mobileGranularityOutput) els.mobileGranularityOutput.textContent = String(next);
+    if (state.ratioLocked) syncDimensionHeightFromWidth(next);
   }
   return next;
 }
@@ -1043,6 +1069,97 @@ function getGranularity() {
     MIN_GRANULARITY,
     MAX_GRANULARITY,
   );
+}
+
+function getGridHeight() {
+  if (state.ratioLocked) {
+    return syncDimensionHeightFromWidth(getGranularity());
+  }
+  const next = Math.round(
+    clamp(Number(els.gridHeightNumber?.value) || DEFAULT_GRANULARITY, MIN_GRANULARITY, MAX_GRANULARITY),
+  );
+  if (els.gridHeightNumber) els.gridHeightNumber.value = String(next);
+  return next;
+}
+
+function syncDimensionHeightFromWidth(width) {
+  const ratio = Math.max(0.001, Number(state.sourceAspectRatio) || 1);
+  const next = Math.round(clamp(width / ratio, MIN_GRANULARITY, MAX_GRANULARITY));
+  if (els.gridHeightNumber) els.gridHeightNumber.value = String(next);
+  updateRatioLockUi();
+  return next;
+}
+
+function handleGridHeightInput() {
+  const requested = Number(els.gridHeightNumber?.value || 0);
+  if (!Number.isFinite(requested) || requested < MIN_GRANULARITY) return;
+  const height = Math.round(clamp(requested, MIN_GRANULARITY, MAX_GRANULARITY));
+  if (els.gridHeightNumber) els.gridHeightNumber.value = String(height);
+  if (state.ratioLocked) {
+    const width = Math.round(height * Math.max(0.001, Number(state.sourceAspectRatio) || 1));
+    syncRangeControls("granularity", width, MIN_GRANULARITY, MAX_GRANULARITY);
+  } else {
+    updateRatioLockUi();
+  }
+  scheduleLivePreview("高度已更新");
+}
+
+function toggleRatioLock() {
+  state.ratioLocked = !state.ratioLocked;
+  if (state.ratioLocked) syncDimensionHeightFromWidth(getGranularity());
+  updateRatioLockUi();
+  scheduleLivePreview(state.ratioLocked ? "已锁定原图比例" : "已解锁比例");
+}
+
+function updateRatioLockUi() {
+  const ratio = Math.max(0.001, Number(state.sourceAspectRatio) || 1);
+  const width = Number(els.granularityNumber?.value || DEFAULT_GRANULARITY);
+  const height = Number(els.gridHeightNumber?.value || DEFAULT_GRANULARITY);
+  if (els.ratioLockButton) {
+    els.ratioLockButton.classList.toggle("is-locked", state.ratioLocked);
+    els.ratioLockButton.setAttribute("aria-pressed", String(state.ratioLocked));
+    els.ratioLockButton.setAttribute("aria-label", state.ratioLocked ? "解锁长宽比例" : "锁定长宽比例");
+    const icon = els.ratioLockButton.querySelector(".lock-icon");
+    if (icon) icon.textContent = state.ratioLocked ? "🔗" : "🔓";
+  }
+  if (els.ratioHelp) {
+    const ratioLabel = ratio >= 1 ? `${ratio.toFixed(2)}:1` : `1:${(1 / ratio).toFixed(2)}`;
+    els.ratioHelp.textContent = state.ratioLocked
+      ? `已锁定原图比例 ${ratioLabel}，当前 ${width} × ${height} 格。`
+      : `比例已解锁，当前将强制输出 ${width} × ${height} 格。`;
+  }
+}
+
+function captureSourceAspectRatio(image) {
+  const width = Number(image?.naturalWidth || image?.width || 1);
+  const height = Number(image?.naturalHeight || image?.height || 1);
+  state.sourceAspectRatio = width > 0 && height > 0 ? width / height : 1;
+  if (state.ratioLocked) syncDimensionHeightFromWidth(getGranularity());
+  updateRatioLockUi();
+}
+
+function syncIsolationControl(value = els.isolationInput?.value || 1) {
+  const next = Math.round(clamp(Number(value) || 1, 1, 10));
+  if (els.isolationInput) els.isolationInput.value = String(next);
+  if (els.isolationOutput) els.isolationOutput.textContent = next <= 1 ? "关闭" : `< ${next} 格`;
+  return next;
+}
+
+function getOptimizationOptions() {
+  return {
+    colorLimit: Math.max(0, Number(els.colorLimitSelect?.value || 0)),
+    isolationThreshold: syncIsolationControl(),
+  };
+}
+
+function handleSmartOptimizationClick(event) {
+  if (event.target.closest("#smart-preset-button")) {
+    applySmartPreset();
+    return;
+  }
+  if (event.target.closest("#apply-cleanup-button")) {
+    applyOptimizationToCurrentGrid();
+  }
 }
 
 function getSimilarityThreshold() {
@@ -1218,6 +1335,10 @@ function updateInviteUi() {
   if (els.registerOpenButtonSide) {
     els.registerOpenButtonSide.textContent = profile ? "查看注册信息" : "输入邀请码注册";
   }
+}
+
+function scrollToHistory() {
+  document.querySelector(".gallery-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function startManualImport() {
@@ -1485,6 +1606,7 @@ async function loadFile(file) {
     state.sourceDataUrl = prepared.dataUrl;
     state.sourceName = file.name;
     state.sourceSafetyChecked = true;
+    captureSourceAspectRatio(await loadImage(prepared.dataUrl));
     els.sourcePreview.src = state.sourceDataUrl;
     els.sourcePreview.hidden = false;
     els.uploadZone.classList.add("has-image");
@@ -1646,10 +1768,12 @@ async function processImage(options = {}) {
     applyRestoreSizing(image);
     const palette = getCurrentPalette();
     const result = rasterizeImage(image, palette);
-    state.grid = result.grid;
+    const optimized = optimizeGrid(result.grid, getOptimizationOptions());
+    state.grid = optimized.grid;
     state.width = result.width;
     state.height = result.height;
     state.backgroundDecision = result.backgroundDecision || "";
+    state.optimizationSummary = optimized.summary;
     state.paletteLabel = getCurrentPaletteLabel();
     state.stats = calculateStats(state.grid);
     state.assemblyHideCellText = false;
@@ -1865,6 +1989,7 @@ async function scanReadyMadePattern(file, gridWidth, gridHeight) {
   state.grid = simplified.grid;
   state.width = gridWidth;
   state.height = gridHeight;
+  state.optimizationSummary = "";
   state.stats = simplified.stats;
   state.sourceDataUrl = dataUrl;
   state.sourceName = file.name || "direct-pattern";
@@ -1993,8 +2118,7 @@ function isNearWhiteRgb(pixel) {
 
 function rasterizeImage(image, palette) {
   const width = getGranularity();
-  const ratio = image.naturalWidth ? image.naturalHeight / image.naturalWidth : 1;
-  const height = Math.max(1, Math.min(MAX_GRANULARITY, Math.round(width * ratio)));
+  const height = getGridHeight();
   const mode = els.modeSelect?.value || "dominant";
   const threshold = getSimilarityThreshold();
 
@@ -2044,10 +2168,12 @@ function rasterizeImage(image, palette) {
 }
 
 function getGeneratedStatus() {
-  if (state.backgroundDecision === "auto-removed") return "已生成 · 已智能去背景";
-  if (state.backgroundDecision === "auto-kept") return "已生成 · 已保留完整背景";
-  if (state.backgroundDecision === "force-removed") return "已生成 · 已强制去背景";
-  return "已生成";
+  const details = [];
+  if (state.backgroundDecision === "auto-removed") details.push("已智能去背景");
+  if (state.backgroundDecision === "auto-kept") details.push("已保留完整背景");
+  if (state.backgroundDecision === "force-removed") details.push("已强制去背景");
+  if (state.optimizationSummary) details.push(state.optimizationSummary);
+  return ["已生成", ...details].join(" · ");
 }
 
 function getBackgroundMode() {
@@ -2490,6 +2616,267 @@ function calculateStats(grid) {
     }
   }
   return [...map.values()].sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
+}
+
+function optimizeGrid(grid, options = {}) {
+  const colorLimit = Math.max(0, Number(options.colorLimit || 0));
+  const isolationThreshold = Math.max(1, Number(options.isolationThreshold || 1));
+  if (!grid.length || (colorLimit <= 0 && isolationThreshold <= 1)) {
+    return { grid, summary: "", changedCount: 0 };
+  }
+
+  const beforeColors = calculateStats(grid).length;
+  let output = grid;
+  let changedCount = 0;
+  let clusterApplied = false;
+
+  if (colorLimit > 0 && beforeColors > colorLimit) {
+    const limited = limitGridColorsWithWeightedKMeans(output, colorLimit);
+    output = limited.grid;
+    changedCount += limited.changedCount;
+    clusterApplied = true;
+  }
+
+  const filtered = applyMajorityColorFilter(output);
+  output = filtered.grid;
+  changedCount += filtered.changedCount;
+
+  if (isolationThreshold > 1) {
+    const cleaned = removeIsolatedColorComponents(output, isolationThreshold);
+    output = cleaned.grid;
+    changedCount += cleaned.changedCount;
+  }
+
+  const afterColors = calculateStats(output).length;
+  const summaryParts = [];
+  if (beforeColors !== afterColors) {
+    summaryParts.push(`${clusterApplied ? "聚类" : "降噪"} ${beforeColors}→${afterColors} 色`);
+  }
+  if (changedCount > 0) summaryParts.push(`优化 ${formatCount(changedCount)} 格`);
+  return {
+    grid: output,
+    summary: summaryParts.join(" · "),
+    changedCount,
+  };
+}
+
+function limitGridColorsWithWeightedKMeans(grid, maxColors) {
+  const stats = calculateStats(grid);
+  if (stats.length <= maxColors) return { grid, changedCount: 0 };
+  const representatives = getWeightedKMeansRepresentatives(stats, maxColors);
+  const replacements = new Map();
+  for (const color of stats) {
+    replacements.set(color.code, nearestColor(color.rgb[0], color.rgb[1], color.rgb[2], representatives));
+  }
+
+  let changedCount = 0;
+  const output = grid.map((row) =>
+    row.map((color) => {
+      if (!color) return null;
+      const replacement = replacements.get(color.code) || color;
+      if (replacement.code !== color.code) changedCount += 1;
+      return cloneColor(replacement);
+    }),
+  );
+  return { grid: output, changedCount };
+}
+
+function getWeightedKMeansRepresentatives(stats, maxColors) {
+  const samples = stats.map((color) => ({
+    color,
+    rgb: [...color.rgb],
+    weight: Math.max(1, color.count || 1),
+  }));
+  const centroids = [[...samples[0].rgb]];
+
+  while (centroids.length < Math.min(maxColors, samples.length)) {
+    let bestSample = null;
+    let bestScore = -1;
+    for (const sample of samples) {
+      const minDistance = Math.min(...centroids.map((centroid) => squaredRgbDistance(sample.rgb, centroid)));
+      const score = minDistance * Math.log2(sample.weight + 1);
+      if (score > bestScore) {
+        bestScore = score;
+        bestSample = sample;
+      }
+    }
+    if (!bestSample || bestScore <= 0) break;
+    centroids.push([...bestSample.rgb]);
+  }
+
+  for (let iteration = 0; iteration < 8; iteration += 1) {
+    const sums = centroids.map(() => [0, 0, 0, 0]);
+    for (const sample of samples) {
+      const clusterIndex = getNearestCentroidIndex(sample.rgb, centroids);
+      const sum = sums[clusterIndex];
+      sum[0] += sample.rgb[0] * sample.weight;
+      sum[1] += sample.rgb[1] * sample.weight;
+      sum[2] += sample.rgb[2] * sample.weight;
+      sum[3] += sample.weight;
+    }
+    for (let index = 0; index < centroids.length; index += 1) {
+      const sum = sums[index];
+      if (!sum[3]) continue;
+      centroids[index] = [sum[0] / sum[3], sum[1] / sum[3], sum[2] / sum[3]];
+    }
+  }
+
+  const representatives = [];
+  const usedCodes = new Set();
+  for (const centroid of centroids) {
+    const nearest = samples
+      .map((sample) => ({ sample, distance: squaredRgbDistance(sample.rgb, centroid) }))
+      .sort((a, b) => a.distance - b.distance || b.sample.weight - a.sample.weight)[0]?.sample.color;
+    if (nearest && !usedCodes.has(nearest.code)) {
+      usedCodes.add(nearest.code);
+      representatives.push(nearest);
+    }
+  }
+  for (const color of stats) {
+    if (representatives.length >= maxColors) break;
+    if (usedCodes.has(color.code)) continue;
+    usedCodes.add(color.code);
+    representatives.push(color);
+  }
+  return representatives;
+}
+
+function getNearestCentroidIndex(rgbValue, centroids) {
+  let bestIndex = 0;
+  let bestDistance = Infinity;
+  for (let index = 0; index < centroids.length; index += 1) {
+    const distance = squaredRgbDistance(rgbValue, centroids[index]);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+  }
+  return bestIndex;
+}
+
+function squaredRgbDistance(a, b) {
+  return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
+}
+
+function applyMajorityColorFilter(grid) {
+  const rows = grid.length;
+  const columns = grid[0]?.length || 0;
+  if (!rows || !columns) return { grid, changedCount: 0 };
+  const colorsByCode = new Map(calculateStats(grid).map((color) => [color.code, color]));
+  const output = cloneGrid(grid);
+  let changedCount = 0;
+
+  for (let y = 0; y < rows; y += 1) {
+    for (let x = 0; x < columns; x += 1) {
+      const current = grid[y][x];
+      if (!current) continue;
+      const counts = new Map();
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          const neighbor = grid[y + dy]?.[x + dx];
+          if (!neighbor) continue;
+          counts.set(neighbor.code, (counts.get(neighbor.code) || 0) + 1);
+        }
+      }
+      const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+      const [winnerCode, winnerCount] = ranked[0] || [];
+      const currentCount = counts.get(current.code) || 0;
+      if (!winnerCode || winnerCode === current.code || winnerCount < 4 || winnerCount <= currentCount + 1) continue;
+      output[y][x] = cloneColor(colorsByCode.get(winnerCode));
+      changedCount += 1;
+    }
+  }
+  return { grid: output, changedCount };
+}
+
+function removeIsolatedColorComponents(grid, minSize) {
+  const rows = grid.length;
+  const columns = grid[0]?.length || 0;
+  if (!rows || !columns || minSize <= 1) return { grid, changedCount: 0 };
+  const output = cloneGrid(grid);
+  const visited = new Uint8Array(rows * columns);
+  const directions = [-1, 0, 1].flatMap((dy) =>
+    [-1, 0, 1].filter((dx) => dx || dy).map((dx) => [dx, dy]),
+  );
+  let changedCount = 0;
+
+  for (let y = 0; y < rows; y += 1) {
+    for (let x = 0; x < columns; x += 1) {
+      const startIndex = y * columns + x;
+      const startColor = grid[y][x];
+      if (!startColor || visited[startIndex]) continue;
+      const queue = [startIndex];
+      const component = [];
+      const neighborCounts = new Map();
+      visited[startIndex] = 1;
+
+      for (let head = 0; head < queue.length; head += 1) {
+        const index = queue[head];
+        component.push(index);
+        const cellX = index % columns;
+        const cellY = Math.floor(index / columns);
+        for (const [dx, dy] of directions) {
+          const nextX = cellX + dx;
+          const nextY = cellY + dy;
+          if (nextX < 0 || nextY < 0 || nextX >= columns || nextY >= rows) continue;
+          const nextIndex = nextY * columns + nextX;
+          const neighbor = grid[nextY][nextX];
+          if (!neighbor) continue;
+          if (neighbor.code === startColor.code) {
+            if (!visited[nextIndex]) {
+              visited[nextIndex] = 1;
+              queue.push(nextIndex);
+            }
+          } else {
+            const entry = neighborCounts.get(neighbor.code) || { color: neighbor, count: 0 };
+            entry.count += 1;
+            neighborCounts.set(neighbor.code, entry);
+          }
+        }
+      }
+
+      if (component.length >= minSize || !neighborCounts.size) continue;
+      const replacement = [...neighborCounts.values()].sort(
+        (a, b) => b.count - a.count || a.color.code.localeCompare(b.color.code),
+      )[0].color;
+      for (const index of component) {
+        output[Math.floor(index / columns)][index % columns] = cloneColor(replacement);
+        changedCount += 1;
+      }
+    }
+  }
+  return { grid: output, changedCount };
+}
+
+function applySmartPreset() {
+  if (els.colorLimitSelect) els.colorLimitSelect.value = "24";
+  syncIsolationControl(3);
+  if (els.modeSelect) els.modeSelect.value = "smooth";
+  syncRangeControls("similarity", 36, 0, 100);
+  if (state.sourceDataUrl) {
+    processImage();
+    return;
+  }
+  if (state.grid.length) {
+    applyOptimizationToCurrentGrid();
+    return;
+  }
+  setStatus("已设为推荐参数，请上传图片");
+}
+
+function applyOptimizationToCurrentGrid() {
+  if (!state.grid.length) {
+    setStatus("请先生成图纸");
+    return;
+  }
+  const optimized = optimizeGrid(state.grid, getOptimizationOptions());
+  state.grid = optimized.grid;
+  state.optimizationSummary = optimized.summary || "当前图纸无需进一步优化";
+  state.stats = calculateStats(state.grid);
+  refreshChartUrl();
+  updateResultUi();
+  saveCurrentToGallery();
+  setStatus(state.optimizationSummary);
 }
 
 function refreshChartUrl() {
@@ -3318,8 +3705,10 @@ function updateResultUi() {
   els.editButton.disabled = !hasResult;
   if (els.startAssemblyButton) els.startAssemblyButton.disabled = !hasResult;
   if (els.startAssemblyPanelButton) els.startAssemblyPanelButton.disabled = !hasResult;
-  els.downloadButton.disabled = false;
-  if (els.downloadButtonTop) els.downloadButtonTop.disabled = false;
+  if (els.applyCleanupButton) els.applyCleanupButton.disabled = !hasResult;
+  els.downloadButton.disabled = !hasResult;
+  if (els.downloadButtonTop) els.downloadButtonTop.disabled = !hasResult;
+  if (els.printA4Button) els.printA4Button.disabled = !hasResult;
   document.body.classList.toggle("has-result", hasResult);
 
   if (hasResult) {
@@ -3366,8 +3755,11 @@ function updateStatsList() {
   } 最多`;
 
   for (const item of state.stats) {
-    const row = document.createElement("div");
+    const row = document.createElement("button");
+    row.type = "button";
     row.className = "stat-row";
+    row.title = `高亮 ${item.code}，共 ${formatCount(item.count)} 颗`;
+    row.setAttribute("aria-label", `高亮色号 ${item.code}，${formatCount(item.count)} 颗`);
 
     const swatch = document.createElement("span");
     swatch.className = "stat-swatch";
@@ -3382,6 +3774,10 @@ function updateStatsList() {
     count.textContent = formatCount(item.count);
 
     row.append(swatch, code, count);
+    row.addEventListener("click", () => {
+      openAssemblyPlayer();
+      selectAssemblyColor(item.code);
+    });
     els.statsList.append(row);
   }
 }
@@ -5786,6 +6182,7 @@ function undoReplace() {
 
 function saveEditor() {
   state.grid = cloneGrid(state.editorGrid);
+  state.optimizationSummary = "";
   state.width = state.grid[0]?.length || 0;
   state.height = state.grid.length;
   if (els.artworkNameInput?.value.trim()) {
@@ -5802,6 +6199,7 @@ function saveEditor() {
 
 function saveEditorToLibrary() {
   state.grid = cloneGrid(state.editorGrid);
+  state.optimizationSummary = "";
   state.width = state.grid[0]?.length || 0;
   state.height = state.grid.length;
   if (els.artworkNameInput?.value.trim()) {
@@ -5861,7 +6259,8 @@ function publishEditorArtwork() {
 
 function createBlankBoard(options = {}) {
   const { openEditorAfterCreate = true } = options;
-  const size = 100;
+  const width = getGranularity();
+  const height = getGridHeight();
   state.sourceDataUrl = "";
   state.sourceName = "blank-board";
   state.autoProcessAfterLoad = false;
@@ -5872,9 +6271,10 @@ function createBlankBoard(options = {}) {
   els.sourcePreview.hidden = true;
   els.sourcePreview.removeAttribute("src");
   els.uploadZone.classList.remove("has-image", "drag-over");
-  state.grid = Array.from({ length: size }, () => Array(size).fill(null));
-  state.width = size;
-  state.height = size;
+  state.grid = Array.from({ length: height }, () => Array(width).fill(null));
+  state.width = width;
+  state.height = height;
+  state.optimizationSummary = "";
   state.paletteLabel = getCurrentPaletteLabel();
   state.stats = [];
   state.assemblyHideCellText = false;
@@ -5890,6 +6290,11 @@ function resetAll() {
   state.autoProcessAfterLoad = false;
   state.restoreAutoSizePending = false;
   state.backgroundDecision = "";
+  state.optimizationSummary = "";
+  state.sourceAspectRatio = 1;
+  state.ratioLocked = true;
+  syncRangeControls("granularity", DEFAULT_GRANULARITY, MIN_GRANULARITY, MAX_GRANULARITY);
+  updateRatioLockUi();
   state.sourceSafetyChecked = false;
   els.fileInput.value = "";
   els.sourcePreview.hidden = true;
@@ -5907,6 +6312,7 @@ function clearResult() {
   state.previewUrl = "";
   state.paletteLabel = "";
   state.backgroundDecision = "";
+  state.optimizationSummary = "";
   state.width = 0;
   state.height = 0;
   state.assemblyHideCellText = false;

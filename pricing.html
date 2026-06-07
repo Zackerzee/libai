@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="导入进货清单，按材料、工具、物流、房租水电、时间成本和目标利润自动生成手作售价方案。"
+    />
+    <title>手作定价后台</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/pricing.css" />
+  </head>
+  <body>
+    <div class="pricing-app">
+      <header class="pricing-topbar">
+        <a class="pricing-brand" href="/pricing.html" aria-label="手作定价后台">
+          <span class="pricing-mark" aria-hidden="true"></span>
+          <span>
+            <strong>手作定价后台</strong>
+            <small>Pricing Console</small>
+          </span>
+        </a>
+        <nav class="top-actions" aria-label="页面操作">
+          <a class="nav-link" href="/index.html">图纸工具</a>
+          <button class="ghost-button" id="sample-button" type="button">样例</button>
+          <button class="ghost-button danger" id="reset-button" type="button">清空</button>
+        </nav>
+      </header>
+
+      <main class="pricing-workspace">
+        <section class="import-panel" aria-labelledby="import-title">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Import</p>
+              <h1 id="import-title">进货清单导入</h1>
+            </div>
+            <span class="status-pill" id="import-status">待导入</span>
+          </div>
+
+          <label class="file-zone" id="file-zone">
+            <input id="file-input" type="file" accept=".xlsx,.csv,.tsv,.txt,text/csv,text/tab-separated-values" />
+            <span class="file-icon" aria-hidden="true">↑</span>
+            <span class="file-title">选择清单文件</span>
+            <span class="file-meta">XLSX / CSV / TSV</span>
+          </label>
+
+          <textarea
+            id="paste-input"
+            class="paste-box"
+            rows="6"
+            spellcheck="false"
+            placeholder="类型	品名	数量	进价&#10;主体	织带	30	18&#10;配饰	刺绣贴 A	90	4.5&#10;配饰	刺绣贴 B	60	5.2"
+          ></textarea>
+
+          <div class="import-actions">
+            <button class="primary-button" id="parse-paste-button" type="button">导入粘贴内容</button>
+            <button class="secondary-button" id="template-button" type="button">下载模板</button>
+          </div>
+        </section>
+
+        <section class="settings-panel" aria-labelledby="settings-title">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Assumptions</p>
+              <h2 id="settings-title">定价参数</h2>
+            </div>
+            <span class="rate-chip">时薪 <strong id="hourly-rate-view">30.00</strong></span>
+          </div>
+
+          <div class="settings-grid">
+            <label class="field">
+              <span>目标月收入</span>
+              <input id="monthly-income" type="number" min="0" step="100" value="6000" />
+            </label>
+            <label class="field">
+              <span>月工作小时</span>
+              <input id="monthly-hours" type="number" min="1" step="1" value="200" />
+            </label>
+            <label class="field">
+              <span>默认制作小时</span>
+              <input id="default-labor-hours" type="number" min="0" step="0.1" value="1" />
+            </label>
+            <label class="field">
+              <span>默认工具摊销</span>
+              <input id="default-tool-cost" type="number" min="0" step="0.1" value="1" />
+            </label>
+            <label class="field">
+              <span>默认快递费</span>
+              <input id="default-shipping" type="number" min="0" step="0.1" value="5.5" />
+            </label>
+            <label class="field">
+              <span>默认包装费</span>
+              <input id="default-packaging" type="number" min="0" step="0.1" value="1.5" />
+            </label>
+            <label class="field">
+              <span>月房租</span>
+              <input id="monthly-rent" type="number" min="0" step="100" value="0" />
+            </label>
+            <label class="field">
+              <span>月水电</span>
+              <input id="monthly-utilities" type="number" min="0" step="50" value="0" />
+            </label>
+            <label class="field">
+              <span>其他固定开销</span>
+              <input id="monthly-fixed-other" type="number" min="0" step="50" value="0" />
+            </label>
+            <label class="field">
+              <span>预计月产量</span>
+              <input id="monthly-output" type="number" min="0" step="1" value="300" />
+            </label>
+            <label class="field">
+              <span>销售渠道</span>
+              <select id="channel-select">
+                <option value="xiaohongshu" selected>小红书</option>
+                <option value="douyin">抖音</option>
+                <option value="private">微信/私域</option>
+                <option value="offline">线下摊位</option>
+                <option value="custom">自定义</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>平台扣点</span>
+              <input id="platform-fee" type="number" min="0" max="90" step="0.1" value="5" />
+            </label>
+            <label class="field">
+              <span>目标净利率</span>
+              <input id="target-margin" type="number" min="0" max="90" step="0.5" value="34" />
+            </label>
+            <label class="field">
+              <span>目标利润额</span>
+              <input id="target-profit-amount" type="number" min="0" step="1" value="0" />
+            </label>
+            <label class="field">
+              <span>其他单件成本</span>
+              <input id="default-other-cost" type="number" min="0" step="0.1" value="0" />
+            </label>
+            <label class="field">
+              <span>取整规则</span>
+              <select id="round-rule">
+                <option value="yuan" selected>向上到整元</option>
+                <option value="half">向上到 0.5 元</option>
+                <option value="five">向上到 5 元</option>
+                <option value="nine">尾数 .9</option>
+                <option value="ninetynine">尾数 .99</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="summary-panel plan-panel" aria-labelledby="plan-title">
+          <div class="section-head compact">
+            <div>
+              <p class="eyebrow">Plan</p>
+              <h2 id="plan-title">单品定价方案</h2>
+            </div>
+            <span class="status-pill" id="plan-status">待计算</span>
+          </div>
+
+          <label class="field plan-picker">
+            <span>成品名称</span>
+            <input id="finished-name" type="text" value="织带刺绣组合" />
+          </label>
+
+          <div class="combo-actions">
+            <button class="secondary-button" id="add-main-button" type="button">添加主体</button>
+            <button class="secondary-button" id="add-accessory-button" type="button">添加配饰</button>
+          </div>
+
+          <div class="combo-list" id="combo-list"></div>
+
+          <div class="plan-hero">
+            <span id="plan-product-name">未选择产品</span>
+            <strong id="plan-suggested-price">0.00</strong>
+          </div>
+
+          <div class="summary-grid">
+            <div class="metric-card">
+              <span>保本价</span>
+              <strong id="plan-break-even">0.00</strong>
+            </div>
+            <div class="metric-card">
+              <span>固定成本</span>
+              <strong id="plan-fixed-cost">0.00</strong>
+            </div>
+            <div class="metric-card">
+              <span>单件净利</span>
+              <strong id="plan-net-profit">0.00</strong>
+            </div>
+            <div class="metric-card">
+              <span>净利率</span>
+              <strong id="plan-net-margin">0.0%</strong>
+            </div>
+            <div class="metric-card">
+              <span>房租水电/件</span>
+              <strong id="overhead-per-item">0.00</strong>
+            </div>
+            <div class="metric-card">
+              <span>本款总利润</span>
+              <strong id="plan-batch-profit">0.00</strong>
+            </div>
+            <div class="metric-card">
+              <span>可做件数</span>
+              <strong id="plan-buildable">0</strong>
+            </div>
+          </div>
+
+          <div class="breakdown-box">
+            <div class="breakdown-head">
+              <strong>成本拆分</strong>
+              <span id="plan-formula-mode">利润率模式</span>
+            </div>
+            <div id="cost-breakdown" class="breakdown-list"></div>
+          </div>
+
+          <div class="plan-note">
+            <strong id="plan-advice-title">定价建议</strong>
+            <p id="plan-advice">导入清单后显示单品方案。</p>
+          </div>
+
+          <div class="batch-strip">
+            <span>款式 <strong id="sku-count">0</strong></span>
+            <span>数量 <strong id="total-qty">0</strong></span>
+            <span>采购 <strong id="purchase-total">0.00</strong></span>
+            <span>销售 <strong id="revenue-total">0.00</strong></span>
+            <span>利润 <strong id="profit-total">0.00</strong></span>
+          </div>
+
+          <div class="summary-actions">
+            <button class="secondary-button" id="add-row-button" type="button">新增一行</button>
+            <button class="secondary-button" id="copy-result-button" type="button">复制单品方案</button>
+            <button class="primary-button" id="export-button" type="button">导出方案 CSV</button>
+          </div>
+        </section>
+
+        <section class="table-panel" aria-labelledby="table-title">
+          <div class="section-head table-head">
+            <div>
+              <p class="eyebrow">Pricing</p>
+              <h2 id="table-title">导入输入核对</h2>
+            </div>
+            <span class="status-pill muted" id="table-status">0 行</span>
+          </div>
+
+          <div class="input-preview">
+            <table class="input-preview-table">
+              <thead>
+                <tr>
+                  <th>类型</th>
+                  <th>产品/款式</th>
+                  <th>数量</th>
+                  <th>进价</th>
+                  <th>工具</th>
+                  <th>快递</th>
+                  <th>包装</th>
+                  <th>工时</th>
+                  <th>其他</th>
+                </tr>
+              </thead>
+              <tbody id="input-preview-body"></tbody>
+            </table>
+          </div>
+
+          <div class="table-scroll">
+            <table class="pricing-table">
+              <thead>
+                <tr>
+                  <th>类型</th>
+                  <th>产品/款式</th>
+                  <th>库存/采购数量</th>
+                  <th>单件进价</th>
+                  <th>工具</th>
+                  <th>快递</th>
+                  <th>包装</th>
+                  <th>工时</th>
+                  <th>其他</th>
+                  <th>当前组合用量</th>
+                  <th>材料小计</th>
+                  <th>可支持件数</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="pricing-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/pricing.js" defer></script>
+  </body>
+</html>

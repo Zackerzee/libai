@@ -1,0 +1,6 @@
+.DS_Store
+.next/
+outputs/
+video_edit/
+node_modules/
+*.log

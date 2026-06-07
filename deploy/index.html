@@ -9,7 +9,7 @@
     />
     <title>里白造物拼豆图纸生成器 | LiBai Maker Studio</title>
     <link rel="icon" href="./libai-logo-pixel.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=20260605-width-1000-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260607-dimensions-cleanup-2" />
   </head>
   <body>
     <div class="app-shell">
@@ -29,7 +29,9 @@
           </nav>
 
           <div class="top-actions">
-            <a class="soft-button home-button" href="./index.html">主页</a>
+            <button type="button" class="soft-button hide-sm" id="history-button">历史记录</button>
+            <button type="button" class="soft-button hide-sm" id="import-button">导入</button>
+            <button type="button" class="soft-button hide-sm" id="download-button-top" disabled>下载</button>
             <button type="button" class="soft-button hide-sm" id="register-open-button">邀请注册</button>
           </div>
         </div>
@@ -73,7 +75,7 @@
 
                 <button class="start-card blank-start-card" id="blank-board-button" type="button">
                   <span class="start-title">＋ 从空白画布开始</span>
-                  <span class="start-meta">使用当前宽度创建正方形画布，直接绘制拼豆图纸。</span>
+                  <span class="start-meta">使用当前横向、纵向格数创建画布，直接绘制拼豆图纸。</span>
                 </button>
               </div>
             </section>
@@ -91,9 +93,9 @@
                   <div class="mobile-preview-width-control" aria-label="手机端图纸宽度快捷调整">
                     <label for="mobile-granularity-input">
                       <span>图纸宽度</span>
-                      <output id="mobile-granularity-output">50</output>
+                      <output id="mobile-granularity-output">52</output>
                     </label>
-                    <input id="mobile-granularity-input" type="range" min="10" max="1000" value="50" />
+                    <input id="mobile-granularity-input" type="range" min="10" max="1000" value="52" />
                   </div>
                 </div>
 
@@ -125,13 +127,13 @@
                 >
                   下载预览图
                 </button>
-                <button class="primary-action" id="download-button" type="button">
+                <button class="primary-action" id="download-button" type="button" disabled>
                   下载图纸
                 </button>
                 <button class="outline-button" id="start-assembly-button" type="button" disabled>
                   开始拼
                 </button>
-                <button class="outline-button" id="print-a4-button" type="button">
+                <button class="outline-button" id="print-a4-button" type="button" disabled>
                   下载A4打印分版
                 </button>
               </div>
@@ -145,20 +147,36 @@
                   <span class="status-pill" id="status-pill">待上传</span>
                 </div>
 
-                <div class="range-block">
+                <div class="range-block dimension-range-block">
                   <label for="granularity-input">
-                    图纸宽度 <span>(横向颗数，拖动即预览)</span>
+                    图纸尺寸 <span>(锁定比例时，宽高自动联动)</span>
                   </label>
-                  <p class="field-hint">参考 PixelBeads：拉动宽度会自动重算预览。</p>
+                  <p class="field-hint">按手中板子设定横向、纵向格数；解锁后可强制拉伸填满指定底板。</p>
                   <div class="range-row">
-                    <input id="granularity-input" type="range" min="10" max="1000" value="50" />
-                    <output id="granularity-output">50</output>
+                    <input id="granularity-input" type="range" min="10" max="1000" value="52" />
+                    <output id="granularity-output">52</output>
                   </div>
-                  <div class="manual-row">
-                    <span>手动输入</span>
-                    <input id="granularity-number" type="number" min="10" max="1000" value="50" />
-                    <button id="granularity-apply" type="button">确认</button>
+                  <div class="dimension-setting-container">
+                    <label class="input-group-luxury" for="granularity-number">
+                      <span>横向格数 (宽)</span>
+                      <input id="granularity-number" type="number" min="10" max="1000" value="52" />
+                    </label>
+                    <button
+                      id="ratio-lock-button"
+                      class="btn-lock-status is-locked"
+                      type="button"
+                      aria-pressed="true"
+                      aria-label="解锁长宽比例"
+                      title="点击解锁/锁定比例"
+                    >
+                      <span class="lock-icon" aria-hidden="true">🔗</span>
+                    </button>
+                    <label class="input-group-luxury" for="grid-height-number">
+                      <span>纵向格数 (高)</span>
+                      <input id="grid-height-number" type="number" min="10" max="1000" value="52" />
+                    </label>
                   </div>
+                  <p class="ratio-help" id="ratio-help">已锁定比例，上传图片后会按原图比例自动联动。</p>
                 </div>
 
                 <div class="range-block">
@@ -176,6 +194,34 @@
                     <button id="similarity-apply" type="button">确认</button>
                   </div>
                 </div>
+
+                <section class="smart-optimization-block" aria-labelledby="smart-optimization-title">
+                  <div class="smart-optimization-head">
+                    <strong id="smart-optimization-title">智能降噪与聚类</strong>
+                    <button id="smart-preset-button" type="button">一键推荐</button>
+                  </div>
+                  <label class="field compact-field">
+                    <span>最大颜色数</span>
+                    <select id="color-limit-select">
+                      <option value="0" selected>不限制</option>
+                      <option value="24">24 色</option>
+                      <option value="48">48 色</option>
+                      <option value="72">72 色</option>
+                    </select>
+                  </label>
+                  <div class="range-block isolation-range-block">
+                    <label for="isolation-input">
+                      消除孤立色块 <span>(小于 N 格会替换为邻居色)</span>
+                    </label>
+                    <div class="range-row">
+                      <input id="isolation-input" type="range" min="1" max="10" value="1" />
+                      <output id="isolation-output">关闭</output>
+                    </div>
+                  </div>
+                  <button class="outline-button wide" id="apply-cleanup-button" type="button" disabled>
+                    应用到当前图纸
+                  </button>
+                </section>
 
                 <label class="field">
                   <span>处理模式</span>
@@ -341,6 +387,77 @@
           </aside>
         </div>
       </main>
+
+      <section class="feature-section showcase-section" aria-labelledby="showcase-title">
+        <div class="section-inner">
+          <p class="section-kicker">Pattern Preview</p>
+          <h2 id="showcase-title">效果展示</h2>
+          <p>上传任意图片后，系统会自动匹配色号并生成可直接制作的拼豆图纸。</p>
+          <div class="comparison-grid">
+            <figure>
+              <div class="showcase-visual showcase-source" aria-hidden="true">
+                <span class="showcase-orb orb-one"></span>
+                <span class="showcase-orb orb-two"></span>
+                <span class="showcase-orb orb-three"></span>
+                <span class="showcase-leaf leaf-one"></span>
+                <span class="showcase-leaf leaf-two"></span>
+              </div>
+              <figcaption><span class="showcase-badge">图</span> 原图示例</figcaption>
+            </figure>
+            <span class="arrow" aria-hidden="true">→</span>
+            <figure>
+              <div class="showcase-visual showcase-pattern" aria-hidden="true">
+                <span class="showcase-orb orb-one"></span>
+                <span class="showcase-orb orb-two"></span>
+                <span class="showcase-orb orb-three"></span>
+                <span class="showcase-leaf leaf-one"></span>
+                <span class="showcase-leaf leaf-two"></span>
+              </div>
+              <figcaption><span class="showcase-badge pattern-badge">表</span> 拼豆图纸示例</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="feature-section capability-section" aria-labelledby="capability-title">
+        <div class="section-inner">
+          <p class="section-kicker">Maker Tools</p>
+          <h2 id="capability-title">强大功能</h2>
+          <p>从图片转换、配色统计到编辑和导出，完成拼豆制作所需的核心能力都集中在这里。</p>
+          <div class="feature-grid">
+            <article>
+              <span class="pixel-icon pixel-icon-palette" aria-hidden="true"></span>
+              <h3>多品牌配色板</h3>
+              <p>支持 MARD、COCO、漫漫、盼盼和咪小窝色板，自动匹配接近原图的色号。</p>
+            </article>
+            <article>
+              <span class="pixel-icon pixel-icon-count" aria-hidden="true"></span>
+              <h3>自动豆数统计</h3>
+              <p>生成后自动统计每种颜色的数量、总豆数、成品尺寸和预计制作难度。</p>
+            </article>
+            <article>
+              <span class="pixel-icon pixel-icon-download" aria-hidden="true"></span>
+              <h3>高清图纸导出</h3>
+              <p>一键下载带网格、坐标和色号的高清图纸，也可生成适合打印的 A4 分版。</p>
+            </article>
+            <article>
+              <span class="pixel-icon pixel-icon-edit" aria-hidden="true"></span>
+              <h3>手动画板编辑</h3>
+              <p>使用画笔、橡皮、吸管、换色和区域移动工具，对生成结果进行细节调整。</p>
+            </article>
+            <article>
+              <span class="pixel-icon pixel-icon-grid" aria-hidden="true"></span>
+              <h3>灵活网格尺寸</h3>
+              <p>自由设置横向颗数，并支持常用拼豆板尺寸和镜像图纸，适配不同制作需求。</p>
+            </article>
+            <article>
+              <span class="pixel-icon pixel-icon-bolt" aria-hidden="true"></span>
+              <h3>本地即时处理</h3>
+              <p>图片只在浏览器本地处理，调整参数后立即重新生成，不上传和存储原始图片。</p>
+            </article>
+          </div>
+        </div>
+      </section>
 
       <section class="gallery-section" aria-labelledby="gallery-title">
         <div class="gallery-head">
@@ -740,6 +857,6 @@
       </div>
     </dialog>
 
-    <script src="./app.js?v=20260605-width-1000-1" defer></script>
+    <script src="./app.js?v=20260607-dimensions-cleanup-3" defer></script>
   </body>
 </html>
