@@ -9,7 +9,7 @@
     />
     <title>里白造物拼豆图纸生成器 | LiBai Maker Studio</title>
     <link rel="icon" href="./libai-logo-pixel.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=20260607-dimensions-cleanup-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260611-local-first-tools-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -30,9 +30,10 @@
 
           <div class="top-actions">
             <button type="button" class="soft-button hide-sm" id="history-button">历史记录</button>
-            <button type="button" class="soft-button hide-sm" id="import-button">导入</button>
+            <button type="button" class="soft-button hide-sm" id="import-button">导入图片</button>
+            <button type="button" class="soft-button hide-sm" id="project-import-button">导入项目</button>
+            <button type="button" class="soft-button hide-sm" id="project-export-button" disabled>导出项目</button>
             <button type="button" class="soft-button hide-sm" id="download-button-top" disabled>下载</button>
-            <button type="button" class="soft-button hide-sm" id="register-open-button">邀请注册</button>
           </div>
         </div>
       </header>
@@ -51,6 +52,12 @@
               class="file-input-hidden"
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,.jpg,.jpeg,.png,.webp,.gif,.bmp"
+            />
+            <input
+              id="project-file-input"
+              class="file-input-hidden"
+              type="file"
+              accept=".libai.json,.json,application/json"
             />
             <select id="board-select" hidden></select>
 
@@ -179,6 +186,35 @@
                   <p class="ratio-help" id="ratio-help">已锁定比例，上传图片后会按原图比例自动联动。</p>
                 </div>
 
+                <section class="smart-optimization-block" aria-labelledby="composition-title">
+                  <div class="smart-optimization-head">
+                    <strong id="composition-title">裁剪与构图</strong>
+                    <button id="composition-reset-button" type="button">重置构图</button>
+                  </div>
+                  <label class="field compact-field">
+                    <span>适配方式</span>
+                    <select id="crop-mode-select">
+                      <option value="cover" selected>裁剪填满</option>
+                      <option value="contain">完整保留</option>
+                      <option value="stretch">拉伸填满</option>
+                    </select>
+                  </label>
+                  <div class="range-block isolation-range-block">
+                    <label for="crop-zoom-input">构图缩放 <span id="crop-zoom-output">100%</span></label>
+                    <input id="crop-zoom-input" type="range" min="100" max="300" value="100" />
+                  </div>
+                  <div class="direct-pattern-fields">
+                    <label class="field">
+                      <span>水平位置</span>
+                      <input id="crop-x-input" type="range" min="-100" max="100" value="0" />
+                    </label>
+                    <label class="field">
+                      <span>垂直位置</span>
+                      <input id="crop-y-input" type="range" min="-100" max="100" value="0" />
+                    </label>
+                  </div>
+                </section>
+
                 <div class="range-block">
                   <label for="similarity-input">
                     颜色合并阈值 <span>(推荐 30)</span>
@@ -295,7 +331,8 @@
                   <span>分版：</span>
                   <select id="tile-size-select">
                     <option value="0">不分版</option>
-                    <option value="52" selected>52 x 52 小版</option>
+                    <option value="smart" selected>智能拼板（推荐）</option>
+                    <option value="52">52 x 52 小版</option>
                     <option value="78">78 x 78 中版</option>
                     <option value="104">104 x 104 大版</option>
                   </select>
@@ -369,19 +406,20 @@
             </section>
           </section>
 
-          <aside class="side-panel" aria-label="公益邀请注册">
+          <aside class="side-panel" aria-label="本地项目">
             <section class="panel invite-panel">
               <div class="invite-logo" aria-hidden="true">
                 <img src="./libai-logo-pixel.svg" alt="" />
               </div>
-              <p class="invite-kicker">公益项目</p>
-              <h2>邀请制使用</h2>
+              <p class="invite-kicker">Local First</p>
+              <h2>本地项目</h2>
               <p>
-                里白造物拼豆图纸生成器面向受邀创作者开放。注册后可继续使用下载、分版和高清导出能力。
+                无需注册，图片、项目和拼豆进度都在你的浏览器本地处理。主动导出项目文件即可跨设备继续。
               </p>
-              <div class="invite-status" id="invite-status">未注册</div>
-              <button type="button" class="quick-button" id="register-open-button-side">
-                输入邀请码注册
+              <div class="invite-status">不上传 · 不留存 · 无下载限制</div>
+              <button type="button" class="quick-button" id="project-import-button-side">导入本地项目</button>
+              <button type="button" class="quick-button" id="project-export-button-side" disabled>
+                导出当前项目
               </button>
             </section>
           </aside>
@@ -519,6 +557,10 @@
       </footer>
 
       <nav class="mobile-tabbar" aria-label="移动端快捷操作">
+        <div class="mobile-tabbar-row mobile-project-row">
+          <button type="button" id="mobile-project-import-button">导入项目</button>
+          <button type="button" id="mobile-project-export-button" disabled>导出项目</button>
+        </div>
         <div class="mobile-tabbar-row mobile-primary-row">
           <button type="button" id="mobile-import-button">导入</button>
           <button type="button" id="mobile-process-button">生成</button>
@@ -547,35 +589,6 @@
       <div class="preview-viewport">
         <img id="modal-preview-image" alt="图纸大图预览" />
       </div>
-    </dialog>
-
-    <dialog class="modal register-modal" id="register-modal">
-      <form class="register-form" id="register-form" method="dialog">
-        <div class="modal-head">
-          <strong>邀请注册</strong>
-          <button class="icon-button close-button" data-close="register-modal" type="button" title="关闭">
-            ×
-          </button>
-        </div>
-        <div class="register-body">
-          <img src="./libai-logo-pixel.svg" alt="" />
-          <label class="field">
-            <span>创作者名称</span>
-            <input id="register-name" type="text" autocomplete="name" placeholder="请输入你的名称" />
-          </label>
-          <label class="field">
-            <span>邀请码</span>
-            <input id="invite-code" type="text" autocomplete="off" value="LBPD2026" />
-          </label>
-          <p class="form-message" id="register-message">
-            邀请码由项目维护者发放。公益项目不展示购买入口。
-          </p>
-        </div>
-        <div class="modal-foot">
-          <button class="outline-button" data-close="register-modal" type="button">取消</button>
-          <button class="primary-action" id="register-submit" type="submit">完成注册</button>
-        </div>
-      </form>
     </dialog>
 
     <dialog class="modal link-import-modal" id="link-import-modal">
@@ -617,7 +630,7 @@
         </div>
         <div class="register-body">
           <p class="form-message" id="direct-pattern-message">
-            上传裁剪后的标准像素图纸，并输入横向、纵向格数。
+            上传像素图纸后会自动检测格数并对齐采样，也可手动修正。
           </p>
           <div class="direct-pattern-fields">
             <label class="field">
@@ -629,7 +642,10 @@
               <input id="direct-pattern-height" type="number" min="1" max="1000" value="48" />
             </label>
           </div>
-          <p class="field-hint">系统会读取每个格子的中心点颜色，避开网格线和坐标数字。</p>
+          <button class="outline-button wide" id="direct-pattern-detect-button" type="button">
+            自动检测格数与对齐
+          </button>
+          <p class="field-hint">系统会在每格中心区域进行多数色采样，避开网格线和坐标数字。</p>
         </div>
         <div class="modal-foot">
           <button class="outline-button" data-close="direct-pattern-modal" type="button">取消</button>
@@ -651,6 +667,27 @@
 
       <div class="assembly-body">
         <aside class="assembly-sidebar">
+          <div class="assembly-control-panel">
+            <div class="assembly-timer-row">
+              <strong id="assembly-timer">00:00:00</strong>
+              <button class="outline-button" id="assembly-timer-toggle" type="button">暂停计时</button>
+            </div>
+            <div class="assembly-mode-switch" role="toolbar" aria-label="拼豆导航模式">
+              <button class="tool-button active" type="button" data-assembly-mode="color">按颜色</button>
+              <button class="tool-button" type="button" data-assembly-mode="row">逐行</button>
+              <button class="tool-button" type="button" data-assembly-mode="block">按区块</button>
+            </div>
+            <div class="replace-actions">
+              <button class="outline-button" id="assembly-prev-button" type="button">上一个</button>
+              <button class="outline-button" id="assembly-next-button" type="button">下一个</button>
+            </div>
+            <button class="primary-action wide" id="assembly-next-incomplete-button" type="button">
+              跳到下一个未完成
+            </button>
+            <button class="outline-button wide" id="assembly-undo-button" type="button" disabled>
+              撤销完成标记
+            </button>
+          </div>
           <div class="assembly-board-picker" id="assembly-board-picker" hidden>
             <div class="assembly-board-picker-head">
               <strong id="assembly-board-label">第 1 板</strong>
@@ -738,6 +775,9 @@
               <button class="tool-button active" type="button" data-editor-tool="pencil">铅笔</button>
               <button class="tool-button" type="button" data-editor-tool="eraser">橡皮擦</button>
               <button class="tool-button" type="button" data-editor-tool="eyedropper">吸管</button>
+              <button class="tool-button" type="button" data-editor-tool="fill">填充</button>
+              <button class="tool-button" type="button" data-editor-tool="magic">魔棒</button>
+              <button class="tool-button" type="button" data-editor-tool="lasso">套索</button>
               <button class="tool-button" type="button" data-editor-tool="cut">剪切移动</button>
               <button class="tool-button" type="button" data-editor-tool="copy">复制移动</button>
             </div>
@@ -763,8 +803,12 @@
           </div>
 
           <button class="outline-button wide" id="clear-color-button" type="button">画笔挖空</button>
-          <button class="outline-button wide" id="undo-paint-button" type="button" disabled>
-            撤回上一笔
+          <div class="replace-actions">
+            <button class="outline-button" id="undo-paint-button" type="button" disabled>撤销</button>
+            <button class="outline-button" id="redo-editor-button" type="button" disabled>重做</button>
+          </div>
+          <button class="outline-button wide" id="apply-selection-color-button" type="button" disabled>
+            用当前颜色填充选区
           </button>
 
           <div class="floating-tools" id="floating-tools" hidden>
@@ -813,6 +857,19 @@
                 <button class="outline-button" id="scale-down-button" type="button">缩小 50%</button>
                 <button class="outline-button" id="scale-up-button" type="button">放大 200%</button>
               </div>
+              <div class="replace-actions">
+                <button class="outline-button" id="rotate-left-button" type="button">左转 90°</button>
+                <button class="outline-button" id="rotate-right-button" type="button">右转 90°</button>
+              </div>
+              <label class="field compact-field">
+                <span>对称绘制</span>
+                <select id="editor-symmetry-select">
+                  <option value="none" selected>关闭</option>
+                  <option value="horizontal">水平对称</option>
+                  <option value="vertical">垂直对称</option>
+                  <option value="both">水平 + 垂直</option>
+                </select>
+              </label>
               <input id="reference-image-input" type="file" accept="image/*" hidden />
               <div class="replace-actions">
                 <button class="outline-button" id="reference-image-button" type="button">背景/参考图</button>
@@ -852,11 +909,10 @@
         <button class="outline-button" id="assembly-mode-button" type="button">开始拼豆</button>
         <button class="outline-button" id="save-library-button" type="button">保存作品库</button>
         <button class="outline-button" id="download-editor-button" type="button">下载本地</button>
-        <button class="outline-button" id="publish-community-button" type="button">发布社区</button>
         <button class="primary-action" id="save-edit-button" type="button">保存修改</button>
       </div>
     </dialog>
 
-    <script src="./app.js?v=20260607-dimensions-cleanup-3" defer></script>
+    <script src="./app.js?v=20260611-local-first-tools-1" defer></script>
   </body>
 </html>

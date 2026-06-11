@@ -34,9 +34,9 @@ const MAX_DIRECT_PATTERN_GRID = 1000;
 const MAX_PIXEL_ART_DETECTION_SIDE = 4096;
 const LIVE_PREVIEW_DELAY = 320;
 const EXPORT_MIN_LONG_SIDE = 8192;
-const DEFAULT_INVITE_CODE = "LBPD2026";
 const BEAD_SIZE_CM = 0.26;
 const GALLERY_STORAGE_KEY = "libai-maker-generated-gallery";
+const PROJECT_FILE_VERSION = 1;
 const MAX_GALLERY_ITEMS = 18;
 const A4_DPI = 300;
 const A4_SIZE_MM = { width: 210, height: 297 };
@@ -44,8 +44,9 @@ const EDITOR_CELL_SIZE = 30;
 const EDITOR_MARGIN = 42;
 const DIRECT_PATTERN_COLOR_TOLERANCE = 38;
 const DIRECT_PATTERN_MIN_COLOR_COUNT = 3;
-const TFJS_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js";
-const NSFWJS_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/nsfwjs@4.2.1/dist/nsfwjs.min.js";
+const NSFWJS_SCRIPT_URL = "./assets/vendor/nsfwjs.min.js";
+const NSFW_MODEL_URL = "./assets/vendor/nsfw-model/";
+const JSPDF_SCRIPT_URL = "./assets/vendor/jspdf.umd.min.js";
 const SAFETY_SCRIPT_LOAD_TIMEOUT = 8000;
 const SAFETY_MODEL_LOAD_TIMEOUT = 12000;
 const NSFW_THRESHOLDS = {
@@ -490,11 +491,14 @@ const els = {
   uploadZone: document.querySelector("#upload-zone"),
   fileInput: document.querySelector("#file-input"),
   directPatternFileInput: document.querySelector("#direct-pattern-file-input"),
+  projectFileInput: document.querySelector("#project-file-input"),
   sourcePreview: document.querySelector("#source-preview"),
   sourceTitle: document.querySelector("#source-title"),
   statusPill: document.querySelector("#status-pill"),
   importButton: document.querySelector("#import-button"),
   mobileImportButton: document.querySelector("#mobile-import-button"),
+  mobileProjectImportButton: document.querySelector("#mobile-project-import-button"),
+  mobileProjectExportButton: document.querySelector("#mobile-project-export-button"),
   mobileProcessButton: document.querySelector("#mobile-process-button"),
   mobileDownloadButton: document.querySelector("#mobile-download-button"),
   mobileStartAssemblyButton: document.querySelector("#mobile-start-assembly-button"),
@@ -503,14 +507,10 @@ const els = {
   mobilePrintA4Button: document.querySelector("#mobile-print-a4-button"),
   fullscreenButton: document.querySelector("#fullscreen-button"),
   historyButton: document.querySelector("#history-button"),
-  registerOpenButton: document.querySelector("#register-open-button"),
-  registerOpenButtonSide: document.querySelector("#register-open-button-side"),
-  registerModal: document.querySelector("#register-modal"),
-  registerForm: document.querySelector("#register-form"),
-  registerName: document.querySelector("#register-name"),
-  inviteCode: document.querySelector("#invite-code"),
-  inviteStatus: document.querySelector("#invite-status"),
-  registerMessage: document.querySelector("#register-message"),
+  projectImportButton: document.querySelector("#project-import-button"),
+  projectExportButton: document.querySelector("#project-export-button"),
+  projectImportButtonSide: document.querySelector("#project-import-button-side"),
+  projectExportButtonSide: document.querySelector("#project-export-button-side"),
   smartPhotoButton: document.querySelector("#smart-photo-button"),
   smartRestoreButton: document.querySelector("#smart-restore-button"),
   smartDirectButton: document.querySelector("#smart-direct-button"),
@@ -526,6 +526,7 @@ const els = {
   directPatternWidth: document.querySelector("#direct-pattern-width"),
   directPatternHeight: document.querySelector("#direct-pattern-height"),
   directPatternMessage: document.querySelector("#direct-pattern-message"),
+  directPatternDetectButton: document.querySelector("#direct-pattern-detect-button"),
   assemblyModal: document.querySelector("#assembly-modal"),
   assemblyProgressLabel: document.querySelector("#assembly-progress-label"),
   assemblyBoardPicker: document.querySelector("#assembly-board-picker"),
@@ -537,6 +538,13 @@ const els = {
   assemblyBoard: document.querySelector("#pixel-board-container"),
   assemblyClearFocusButton: document.querySelector("#assembly-clear-focus-button"),
   assemblyResetProgressButton: document.querySelector("#assembly-reset-progress-button"),
+  assemblyTimer: document.querySelector("#assembly-timer"),
+  assemblyTimerToggle: document.querySelector("#assembly-timer-toggle"),
+  assemblyModeButtons: document.querySelectorAll("[data-assembly-mode]"),
+  assemblyPrevButton: document.querySelector("#assembly-prev-button"),
+  assemblyNextButton: document.querySelector("#assembly-next-button"),
+  assemblyNextIncompleteButton: document.querySelector("#assembly-next-incomplete-button"),
+  assemblyUndoButton: document.querySelector("#assembly-undo-button"),
   exitModal: document.querySelector("#exit-modal"),
   exitConfirmButton: document.querySelector("#btn-confirm-exit"),
   exitCancelButton: document.querySelector("#btn-cancel-exit"),
@@ -553,6 +561,12 @@ const els = {
   gridHeightNumber: document.querySelector("#grid-height-number"),
   ratioLockButton: document.querySelector("#ratio-lock-button"),
   ratioHelp: document.querySelector("#ratio-help"),
+  cropModeSelect: document.querySelector("#crop-mode-select"),
+  cropZoomInput: document.querySelector("#crop-zoom-input"),
+  cropZoomOutput: document.querySelector("#crop-zoom-output"),
+  cropXInput: document.querySelector("#crop-x-input"),
+  cropYInput: document.querySelector("#crop-y-input"),
+  compositionResetButton: document.querySelector("#composition-reset-button"),
   mobileGranularityInput: document.querySelector("#mobile-granularity-input"),
   mobileGranularityOutput: document.querySelector("#mobile-granularity-output"),
   similarityInput: document.querySelector("#similarity-input"),
@@ -600,6 +614,8 @@ const els = {
   currentSwatch: document.querySelector("#current-swatch"),
   clearColorButton: document.querySelector("#clear-color-button"),
   undoPaintButton: document.querySelector("#undo-paint-button"),
+  redoEditorButton: document.querySelector("#redo-editor-button"),
+  applySelectionColorButton: document.querySelector("#apply-selection-color-button"),
   replaceFrom: document.querySelector("#replace-from"),
   replaceTo: document.querySelector("#replace-to"),
   replaceButton: document.querySelector("#replace-button"),
@@ -618,6 +634,9 @@ const els = {
   editorToolbarPosition: document.querySelector("#editor-toolbar-position"),
   flipHorizontalButton: document.querySelector("#flip-horizontal-button"),
   flipVerticalButton: document.querySelector("#flip-vertical-button"),
+  rotateLeftButton: document.querySelector("#rotate-left-button"),
+  rotateRightButton: document.querySelector("#rotate-right-button"),
+  editorSymmetrySelect: document.querySelector("#editor-symmetry-select"),
   scaleDownButton: document.querySelector("#scale-down-button"),
   scaleUpButton: document.querySelector("#scale-up-button"),
   referenceImageInput: document.querySelector("#reference-image-input"),
@@ -632,7 +651,6 @@ const els = {
   assemblyModeButton: document.querySelector("#assembly-mode-button"),
   saveLibraryButton: document.querySelector("#save-library-button"),
   downloadEditorButton: document.querySelector("#download-editor-button"),
-  publishCommunityButton: document.querySelector("#publish-community-button"),
   cancelEditButton: document.querySelector("#cancel-edit-button"),
   saveEditButton: document.querySelector("#save-edit-button"),
   generatedGallery: document.querySelector("#generated-gallery"),
@@ -663,6 +681,12 @@ const state = {
   editorTool: "pencil",
   editorFloating: null,
   editorSelection: null,
+  editorSelectedCells: new Set(),
+  editorLassoPoints: [],
+  editorHistory: [],
+  editorRedo: [],
+  editorActionSnapshot: null,
+  editorSymmetry: "none",
   editorReferenceImage: null,
   editorPrefs: {
     showGrid: true,
@@ -684,6 +708,13 @@ const state = {
   assemblyEngine: null,
   assemblyBoardRow: 0,
   assemblyBoardCol: 0,
+  assemblyNavigationMode: "color",
+  assemblyNavigationIndex: 0,
+  assemblyUndo: [],
+  assemblyElapsedMs: 0,
+  assemblyTimerStartedAt: 0,
+  assemblyTimerRunning: false,
+  assemblyTimerInterval: 0,
   directPatternFile: null,
   paintUndo: [],
   replaceUndo: [],
@@ -758,12 +789,12 @@ function init() {
   syncRangeControls("granularity", DEFAULT_GRANULARITY, MIN_GRANULARITY, MAX_GRANULARITY);
   syncRangeControls("similarity", 30, 0, 100);
   syncIsolationControl();
+  updateCompositionUi();
   updateRatioLockUi();
   updatePaletteOptions();
   updateEditorPaletteOptions();
   updatePaletteCount();
   updateVisitCount();
-  updateInviteUi();
   renderGeneratedGallery();
   renderEditorLibraryOptions();
   bindEvents();
@@ -785,6 +816,8 @@ function bindEvents() {
   els.resetButton?.addEventListener("click", resetAll);
   els.importButton?.addEventListener("click", startManualImport);
   els.mobileImportButton?.addEventListener("click", startManualImport);
+  els.mobileProjectImportButton?.addEventListener("click", openProjectImport);
+  els.mobileProjectExportButton?.addEventListener("click", exportLocalProject);
   els.mobileProcessButton?.addEventListener("click", processImage);
   els.mobileDownloadButton?.addEventListener("click", downloadPattern);
   els.mobileStartAssemblyButton?.addEventListener("click", openAssemblyPlayer);
@@ -793,9 +826,11 @@ function bindEvents() {
   els.mobilePrintA4Button?.addEventListener("click", downloadA4PrintPattern);
   els.fullscreenButton?.addEventListener("click", toggleFullscreen);
   els.historyButton?.addEventListener("click", scrollToHistory);
-  els.registerOpenButton?.addEventListener("click", openRegisterModal);
-  els.registerOpenButtonSide?.addEventListener("click", openRegisterModal);
-  els.registerForm?.addEventListener("submit", registerWithInvite);
+  els.projectImportButton?.addEventListener("click", openProjectImport);
+  els.projectImportButtonSide?.addEventListener("click", openProjectImport);
+  els.projectExportButton?.addEventListener("click", exportLocalProject);
+  els.projectExportButtonSide?.addEventListener("click", exportLocalProject);
+  els.projectFileInput?.addEventListener("change", importLocalProject);
   els.smartPhotoButton?.addEventListener("click", startPhotoImport);
   els.smartRestoreButton?.addEventListener("click", startRestoreImport);
   els.smartDirectButton?.addEventListener("click", startDirectPatternImport);
@@ -805,6 +840,7 @@ function bindEvents() {
   els.linkImportForm?.addEventListener("submit", importImageFromLink);
   els.directPatternFileInput?.addEventListener("change", handleDirectPatternFileChange);
   els.directPatternForm?.addEventListener("submit", handleDirectPatternSubmit);
+  els.directPatternDetectButton?.addEventListener("click", detectDirectPatternSize);
   els.gallerySearch?.addEventListener("input", renderGeneratedGallery);
   els.galleryClearButton?.addEventListener("click", clearGeneratedGallery);
   els.downloadButtonTop?.addEventListener("click", downloadPattern);
@@ -836,6 +872,13 @@ function bindEvents() {
   els.backgroundModeSelect?.addEventListener("change", () => {
     scheduleLivePreview("背景处理已更新");
   });
+  [els.cropModeSelect, els.cropZoomInput, els.cropXInput, els.cropYInput].forEach((control) => {
+    control?.addEventListener("input", () => {
+      updateCompositionUi();
+      scheduleLivePreview("构图已更新");
+    });
+  });
+  els.compositionResetButton?.addEventListener("click", resetComposition);
   els.modeSelect?.addEventListener("change", () => {
     scheduleLivePreview("处理模式已更新");
   });
@@ -906,6 +949,14 @@ function bindEvents() {
   els.assemblyBoard?.addEventListener("wheel", handleAssemblyBoardWheel, { passive: false });
   els.assemblyClearFocusButton?.addEventListener("click", () => selectAssemblyColor(""));
   els.assemblyResetProgressButton?.addEventListener("click", resetAssemblyProgress);
+  els.assemblyTimerToggle?.addEventListener("click", toggleAssemblyTimer);
+  els.assemblyModeButtons.forEach((button) => {
+    button.addEventListener("click", () => setAssemblyNavigationMode(button.dataset.assemblyMode || "color"));
+  });
+  els.assemblyPrevButton?.addEventListener("click", () => navigateAssembly(-1));
+  els.assemblyNextButton?.addEventListener("click", () => navigateAssembly(1));
+  els.assemblyNextIncompleteButton?.addEventListener("click", navigateToNextIncomplete);
+  els.assemblyUndoButton?.addEventListener("click", undoAssemblyCompletion);
   els.exitConfirmButton?.addEventListener("click", confirmAssemblyExit);
   els.exitCancelButton?.addEventListener("click", hideExitModal);
   els.exitModal?.addEventListener("click", (event) => {
@@ -926,6 +977,7 @@ function bindEvents() {
     els.donateQrcode.closest(".qrcode-container, .bmc-qr-wrapper")?.classList.add("is-missing");
   });
   window.addEventListener("popstate", handleAssemblyPopState);
+  window.addEventListener("keydown", handleEditorHistoryShortcut);
 
   els.previewZoomOut.addEventListener("click", () => setPreviewZoom(state.previewZoom - 0.2));
   els.previewZoomIn.addEventListener("click", () => setPreviewZoom(state.previewZoom + 0.2));
@@ -946,11 +998,13 @@ function bindEvents() {
     button.addEventListener("click", () => setEditorTool(button.dataset.editorTool || "pencil"));
   });
   els.clearColorButton.addEventListener("click", () => selectEditorColor(null));
-  els.undoPaintButton.addEventListener("click", undoPaint);
+  els.undoPaintButton.addEventListener("click", undoEditor);
+  els.redoEditorButton?.addEventListener("click", redoEditor);
+  els.applySelectionColorButton?.addEventListener("click", applyColorToEditorSelection);
   els.replaceFrom.addEventListener("change", updateEditorControls);
   els.replaceTo.addEventListener("change", updateEditorControls);
   els.replaceButton.addEventListener("click", replaceColor);
-  els.undoReplaceButton.addEventListener("click", undoReplace);
+  els.undoReplaceButton.addEventListener("click", undoEditor);
   els.applyFloatingButton?.addEventListener("click", applyFloatingPattern);
   els.cancelFloatingButton?.addEventListener("click", cancelFloatingPattern);
   els.toggleEditorGrid?.addEventListener("change", updateEditorPrefsFromControls);
@@ -960,6 +1014,11 @@ function bindEvents() {
   els.editorToolbarPosition?.addEventListener("change", updateEditorPrefsFromControls);
   els.flipHorizontalButton?.addEventListener("click", () => transformEditorGrid("flip-horizontal"));
   els.flipVerticalButton?.addEventListener("click", () => transformEditorGrid("flip-vertical"));
+  els.rotateLeftButton?.addEventListener("click", () => transformEditorGrid("rotate-left"));
+  els.rotateRightButton?.addEventListener("click", () => transformEditorGrid("rotate-right"));
+  els.editorSymmetrySelect?.addEventListener("change", () => {
+    state.editorSymmetry = els.editorSymmetrySelect.value || "none";
+  });
   els.scaleDownButton?.addEventListener("click", () => transformEditorGrid("scale-down"));
   els.scaleUpButton?.addEventListener("click", () => transformEditorGrid("scale-up"));
   els.referenceImageButton?.addEventListener("click", () => els.referenceImageInput?.click());
@@ -973,13 +1032,13 @@ function bindEvents() {
   els.assemblyModeButton?.addEventListener("click", startAssemblyMode);
   els.saveLibraryButton?.addEventListener("click", saveEditorToLibrary);
   els.downloadEditorButton?.addEventListener("click", downloadEditorArtwork);
-  els.publishCommunityButton?.addEventListener("click", publishEditorArtwork);
   els.cancelEditButton.addEventListener("click", () => els.editorModal.close());
   els.saveEditButton.addEventListener("click", saveEditor);
 
   els.editorCanvas.addEventListener("pointerdown", (event) => {
     state.isPainting = true;
     state.lastPaintKey = "";
+    beginEditorPointerAction();
     els.editorCanvas.setPointerCapture(event.pointerId);
     handleEditorPointerDown(event);
   });
@@ -1003,7 +1062,6 @@ function bindEvents() {
 
   [
     els.previewModal,
-    els.registerModal,
     els.linkImportModal,
     els.directPatternModal,
     els.assemblyModal,
@@ -1044,6 +1102,18 @@ function bindRangePair(name, min, max) {
   if (name === "granularity") number.addEventListener("input", commit);
   number.addEventListener("change", commit);
   apply?.addEventListener("click", commit);
+}
+
+function handleEditorHistoryShortcut(event) {
+  if (!els.editorModal?.open || (!event.metaKey && !event.ctrlKey)) return;
+  const key = event.key.toLowerCase();
+  if (key === "z" && !event.shiftKey) {
+    event.preventDefault();
+    undoEditor();
+  } else if (key === "y" || (key === "z" && event.shiftKey)) {
+    event.preventDefault();
+    redoEditor();
+  }
 }
 
 function syncRangeControls(name, value, min, max) {
@@ -1136,6 +1206,68 @@ function captureSourceAspectRatio(image) {
   state.sourceAspectRatio = width > 0 && height > 0 ? width / height : 1;
   if (state.ratioLocked) syncDimensionHeightFromWidth(getGranularity());
   updateRatioLockUi();
+}
+
+function updateCompositionUi() {
+  if (els.cropZoomOutput) {
+    els.cropZoomOutput.textContent = `${Math.round(Number(els.cropZoomInput?.value || 100))}%`;
+  }
+  const movable = (els.cropModeSelect?.value || "cover") !== "stretch";
+  if (els.cropZoomInput) els.cropZoomInput.disabled = !movable;
+  if (els.cropXInput) els.cropXInput.disabled = !movable;
+  if (els.cropYInput) els.cropYInput.disabled = !movable;
+}
+
+function resetComposition() {
+  if (els.cropModeSelect) els.cropModeSelect.value = "cover";
+  if (els.cropZoomInput) els.cropZoomInput.value = "100";
+  if (els.cropXInput) els.cropXInput.value = "0";
+  if (els.cropYInput) els.cropYInput.value = "0";
+  updateCompositionUi();
+  scheduleLivePreview("构图已重置");
+}
+
+function drawImageWithComposition(context, image, width, height) {
+  const mode = els.cropModeSelect?.value || "cover";
+  if (mode === "stretch") {
+    context.drawImage(image, 0, 0, width, height);
+    return;
+  }
+  const sourceWidth = Number(image.naturalWidth || image.width || width);
+  const sourceHeight = Number(image.naturalHeight || image.height || height);
+  const zoom = clamp(Number(els.cropZoomInput?.value || 100) / 100, 1, 3);
+  const offsetX = clamp(Number(els.cropXInput?.value || 0) / 100, -1, 1);
+  const offsetY = clamp(Number(els.cropYInput?.value || 0) / 100, -1, 1);
+
+  if (mode === "contain") {
+    const scale = Math.min(width / sourceWidth, height / sourceHeight) * zoom;
+    const drawWidth = sourceWidth * scale;
+    const drawHeight = sourceHeight * scale;
+    const travelX = Math.max(0, width - drawWidth) / 2;
+    const travelY = Math.max(0, height - drawHeight) / 2;
+    context.drawImage(
+      image,
+      (width - drawWidth) / 2 + travelX * offsetX,
+      (height - drawHeight) / 2 + travelY * offsetY,
+      drawWidth,
+      drawHeight,
+    );
+    return;
+  }
+
+  const targetRatio = width / height;
+  const sourceRatio = sourceWidth / sourceHeight;
+  let cropWidth = sourceWidth;
+  let cropHeight = sourceHeight;
+  if (sourceRatio > targetRatio) cropWidth = sourceHeight * targetRatio;
+  else cropHeight = sourceWidth / targetRatio;
+  cropWidth /= zoom;
+  cropHeight /= zoom;
+  const maxX = Math.max(0, sourceWidth - cropWidth);
+  const maxY = Math.max(0, sourceHeight - cropHeight);
+  const sourceX = maxX * (offsetX + 1) / 2;
+  const sourceY = maxY * (offsetY + 1) / 2;
+  context.drawImage(image, sourceX, sourceY, cropWidth, cropHeight, 0, 0, width, height);
 }
 
 function syncIsolationControl(value = els.isolationInput?.value || 1) {
@@ -1277,63 +1409,97 @@ function toggleFullscreen() {
   document.exitFullscreen?.();
 }
 
-function openRegisterModal() {
-  const profile = getInviteProfile();
-  els.registerName.value = profile?.name || "";
-  els.inviteCode.value = profile?.code || DEFAULT_INVITE_CODE;
-  els.registerMessage.textContent = profile
-    ? `已注册：${profile.name}`
-    : "邀请码由项目维护者发放。公益项目不展示购买入口。";
-  els.registerModal?.showModal();
+function openProjectImport() {
+  if (!els.projectFileInput) return;
+  els.projectFileInput.value = "";
+  els.projectFileInput.click();
 }
 
-function registerWithInvite(event) {
-  event.preventDefault();
-  const name = els.registerName.value.trim();
-  const code = els.inviteCode.value.trim().toUpperCase();
-
-  if (!name) {
-    els.registerMessage.textContent = "请先填写创作者名称。";
-    return;
-  }
-
-  if (!isValidInviteCode(code)) {
-    els.registerMessage.textContent = `邀请码无效。当前默认邀请码为 ${DEFAULT_INVITE_CODE}。`;
-    return;
-  }
-
-  localStorage.setItem(
-    "libai-maker-invite-profile",
-    JSON.stringify({ name, code, registeredAt: new Date().toISOString() }),
-  );
-  updateInviteUi();
-  els.registerModal.close();
+function exportLocalProject() {
+  if (!state.grid.length) return;
+  const project = {
+    type: "libai-maker-project",
+    version: PROJECT_FILE_VERSION,
+    exportedAt: new Date().toISOString(),
+    name: getSchemeName() || buildGalleryTitle(),
+    sourceName: state.sourceName,
+    sourceDataUrl: state.sourceDataUrl || "",
+    gridData: serializeGridForLibrary(state.grid),
+    paletteKey: getActivePaletteKeyForStorage(),
+    width: state.width,
+    height: state.height,
+    settings: {
+      brand: state.selectedBrand,
+      paletteSize: getSelectedPaletteSize(),
+      similarity: getSimilarityThreshold(),
+      colorLimit: Number(els.colorLimitSelect?.value || 0),
+      isolation: syncIsolationControl(),
+      tileSize: els.tileSizeSelect?.value || "smart",
+      mirror: els.mirrorSelect?.value || "normal",
+      cropMode: els.cropModeSelect?.value || "cover",
+      cropZoom: Number(els.cropZoomInput?.value || 100),
+      cropX: Number(els.cropXInput?.value || 0),
+      cropY: Number(els.cropYInput?.value || 0),
+    },
+  };
+  const blob = new Blob([JSON.stringify(project)], { type: "application/json" });
+  const base = sanitizeFileName(project.name || "libai-project");
+  downloadBlob(blob, `${base}.libai.json`);
+  setStatus("已导出本地项目");
 }
 
-function isValidInviteCode(code) {
-  return code === DEFAULT_INVITE_CODE;
-}
-
-function getInviteProfile() {
+async function importLocalProject(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
   try {
-    const raw = localStorage.getItem("libai-maker-invite-profile");
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function updateInviteUi() {
-  const profile = getInviteProfile();
-  if (els.inviteStatus) {
-    els.inviteStatus.textContent = profile ? `已注册：${profile.name}` : "未注册";
-    els.inviteStatus.classList.toggle("registered", Boolean(profile));
-  }
-  if (els.registerOpenButton) {
-    els.registerOpenButton.textContent = profile ? "已注册" : "邀请注册";
-  }
-  if (els.registerOpenButtonSide) {
-    els.registerOpenButtonSide.textContent = profile ? "查看注册信息" : "输入邀请码注册";
+    window.clearTimeout(state.livePreviewTimer);
+    state.livePreviewTimer = 0;
+    const project = JSON.parse(await file.text());
+    if (project?.type !== "libai-maker-project" || !project.gridData) {
+      throw new Error("不是有效的里白造物项目文件");
+    }
+    const grid = deserializeGridFromLibrary(project);
+    if (!grid?.length || !grid[0]?.length) throw new Error("项目网格为空");
+    const settings = project.settings || {};
+    if (BRAND_PROFILES[settings.brand]) selectBrand(settings.brand);
+    window.clearTimeout(state.livePreviewTimer);
+    state.livePreviewTimer = 0;
+    if (els.paletteSelect && settings.paletteSize) {
+      els.paletteSelect.value = String(settings.paletteSize);
+      updateEditorPaletteOptions();
+    }
+    state.grid = cloneGrid(grid);
+    state.width = grid[0].length;
+    state.height = grid.length;
+    state.sourceName = project.sourceName || project.name || file.name;
+    state.sourceDataUrl = typeof project.sourceDataUrl === "string" ? project.sourceDataUrl : "";
+    state.sourceSafetyChecked = true;
+    state.paletteLabel = getPaletteLabelForKey(project.paletteKey);
+    state.stats = calculateStats(state.grid);
+    state.optimizationSummary = "";
+    state.ratioLocked = false;
+    syncRangeControls("granularity", state.width, MIN_GRANULARITY, MAX_GRANULARITY);
+    if (els.gridHeightNumber) els.gridHeightNumber.value = String(state.height);
+    syncRangeControls("similarity", settings.similarity ?? 30, 0, 100);
+    if (els.colorLimitSelect) els.colorLimitSelect.value = String(settings.colorLimit || 0);
+    syncIsolationControl(settings.isolation || 1);
+    if (els.tileSizeSelect) els.tileSizeSelect.value = settings.tileSize || "smart";
+    if (els.mirrorSelect) els.mirrorSelect.value = settings.mirror || "normal";
+    if (els.cropModeSelect) els.cropModeSelect.value = settings.cropMode || "cover";
+    if (els.cropZoomInput) els.cropZoomInput.value = String(settings.cropZoom || 100);
+    if (els.cropXInput) els.cropXInput.value = String(settings.cropX || 0);
+    if (els.cropYInput) els.cropYInput.value = String(settings.cropY || 0);
+    if (els.schemeNameInput) els.schemeNameInput.value = project.name || "里白造物图纸";
+    updateCompositionUi();
+    updateRatioLockUi();
+    refreshChartUrl();
+    updateResultUi();
+    saveCurrentToGallery();
+    setStatus("已导入本地项目");
+  } catch (error) {
+    console.error(error);
+    setStatus("项目导入失败");
+    window.alert(error.message || "项目文件无法读取");
   }
 }
 
@@ -1393,7 +1559,7 @@ function startDirectPatternImport() {
   }
 }
 
-function handleDirectPatternFileChange(event) {
+async function handleDirectPatternFileChange(event) {
   const file = event.target.files?.[0];
   if (!file) return;
   if (!isImageFile(file)) {
@@ -1408,7 +1574,32 @@ function handleDirectPatternFileChange(event) {
     els.directPatternMessage.textContent = `已选择：${file.name}。请填写图纸实际格数。`;
   }
   els.directPatternModal?.showModal();
+  await detectDirectPatternSize();
   els.directPatternWidth?.focus();
+}
+
+async function detectDirectPatternSize() {
+  if (!state.directPatternFile) return;
+  try {
+    const image = await loadImage(await readFileAsDataUrl(state.directPatternFile));
+    const detectedWidth =
+      detectPixelArtLogicalWidth(image) ||
+      (image.naturalWidth <= MAX_DIRECT_PATTERN_GRID ? image.naturalWidth : null);
+    if (!detectedWidth) throw new Error("未检测到稳定像素格");
+    const detectedHeight = Math.round(detectedWidth * image.naturalHeight / image.naturalWidth);
+    if (els.directPatternWidth) els.directPatternWidth.value = String(clamp(detectedWidth, 1, MAX_DIRECT_PATTERN_GRID));
+    if (els.directPatternHeight) {
+      els.directPatternHeight.value = String(clamp(detectedHeight, 1, MAX_DIRECT_PATTERN_GRID));
+    }
+    if (els.directPatternMessage) {
+      els.directPatternMessage.textContent = `已自动检测：${detectedWidth} × ${detectedHeight} 格。请确认后开始扫描。`;
+    }
+  } catch (error) {
+    console.warn("Direct pattern auto detection unavailable", error);
+    if (els.directPatternMessage) {
+      els.directPatternMessage.textContent = "未能自动检测稳定格数，请手动输入后开始扫描。";
+    }
+  }
 }
 
 async function handleDirectPatternSubmit(event) {
@@ -1672,10 +1863,9 @@ async function loadLocalSafetyModel() {
   if (state.safetyModelLoading) return state.safetyModelLoading;
   state.safetyModelLoading = (async () => {
     try {
-      if (!window.tf) await loadScriptOnce(TFJS_SCRIPT_URL);
       if (!window.nsfwjs) await loadScriptOnce(NSFWJS_SCRIPT_URL);
       if (!window.nsfwjs?.load) return null;
-      state.safetyModel = await withTimeout(window.nsfwjs.load(), SAFETY_MODEL_LOAD_TIMEOUT);
+      state.safetyModel = await withTimeout(window.nsfwjs.load(NSFW_MODEL_URL), SAFETY_MODEL_LOAD_TIMEOUT);
       return state.safetyModel;
     } catch (error) {
       console.warn("Local content safety model unavailable", error);
@@ -1969,9 +2159,7 @@ async function scanReadyMadePattern(file, gridWidth, gridHeight) {
   for (let rowIndex = 0; rowIndex < gridHeight; rowIndex += 1) {
     const row = [];
     for (let colIndex = 0; colIndex < gridWidth; colIndex += 1) {
-      const centerX = clamp(Math.floor((colIndex + 0.5) * cellPixelWidth), 0, canvas.width - 1);
-      const centerY = clamp(Math.floor((rowIndex + 0.5) * cellPixelHeight), 0, canvas.height - 1);
-      const pixel = context.getImageData(centerX, centerY, 1, 1).data;
+      const pixel = sampleDirectPatternCell(context, colIndex, rowIndex, cellPixelWidth, cellPixelHeight, canvas);
       if (pixel[3] < 24 || isNearWhiteRgb(pixel)) {
         row.push(null);
       } else {
@@ -2007,6 +2195,21 @@ async function scanReadyMadePattern(file, gridWidth, gridHeight) {
   updateResultUi();
   saveCurrentToGallery();
   setStatus("已扫描，可开始拼");
+}
+
+function sampleDirectPatternCell(context, column, row, cellWidth, cellHeight, canvas) {
+  const samples = [];
+  for (const offsetY of [0.38, 0.5, 0.62]) {
+    for (const offsetX of [0.38, 0.5, 0.62]) {
+      const x = clamp(Math.floor((column + offsetX) * cellWidth), 0, canvas.width - 1);
+      const y = clamp(Math.floor((row + offsetY) * cellHeight), 0, canvas.height - 1);
+      const pixel = context.getImageData(x, y, 1, 1).data;
+      if (pixel[3] >= 24) samples.push([pixel[0], pixel[1], pixel[2], pixel[3]]);
+    }
+  }
+  if (!samples.length) return [255, 255, 255, 0];
+  samples.sort((a, b) => getBrightness(a) - getBrightness(b));
+  return samples[Math.floor(samples.length / 2)];
 }
 
 function sanitizeAndSimplifyDirectColors(rawMatrix, options = {}) {
@@ -2130,7 +2333,7 @@ function rasterizeImage(image, palette) {
   context.clearRect(0, 0, width, height);
   context.imageSmoothingEnabled = mode !== "palette";
   context.imageSmoothingQuality = mode === "smooth" ? "high" : "medium";
-  context.drawImage(image, 0, 0, width, height);
+  drawImageWithComposition(context, image, width, height);
 
   const pixels = context.getImageData(0, 0, width, height).data;
   const background = getBackgroundMask(pixels, width, height);
@@ -2793,56 +2996,155 @@ function removeIsolatedColorComponents(grid, minSize) {
   const rows = grid.length;
   const columns = grid[0]?.length || 0;
   if (!rows || !columns || minSize <= 1) return { grid, changedCount: 0 };
+  const totalPixels = rows * columns;
   const output = cloneGrid(grid);
-  const visited = new Uint8Array(rows * columns);
-  const directions = [-1, 0, 1].flatMap((dy) =>
-    [-1, 0, 1].filter((dx) => dx || dy).map((dx) => [dx, dy]),
-  );
+  const visited = new Uint8Array(totalPixels);
+  const queue = new Int32Array(totalPixels);
   let changedCount = 0;
 
-  for (let y = 0; y < rows; y += 1) {
-    for (let x = 0; x < columns; x += 1) {
-      const startIndex = y * columns + x;
-      const startColor = grid[y][x];
-      if (!startColor || visited[startIndex]) continue;
-      const queue = [startIndex];
-      const component = [];
-      const neighborCounts = new Map();
-      visited[startIndex] = 1;
+  for (let startIndex = 0; startIndex < totalPixels; startIndex += 1) {
+    if (visited[startIndex] !== 0) continue;
+    const startY = Math.floor(startIndex / columns);
+    const startColor = grid[startY][startIndex % columns];
+    if (!startColor) continue;
 
-      for (let head = 0; head < queue.length; head += 1) {
-        const index = queue[head];
-        component.push(index);
-        const cellX = index % columns;
-        const cellY = Math.floor(index / columns);
-        for (const [dx, dy] of directions) {
-          const nextX = cellX + dx;
-          const nextY = cellY + dy;
-          if (nextX < 0 || nextY < 0 || nextX >= columns || nextY >= rows) continue;
-          const nextIndex = nextY * columns + nextX;
-          const neighbor = grid[nextY][nextX];
-          if (!neighbor) continue;
-          if (neighbor.code === startColor.code) {
-            if (!visited[nextIndex]) {
-              visited[nextIndex] = 1;
-              queue.push(nextIndex);
-            }
-          } else {
-            const entry = neighborCounts.get(neighbor.code) || { color: neighbor, count: 0 };
-            entry.count += 1;
-            neighborCounts.set(neighbor.code, entry);
+    const targetCode = startColor.code;
+    let head = 0;
+    let tail = 0;
+    visited[startIndex] = 1;
+    queue[tail++] = startIndex;
+
+    /*
+     * 使用 head 指针模拟队列出队，并直接内联四邻域检查。
+     * 禁止使用 shift()、方向数组和回调，降低滑块高频调用时的 GC 与函数调用开销。
+     */
+    while (head < tail) {
+      const currentIndex = queue[head++];
+      const x = currentIndex % columns;
+      const y = Math.floor(currentIndex / columns);
+
+      // 1. 上方邻居
+      if (currentIndex >= columns) {
+        const nIdx = currentIndex - columns;
+        const neighbor = grid[y - 1][x];
+        if (visited[nIdx] === 0 && neighbor && neighbor.code === targetCode) {
+          visited[nIdx] = 1;
+          queue[tail++] = nIdx;
+        }
+      }
+
+      // 2. 下方邻居
+      if (currentIndex < totalPixels - columns) {
+        const nIdx = currentIndex + columns;
+        const neighbor = grid[y + 1][x];
+        if (visited[nIdx] === 0 && neighbor && neighbor.code === targetCode) {
+          visited[nIdx] = 1;
+          queue[tail++] = nIdx;
+        }
+      }
+
+      // 3. 左侧邻居
+      if (x > 0) {
+        const nIdx = currentIndex - 1;
+        const neighbor = grid[y][x - 1];
+        if (visited[nIdx] === 0 && neighbor && neighbor.code === targetCode) {
+          visited[nIdx] = 1;
+          queue[tail++] = nIdx;
+        }
+      }
+
+      // 4. 右侧邻居
+      if (x < columns - 1) {
+        const nIdx = currentIndex + 1;
+        const neighbor = grid[y][x + 1];
+        if (visited[nIdx] === 0 && neighbor && neighbor.code === targetCode) {
+          visited[nIdx] = 1;
+          queue[tail++] = nIdx;
+        }
+      }
+    }
+
+    if (tail >= minSize) continue;
+
+    const neighborCounts = new Map();
+    let replacement = null;
+    let replacementCount = 0;
+
+    for (let componentIndex = 0; componentIndex < tail; componentIndex += 1) {
+      const currentIndex = queue[componentIndex];
+      const x = currentIndex % columns;
+      const y = Math.floor(currentIndex / columns);
+
+      // 上方外围颜色
+      if (currentIndex >= columns) {
+        const neighbor = grid[y - 1][x];
+        if (neighbor && neighbor.code !== targetCode) {
+          const nextCount = (neighborCounts.get(neighbor.code) || 0) + 1;
+          neighborCounts.set(neighbor.code, nextCount);
+          if (
+            nextCount > replacementCount ||
+            (nextCount === replacementCount && replacement && neighbor.code.localeCompare(replacement.code) < 0)
+          ) {
+            replacement = neighbor;
+            replacementCount = nextCount;
           }
         }
       }
 
-      if (component.length >= minSize || !neighborCounts.size) continue;
-      const replacement = [...neighborCounts.values()].sort(
-        (a, b) => b.count - a.count || a.color.code.localeCompare(b.color.code),
-      )[0].color;
-      for (const index of component) {
-        output[Math.floor(index / columns)][index % columns] = cloneColor(replacement);
-        changedCount += 1;
+      // 下方外围颜色
+      if (currentIndex < totalPixels - columns) {
+        const neighbor = grid[y + 1][x];
+        if (neighbor && neighbor.code !== targetCode) {
+          const nextCount = (neighborCounts.get(neighbor.code) || 0) + 1;
+          neighborCounts.set(neighbor.code, nextCount);
+          if (
+            nextCount > replacementCount ||
+            (nextCount === replacementCount && replacement && neighbor.code.localeCompare(replacement.code) < 0)
+          ) {
+            replacement = neighbor;
+            replacementCount = nextCount;
+          }
+        }
       }
+
+      // 左侧外围颜色
+      if (x > 0) {
+        const neighbor = grid[y][x - 1];
+        if (neighbor && neighbor.code !== targetCode) {
+          const nextCount = (neighborCounts.get(neighbor.code) || 0) + 1;
+          neighborCounts.set(neighbor.code, nextCount);
+          if (
+            nextCount > replacementCount ||
+            (nextCount === replacementCount && replacement && neighbor.code.localeCompare(replacement.code) < 0)
+          ) {
+            replacement = neighbor;
+            replacementCount = nextCount;
+          }
+        }
+      }
+
+      // 右侧外围颜色
+      if (x < columns - 1) {
+        const neighbor = grid[y][x + 1];
+        if (neighbor && neighbor.code !== targetCode) {
+          const nextCount = (neighborCounts.get(neighbor.code) || 0) + 1;
+          neighborCounts.set(neighbor.code, nextCount);
+          if (
+            nextCount > replacementCount ||
+            (nextCount === replacementCount && replacement && neighbor.code.localeCompare(replacement.code) < 0)
+          ) {
+            replacement = neighbor;
+            replacementCount = nextCount;
+          }
+        }
+      }
+    }
+
+    if (!replacement) continue;
+    for (let componentIndex = 0; componentIndex < tail; componentIndex += 1) {
+      const index = queue[componentIndex];
+      output[Math.floor(index / columns)][index % columns] = cloneColor(replacement);
+      changedCount += 1;
     }
   }
   return { grid: output, changedCount };
@@ -3708,6 +4010,9 @@ function updateResultUi() {
   if (els.applyCleanupButton) els.applyCleanupButton.disabled = !hasResult;
   els.downloadButton.disabled = !hasResult;
   if (els.downloadButtonTop) els.downloadButtonTop.disabled = !hasResult;
+  if (els.projectExportButton) els.projectExportButton.disabled = !hasResult;
+  if (els.projectExportButtonSide) els.projectExportButtonSide.disabled = !hasResult;
+  if (els.mobileProjectExportButton) els.mobileProjectExportButton.disabled = !hasResult;
   if (els.printA4Button) els.printA4Button.disabled = !hasResult;
   document.body.classList.toggle("has-result", hasResult);
 
@@ -3837,8 +4142,6 @@ function downloadPreviewImage() {
 }
 
 async function downloadPattern() {
-  if (!ensureInviteRegistered()) return;
-
   if (!state.grid.length) {
     if (state.sourceDataUrl) {
       const generated = await processImage();
@@ -3865,13 +4168,6 @@ async function downloadPattern() {
   });
   downloadUrl(canvas.toDataURL("image/png"), buildDownloadName());
   setStatus("已下载");
-}
-
-function ensureInviteRegistered() {
-  if (getInviteProfile()) return true;
-  openRegisterModal();
-  els.registerMessage.textContent = "请先完成邀请注册，再下载 8K 高清图纸。";
-  return false;
 }
 
 async function downloadSplitPattern(tileSize, grid = getExportGrid()) {
@@ -3901,8 +4197,6 @@ async function downloadSplitPattern(tileSize, grid = getExportGrid()) {
 }
 
 async function downloadA4PrintPattern() {
-  if (!ensureInviteRegistered()) return;
-
   if (!state.grid.length) {
     if (state.sourceDataUrl) {
       const generated = await processImage();
@@ -3966,7 +4260,7 @@ function loadJsPdf() {
     }
 
     const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js";
+    script.src = JSPDF_SCRIPT_URL;
     script.async = true;
     script.dataset.libmsJspdf = "true";
     script.onload = () => {
@@ -4298,7 +4592,24 @@ function splitGridIntoTilesBySize(grid, tileWidth, tileHeight, extra = {}) {
 }
 
 function getSelectedTileSize() {
-  return Number(els.tileSizeSelect?.value || 0);
+  const value = els.tileSizeSelect?.value || "0";
+  return value === "smart" ? getSmartTileSize(state.grid) : Number(value);
+}
+
+function getSmartTileSize(grid) {
+  const rows = grid.length;
+  const columns = grid[0]?.length || 0;
+  if (!rows || !columns) return 52;
+  const candidates = [52, 78, 104];
+  return candidates
+    .map((size) => {
+      const count = Math.ceil(columns / size) * Math.ceil(rows / size);
+      const capacity = count * size * size;
+      const wasteRatio = (capacity - columns * rows) / capacity;
+      const oversizePenalty = size > Math.max(columns, rows) ? 0.12 : 0;
+      return { size, score: count + wasteRatio + oversizePenalty };
+    })
+    .sort((a, b) => a.score - b.score || a.size - b.size)[0].size;
 }
 
 function isMirrorEnabled() {
@@ -4334,7 +4645,8 @@ function getTileSummary() {
   if (!tileSize || !state.width || !state.height) return "";
   const columns = Math.ceil(state.width / tileSize);
   const rows = Math.ceil(state.height / tileSize);
-  return `${tileSize} 版 · ${columns * rows} 块`;
+  const smart = els.tileSizeSelect?.value === "smart" ? "智能 · " : "";
+  return `${smart}${tileSize} 版 · ${columns * rows} 块`;
 }
 
 function getA4PrintSummary() {
@@ -4393,6 +4705,13 @@ function downloadUrl(url, filename) {
   document.body.append(link);
   link.click();
   link.remove();
+}
+
+function sanitizeFileName(value) {
+  return String(value || "libai-project")
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, "-")
+    .slice(0, 80);
 }
 
 function downloadBlob(blob, filename) {
@@ -4695,12 +5014,14 @@ class HardCodedEngine {
     const nextBoardSize = newConfig.boardSize ?? this.config.boardSize ?? this.boardSize;
     const nextBoardRow = newConfig.currentBoardRow ?? this.config.currentBoardRow ?? this.currentBoardRow;
     const nextBoardCol = newConfig.currentBoardCol ?? this.config.currentBoardCol ?? this.currentBoardCol;
+    const nextFocusKey = newConfig.focusKey ?? this.config.focusKey ?? "";
     const needsBake =
       nextHighlight !== this.config.highlightColor ||
       nextShowText !== this.config.showCellText ||
       nextBoardSize !== (this.config.boardSize ?? this.boardSize) ||
       nextBoardRow !== (this.config.currentBoardRow ?? this.currentBoardRow) ||
       nextBoardCol !== (this.config.currentBoardCol ?? this.currentBoardCol) ||
+      nextFocusKey !== (this.config.focusKey ?? "") ||
       newConfig.matrix;
     this.config = { ...this.config, ...newConfig };
     if (newConfig.matrix) {
@@ -4722,7 +5043,7 @@ class HardCodedEngine {
     const ctx = this.offscreenCtx;
     const size = this.cellSize;
     const axis = this.axisSize;
-    const { highlightColor, maskColor, showCellText } = this.config;
+    const { highlightColor, maskColor, showCellText, focusCells } = this.config;
 
     this.configureOffscreenCanvas();
     ctx.clearRect(0, 0, this.boardWidth, this.boardHeight);
@@ -4773,7 +5094,7 @@ class HardCodedEngine {
         if (beadColor) {
           ctx.fillStyle = beadColor;
           ctx.fillRect(x, y, size, size);
-          if (highlightColor && beadColor !== highlightColor) {
+          if ((highlightColor && beadColor !== highlightColor) || (focusCells && !focusCells.has(`${r}_${c}`))) {
             ctx.fillStyle = maskColor;
             ctx.fillRect(x, y, size, size);
           }
@@ -5089,6 +5410,11 @@ function openAssemblyPlayer() {
   state.currentSelectedColor = null;
   state.assemblyBoardRow = 0;
   state.assemblyBoardCol = 0;
+  state.assemblyNavigationMode = "color";
+  state.assemblyNavigationIndex = 0;
+  state.assemblyUndo = [];
+  startAssemblyTimer();
+  updateAssemblyNavigationUi();
   syncAssemblyFocusMode();
   renderAssemblyBoardPicker();
   renderAssemblyColorList();
@@ -5176,16 +5502,72 @@ function getAssemblyStorageKey() {
 function loadAssemblyProgress(key) {
   try {
     const raw = localStorage.getItem(key);
-    const values = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(values) ? values : []);
+    const saved = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(saved)) {
+      state.assemblyElapsedMs = 0;
+      return new Set(saved);
+    }
+    state.assemblyElapsedMs = Math.max(0, Number(saved?.elapsedMs || 0));
+    return new Set(Array.isArray(saved?.completed) ? saved.completed : []);
   } catch {
+    state.assemblyElapsedMs = 0;
     return new Set();
   }
 }
 
 function saveAssemblyProgress() {
   if (!state.playStorageKey) return;
-  localStorage.setItem(state.playStorageKey, JSON.stringify([...state.playCompletedBeads]));
+  localStorage.setItem(
+    state.playStorageKey,
+    JSON.stringify({
+      completed: [...state.playCompletedBeads],
+      elapsedMs: getAssemblyElapsedMs(),
+    }),
+  );
+}
+
+function getAssemblyElapsedMs() {
+  return state.assemblyElapsedMs + (state.assemblyTimerRunning ? Date.now() - state.assemblyTimerStartedAt : 0);
+}
+
+function startAssemblyTimer() {
+  state.assemblyTimerRunning = true;
+  state.assemblyTimerStartedAt = Date.now();
+  window.clearInterval(state.assemblyTimerInterval);
+  state.assemblyTimerInterval = window.setInterval(updateAssemblyTimerUi, 1000);
+  updateAssemblyTimerUi();
+}
+
+function toggleAssemblyTimer() {
+  if (state.assemblyTimerRunning) {
+    state.assemblyElapsedMs = getAssemblyElapsedMs();
+    state.assemblyTimerRunning = false;
+    state.assemblyTimerStartedAt = 0;
+  } else {
+    state.assemblyTimerRunning = true;
+    state.assemblyTimerStartedAt = Date.now();
+  }
+  saveAssemblyProgress();
+  updateAssemblyTimerUi();
+}
+
+function stopAssemblyTimer() {
+  if (state.assemblyTimerRunning) state.assemblyElapsedMs = getAssemblyElapsedMs();
+  state.assemblyTimerRunning = false;
+  state.assemblyTimerStartedAt = 0;
+  window.clearInterval(state.assemblyTimerInterval);
+  state.assemblyTimerInterval = 0;
+  saveAssemblyProgress();
+  updateAssemblyTimerUi();
+}
+
+function updateAssemblyTimerUi() {
+  const seconds = Math.floor(getAssemblyElapsedMs() / 1000);
+  const hours = String(Math.floor(seconds / 3600)).padStart(2, "0");
+  const minutes = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
+  const rest = String(seconds % 60).padStart(2, "0");
+  if (els.assemblyTimer) els.assemblyTimer.textContent = `${hours}:${minutes}:${rest}`;
+  if (els.assemblyTimerToggle) els.assemblyTimerToggle.textContent = state.assemblyTimerRunning ? "暂停计时" : "继续计时";
 }
 
 function renderAssemblyColorList() {
@@ -5215,6 +5597,9 @@ function selectAssemblyColor(code) {
     const activeItem = state.stats.find((item) => item.code === code);
     state.playActiveCode = code;
     state.currentSelectedColor = activeItem ? rgb(activeItem) : null;
+    if (state.assemblyNavigationMode === "color") {
+      state.assemblyNavigationIndex = Math.max(0, state.stats.findIndex((item) => item.code === code));
+    }
   }
   syncAssemblyFocusMode();
   renderAssemblyColorList();
@@ -5237,6 +5622,7 @@ function clearAssemblyFocusMode() {
   state.playActiveCode = "";
   state.currentSelectedColor = null;
   state.assemblyHistoryActive = false;
+  stopAssemblyTimer();
   destroyAssemblyEngine();
   document.body.classList.remove("is-focus-mode");
   document.body.dataset.activeBeadColor = "";
@@ -5319,6 +5705,10 @@ function renderAssemblyBoardPicker() {
 function switchActiveBoard(boardRow, boardCol) {
   state.assemblyBoardRow = boardRow;
   state.assemblyBoardCol = boardCol;
+  if (state.assemblyNavigationMode === "block") {
+    const meta = getAssemblyBoardMeta();
+    state.assemblyNavigationIndex = boardRow * meta.tileColumns + boardCol;
+  }
   renderAssemblyBoardPicker();
   renderInteractiveBoard();
   updateAssemblyProgressUi();
@@ -5331,6 +5721,7 @@ function renderInteractiveBoard() {
   const columns = state.grid[0]?.length || 0;
   const activeColor = getAssemblyActiveColor();
   const meta = renderAssemblyBoardPicker();
+  const focusCells = getAssemblyFocusCells();
   state.playHoverRow = "";
   state.playHoverCol = "";
   const signature = `${columns}x${rows}:${meta?.boardSize || 0}:${state.assemblyBoardRow}:${state.assemblyBoardCol}:${
@@ -5343,6 +5734,8 @@ function renderInteractiveBoard() {
     currentBoardRow: state.assemblyBoardRow,
     currentBoardCol: state.assemblyBoardCol,
     highlightColor: activeColor || null,
+    focusCells,
+    focusKey: focusCells ? `${state.assemblyNavigationMode}:${state.assemblyNavigationIndex}` : "",
     showCellText: !state.assemblyHideCellText,
     completedSets: state.playCompletedBeads,
     onToggle: toggleAssemblyCoord,
@@ -5398,6 +5791,8 @@ function clearAssemblyCrosshair() {
 
 function toggleAssemblyCoord(row, col) {
   const coordKey = `${row}_${col}`;
+  state.assemblyUndo.push({ coordKey, completed: state.playCompletedBeads.has(coordKey) });
+  if (state.assemblyUndo.length > 100) state.assemblyUndo.shift();
   if (state.playCompletedBeads.has(coordKey)) {
     state.playCompletedBeads.delete(coordKey);
   } else {
@@ -5406,12 +5801,113 @@ function toggleAssemblyCoord(row, col) {
   saveAssemblyProgress();
   state.assemblyEngine?.updateConfig({ completedSets: state.playCompletedBeads });
   updateAssemblyProgressUi();
+  updateAssemblyNavigationUi();
+}
+
+function undoAssemblyCompletion() {
+  const action = state.assemblyUndo.pop();
+  if (!action) return;
+  if (action.completed) state.playCompletedBeads.add(action.coordKey);
+  else state.playCompletedBeads.delete(action.coordKey);
+  saveAssemblyProgress();
+  state.assemblyEngine?.updateConfig({ completedSets: state.playCompletedBeads });
+  updateAssemblyProgressUi();
+  updateAssemblyNavigationUi();
+}
+
+function setAssemblyNavigationMode(mode) {
+  state.assemblyNavigationMode = ["color", "row", "block"].includes(mode) ? mode : "color";
+  state.assemblyNavigationIndex = 0;
+  if (state.assemblyNavigationMode !== "color") selectAssemblyColor("");
+  applyAssemblyNavigation();
+}
+
+function navigateAssembly(direction) {
+  const count = getAssemblyNavigationCount();
+  if (!count) return;
+  state.assemblyNavigationIndex = (state.assemblyNavigationIndex + direction + count) % count;
+  applyAssemblyNavigation();
+}
+
+function getAssemblyNavigationCount() {
+  if (state.assemblyNavigationMode === "color") return state.stats.length;
+  if (state.assemblyNavigationMode === "row") return state.grid.length;
+  const meta = getAssemblyBoardMeta();
+  return meta.total;
+}
+
+function applyAssemblyNavigation() {
+  if (state.assemblyNavigationMode === "color") {
+    selectAssemblyColor(state.stats[state.assemblyNavigationIndex]?.code || "");
+  } else if (state.assemblyNavigationMode === "row") {
+    const boardSize = getAssemblyBoardSize();
+    state.assemblyBoardRow = Math.floor(state.assemblyNavigationIndex / boardSize);
+    renderInteractiveBoard();
+    updateAssemblyProgressUi();
+  } else {
+    const meta = getAssemblyBoardMeta();
+    state.assemblyBoardRow = Math.floor(state.assemblyNavigationIndex / meta.tileColumns);
+    state.assemblyBoardCol = state.assemblyNavigationIndex % meta.tileColumns;
+    renderInteractiveBoard();
+    updateAssemblyProgressUi();
+  }
+  updateAssemblyNavigationUi();
+}
+
+function getAssemblyFocusCells() {
+  if (state.assemblyNavigationMode !== "row") return null;
+  const row = clamp(state.assemblyNavigationIndex, 0, state.grid.length - 1);
+  const cells = new Set();
+  for (let col = 0; col < (state.grid[row]?.length || 0); col += 1) {
+    if (state.grid[row][col]) cells.add(`${row}_${col}`);
+  }
+  return cells;
+}
+
+function updateAssemblyNavigationUi() {
+  els.assemblyModeButtons.forEach((button) => {
+    const active = button.dataset.assemblyMode === state.assemblyNavigationMode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  if (els.assemblyUndoButton) els.assemblyUndoButton.disabled = state.assemblyUndo.length === 0;
+}
+
+function navigateToNextIncomplete() {
+  const rows = state.grid.length;
+  const columns = state.grid[0]?.length || 0;
+  if (!rows || !columns) return;
+  const meta = getAssemblyBoardMeta();
+  const start = meta.startRow * columns + meta.startCol;
+  for (let offset = 1; offset <= rows * columns; offset += 1) {
+    const index = (start + offset) % (rows * columns);
+    const row = Math.floor(index / columns);
+    const col = index % columns;
+    if (!state.grid[row]?.[col] || state.playCompletedBeads.has(`${row}_${col}`)) continue;
+    const boardSize = getAssemblyBoardSize();
+    state.assemblyBoardRow = Math.floor(row / boardSize);
+    state.assemblyBoardCol = Math.floor(col / boardSize);
+    if (state.assemblyNavigationMode === "row") state.assemblyNavigationIndex = row;
+    if (state.assemblyNavigationMode === "color") {
+      const codeIndex = state.stats.findIndex((item) => item.code === state.grid[row][col].code);
+      state.assemblyNavigationIndex = Math.max(0, codeIndex);
+      selectAssemblyColor(state.grid[row][col].code);
+    }
+    renderInteractiveBoard();
+    state.assemblyEngine.hoverCell = { row, col };
+    state.assemblyEngine.render();
+    updateAssemblyProgressUi();
+    updateAssemblyNavigationUi();
+    return;
+  }
+  setStatus("当前图纸已全部完成");
 }
 
 function resetAssemblyProgress() {
   if (!state.playCompletedBeads.size) return;
   if (!window.confirm("确认清空当前图纸的拼豆进度？")) return;
   state.playCompletedBeads.clear();
+  state.assemblyUndo = [];
   saveAssemblyProgress();
   renderInteractiveBoard();
   updateAssemblyProgressUi();
@@ -5440,9 +5936,10 @@ function updateAssemblyProgressUi() {
     els.assemblyProgressLabel.textContent = `${formatCount(completed)} / ${formatCount(total)} · ${percent}%`;
   }
   if (els.assemblySummary) {
+    const modeLabel = { color: "按颜色", row: "逐行", block: "按区块" }[state.assemblyNavigationMode] || "按颜色";
     els.assemblySummary.textContent = `当前第 ${meta.index}/${meta.total} 板：${formatCount(boardCompleted)} / ${formatCount(
       boardTotal,
-    )}。点击色号高亮同色，点击格子标记已拼${activeText}。`;
+    )}。${modeLabel}模式，点击格子标记已拼${activeText}。`;
   }
 }
 
@@ -5458,11 +5955,18 @@ function openEditor() {
   state.editorTool = "pencil";
   state.editorFloating = null;
   state.editorSelection = null;
+  state.editorSelectedCells = new Set();
+  state.editorLassoPoints = [];
+  state.editorHistory = [];
+  state.editorRedo = [];
+  state.editorActionSnapshot = null;
+  state.editorSymmetry = "none";
   state.editorReferenceImage = null;
   state.assemblyMode = false;
   state.assemblyHighlightCode = "";
   state.paintUndo = [];
   state.replaceUndo = [];
+  if (els.editorSymmetrySelect) els.editorSymmetrySelect.value = "none";
   if (els.artworkNameInput) els.artworkNameInput.value = buildGalleryTitle();
   updateEditorPaletteOptions();
   els.editorPaletteSelect.value = getCurrentPaletteKey();
@@ -5493,9 +5997,11 @@ function syncEditorPalette() {
 }
 
 function setEditorTool(tool) {
-  state.editorTool = ["pencil", "eraser", "eyedropper", "cut", "copy"].includes(tool)
+  state.editorTool = ["pencil", "eraser", "eyedropper", "fill", "magic", "lasso", "cut", "copy"].includes(tool)
     ? tool
     : "pencil";
+  state.editorSelection = null;
+  state.editorLassoPoints = [];
   state.assemblyMode = false;
   state.assemblyHighlightCode = "";
   updateEditorToolUi();
@@ -5649,6 +6155,23 @@ function handleEditorPointerDown(event) {
     return;
   }
 
+  if (state.editorTool === "fill") {
+    floodFillEditor(cell.column, cell.row);
+    return;
+  }
+
+  if (state.editorTool === "magic") {
+    selectMagicRegion(cell.column, cell.row);
+    return;
+  }
+
+  if (state.editorTool === "lasso") {
+    state.editorLassoPoints = [{ x: cell.column + 0.5, y: cell.row + 0.5 }];
+    state.editorSelectedCells = new Set();
+    renderEditorCanvas();
+    return;
+  }
+
   if (state.editorTool === "cut" || state.editorTool === "copy") {
     state.editorSelection = {
       mode: state.editorTool,
@@ -5692,6 +6215,16 @@ function handleEditorPointerMove(event) {
     return;
   }
 
+  if (state.editorTool === "lasso" && state.editorLassoPoints.length) {
+    const point = { x: cell.column + 0.5, y: cell.row + 0.5 };
+    const previous = state.editorLassoPoints[state.editorLassoPoints.length - 1];
+    if (previous.x !== point.x || previous.y !== point.y) {
+      state.editorLassoPoints.push(point);
+      renderEditorCanvas();
+    }
+    return;
+  }
+
   if (state.editorTool === "pencil" || state.editorTool === "eraser") {
     paintEditorCell(cell.column, cell.row);
   }
@@ -5701,11 +6234,156 @@ function finishEditorPointerAction() {
   if (state.editorSelection) {
     finalizeEditorSelection();
   }
+  if (state.editorTool === "lasso" && state.editorLassoPoints.length) {
+    finalizeLassoSelection();
+  }
   if (state.editorFloating) {
     state.editorFloating.dragging = false;
   }
   state.isPainting = false;
   state.lastPaintKey = "";
+  commitEditorPointerAction();
+}
+
+function beginEditorPointerAction() {
+  const mutating = ["pencil", "eraser", "fill", "cut"].includes(state.editorTool);
+  state.editorActionSnapshot = mutating ? cloneGrid(state.editorGrid) : null;
+}
+
+function commitEditorPointerAction() {
+  const snapshot = state.editorActionSnapshot;
+  state.editorActionSnapshot = null;
+  if (!snapshot || gridsEqual(snapshot, state.editorGrid)) return;
+  state.editorHistory.push(snapshot);
+  if (state.editorHistory.length > 50) state.editorHistory.shift();
+  state.editorRedo = [];
+  updateEditorControls();
+}
+
+function recordEditorHistory() {
+  state.editorHistory.push(cloneGrid(state.editorGrid));
+  if (state.editorHistory.length > 50) state.editorHistory.shift();
+  state.editorRedo = [];
+}
+
+function gridsEqual(a, b) {
+  if (a.length !== b.length || (a[0]?.length || 0) !== (b[0]?.length || 0)) return false;
+  for (let y = 0; y < a.length; y += 1) {
+    for (let x = 0; x < (a[y]?.length || 0); x += 1) {
+      if (!sameColor(a[y][x], b[y][x])) return false;
+    }
+  }
+  return true;
+}
+
+function undoEditor() {
+  const previous = state.editorHistory.pop();
+  if (!previous) return;
+  state.editorRedo.push(cloneGrid(state.editorGrid));
+  state.editorGrid = cloneGrid(previous);
+  clearEditorSelection();
+  renderEditorCanvas();
+  updateReplaceOptions();
+  updateEditorControls();
+}
+
+function redoEditor() {
+  const next = state.editorRedo.pop();
+  if (!next) return;
+  state.editorHistory.push(cloneGrid(state.editorGrid));
+  state.editorGrid = cloneGrid(next);
+  clearEditorSelection();
+  renderEditorCanvas();
+  updateReplaceOptions();
+  updateEditorControls();
+}
+
+function clearEditorSelection() {
+  state.editorSelectedCells = new Set();
+  state.editorLassoPoints = [];
+}
+
+function floodFillEditor(column, row) {
+  const source = state.editorGrid[row]?.[column] || null;
+  const target = cloneColor(state.selectedColor);
+  if (sameColor(source, target)) return;
+  const queue = [[column, row]];
+  const visited = new Set();
+  while (queue.length) {
+    const [x, y] = queue.pop();
+    const key = `${x}:${y}`;
+    if (visited.has(key) || y < 0 || x < 0 || y >= state.editorGrid.length || x >= state.editorGrid[0].length) {
+      continue;
+    }
+    visited.add(key);
+    if (!sameColor(state.editorGrid[y][x], source)) continue;
+    state.editorGrid[y][x] = cloneColor(target);
+    queue.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+  }
+  renderEditorCanvas();
+  updateReplaceOptions();
+}
+
+function selectMagicRegion(column, row) {
+  const source = state.editorGrid[row]?.[column] || null;
+  const queue = [[column, row]];
+  const selected = new Set();
+  while (queue.length) {
+    const [x, y] = queue.pop();
+    const key = `${x}:${y}`;
+    if (selected.has(key) || y < 0 || x < 0 || y >= state.editorGrid.length || x >= state.editorGrid[0].length) {
+      continue;
+    }
+    if (!sameColor(state.editorGrid[y][x], source)) continue;
+    selected.add(key);
+    queue.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+  }
+  state.editorSelectedCells = selected;
+  state.editorLassoPoints = [];
+  renderEditorCanvas();
+  updateEditorControls();
+}
+
+function finalizeLassoSelection() {
+  const points = state.editorLassoPoints;
+  if (points.length < 3) {
+    clearEditorSelection();
+    renderEditorCanvas();
+    updateEditorControls();
+    return;
+  }
+  const selected = new Set();
+  for (let y = 0; y < state.editorGrid.length; y += 1) {
+    for (let x = 0; x < state.editorGrid[0].length; x += 1) {
+      if (isPointInPolygon(x + 0.5, y + 0.5, points)) selected.add(`${x}:${y}`);
+    }
+  }
+  state.editorSelectedCells = selected;
+  renderEditorCanvas();
+  updateEditorControls();
+}
+
+function isPointInPolygon(x, y, points) {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i, i += 1) {
+    const a = points[i];
+    const b = points[j];
+    const intersects = a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y || 0.0001) + a.x;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function applyColorToEditorSelection() {
+  if (!state.editorSelectedCells.size) return;
+  recordEditorHistory();
+  state.editorSelectedCells.forEach((key) => {
+    const [x, y] = key.split(":").map(Number);
+    if (state.editorGrid[y]?.[x] !== undefined) state.editorGrid[y][x] = cloneColor(state.selectedColor);
+  });
+  renderEditorCanvas();
+  updateReplaceOptions();
+  updateEditorControls();
 }
 
 function isCellInsideFloating(column, row) {
@@ -5859,23 +6537,39 @@ function renderEditorCanvas() {
 
 function drawEditorSelectionOverlay(context, margin, cell) {
   const selection = state.editorSelection;
-  if (!selection) return;
-  const x0 = Math.min(selection.x0, selection.x1);
-  const y0 = Math.min(selection.y0, selection.y1);
-  const x1 = Math.max(selection.x0, selection.x1);
-  const y1 = Math.max(selection.y0, selection.y1);
   context.save();
   context.fillStyle = "rgba(67, 94, 229, 0.14)";
   context.strokeStyle = "#435ee5";
   context.lineWidth = 3;
   context.setLineDash([8, 6]);
-  context.fillRect(margin + x0 * cell, margin + y0 * cell, (x1 - x0 + 1) * cell, (y1 - y0 + 1) * cell);
-  context.strokeRect(
-    margin + x0 * cell + 1.5,
-    margin + y0 * cell + 1.5,
-    (x1 - x0 + 1) * cell - 3,
-    (y1 - y0 + 1) * cell - 3,
-  );
+  if (selection) {
+    const x0 = Math.min(selection.x0, selection.x1);
+    const y0 = Math.min(selection.y0, selection.y1);
+    const x1 = Math.max(selection.x0, selection.x1);
+    const y1 = Math.max(selection.y0, selection.y1);
+    context.fillRect(margin + x0 * cell, margin + y0 * cell, (x1 - x0 + 1) * cell, (y1 - y0 + 1) * cell);
+    context.strokeRect(
+      margin + x0 * cell + 1.5,
+      margin + y0 * cell + 1.5,
+      (x1 - x0 + 1) * cell - 3,
+      (y1 - y0 + 1) * cell - 3,
+    );
+  }
+  state.editorSelectedCells.forEach((key) => {
+    const [x, y] = key.split(":").map(Number);
+    context.fillRect(margin + x * cell, margin + y * cell, cell, cell);
+    context.strokeRect(margin + x * cell + 2, margin + y * cell + 2, cell - 4, cell - 4);
+  });
+  if (state.editorLassoPoints.length) {
+    context.beginPath();
+    state.editorLassoPoints.forEach((point, index) => {
+      const px = margin + point.x * cell;
+      const py = margin + point.y * cell;
+      if (index === 0) context.moveTo(px, py);
+      else context.lineTo(px, py);
+    });
+    context.stroke();
+  }
   context.restore();
 }
 
@@ -5928,14 +6622,32 @@ function paintEditorCell(column, row) {
   const key = `${column}:${row}`;
   if (key === state.lastPaintKey) return;
   state.lastPaintKey = key;
-  const oldColor = cloneColor(state.editorGrid[row][column]);
   const nextColor = state.editorTool === "eraser" ? null : cloneColor(state.selectedColor);
-  if (sameColor(oldColor, nextColor)) return;
-  state.editorGrid[row][column] = nextColor;
-  state.paintUndo.push({ x: column, y: row, oldColor });
+  getSymmetryCells(column, row).forEach(({ x, y }) => {
+    if (!sameColor(state.editorGrid[y][x], nextColor)) state.editorGrid[y][x] = cloneColor(nextColor);
+  });
   renderEditorCanvas();
   updateReplaceOptions();
   updateEditorControls();
+}
+
+function getSymmetryCells(column, row) {
+  const width = state.editorGrid[0]?.length || 0;
+  const height = state.editorGrid.length;
+  const cells = new Map([[`${column}:${row}`, { x: column, y: row }]]);
+  if (state.editorSymmetry === "horizontal" || state.editorSymmetry === "both") {
+    cells.set(`${width - 1 - column}:${row}`, { x: width - 1 - column, y: row });
+  }
+  if (state.editorSymmetry === "vertical" || state.editorSymmetry === "both") {
+    cells.set(`${column}:${height - 1 - row}`, { x: column, y: height - 1 - row });
+  }
+  if (state.editorSymmetry === "both") {
+    cells.set(`${width - 1 - column}:${height - 1 - row}`, {
+      x: width - 1 - column,
+      y: height - 1 - row,
+    });
+  }
+  return [...cells.values()];
 }
 
 function undoPaint() {
@@ -5961,8 +6673,10 @@ function updateReplaceOptions() {
 }
 
 function updateEditorControls() {
-  els.undoPaintButton.disabled = state.paintUndo.length === 0;
-  els.undoReplaceButton.disabled = state.replaceUndo.length === 0;
+  els.undoPaintButton.disabled = state.editorHistory.length === 0;
+  els.undoReplaceButton.disabled = state.editorHistory.length === 0;
+  if (els.redoEditorButton) els.redoEditorButton.disabled = state.editorRedo.length === 0;
+  if (els.applySelectionColorButton) els.applySelectionColorButton.disabled = state.editorSelectedCells.size === 0;
   els.replaceButton.disabled = !els.replaceFrom.value;
   updateLibraryImportButton();
 }
@@ -5976,6 +6690,7 @@ function updateLibraryImportButton() {
 function applyFloatingPattern() {
   const floating = state.editorFloating;
   if (!floating) return;
+  recordEditorHistory();
   const action = [];
   for (let y = 0; y < floating.height; y += 1) {
     for (let x = 0; x < floating.width; x += 1) {
@@ -6026,6 +6741,7 @@ function importSelectedLibraryItem() {
 
 function transformEditorGrid(type) {
   const oldGrid = cloneGrid(state.editorGrid);
+  recordEditorHistory();
   if (type === "flip-horizontal") {
     state.editorGrid = state.editorGrid.map((row) => row.slice().reverse().map(cloneColor));
   } else if (type === "flip-vertical") {
@@ -6034,6 +6750,16 @@ function transformEditorGrid(type) {
     state.editorGrid = scaleGridNearest(state.editorGrid, 0.5);
   } else if (type === "scale-up") {
     state.editorGrid = scaleGridNearest(state.editorGrid, 2);
+  } else if (type === "rotate-left") {
+    const columns = oldGrid[0]?.length || 0;
+    state.editorGrid = Array.from({ length: columns }, (_, y) =>
+      Array.from({ length: oldGrid.length }, (_, x) => cloneColor(oldGrid[x][columns - 1 - y])),
+    );
+  } else if (type === "rotate-right") {
+    const rows = oldGrid.length;
+    state.editorGrid = Array.from({ length: oldGrid[0]?.length || 0 }, (_, y) =>
+      Array.from({ length: rows }, (_, x) => cloneColor(oldGrid[rows - 1 - x][y])),
+    );
   }
   state.replaceUndo.push(gridToUndoAction(oldGrid));
   state.editorFloating = null;
@@ -6094,6 +6820,7 @@ function trimEditorArtwork() {
   const bounds = getGridContentBounds(state.editorGrid);
   if (!bounds) return;
   const oldGrid = cloneGrid(state.editorGrid);
+  recordEditorHistory();
   state.editorGrid = state.editorGrid
     .slice(bounds.y0, bounds.y1 + 1)
     .map((row) => row.slice(bounds.x0, bounds.x1 + 1).map(cloneColor));
@@ -6132,6 +6859,7 @@ function fitEditorToScreen() {
 function clearEditorArtwork() {
   if (!window.confirm("确认清空当前画布？")) return;
   const oldGrid = cloneGrid(state.editorGrid);
+  recordEditorHistory();
   state.editorGrid = state.editorGrid.map((row) => row.map(() => null));
   state.replaceUndo.push(gridToUndoAction(oldGrid));
   renderEditorCanvas();
@@ -6145,6 +6873,7 @@ function replaceColor() {
   const toCode = els.replaceTo.value;
   const target = toCode ? getEditorPalette().find((color) => color.code === toCode) : null;
   const action = [];
+  recordEditorHistory();
 
   state.editorGrid.forEach((row, y) => {
     row.forEach((color, x) => {
@@ -6252,11 +6981,6 @@ function downloadEditorArtwork() {
   setStatus("已下载编辑图纸");
 }
 
-function publishEditorArtwork() {
-  saveEditorToLibrary();
-  window.alert("社区发布需要账号与服务器接口。当前已先保存到本地作品库。");
-}
-
 function createBlankBoard(options = {}) {
   const { openEditorAfterCreate = true } = options;
   const width = getGranularity();
@@ -6293,6 +7017,11 @@ function resetAll() {
   state.optimizationSummary = "";
   state.sourceAspectRatio = 1;
   state.ratioLocked = true;
+  if (els.cropModeSelect) els.cropModeSelect.value = "cover";
+  if (els.cropZoomInput) els.cropZoomInput.value = "100";
+  if (els.cropXInput) els.cropXInput.value = "0";
+  if (els.cropYInput) els.cropYInput.value = "0";
+  updateCompositionUi();
   syncRangeControls("granularity", DEFAULT_GRANULARITY, MIN_GRANULARITY, MAX_GRANULARITY);
   updateRatioLockUi();
   state.sourceSafetyChecked = false;
