@@ -503,6 +503,7 @@ img {
   border: 1px solid var(--line-soft);
   border-radius: 16px;
   background: var(--surface-card);
+  color: inherit;
   text-align: left;
   box-shadow: none;
   transition:
@@ -2478,6 +2479,25 @@ input:focus-visible {
   border: 0;
   background: currentColor;
   clip-path: polygon(45% 0, 100% 0, 65% 38%, 100% 38%, 35% 100%, 48% 55%, 12% 55%);
+}
+
+.pixel-icon-review::before {
+  inset: 11px 9px 15px;
+  border-width: 3px;
+  border-radius: 5px;
+  background: linear-gradient(transparent 55%, rgba(255, 216, 77, 0.75) 55%);
+}
+
+.pixel-icon-review::after {
+  left: 22px;
+  top: 25px;
+  width: 8px;
+  height: 8px;
+  border-right: 3px solid currentColor;
+  border-bottom: 3px solid currentColor;
+  background: transparent;
+  box-shadow: none;
+  transform: rotate(45deg);
 }
 
 .smart-tool-card strong,

@@ -21,6 +21,9 @@
 - `pricing.html`
 - `pricing.css`
 - `pricing.js`
+- `review-helper.html`
+- `review-helper.css`
+- `review-helper.js`
 
 独立站配置文件：
 
