@@ -22,6 +22,7 @@
 - `pricing.css`
 - `pricing.js`
 - `review-helper.html`
+- `review.html`
 - `review-helper.css`
 - `review-helper.js`
 
