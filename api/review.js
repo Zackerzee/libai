@@ -1,10 +1,5 @@
 const DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 const DEFAULT_DEEPSEEK_MODEL = "deepseek-chat";
-const DEFAULT_PHOTO_TIPS = [
-  "图1：作品成品图，尽量拍清楚细节。",
-  "图2：制作过程图，体现手作体验感。",
-  "图3：门店环境 / 朋友互动 / 亲子互动图。",
-];
 
 function json(res, statusCode, payload) {
   res.setHeader("Cache-Control", "no-store");
@@ -19,12 +14,6 @@ function cleanText(value, fallback, maxLength) {
   const text = typeof value === "string" ? value.trim() : "";
   if (!text) return fallback;
   return text.slice(0, maxLength);
-}
-
-function normalizePhotoTips(value) {
-  if (!Array.isArray(value)) return DEFAULT_PHOTO_TIPS;
-  const tips = value.map((item) => cleanText(item, "", 80)).filter(Boolean).slice(0, 3);
-  return tips.length === 3 ? tips : DEFAULT_PHOTO_TIPS;
 }
 
 function parseJsonContent(content) {
@@ -88,7 +77,7 @@ export default async function handler(req, res) {
     "4. 字数控制在80到130字。",
     "5. 评价正文不要写福利兑换承诺，避免平台判定为诱导评价。",
     "6. 输出严格 JSON，不要 Markdown。",
-    "JSON格式：{\"review\":\"评价正文\",\"photoTips\":[\"图1建议\",\"图2建议\",\"图3建议\"]}",
+    "JSON格式：{\"review\":\"评价正文\"}",
   ].join("\n");
 
   const userPrompt = [
@@ -97,8 +86,7 @@ export default async function handler(req, res) {
     `顾客体验项目：${project}`,
     `评价风格：${tone}`,
     `顾客真实关键词：${keywords || "没有填写，请生成通用但自然的到店体验"}`,
-    "请生成一条适合大众点评/美团/小红书的真实体验评价，并给出3张配图建议。",
-    "配图建议必须分别覆盖：作品成品图、制作过程图、门店环境/朋友互动/亲子互动图。",
+    "请生成一条适合大众点评/美团/小红书的真实体验评价。",
   ].join("\n");
 
   try {
@@ -138,7 +126,6 @@ export default async function handler(req, res) {
 
     return json(res, 200, {
       review,
-      photoTips: normalizePhotoTips(parsed.photoTips),
     });
   } catch (error) {
     console.error("Review API error", error);

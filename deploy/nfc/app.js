@@ -1,12 +1,6 @@
 (function () {
   "use strict";
 
-  const PHOTO_TIPS = [
-    "图1：作品成品图，尽量拍清楚细节。",
-    "图2：制作过程图，体现手作体验感。",
-    "图3：门店环境 / 朋友互动 / 亲子互动图。",
-  ];
-
   const localReviews = [
     "第一次来里白造物体验拼豆，颜色选择很多，过程也挺解压。店员会讲解步骤，最后成品做出来很有成就感，适合周末和朋友一起过来坐一会儿。",
     "带孩子来做了一次手作，孩子从选图到完成都很投入。店里工具准备得比较齐全，颜色分类清楚，遇到不会的地方也有人帮忙，整体体验很省心。",
@@ -25,12 +19,9 @@
     tone: $("tone"),
     keywords: $("keywords"),
     reviewText: $("reviewText"),
-    photoTips: $("photoTips"),
     aiBtn: $("aiBtn"),
     copyReviewButton: $("copyReviewButton"),
     stickyCopyReviewButton: $("stickyCopyReviewButton"),
-    copyPhotoTipsButton: $("copyPhotoTipsButton"),
-    localReviewButton: $("localReviewButton"),
     copyPhoneButton: $("copyPhoneButton"),
     copyWifiButton: $("copyWifiButton"),
     openWifiCardButton: $("openWifiCardButton"),
@@ -43,21 +34,9 @@
     elements.copyStatus.textContent = message || "";
   }
 
-  function setPhotoTips(tips) {
-    const safeTips = Array.isArray(tips) && tips.length > 0 ? tips.slice(0, 3) : PHOTO_TIPS;
-    elements.photoTips.replaceChildren();
-
-    for (const tip of safeTips) {
-      const li = document.createElement("li");
-      li.textContent = String(tip || "").trim();
-      elements.photoTips.appendChild(li);
-    }
-  }
-
   function generateLocalReview() {
     const review = localReviews[Math.floor(Math.random() * localReviews.length)];
     elements.reviewText.innerText = review;
-    setPhotoTips(PHOTO_TIPS);
     setStatus("已生成本地随机评价，可按真实体验稍微修改后发布。");
   }
 
@@ -96,22 +75,14 @@
     try {
       const data = await requestAIReview(payload);
       elements.reviewText.innerText = data.review || "";
-      setPhotoTips(data.photoTips);
       setStatus("已生成评价。发布前请根据真实体验检查并补充细节。");
     } catch (error) {
       generateLocalReview();
-      setStatus("AI 生成暂时不可用，已自动切换成本地随机评价。");
+      setStatus("生成暂时不可用，已自动切换成本地随机评价。");
     } finally {
       elements.aiBtn.disabled = false;
-      elements.aiBtn.innerText = "AI生成评价";
+      elements.aiBtn.innerText = "随机生成评价";
     }
-  }
-
-  function getPhotoTipsText() {
-    return Array.from(elements.photoTips.querySelectorAll("li"))
-      .map((li) => li.textContent.trim())
-      .filter(Boolean)
-      .join("\n");
   }
 
   async function copyText(text, successMessage) {
@@ -160,15 +131,11 @@
   }
 
   elements.aiBtn.addEventListener("click", generateAIReview);
-  elements.localReviewButton.addEventListener("click", generateLocalReview);
   elements.copyReviewButton.addEventListener("click", () => {
     copyText(elements.reviewText.innerText, "已复制，可以去点评/小红书粘贴啦");
   });
   elements.stickyCopyReviewButton.addEventListener("click", () => {
     copyText(elements.reviewText.innerText, "已复制，可以去点评/小红书粘贴啦");
-  });
-  elements.copyPhotoTipsButton.addEventListener("click", () => {
-    copyText(getPhotoTipsText(), "3张图要求已复制");
   });
   elements.copyPhoneButton.addEventListener("click", () => {
     copyText("19949539970", "电话已复制");
