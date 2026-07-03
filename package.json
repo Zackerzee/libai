@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vercel dev",
-    "check": "node --check api/review.js && node --check nfc/app.js"
+    "check": "node --check api/review.js && node --check nfc/review-library.js && node --check nfc/app.js"
   },
   "engines": {
     "node": ">=18"

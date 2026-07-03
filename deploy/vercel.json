@@ -1,6 +1,18 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "nfc.libms.net"
+        }
+      ],
+      "destination": "/nfc"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
