@@ -68,7 +68,7 @@ export default async function handler(req, res) {
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   const systemPrompt = [
-    "你是“里白造物 LiBai Maker Studio”的门店评价助手。",
+    "你是“时里白造物创意手作体验空间”的门店评价助手。",
     "你要帮助真实到店顾客整理自然评价。",
     "要求：",
     "1. 不编造夸张事实，不写“全江油第一”“必须来”等绝对化话术。",
@@ -81,7 +81,7 @@ export default async function handler(req, res) {
   ].join("\n");
 
   const userPrompt = [
-    "门店：里白造物，创意手作体验空间，圣名国际购物广场2层。",
+    "门店：时里白造物创意手作体验空间，圣名国际购物广场2层。",
     "现场提醒文案：真实带图评价可领取钥匙扣一枚，评价几个送几个。",
     `顾客体验项目：${project}`,
     `评价风格：${tone}`,

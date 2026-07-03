@@ -1,6 +1,8 @@
 (function () {
   "use strict";
 
+  const DEEPSEEK_TIMEOUT_MS = 6500;
+
   const toneOpeners = {
     自然真实: [
       "今天来时里白造物体验了一下，整体感觉挺舒服。",
@@ -75,17 +77,93 @@
     return items[Math.floor(Math.random() * items.length)];
   }
 
+  function getReviewLibrary() {
+    if (typeof window === "undefined") return null;
+    const library = window.NFC_REVIEW_LIBRARY;
+    if (!library) return null;
+    if (!Array.isArray(library.starts) || !Array.isArray(library.projects)) return null;
+    if (!Array.isArray(library.services) || !Array.isArray(library.endings)) return null;
+    return library;
+  }
+
+  function pickProjectLine(project, projects) {
+    const matched = projects.filter((line) => String(line).includes(project));
+    return randomItem(matched.length > 0 ? matched : projects);
+  }
+
+  function generateLibraryReview(project, keywords) {
+    const library = getReviewLibrary();
+    if (!library) return "";
+
+    const lines = [
+      randomItem(library.starts),
+      pickProjectLine(project, library.projects),
+      randomItem(library.services),
+      keywords ? `这次印象比较深的是${keywords}。` : "",
+      randomItem(library.endings),
+    ].filter(Boolean);
+
+    return lines.join("\n");
+  }
+
   function generateLocalReview() {
     const project = elements.project.value || "手作";
     const tone = elements.tone.value || "自然真实";
     const keywords = elements.keywords.value.trim();
+    const libraryReview = generateLibraryReview(project, keywords);
     const opener = randomItem(toneOpeners[tone] || toneOpeners.自然真实);
     const projectLine = projectDetails[project] || `这次体验的是${project}，整体过程比较轻松。`;
     const serviceLine = keywords ? `印象比较深的是${keywords}。` : randomItem(serviceLines);
     const endingLine = randomItem(endingLines);
-    const review = `${opener}${projectLine}${serviceLine}${endingLine}`;
+    const review = libraryReview || `${opener}${projectLine}${serviceLine}${endingLine}`;
     elements.reviewText.innerText = review;
     setStatus("已生成随机评价，可按真实体验稍微修改后发布。");
+    return review;
+  }
+
+  async function requestDeepSeekReview(payload) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), DEEPSEEK_TIMEOUT_MS);
+
+    try {
+      const response = await fetch("/api/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.review) {
+        throw new Error(data.error || "生成失败");
+      }
+      return String(data.review).trim();
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async function generateReview() {
+    const payload = {
+      project: elements.project.value || "手作",
+      tone: elements.tone.value || "自然真实",
+      keywords: elements.keywords.value.trim(),
+    };
+
+    generateLocalReview();
+    elements.aiBtn.disabled = true;
+    elements.aiBtn.innerText = "生成中...";
+    setStatus("已先生成一条评价参考，正在继续优化文案。");
+
+    try {
+      const review = await requestDeepSeekReview(payload);
+      elements.reviewText.innerText = review;
+      setStatus("已生成评价，可按真实体验稍微修改后发布。");
+    } catch (error) {
+      setStatus("已生成随机评价，可按真实体验稍微修改后发布。");
+    } finally {
+      elements.aiBtn.disabled = false;
+      elements.aiBtn.innerText = "随机生成评价";
+    }
   }
 
   async function copyText(text, successMessage) {
@@ -133,7 +211,7 @@
     elements.wifiModal.setAttribute("aria-hidden", "true");
   }
 
-  elements.aiBtn.addEventListener("click", generateLocalReview);
+  elements.aiBtn.addEventListener("click", generateReview);
   elements.copyReviewButton.addEventListener("click", () => {
     copyText(elements.reviewText.innerText, "已复制，可以去点评/小红书粘贴啦");
   });
