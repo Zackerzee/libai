@@ -1,0 +1,13 @@
+{
+  "name": "libai-maker-studio-site",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "check": "node --check api/review.js && node --check nfc/app.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

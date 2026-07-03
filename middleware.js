@@ -86,5 +86,5 @@ export function middleware(request) {
 }
 
 export const config = {
-  matcher: "/api/convert",
+  matcher: ["/api/convert", "/api/review"],
 };

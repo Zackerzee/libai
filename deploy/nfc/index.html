@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="里白造物 NFC 智能桌牌入口，支持 AI 评价生成、带图评价提醒、门店链接、WiFi 和活动预约。"
+    />
+    <title>里白造物｜NFC 评价助手</title>
+    <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
+    <style>
+      :root {
+        --red: #e95b5b;
+        --yellow: #f7c85c;
+        --green: #7bcb77;
+        --blue: #5b8def;
+        --ink: #24211f;
+        --muted: #766e66;
+        --bg: #fff8f1;
+        --card: #ffffff;
+        --line: #f0e3d8;
+        --soft: #fff0e9;
+        --shadow: 0 10px 30px rgba(70, 40, 20, 0.1);
+        --radius: 22px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 10% 0%, rgba(247, 200, 92, 0.24), transparent 30%),
+          radial-gradient(circle at 90% 8%, rgba(91, 141, 239, 0.18), transparent 28%),
+          linear-gradient(180deg, #fffaf5 0%, var(--bg) 100%);
+        color: var(--ink);
+        font-family:
+          -apple-system,
+          BlinkMacSystemFont,
+          "PingFang SC",
+          "Microsoft YaHei",
+          Arial,
+          sans-serif;
+      }
+
+      .page {
+        max-width: 540px;
+        margin: 0 auto;
+        padding: 22px 16px 38px;
+      }
+
+      .hero {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        border-radius: 30px;
+        padding: 24px 20px 22px;
+        background: linear-gradient(135deg, #ffffff 0%, #fff4e8 58%, #f8fbff 100%);
+        box-shadow: var(--shadow);
+      }
+
+      .rings {
+        display: flex;
+        gap: 7px;
+        margin-bottom: 12px;
+      }
+
+      .ring {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        border: 5px solid;
+        border-radius: 50%;
+        background: #ffffff;
+      }
+
+      .ring.red {
+        border-color: var(--red);
+      }
+
+      .ring.yellow {
+        border-color: var(--yellow);
+      }
+
+      .ring.green {
+        border-color: var(--green);
+      }
+
+      .ring.blue {
+        border-color: var(--blue);
+      }
+
+      .brand {
+        font-size: 31px;
+        font-weight: 900;
+        letter-spacing: 0.03em;
+        line-height: 1.1;
+      }
+
+      .en {
+        margin-top: 5px;
+        color: #4b4640;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+      }
+
+      .slogan {
+        display: inline-block;
+        margin-top: 12px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: #222222;
+        color: #ffffff;
+        font-size: 14px;
+      }
+
+      .notice {
+        margin-top: 15px;
+        color: #4b4640;
+        font-size: 15px;
+        line-height: 1.65;
+      }
+
+      .coupon {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 16px;
+        border: 1.5px dashed var(--red);
+        border-radius: 20px;
+        padding: 14px;
+        background: #fff7f7;
+      }
+
+      .coupon b {
+        color: var(--red);
+        font-size: 18px;
+      }
+
+      .coupon span {
+        color: #666666;
+        font-size: 13px;
+      }
+
+      .coupon-mark {
+        font-size: 24px;
+      }
+
+      .section-title {
+        margin: 24px 4px 12px;
+        font-size: 18px;
+        font-weight: 900;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .card,
+      .wide-card {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--card);
+        box-shadow: 0 8px 20px rgba(70, 40, 20, 0.06);
+      }
+
+      .card {
+        display: flex;
+        min-height: 112px;
+        padding: 16px 14px;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .card-button {
+        width: 100%;
+        border: 1px solid var(--line);
+        color: inherit;
+        text-align: left;
+      }
+
+      .wide-card {
+        margin-bottom: 12px;
+        padding: 16px;
+      }
+
+      .icon {
+        margin-bottom: 10px;
+        font-size: 25px;
+      }
+
+      .card b,
+      .wide-card b {
+        font-size: 16px;
+      }
+
+      .card p,
+      .wide-card p {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      button,
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 14px;
+        background: #222222;
+        color: #ffffff;
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: 850;
+        text-align: center;
+        text-decoration: none;
+        appearance: none;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .btn-red {
+        background: var(--red);
+      }
+
+      .btn-blue {
+        background: var(--blue);
+      }
+
+      .btn-green {
+        background: var(--green);
+        color: #173915;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .review-box {
+        min-height: 122px;
+        margin-top: 12px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 14px;
+        background: #ffffff;
+        color: #333333;
+        font-size: 15px;
+        line-height: 1.7;
+        white-space: pre-wrap;
+      }
+
+      .tiny {
+        margin-top: 8px;
+        color: #888888;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .status {
+        min-height: 20px;
+        margin: 10px 0 0;
+        color: #8a4b14;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .platforms {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+
+      .platforms a {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 14px 8px;
+        background: #ffffff;
+        box-shadow: 0 6px 16px rgba(70, 40, 20, 0.05);
+        color: #222222;
+        font-size: 14px;
+        font-weight: 850;
+        line-height: 1.3;
+        text-align: center;
+        text-decoration: none;
+      }
+
+      .platforms small {
+        display: block;
+        margin-top: 4px;
+        color: #888888;
+        font-weight: 500;
+      }
+
+      .tag {
+        display: inline-block;
+        margin: 8px 4px 0 0;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 5px 9px;
+        background: #ffffff;
+        color: #777777;
+        font-size: 12px;
+      }
+
+      .input,
+      select {
+        width: 100%;
+        margin: 8px 0;
+        border: 1px solid var(--line);
+        border-radius: 15px;
+        padding: 12px;
+        background: #ffffff;
+        font-size: 15px;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .photo-list {
+        display: grid;
+        gap: 8px;
+        margin: 12px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .photo-list li {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 10px 12px;
+        background: #fff8f1;
+        color: #5e554c;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .sticky {
+        position: sticky;
+        bottom: 12px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 18px;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(12px);
+      }
+
+      .modal-mask {
+        position: fixed;
+        z-index: 99;
+        inset: 0;
+        display: none;
+        align-items: flex-end;
+        justify-content: center;
+        padding: 14px;
+        background: rgba(0, 0, 0, 0.45);
+      }
+
+      .modal-mask.is-open {
+        display: flex;
+      }
+
+      .modal {
+        width: 100%;
+        max-width: 540px;
+        border-radius: 26px;
+        padding: 18px;
+        background: #ffffff;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+      }
+
+      .modal h3 {
+        margin: 4px 0 10px;
+      }
+
+      .wifi-card {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 10px;
+        margin-top: 10px;
+        border-radius: 18px;
+        padding: 12px;
+        background: var(--soft);
+      }
+
+      .wifi-card code {
+        font-family: inherit;
+        font-size: 17px;
+        font-weight: 900;
+      }
+
+      .footer {
+        margin-top: 28px;
+        color: #999999;
+        font-size: 12px;
+        line-height: 1.8;
+        text-align: center;
+      }
+    </style>
+    <script src="./app.js?v=20260703-1" defer></script>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="rings" aria-hidden="true">
+          <i class="ring red"></i>
+          <i class="ring yellow"></i>
+          <i class="ring green"></i>
+          <i class="ring blue"></i>
+        </div>
+        <div class="brand">里白造物</div>
+        <div class="en">LiBai Maker Studio</div>
+        <div class="slogan">造点小美好，留住好时光！</div>
+        <div class="notice">欢迎来到创意手作体验空间。碰一下 / 扫一下，即可领取福利、生成评价、查看教程、关注门店账号。</div>
+        <div class="coupon">
+          <div>
+            <b>带图评价福利</b><br />
+            <span>真实带图评价可领取钥匙扣一枚，评价几个送几个</span>
+          </div>
+          <span class="coupon-mark" aria-hidden="true">🎁</span>
+        </div>
+      </section>
+
+      <div class="section-title">AI 一键评价助手</div>
+      <section class="wide-card" aria-labelledby="review-title">
+        <b id="review-title">DeepSeek 生成真实体验评价</b>
+        <p>选择体验项目，AI 会生成一段自然评价，并提醒需要上传的 3 张图片。</p>
+
+        <div class="form-grid">
+          <label>
+            <span class="tiny">体验项目</span>
+            <select id="project">
+              <option>拼豆</option>
+              <option>石膏彩绘</option>
+              <option>香薰蜡烛</option>
+              <option>中药香囊</option>
+              <option>奶油胶</option>
+              <option>数字油画</option>
+              <option>亲子手作</option>
+              <option>朋友聚会</option>
+            </select>
+          </label>
+          <label>
+            <span class="tiny">评价风格</span>
+            <select id="tone">
+              <option value="自然真实">自然真实</option>
+              <option value="亲子体验">亲子体验</option>
+              <option value="朋友打卡">朋友打卡</option>
+              <option value="解压治愈">解压治愈</option>
+            </select>
+          </label>
+        </div>
+
+        <input
+          id="keywords"
+          class="input"
+          maxlength="80"
+          placeholder="可选：输入真实体验关键词，如 颜色多、店员耐心、孩子喜欢"
+        />
+
+        <div id="reviewText" class="review-box" tabindex="0" aria-live="polite">
+          点击“AI生成评价”，生成一条适合里白造物的真实体验评价。
+        </div>
+
+        <ul id="photoTips" class="photo-list">
+          <li>图1：作品成品图，尽量拍清楚细节。</li>
+          <li>图2：制作过程图，体现手作体验感。</li>
+          <li>图3：门店环境 / 朋友互动 / 亲子互动图。</li>
+        </ul>
+
+        <div class="actions">
+          <button id="aiBtn" class="btn-red" type="button">AI生成评价</button>
+          <button id="copyReviewButton" type="button">复制评价</button>
+        </div>
+        <div class="actions">
+          <button id="copyPhotoTipsButton" class="btn-blue" type="button">复制3张图要求</button>
+          <button id="localReviewButton" type="button">本地随机生成</button>
+        </div>
+        <p id="copyStatus" class="status" role="status" aria-live="polite"></p>
+        <div class="tiny">
+          提示：评价请基于真实体验。大众点评、美团、小红书不支持网页替顾客自动上传图片，发布时需要手动选择 3 张图。
+        </div>
+      </section>
+
+      <div class="section-title">发布 / 评价入口</div>
+      <div class="platforms">
+        <a
+          href="https://m.dianping.com/shopshare/l9wfdv6RIbERlpwV?msource=Appshare2021&utm_source=shop_share&shoptype=&shopcategoryid=&isoversea=&shareid=bHE2GPLL1Z_1783066614"
+          target="_blank"
+          rel="noopener"
+          >大众点评<small>门店页</small></a
+        >
+        <a href="http://dpurl.cn/pO5SKSWz" target="_blank" rel="noopener">美团<small>门店页</small></a>
+        <a
+          href="https://xhslink.com/m/2QZTr9p4REn?xhsshare=CopyLink&appuid=69ec09240000000002001801&apptime=1783066461&share_id=936dc4a9a7a147f5a0d6a40206b2bd2e"
+          target="_blank"
+          rel="noopener"
+          >小红书门店<small>定位打卡</small></a
+        >
+        <a href="https://xhslink.com/m/4ZCk8aiCIf5" target="_blank" rel="noopener">小红书主页<small>关注我们</small></a>
+        <a href="https://v.douyin.com/DcmPYf5Kd0o/" target="_blank" rel="noopener">抖音主页<small>关注我们</small></a>
+        <a href="https://www.libms.net" target="_blank" rel="noopener">官方网站<small>libms.net</small></a>
+      </div>
+
+      <div class="section-title">门店服务</div>
+      <div class="grid">
+        <a class="card" href="#tutorial">
+          <div>
+            <div class="icon" aria-hidden="true">🧩</div>
+            <b>拼豆教程</b>
+            <p>工具使用、熨烫说明、注意事项</p>
+          </div>
+        </a>
+        <a class="card" href="#party">
+          <div>
+            <div class="icon" aria-hidden="true">🎂</div>
+            <b>活动预约</b>
+            <p>生日派对、亲子活动、团建包场</p>
+          </div>
+        </a>
+        <a class="card" href="#stamp">
+          <div>
+            <div class="icon" aria-hidden="true">🏅</div>
+            <b>集章福利</b>
+            <p>5枚 / 10枚兑换门店福利</p>
+          </div>
+        </a>
+        <button class="card card-button" id="openWifiCardButton" type="button">
+          <div>
+            <div class="icon" aria-hidden="true">📶</div>
+            <b>连接 WiFi</b>
+            <p>查看门店 WiFi 名称和密码</p>
+          </div>
+        </button>
+      </div>
+
+      <div class="section-title" id="tutorial">拼豆体验须知</div>
+      <section class="wide-card">
+        <b>开始前请先看这里</b>
+        <p>一人一套工具；颜色用完请放回原位；选图准备不计时，开始制作后计时；成品熨烫请交给店员处理。</p>
+        <span class="tag">拼豆</span>
+        <span class="tag">石膏彩绘</span>
+        <span class="tag">香薰蜡烛</span>
+        <span class="tag">中药香囊</span>
+      </section>
+
+      <div class="section-title" id="party">活动预约</div>
+      <section class="wide-card">
+        <b>生日派对 / 团建 / 亲子课程</b>
+        <p>支持多人手作活动、主题派对、企业团建、亲子课堂。可直接电话咨询。</p>
+        <div class="actions">
+          <a class="btn btn-red" href="tel:19949539970">电话咨询</a>
+          <button id="copyPhoneButton" class="btn-blue" type="button">复制电话</button>
+        </div>
+        <div class="tiny">门店电话：19949539970</div>
+      </section>
+
+      <div class="section-title" id="stamp">集章福利</div>
+      <section class="wide-card">
+        <b>时光印记 · 集章活动</b>
+        <p>5 枚可兑换拼豆 52 小板材料包 1 份；10 枚可兑换 168 元以内项目免单券 1 张。</p>
+      </section>
+
+      <div class="sticky">
+        <a
+          class="btn btn-red"
+          href="https://m.dianping.com/shopshare/l9wfdv6RIbERlpwV?msource=Appshare2021&utm_source=shop_share&shoptype=&shopcategoryid=&isoversea=&shareid=bHE2GPLL1Z_1783066614"
+          target="_blank"
+          rel="noopener"
+          >去写评价</a
+        >
+        <button id="stickyCopyReviewButton" type="button">复制评价</button>
+      </div>
+
+      <div class="footer">© 里白造物 LiBai Maker Studio<br />圣名国际购物广场 2 层 · 电话 19949539970</div>
+    </main>
+
+    <div id="wifiModal" class="modal-mask" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="wifiTitle">
+        <h3 id="wifiTitle">门店 WiFi</h3>
+        <div class="wifi-card"><span>WiFi 名称</span><code>里白造物</code></div>
+        <div class="wifi-card"><span>WiFi 密码</span><code>88888888</code></div>
+        <div class="actions">
+          <button id="copyWifiButton" class="btn-red" type="button">复制密码</button>
+          <button id="closeWifiButton" type="button">关闭</button>
+        </div>
+        <div class="tiny">也可以另外做一个 WiFi 专用二维码，顾客扫码后更方便连接。</div>
+      </div>
+    </div>
+  </body>
+</html>

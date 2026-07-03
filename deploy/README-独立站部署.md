@@ -25,6 +25,12 @@
 - `review.html`
 - `review-helper.css`
 - `review-helper.js`
+- `nfc/index.html`
+- `nfc/app.js`
+
+可选后端接口：
+
+- `api/review.js`：NFC 页面使用的 DeepSeek AI 评价生成接口，只在 Vercel 等支持 Serverless Function 的平台生效。
 
 独立站配置文件：
 
@@ -50,6 +56,16 @@
 3. Build Command 留空。
 4. Output Directory 填 `deploy`。
 5. 绑定自己的域名。
+6. 如果启用 `/nfc/` AI 评价功能，在环境变量中配置：
+   - `DEEPSEEK_API_KEY`
+   - `DEEPSEEK_BASE_URL=https://api.deepseek.com`
+   - `DEEPSEEK_MODEL=deepseek-chat`
+
+NFC 最终写入地址：
+
+```txt
+https://www.libms.net/nfc/
+```
 
 ### Cloudflare Pages
 
@@ -64,3 +80,4 @@
 - 如果使用中国大陆服务器、国内云厂商大陆节点、或国内 CDN，一般需要备案。
 - 当前安全头已限制第三方嵌套、摄像头、麦克风、定位等权限。
 - 图片审查模型、PDF 导出等第三方依赖已随站点自托管；图片与项目数据不会上传到服务器。
+- `/nfc/` 页面不会在前端保存顾客资料；DeepSeek API Key 必须只配置在后端环境变量里，不能写入页面代码。
