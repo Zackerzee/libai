@@ -57,9 +57,6 @@
     stickyCopyReviewButton: $("stickyCopyReviewButton"),
     copyPhoneButton: $("copyPhoneButton"),
     copyWifiButton: $("copyWifiButton"),
-    openWifiCardButton: $("openWifiCardButton"),
-    closeWifiButton: $("closeWifiButton"),
-    wifiModal: $("wifiModal"),
     copyStatus: $("copyStatus"),
   };
 
@@ -180,16 +177,6 @@
     }
   }
 
-  function openWifi() {
-    elements.wifiModal.classList.add("is-open");
-    elements.wifiModal.setAttribute("aria-hidden", "false");
-  }
-
-  function closeWifi() {
-    elements.wifiModal.classList.remove("is-open");
-    elements.wifiModal.setAttribute("aria-hidden", "true");
-  }
-
   elements.aiBtn.addEventListener("click", generateReview);
   elements.copyReviewButton.addEventListener("click", () => {
     copyText(elements.reviewText.innerText, "已复制，可以去点评/小红书粘贴啦");
@@ -202,13 +189,5 @@
   });
   elements.copyWifiButton.addEventListener("click", () => {
     copyText("88888888", "WiFi密码已复制");
-  });
-  elements.openWifiCardButton.addEventListener("click", openWifi);
-  elements.closeWifiButton.addEventListener("click", closeWifi);
-  elements.wifiModal.addEventListener("click", (event) => {
-    if (event.target === elements.wifiModal) closeWifi();
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeWifi();
   });
 })();
