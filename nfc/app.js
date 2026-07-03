@@ -1,15 +1,52 @@
 (function () {
   "use strict";
 
-  const localReviews = [
-    "第一次来里白造物体验拼豆，颜色选择很多，过程也挺解压。店员会讲解步骤，最后成品做出来很有成就感，适合周末和朋友一起过来坐一会儿。",
-    "带孩子来做了一次手作，孩子从选图到完成都很投入。店里工具准备得比较齐全，颜色分类清楚，遇到不会的地方也有人帮忙，整体体验很省心。",
-    "环境挺舒服的一家手作店，项目选择比想象中丰富。今天做的作品可以带走，也很适合拍照记录，做完之后很有纪念感。",
-    "和朋友来里白造物打卡，拼豆颜色很多，慢慢做的过程很治愈。店员态度也不错，会提醒一些细节，成品比想象中好看。",
-    "本来担心自己手残，实际体验下来还挺容易上手。店里氛围安静，适合放松，也适合做一份小礼物送人。",
-    "亲子体验感很好，孩子能自己动手选颜色和做图案。过程中店员会帮忙检查和熨烫，做完的小作品孩子很喜欢。",
-    "店在圣名国际购物广场，位置比较好找。手作项目挺多，拼豆、石膏彩绘、香薰蜡烛都可以体验，适合朋友聚会。",
-    "今天做手工整体很顺利，材料和工具都整理得很清楚。做完拍照也好看，感觉是一次挺轻松的体验。",
+  const toneOpeners = {
+    自然真实: [
+      "今天来时里白造物体验了一下，整体感觉挺舒服。",
+      "第一次来时里白造物做手工，比想象中更容易上手。",
+      "这家手作店氛围很安静，坐下来慢慢做东西挺放松。",
+    ],
+    亲子体验: [
+      "带孩子来时里白造物体验手作，孩子从选材料到完成都很投入。",
+      "很适合亲子一起来的小店，孩子能自己动手完成作品。",
+      "今天带小朋友来做手工，过程比较顺利，也很有参与感。",
+    ],
+    朋友打卡: [
+      "和朋友一起来时里白造物打卡，整体体验比预期更轻松。",
+      "适合朋友聚会的一家手作店，边聊天边做作品很舒服。",
+      "和朋友周末来做手工，环境和氛围都挺适合拍照记录。",
+    ],
+    解压治愈: [
+      "坐下来慢慢做手工真的挺解压，过程很适合放空一下。",
+      "整个体验节奏不赶，慢慢完成作品的过程很治愈。",
+      "很适合周末来放松的一家店，做完作品还挺有成就感。",
+    ],
+  };
+
+  const projectDetails = {
+    拼豆: "拼豆颜色选择很多，选图、配色和完成作品的过程都挺有意思。",
+    石膏彩绘: "石膏彩绘图案选择比较丰富，上色过程很放松，成品也适合带回家摆放。",
+    香薰蜡烛: "香薰蜡烛可以自己搭配味道和装饰，做出来很有纪念感。",
+    中药香囊: "中药香囊的材料准备得比较齐全，做起来有参与感，也很适合当小礼物。",
+    奶油胶: "奶油胶配件选择挺多，可以按自己的喜好搭配，成品拍照也很好看。",
+    数字油画: "数字油画上手比较轻松，慢慢涂完很有成就感，适合安静坐一会儿。",
+    亲子手作: "亲子手作项目比较适合孩子参与，过程中也有人提醒步骤和细节。",
+    朋友聚会: "朋友聚会来这里很合适，项目选择多，大家可以一起做不同作品。",
+  };
+
+  const serviceLines = [
+    "店员讲解很耐心，不懂的地方也会及时帮忙。",
+    "工具和材料整理得比较清楚，体验过程很顺利。",
+    "店里环境干净舒服，做完作品也很适合拍照。",
+    "位置比较好找，整体体验轻松不赶时间。",
+  ];
+
+  const endingLines = [
+    "做完以后很有成就感，下次有机会还会再来。",
+    "适合朋友、情侣或亲子一起来体验，整体很推荐。",
+    "成品可以带走，作为一份有纪念感的小礼物也不错。",
+    "这次体验很轻松，适合周末来放松一下。",
   ];
 
   const $ = (id) => document.getElementById(id);
@@ -34,55 +71,21 @@
     elements.copyStatus.textContent = message || "";
   }
 
+  function randomItem(items) {
+    return items[Math.floor(Math.random() * items.length)];
+  }
+
   function generateLocalReview() {
-    const review = localReviews[Math.floor(Math.random() * localReviews.length)];
+    const project = elements.project.value || "手作";
+    const tone = elements.tone.value || "自然真实";
+    const keywords = elements.keywords.value.trim();
+    const opener = randomItem(toneOpeners[tone] || toneOpeners.自然真实);
+    const projectLine = projectDetails[project] || `这次体验的是${project}，整体过程比较轻松。`;
+    const serviceLine = keywords ? `印象比较深的是${keywords}。` : randomItem(serviceLines);
+    const endingLine = randomItem(endingLines);
+    const review = `${opener}${projectLine}${serviceLine}${endingLine}`;
     elements.reviewText.innerText = review;
-    setStatus("已生成本地随机评价，可按真实体验稍微修改后发布。");
-  }
-
-  async function requestAIReview(payload) {
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 15000);
-
-    try {
-      const response = await fetch("/api/review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.error || "生成失败");
-      }
-      return data;
-    } finally {
-      window.clearTimeout(timeout);
-    }
-  }
-
-  async function generateAIReview() {
-    elements.aiBtn.disabled = true;
-    elements.aiBtn.innerText = "生成中...";
-    setStatus("正在生成评价，请稍等。");
-
-    const payload = {
-      project: elements.project.value,
-      tone: elements.tone.value,
-      keywords: elements.keywords.value.trim(),
-    };
-
-    try {
-      const data = await requestAIReview(payload);
-      elements.reviewText.innerText = data.review || "";
-      setStatus("已生成评价。发布前请根据真实体验检查并补充细节。");
-    } catch (error) {
-      generateLocalReview();
-      setStatus("生成暂时不可用，已自动切换成本地随机评价。");
-    } finally {
-      elements.aiBtn.disabled = false;
-      elements.aiBtn.innerText = "随机生成评价";
-    }
+    setStatus("已生成随机评价，可按真实体验稍微修改后发布。");
   }
 
   async function copyText(text, successMessage) {
@@ -130,7 +133,7 @@
     elements.wifiModal.setAttribute("aria-hidden", "true");
   }
 
-  elements.aiBtn.addEventListener("click", generateAIReview);
+  elements.aiBtn.addEventListener("click", generateLocalReview);
   elements.copyReviewButton.addEventListener("click", () => {
     copyText(elements.reviewText.innerText, "已复制，可以去点评/小红书粘贴啦");
   });

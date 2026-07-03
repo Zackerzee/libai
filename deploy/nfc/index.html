@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta
       name="description"
-      content="里白造物 NFC 智能桌牌入口，支持 AI 评价生成、带图评价提醒、门店链接、WiFi 和活动预约。"
+      content="时里白造物创意手作体验空间 NFC 智能桌牌入口，支持评价参考、门店链接、WiFi 和活动预约。"
     />
-    <title>里白造物｜NFC 评价助手</title>
+    <title>时里白造物创意手作体验空间｜NFC 评价助手</title>
     <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
     <style>
       :root {
@@ -66,50 +66,26 @@
         box-shadow: var(--shadow);
       }
 
-      .rings {
-        display: flex;
-        gap: 7px;
-        margin-bottom: 12px;
+      .brand-logo-panel {
+        margin-bottom: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.85);
+        border-radius: 18px;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.72);
       }
 
-      .ring {
-        display: inline-block;
-        width: 18px;
-        height: 18px;
-        border: 5px solid;
-        border-radius: 50%;
-        background: #ffffff;
+      .brand-logo {
+        display: block;
+        width: 100%;
+        height: auto;
       }
 
-      .ring.red {
-        border-color: var(--red);
-      }
-
-      .ring.yellow {
-        border-color: var(--yellow);
-      }
-
-      .ring.green {
-        border-color: var(--green);
-      }
-
-      .ring.blue {
-        border-color: var(--blue);
-      }
-
-      .brand {
-        font-size: 31px;
+      .brand-title {
+        margin: 0;
+        font-size: 27px;
         font-weight: 900;
-        letter-spacing: 0.03em;
-        line-height: 1.1;
-      }
-
-      .en {
-        margin-top: 5px;
-        color: #4b4640;
-        font-size: 13px;
-        font-weight: 800;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.02em;
+        line-height: 1.18;
       }
 
       .slogan {
@@ -426,21 +402,22 @@
         text-align: center;
       }
     </style>
-    <script src="./app.js?v=20260703-2" defer></script>
+    <script src="./app.js?v=20260703-3" defer></script>
   </head>
   <body>
     <main class="page">
       <section class="hero">
-        <div class="rings" aria-hidden="true">
-          <i class="ring red"></i>
-          <i class="ring yellow"></i>
-          <i class="ring green"></i>
-          <i class="ring blue"></i>
+        <div class="brand-logo-panel">
+          <img
+            class="brand-logo"
+            src="./shilibai-nfc-logo.png"
+            alt="时里白造物创意手作体验空间"
+            width="1800"
+            height="165"
+          />
         </div>
-        <div class="brand">里白造物</div>
-        <div class="en">LiBai Maker Studio</div>
-        <div class="slogan">造点小美好，留住好时光！</div>
-        <div class="notice">欢迎来到创意手作体验空间。碰一下 / 扫一下，即可领取福利、生成评价、查看教程、关注门店账号。</div>
+        <h1 class="brand-title">时里白造物创意手作体验空间</h1>
+        <div class="notice">欢迎来到时里白造物创意手作体验空间。碰一下 / 扫一下，即可领取福利、生成评价、查看教程、关注门店账号。</div>
         <div class="coupon">
           <div>
             <b>带图评价福利</b><br />
@@ -452,7 +429,7 @@
 
       <div class="section-title">评价小助手</div>
       <section class="wide-card" aria-labelledby="review-title">
-        <b id="review-title">里白造物评价小助手</b>
+        <b id="review-title">时里白造物评价小助手</b>
         <p>
           不知道怎么写评价？<br />
           点一下随机生成一条评价参考，复制后可以根据自己的真实体验稍微修改～
@@ -500,7 +477,7 @@
         </div>
         <p id="copyStatus" class="status" role="status" aria-live="polite"></p>
         <div class="tiny">
-          提示：建议加上你的作品照片一起发布哦～<br />
+          温馨提示：建议加上你的作品照片一起发布哦～<br />
           你的评价对我们小店真的很重要 ♡
         </div>
       </section>
@@ -595,7 +572,7 @@
         <button id="stickyCopyReviewButton" type="button">复制评价</button>
       </div>
 
-      <div class="footer">© 里白造物 LiBai Maker Studio<br />圣名国际购物广场 2 层 · 电话 19949539970</div>
+      <div class="footer">© 时里白造物创意手作体验空间<br />圣名国际购物广场 2 层 · 电话 19949539970</div>
     </main>
 
     <div id="wifiModal" class="modal-mask" aria-hidden="true">
