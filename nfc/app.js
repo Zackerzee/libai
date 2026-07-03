@@ -1,7 +1,13 @@
 (function () {
   "use strict";
 
-  const DEEPSEEK_TIMEOUT_MS = 6500;
+  const DEEPSEEK_TIMEOUT_MS = 12000;
+  const CACHE_TTL_MS = 30000;
+
+  let isGenerating = false;
+  let lastRequestKey = "";
+  let lastReviewData = null;
+  let lastRequestTime = 0;
 
   const defaultKeywordGroups = [
     "带孩子来玩",
@@ -82,17 +88,29 @@
   }
 
   function getFinalKeywords(rawKeywords) {
-    const keywords = String(rawKeywords || "").trim();
-    return keywords || randomItem(defaultKeywordGroups);
+    return String(rawKeywords || "").trim();
   }
 
-  function generateLocalReview(platform, context) {
+  function getLocalFallback(platform, context) {
     const options = localReviewOptions[platform] || localReviewOptions.dianping;
     const matchedOptions = options.filter((review) => matchesLocalContext(review, context));
-    const review = randomItem(matchedOptions.length > 0 ? matchedOptions : options);
-    elements.reviewText.innerText = review;
-    setStatus("已生成随机评价，可按真实体验稍微修改后发布。");
-    return review;
+    return randomItem(matchedOptions.length > 0 ? matchedOptions : options);
+  }
+
+  function getRequestKey(payload) {
+    return JSON.stringify(payload);
+  }
+
+  function canUseCache(payload) {
+    const key = getRequestKey(payload);
+    const now = Date.now();
+    return Boolean(lastReviewData && lastRequestKey === key && now - lastRequestTime < CACHE_TTL_MS);
+  }
+
+  function saveCache(payload, review) {
+    lastRequestKey = getRequestKey(payload);
+    lastReviewData = { review };
+    lastRequestTime = Date.now();
   }
 
   async function requestDeepSeekReview(payload) {
@@ -117,6 +135,8 @@
   }
 
   async function generateReview() {
+    if (isGenerating) return;
+
     const finalKeywords = getFinalKeywords(elements.keywords.value);
     const payload = {
       platform: elements.platform.value || "dianping",
@@ -125,20 +145,31 @@
       keywords: finalKeywords,
     };
 
-    generateLocalReview(payload.platform, `${payload.project} ${payload.tone} ${payload.keywords}`);
+    if (canUseCache(payload)) {
+      elements.reviewText.innerText = lastReviewData.review;
+      setStatus("已显示刚刚生成的评价参考，可按真实体验稍微修改后发布。");
+      return;
+    }
+
+    isGenerating = true;
     elements.aiBtn.disabled = true;
-    elements.aiBtn.innerText = "生成中...";
-    setStatus("已先生成一条评价参考，正在继续优化文案。");
+    elements.aiBtn.innerText = "正在生成...";
+    elements.reviewText.innerText = "正在生成真实短评，请稍等...";
+    setStatus("正在生成评价参考，请稍等。");
 
     try {
       const review = await requestDeepSeekReview(payload);
       elements.reviewText.innerText = review;
+      saveCache(payload, review);
       setStatus("已生成评价，可按真实体验稍微修改后发布。");
     } catch (error) {
-      setStatus("已生成随机评价，可按真实体验稍微修改后发布。");
+      const fallback = getLocalFallback(payload.platform, `${payload.project} ${payload.tone} ${payload.keywords}`);
+      elements.reviewText.innerText = fallback;
+      setStatus("网络暂时不稳定，已生成本地评价参考，可按真实体验稍微修改后发布。");
     } finally {
+      isGenerating = false;
       elements.aiBtn.disabled = false;
-      elements.aiBtn.innerText = "随机生成评价";
+      elements.aiBtn.innerText = "生成一条真实短评";
     }
   }
 
