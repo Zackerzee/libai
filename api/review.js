@@ -9,7 +9,7 @@ const DEFAULT_KEYWORD_GROUPS = [
   "颜色选择多，成品看着顺眼",
   "做了简单小图案，细节比预想多",
   "想安静坐一会儿，最后成品还可以",
-  "配色换了几次，效果还不错",
+  "颜色搭配意外还行",
   "成品适合拍照，下次想试复杂一点的图",
 ];
 const PERSONAS = [
@@ -64,22 +64,77 @@ const STRUCTURES = [
   "像大众点评简短评价",
   "像朋友口吻推荐，但不要写必须来",
 ];
+const VOICE_STYLES = [
+  {
+    name: "很短的点评",
+    rule: "40字以内，像顾客随手写一句，不要完整起承转合。",
+  },
+  {
+    name: "轻微吐槽",
+    rule: "允许一点小吐槽，比如费眼睛、颜色太多不好选、细节有点磨人，但最后整体正向。",
+  },
+  {
+    name: "成品展示",
+    rule: "重点写成品用途或成品效果，不展开完整过程。",
+  },
+  {
+    name: "过程碎片",
+    rule: "只写制作中的一个小片段，比如找颜色、对齐、改边角，不做总结。",
+  },
+  {
+    name: "朋友对话感",
+    rule: "可以出现朋友一句反应，但不要像作文。",
+  },
+  {
+    name: "普通大众点评",
+    rule: "平实、短句，不要小红书腔。",
+  },
+  {
+    name: "小红书随手记",
+    rule: "可以稍微有画面感，但不要营销，不要夸张。",
+  },
+  {
+    name: "低调满意",
+    rule: "不热情，不夸张，只表达还可以、没有踩雷。",
+  },
+  {
+    name: "细节观察",
+    rule: "只写一个具体细节，比如颜色、边缘、图案、小豆子排列。",
+  },
+  {
+    name: "下次尝试",
+    rule: "结尾可以写下次想试别的图案或别的项目，但不要像广告。",
+  },
+];
+const BANNED_PAIR_RULES = `
+禁止常见连用：
+1. 写了“纠结”，就不要再写“换了几次”“定下来”。
+2. 写了“进入状态”，就不要再写“越做越顺”。
+3. 写了“细节比想象中多”，就不要再写“挺费心思”。
+4. 写了“店里不催”，就不要再写“慢慢做挺舒服”。
+5. 写了“还不错”，结尾不要再写“挺开心”“挺舒服”“挺适合”。
+`.trim();
 const FOCUS_POOL = [
-  "颜色选择多",
-  "选图案",
-  "配色纠结",
-  "制作过程安静",
-  "做到一半进入状态",
-  "成品比预期好",
-  "适合拍照",
-  "可以带走",
-  "店员帮忙处理成品",
-  "店里不催人",
-  "适合放空",
-  "和朋友一起做",
-  "孩子自己参与",
-  "小细节有点考验耐心",
-  "做完想再试别的图案",
+  "颜色数量多",
+  "某个颜色很亮",
+  "小豆子摆放需要耐心",
+  "边缘对齐",
+  "图案从散到成型",
+  "成品适合挂包",
+  "成品适合放桌面",
+  "朋友做得比自己快",
+  "自己做了一个简单图案",
+  "做小细节有点费眼睛",
+  "坐着慢慢做",
+  "想试更复杂的图案",
+  "拍成品图",
+  "没有翻车",
+  "颜色搭配意外还行",
+  "做完有个小纪念",
+  "店员最后帮忙处理成品",
+  "作品比图片上更有质感",
+  "适合一个人安静做",
+  "适合两个人边聊边做",
 ];
 const BAD_WORDS = [
   "全江油第一",
@@ -173,20 +228,18 @@ function pickFocus(project, tone, keywords, persona) {
   const canUseChild = persona.name === "亲子型" || hasAnyWord(text, ["亲子", "孩子", "小朋友"]);
   const canUseFriend = persona.name === "陪朋友型" || hasAnyWord(text, ["朋友", "闺蜜", "同学", "同事"]);
   const candidates = FOCUS_POOL.filter((item) => {
-    if (item === "孩子自己参与") return canUseChild;
-    if (item === "和朋友一起做") return canUseFriend;
-    if (item === "店员帮忙处理成品") return isPinDou;
+    if (item === "朋友做得比自己快" || item === "适合两个人边聊边做") return canUseFriend;
+    if (item === "店员最后帮忙处理成品") return isPinDou;
     return true;
   });
 
-  const focusCount = Math.random() < 0.65 ? 1 : 2;
-  const picked = pickMany(candidates, focusCount);
+  const picked = pickMany(candidates, 1);
 
-  if (canUseChild && persona.name === "亲子型" && !picked.includes("孩子自己参与")) {
-    picked[picked.length - 1] = "孩子自己参与";
+  if (canUseChild && persona.name === "亲子型") {
+    picked[picked.length - 1] = "孩子自己选图案";
   }
-  if (canUseFriend && persona.name === "陪朋友型" && !picked.includes("和朋友一起做")) {
-    picked[picked.length - 1] = "和朋友一起做";
+  if (canUseFriend && persona.name === "陪朋友型" && !hasAnyWord(picked.join(" "), ["朋友", "两个人"])) {
+    picked[picked.length - 1] = Math.random() < 0.5 ? "朋友做得比自己快" : "适合两个人边聊边做";
   }
 
   return picked;
@@ -194,9 +247,9 @@ function pickFocus(project, tone, keywords, persona) {
 
 function pickWordCountRule() {
   const value = Math.random();
-  if (value < 0.3) return "40到70字，短一点，像随手评价";
-  if (value < 0.8) return "70到110字，自然完整";
-  return "110到150字，可以多一点细节，但不要像作文";
+  if (value < 0.45) return "25到55字，很短，像随手评价";
+  if (value < 0.8) return "55到90字，自然一点";
+  return "90到130字，可以多一点细节，但不要像作文";
 }
 
 function parseJsonContent(content) {
@@ -280,19 +333,63 @@ function tooMuchTemplateFlavor(text) {
   return countTemplateWords(text) > 2 || hasBadCombinations(text);
 }
 
+function countRepeatedFlavorWords(text) {
+  const words = [
+    "纠结",
+    "换了几次",
+    "配色换了",
+    "定下来",
+    "进入状态",
+    "越做越顺",
+    "不知不觉",
+    "细节比想象中多",
+    "细节比预想的多",
+    "店里不会催",
+    "店里不催",
+    "挺舒服",
+    "还不错",
+    "挺适合",
+    "打发时间",
+    "比想象中",
+    "比预想",
+    "有成就感",
+  ];
+
+  return words.filter((word) => String(text || "").includes(word)).length;
+}
+
+function hasSameReviewRhythm(text) {
+  const patterns = [
+    /一开始.*纠结.*最后.*还不错/,
+    /本来.*没.*期待.*结果.*还挺/,
+    /选.*纠结.*换了.*定下来/,
+    /做到一半.*进入状态/,
+    /越.*越.*最后/,
+    /细节.*比.*想象.*多/,
+    /店里.*不催.*慢慢/,
+    /适合.*打发时间/,
+    /整体.*挺.*的/,
+  ];
+
+  return patterns.some((pattern) => pattern.test(String(text || "")));
+}
+
 function hasUnwantedStoreName(review, persona, structure) {
   const text = String(review || "");
   if (!text.includes("时里白造物")) return false;
   return persona.name !== "简短点评型" && structure !== "像大众点评简短评价";
 }
 
-function hasUnprovidedRelationshipWords(review, persona, keywords) {
+function hasUnprovidedRelationshipWords(review, persona, voiceStyle, keywords) {
   const reviewText = String(review || "");
   const keywordText = String(keywords || "");
   const hasChild = hasAnyWord(reviewText, ["孩子", "小朋友", "亲子"]);
   const hasFriend = hasAnyWord(reviewText, ["朋友", "闺蜜", "同学", "同事"]);
   const childProvided = persona.name === "亲子型" || hasAnyWord(keywordText, ["孩子", "小朋友", "亲子"]);
-  const friendProvided = persona.name === "陪朋友型" || hasAnyWord(keywordText, ["朋友", "闺蜜", "同学", "同事"]);
+  const friendProvided =
+    persona.name === "陪朋友型" ||
+    voiceStyle.name === "朋友对话感" ||
+    hasAnyWord(keywordText, ["朋友", "闺蜜", "同学", "同事"]);
 
   return (hasChild && !childProvided) || (hasFriend && !friendProvided);
 }
@@ -300,7 +397,7 @@ function hasUnprovidedRelationshipWords(review, persona, keywords) {
 function hasUnsupportedPinDouProcessing(review, project, focus) {
   const text = String(review || "");
   if (!hasAnyWord(text, ["熨", "处理成品", "帮忙处理"])) return false;
-  return !String(project || "").includes("拼豆") || !focus.includes("店员帮忙处理成品");
+  return !String(project || "").includes("拼豆") || !focus.includes("店员最后帮忙处理成品");
 }
 
 function countExclamationMarks(text) {
@@ -312,27 +409,32 @@ function makeHumanFallback(project, tone, keywords) {
 
   if (safeProject.includes("拼豆")) {
     const options = [
-      "拼豆这个东西有点神奇，看着是一颗颗小豆子，坐下来之后反而容易专注。最后图案出来的时候，确实会有一点小满足。",
-      "颜色比我想的多，挑的时候花了点时间。最后做了一个不算复杂的小图案，成品看着还挺顺眼。",
-      "本来以为会很快做完，结果细节还挺多。慢慢拼完之后，看到图案一点点出来，感觉还不错。",
-      "拼的时候需要一点耐心，但不会很难。中间改了几次颜色，最后出来的效果比一开始想的好。",
-      "这次做了个小图案，过程挺安静的。不是那种很热闹的项目，但适合坐下来慢慢弄。",
-      "成品比照片里看着更有质感一点，小小一个拿在手里还挺可爱。下次想试试复杂一点的图。",
-      "选颜色的时候有点选择困难，后来随便定了一套配色，没想到出来效果还行。",
-      "拼豆比想象中更考验耐心，尤其是小细节。不过完成之后看着自己的成品，还是挺值得的。",
-      "做的是一个比较简单的图案，没有翻车。整体体验比想象中轻松，适合想安静待一会儿的时候。",
-      "一开始只是想试试，结果拼到后面会有点停不下来。图案成型的过程还挺有意思。",
+      "颜色确实挺多，挑的时候有点选择困难。最后做了个小图案，没翻车。",
+      "拼豆比想象中费眼睛一点，但图案出来的时候还是挺有意思的。",
+      "做了个简单款，小豆子一颗颗摆上去还挺需要耐心。",
+      "成品小小一个，挂包上应该还挺合适。比直接买现成的有意思。",
+      "一开始没太会配色，后来随便搭了一下，出来效果居然还行。",
+      "朋友做得比我快，我这边一直在调整边角。最后成品也算满意。",
+      "这个项目适合慢慢做，急着弄反而容易摆歪。",
+      "拼到后面会有点专注，图案一点点出来的时候还挺爽。",
+      "选了个不复杂的图案，成品出来比我预想的规整一点。",
+      "小细节有点磨人，不过完成之后看着还挺顺眼。",
+      "本来只是试一下，结果做完还想再试个复杂点的图。",
+      "颜色比照片里看着更亮，成品拍出来还可以。",
+      "没有想象中难，就是需要耐心。最后店员帮忙处理好成品，可以直接拿走。",
+      "做完才发现拼豆挺适合放空的，手上有事做，脑子反而安静一点。",
+      "小图案看着简单，真摆起来还是要慢慢对齐。",
     ];
     return randomItem(options);
   }
 
   const options = [
-    `这次做的${safeProject}比想象中更有参与感，不是简单看一下就结束，自己动手的过程还挺有意思。`,
-    `做${safeProject}的时候节奏比较慢，反而容易静下来。成品不算完美，但自己做出来的感觉还是不一样。`,
-    `本来没抱太大期待，实际体验下来还可以。步骤不复杂，做完之后有个自己的小作品。`,
-    `这类手作适合慢慢来，急着做反而没意思。最后成品出来的时候，还是会有一点小惊喜。`,
-    `第一次尝试${safeProject}，过程比想象中更细致。做完之后感觉比直接买现成的更有记忆点。`,
-    `整体不是那种很吵的体验，比较适合安静坐下来做点东西。成品完成后看着还挺满意。`,
+    `这次做的${safeProject}步骤不算复杂，但自己动手做出来的感觉还是不一样。`,
+    `${safeProject}比我想象中更细致一点，成品不算完美，但还挺有纪念感。`,
+    `原本只是随便试试，做完之后觉得还可以，至少不是那种走马观花的体验。`,
+    `适合安静坐下来做点东西，成品完成的时候会有一点小惊喜。`,
+    `第一次尝试${safeProject}，中间有点慢，但最后效果还算满意。`,
+    `这个项目不太适合赶时间，慢慢做会更有意思。`,
   ];
 
   return randomItem(options);
@@ -367,11 +469,13 @@ export default async function handler(req, res) {
   const keywords = cleanText(body.keywords, "", 120);
   const finalKeywords = keywords || randomItem(DEFAULT_KEYWORD_GROUPS);
   const persona = pickPersona(project, tone, finalKeywords);
+  const voiceStyle = randomItem(VOICE_STYLES);
   const structure = randomItem(STRUCTURES);
   const focus = pickFocus(project, tone, finalKeywords, persona);
   const wordCountRule = pickWordCountRule();
   const debug = {
     persona: persona.name,
+    voiceStyle: voiceStyle.name,
     structure,
     focus,
   };
@@ -413,7 +517,14 @@ export default async function handler(req, res) {
 9. 不要写得太满，语气要自然克制。
 10. 最多使用 1 个感叹号。
 11. 不要像广告文案，不要像官方介绍。
-12. 如果本次关注点没有“店员帮忙处理成品”，拼豆评价也不要主动写熨烫。
+12. 如果本次关注点没有“店员最后帮忙处理成品”，拼豆评价也不要主动写熨烫。
+
+避免高频模板：
+不要反复写“选图案纠结、配色纠结、换了几次、做到一半进入状态、越做越顺、细节比想象中多、店里不催人、适合打发时间”。
+这些表达不是绝对禁止，但每条评价最多只能出现其中 1 个。
+如果已经写了“纠结”，就不要再写“换了几次”“定下来”。
+如果已经写了“进入状态”，就不要再写“越做越顺”。
+如果已经写了“还不错”，结尾就不要再写“挺舒服”“挺适合”。
 
 禁止夸张词：
 全江油第一、天花板、必须冲、闭眼入、绝绝子、无敌、离谱、封神、YYDS、性价比天花板、老板人超好、老师特别专业、一对一指导、全程陪同、玩到不想走、来了就不想走。
@@ -433,8 +544,9 @@ JSON 格式：
   ],
   "debug": {
     "persona": "本次随机的人设",
+    "voiceStyle": "本次说话风格",
     "structure": "本次随机结构",
-    "focus": ["重点1", "重点2"]
+    "focus": ["本次唯一重点"]
   }
 }
 `.trim();
@@ -450,25 +562,30 @@ JSON 格式：
 ${persona.name}
 ${persona.rule}
 
+本次说话风格：
+${voiceStyle.name}
+${voiceStyle.rule}
+
 本次写作结构：
 ${structure}
 
-本次只允许重点写这些内容：
+本次只能写这一个重点：
 ${focus.join("、")}
 
 本次字数要求：
 ${wordCountRule}
 
-请严格遵守：
-1. 不要每条都写门店名。
-2. 不要写成“在XX体验了XX，环境XX，过程XX，成品XX”的模板句式。
-3. 不要把所有优点都写进去，只写本次重点。
-4. 如果本次重点没有“店员帮忙处理成品”，拼豆评价也不要主动写熨烫。
-5. 如果关键词没有提到孩子，就不要写孩子。
-6. 如果关键词没有提到朋友，且 persona 不是陪朋友型，就不要写朋友。
-7. 如果关键词没有提到具体时间，就不要写周末、假期、下午、晚上。
-8. 可以有一个很小的真实细节，但不要每次都是“选图案纠结”“怕手残”。
-9. 评价要像普通顾客自己写的，不要像商家宣传。
+特别重要：
+1. 只写一个切口，不要把完整体验从进店、制作、成品、环境、推荐全部写完。
+2. 不要每条都写“选图案纠结、配色纠结、换了几次、进入状态、越做越顺”。
+3. 不要写成完整小作文。
+4. 不要每条都出现“挺舒服、还不错、挺适合、打发时间”。
+5. 不要每条都写门店名。
+6. 如果本次重点不是“店员最后帮忙处理成品”，不要写熨烫。
+7. 不要默认写周末、假期、下午、晚上。
+8. 评价可以短，可以碎，可以像随手记录。
+9. 评价要像不同顾客写的，不要像同一个人换词。
+${BANNED_PAIR_RULES}
 `.trim();
 
   try {
@@ -511,8 +628,10 @@ ${wordCountRule}
       hasUnprovidedTimeWords(review, finalKeywords) ||
       looksLikeTemplate(review) ||
       tooMuchTemplateFlavor(review) ||
+      countRepeatedFlavorWords(review) > 2 ||
+      hasSameReviewRhythm(review) ||
       hasUnwantedStoreName(review, persona, structure) ||
-      hasUnprovidedRelationshipWords(review, persona, finalKeywords) ||
+      hasUnprovidedRelationshipWords(review, persona, voiceStyle, finalKeywords) ||
       hasUnsupportedPinDouProcessing(review, project, focus) ||
       countExclamationMarks(review) > 1
     ) {
