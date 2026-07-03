@@ -3,53 +3,42 @@
 
   const DEEPSEEK_TIMEOUT_MS = 6500;
 
-  const toneOpeners = {
-    自然真实: [
-      "今天来时里白造物体验了一下，整体感觉挺舒服。",
-      "第一次来时里白造物做手工，比想象中更容易上手。",
-      "这家手作店氛围很安静，坐下来慢慢做东西挺放松。",
-    ],
-    亲子体验: [
-      "带孩子来时里白造物体验手作，孩子从选材料到完成都很投入。",
-      "很适合亲子一起来的小店，孩子能自己动手完成作品。",
-      "今天带小朋友来做手工，过程比较顺利，也很有参与感。",
-    ],
-    朋友打卡: [
-      "和朋友一起来时里白造物打卡，整体体验比预期更轻松。",
-      "适合朋友聚会的一家手作店，边聊天边做作品很舒服。",
-      "和朋友周末来做手工，环境和氛围都挺适合拍照记录。",
-    ],
-    解压治愈: [
-      "坐下来慢慢做手工真的挺解压，过程很适合放空一下。",
-      "整个体验节奏不赶，慢慢完成作品的过程很治愈。",
-      "很适合周末来放松的一家店，做完作品还挺有成就感。",
-    ],
-  };
-
-  const projectDetails = {
-    拼豆: "拼豆颜色选择很多，选图、配色和完成作品的过程都挺有意思。",
-    石膏彩绘: "石膏彩绘图案选择比较丰富，上色过程很放松，成品也适合带回家摆放。",
-    香薰蜡烛: "香薰蜡烛可以自己搭配味道和装饰，做出来很有纪念感。",
-    中药香囊: "中药香囊的材料准备得比较齐全，做起来有参与感，也很适合当小礼物。",
-    奶油胶: "奶油胶配件选择挺多，可以按自己的喜好搭配，成品拍照也很好看。",
-    数字油画: "数字油画上手比较轻松，慢慢涂完很有成就感，适合安静坐一会儿。",
-    亲子手作: "亲子手作项目比较适合孩子参与，过程中也有人提醒步骤和细节。",
-    朋友聚会: "朋友聚会来这里很合适，项目选择多，大家可以一起做不同作品。",
-  };
-
-  const serviceLines = [
-    "店员讲解很耐心，不懂的地方也会及时帮忙。",
-    "工具和材料整理得比较清楚，体验过程很顺利。",
-    "店里环境干净舒服，做完作品也很适合拍照。",
-    "位置比较好找，整体体验轻松不赶时间。",
+  const defaultKeywordGroups = [
+    "颜色选择多，做起来解压，成品好看",
+    "选图案纠结了一会儿，做出来比想象中可爱",
+    "刚开始怕手残，后面慢慢进入状态",
+    "适合安静坐下来做点东西，成品有纪念感",
+    "制作过程不赶，完成后挺有成就感",
   ];
 
-  const endingLines = [
-    "做完以后很有成就感，下次有机会还会再来。",
-    "适合朋友、情侣或亲子一起来体验，整体很推荐。",
-    "成品可以带走，作为一份有纪念感的小礼物也不错。",
-    "这次体验很轻松，适合周末来放松一下。",
-  ];
+  const localReviewOptions = {
+    拼豆: [
+      "拼豆比想象中更容易进入状态，颜色太多反而纠结了好一会儿。慢慢把图案拼出来的过程挺解压，最后成品拿到手的时候，比图片上看着更可爱。",
+      "刚开始还担心自己没耐心，结果拼着拼着就进入状态了。选颜色和调整细节的时候挺有意思，最后做出来的小东西可以带走，感觉还蛮有成就感。",
+      "本来只是想随便体验一下，没想到拼豆还挺上头的。图案选了半天，颜色也纠结了半天，最后做出来效果比预想好，拿到成品的时候很开心。",
+      "第一次认真拼这种小图案，过程比想象中慢一点，但也正好让人静下来。颜色选择很多，做完之后看着自己的成品，还是有点小成就感的。",
+    ],
+    石膏彩绘: [
+      "石膏彩绘比想象中更好上手，刚开始不知道怎么配色，涂着涂着就有思路了。最后出来的效果还挺完整，摆在桌面上也不会突兀。",
+      "选石膏款式的时候纠结了一会儿，最后挑了一个比较顺眼的。上色过程不赶，慢慢把细节补完之后，成品看着比预想好很多。",
+    ],
+    香薰蜡烛: [
+      "香薰蜡烛做起来比想象中更有参与感，选味道和搭配装饰的时候挺有意思。最后成品拿在手里，有种自己认真完成了一件小东西的感觉。",
+      "本来只是想试试香薰蜡烛，结果搭配味道的时候还挺投入。成品出来之后比想象中精致，放在房间里也挺合适。",
+    ],
+    中药香囊: [
+      "中药香囊做起来很安静，慢慢挑材料、装袋、整理形状，节奏刚刚好。成品不大，但拿在手里还挺有纪念感。",
+      "第一次做中药香囊，材料的味道闻起来很舒服。过程不复杂，但自己一步步做完之后，感觉比直接买一个更有意思。",
+    ],
+    奶油胶: [
+      "奶油胶的配件真的容易让人选择困难，挑来挑去才定下来。挤胶和摆装饰的过程挺有意思，最后成品比一开始想的更可爱。",
+      "做奶油胶的时候有点像在搭一个小场景，配件摆哪里都要纠结一下。完成之后拍照很好看，拿回去也挺有成就感。",
+    ],
+    数字油画: [
+      "数字油画适合慢慢坐下来画，刚开始觉得格子很多，画着画着反而安静下来了。颜色一层层填满之后，成品效果比想象中明显。",
+      "第一次画数字油画，过程比想象中需要耐心，但不会觉得难。慢慢把空白填起来的时候挺解压，最后整体效果也还不错。",
+    ],
+  };
 
   const $ = (id) => document.getElementById(id);
 
@@ -77,45 +66,19 @@
     return items[Math.floor(Math.random() * items.length)];
   }
 
-  function getReviewLibrary() {
-    if (typeof window === "undefined") return null;
-    const library = window.NFC_REVIEW_LIBRARY;
-    if (!library) return null;
-    if (!Array.isArray(library.starts) || !Array.isArray(library.projects)) return null;
-    if (!Array.isArray(library.services) || !Array.isArray(library.endings)) return null;
-    return library;
+  function getFinalKeywords(rawKeywords) {
+    const keywords = String(rawKeywords || "").trim();
+    return keywords || randomItem(defaultKeywordGroups);
   }
 
-  function pickProjectLine(project, projects) {
-    const matched = projects.filter((line) => String(line).includes(project));
-    return randomItem(matched.length > 0 ? matched : projects);
-  }
-
-  function generateLibraryReview(project, keywords) {
-    const library = getReviewLibrary();
-    if (!library) return "";
-
-    const lines = [
-      randomItem(library.starts),
-      pickProjectLine(project, library.projects),
-      randomItem(library.services),
-      keywords ? `这次印象比较深的是${keywords}。` : "",
-      randomItem(library.endings),
-    ].filter(Boolean);
-
-    return lines.join("\n");
-  }
-
-  function generateLocalReview() {
-    const project = elements.project.value || "手作";
-    const tone = elements.tone.value || "自然真实";
-    const keywords = elements.keywords.value.trim();
-    const libraryReview = generateLibraryReview(project, keywords);
-    const opener = randomItem(toneOpeners[tone] || toneOpeners.自然真实);
-    const projectLine = projectDetails[project] || `这次体验的是${project}，整体过程比较轻松。`;
-    const serviceLine = keywords ? `印象比较深的是${keywords}。` : randomItem(serviceLines);
-    const endingLine = randomItem(endingLines);
-    const review = libraryReview || `${opener}${projectLine}${serviceLine}${endingLine}`;
+  function generateLocalReview(project) {
+    const options =
+      localReviewOptions[project] || [
+        `这次做${project}比想象中更有意思，步骤不复杂，但需要一点耐心。慢慢完成之后，成品拿在手里还是挺有纪念感的。`,
+        `原本只是想找个地方坐一会儿，没想到${project}做起来还挺投入。过程不赶，完成后看着自己的作品，感觉比单纯买一个东西更特别。`,
+        `第一次尝试${project}，刚开始有点没思路，做着做着就顺了。最后出来的效果比预期好，适合想安静做点东西的时候来体验。`,
+      ];
+    const review = randomItem(options);
     elements.reviewText.innerText = review;
     setStatus("已生成随机评价，可按真实体验稍微修改后发布。");
     return review;
@@ -143,13 +106,14 @@
   }
 
   async function generateReview() {
+    const finalKeywords = getFinalKeywords(elements.keywords.value);
     const payload = {
       project: elements.project.value || "手作",
       tone: elements.tone.value || "自然真实",
-      keywords: elements.keywords.value.trim(),
+      keywords: finalKeywords,
     };
 
-    generateLocalReview();
+    generateLocalReview(payload.project);
     elements.aiBtn.disabled = true;
     elements.aiBtn.innerText = "生成中...";
     setStatus("已先生成一条评价参考，正在继续优化文案。");
