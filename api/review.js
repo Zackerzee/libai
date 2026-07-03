@@ -6,11 +6,80 @@ const DEFAULT_PHOTO_TIPS = [
   "图3：门店环境、朋友互动或亲子互动图。",
 ];
 const DEFAULT_KEYWORD_GROUPS = [
-  "颜色选择多，做起来解压，成品好看",
-  "选图案纠结了一会儿，做出来比想象中可爱",
-  "刚开始怕手残，后面慢慢进入状态",
-  "适合安静坐下来做点东西，成品有纪念感",
-  "制作过程不赶，完成后挺有成就感",
+  "颜色选择多，成品看着顺眼",
+  "做了简单小图案，细节比预想多",
+  "想安静坐一会儿，最后成品还可以",
+  "配色换了几次，效果还不错",
+  "成品适合拍照，下次想试复杂一点的图",
+];
+const PERSONAS = [
+  {
+    name: "随手记录型",
+    rule: "话少，不夸张，像随手发一句。不要写太完整的广告式评价。",
+  },
+  {
+    name: "手残党型",
+    rule: "可以写一开始担心做不好，但不要固定使用“怕手残”这个词。",
+  },
+  {
+    name: "细节控型",
+    rule: "关注颜色、边角、图案细节、配色变化。",
+  },
+  {
+    name: "陪朋友型",
+    rule: "像是跟朋友一起过来，不要写得太正式。",
+  },
+  {
+    name: "拍照打卡型",
+    rule: "关注成品是否好拍、颜色是否好看，但不要网红营销腔。",
+  },
+  {
+    name: "安静放空型",
+    rule: "关注慢慢做、安静、放空、坐一会儿。",
+  },
+  {
+    name: "简短点评型",
+    rule: "短一点，像大众点评普通用户随手评价。",
+  },
+  {
+    name: "轻微吐槽型",
+    rule: "允许一点小吐槽，比如颜色难选、细节费眼睛，但整体保持正向。",
+  },
+  {
+    name: "成品用途型",
+    rule: "关注成品可以挂包、放桌面、送人、留作纪念。",
+  },
+];
+const PARENT_PERSONA = {
+  name: "亲子型",
+  rule: "只有用户明确选择亲子或关键词提到孩子时使用。孩子自己参与，大人辅助，不要夸张。",
+};
+const STRUCTURES = [
+  "先说来之前预期，再说实际体验",
+  "先说成品，再回忆制作过程",
+  "先说一个小细节，再补充整体感受",
+  "只写简短体验，不铺垫",
+  "带一点轻微吐槽，再转正向",
+  "像小红书随手笔记，但不要过度营销",
+  "像大众点评简短评价",
+  "像朋友口吻推荐，但不要写必须来",
+];
+const FOCUS_POOL = [
+  "颜色选择多",
+  "选图案",
+  "配色纠结",
+  "制作过程安静",
+  "做到一半进入状态",
+  "成品比预期好",
+  "适合拍照",
+  "可以带走",
+  "店员帮忙处理成品",
+  "店里不催人",
+  "适合放空",
+  "和朋友一起做",
+  "孩子自己参与",
+  "小细节有点考验耐心",
+  "做完想再试别的图案",
 ];
 const BAD_WORDS = [
   "全江油第一",
@@ -74,6 +143,62 @@ function randomItem(items) {
   return items[Math.floor(Math.random() * items.length)];
 }
 
+function pickMany(items, count) {
+  const available = [...items];
+  const picked = [];
+  while (picked.length < count && available.length > 0) {
+    const index = Math.floor(Math.random() * available.length);
+    picked.push(available[index]);
+    available.splice(index, 1);
+  }
+  return picked;
+}
+
+function hasAnyWord(text, words) {
+  const safeText = String(text || "");
+  return words.some((word) => safeText.includes(word));
+}
+
+function pickPersona(project, tone, keywords) {
+  const text = `${project} ${tone} ${keywords}`;
+  if (hasAnyWord(text, ["亲子", "孩子", "小朋友"])) {
+    return PARENT_PERSONA;
+  }
+  return randomItem(PERSONAS);
+}
+
+function pickFocus(project, tone, keywords, persona) {
+  const text = `${project} ${tone} ${keywords}`;
+  const isPinDou = String(project || "").includes("拼豆");
+  const canUseChild = persona.name === "亲子型" || hasAnyWord(text, ["亲子", "孩子", "小朋友"]);
+  const canUseFriend = persona.name === "陪朋友型" || hasAnyWord(text, ["朋友", "闺蜜", "同学", "同事"]);
+  const candidates = FOCUS_POOL.filter((item) => {
+    if (item === "孩子自己参与") return canUseChild;
+    if (item === "和朋友一起做") return canUseFriend;
+    if (item === "店员帮忙处理成品") return isPinDou;
+    return true;
+  });
+
+  const focusCount = Math.random() < 0.65 ? 1 : 2;
+  const picked = pickMany(candidates, focusCount);
+
+  if (canUseChild && persona.name === "亲子型" && !picked.includes("孩子自己参与")) {
+    picked[picked.length - 1] = "孩子自己参与";
+  }
+  if (canUseFriend && persona.name === "陪朋友型" && !picked.includes("和朋友一起做")) {
+    picked[picked.length - 1] = "和朋友一起做";
+  }
+
+  return picked;
+}
+
+function pickWordCountRule() {
+  const value = Math.random();
+  if (value < 0.3) return "40到70字，短一点，像随手评价";
+  if (value < 0.8) return "70到110字，自然完整";
+  return "110到150字，可以多一点细节，但不要像作文";
+}
+
 function parseJsonContent(content) {
   const text = String(content || "").trim();
   if (!text) return {};
@@ -119,6 +244,65 @@ function looksLikeTemplate(text) {
   return patterns.some((pattern) => pattern.test(normalized));
 }
 
+function countTemplateWords(text) {
+  const words = [
+    "第一次",
+    "怕手残",
+    "纠结",
+    "解压",
+    "有成就感",
+    "比想象中好看",
+    "比想象中可爱",
+    "挺开心",
+    "挺不错",
+    "过程轻松",
+    "环境舒服",
+    "进入状态",
+  ];
+
+  return words.filter((word) => String(text || "").includes(word)).length;
+}
+
+function hasBadCombinations(text) {
+  const safeText = String(text || "");
+  const combos = [
+    ["第一次", "怕手残", "进入状态"],
+    ["选图案", "纠结", "解压", "有成就感"],
+    ["比想象中", "拿在手里", "有成就感"],
+    ["环境舒服", "过程轻松", "可以带走"],
+    ["在时里白造物", "体验了拼豆", "挺开心"],
+  ];
+
+  return combos.some((combo) => combo.every((word) => safeText.includes(word)));
+}
+
+function tooMuchTemplateFlavor(text) {
+  return countTemplateWords(text) > 2 || hasBadCombinations(text);
+}
+
+function hasUnwantedStoreName(review, persona, structure) {
+  const text = String(review || "");
+  if (!text.includes("时里白造物")) return false;
+  return persona.name !== "简短点评型" && structure !== "像大众点评简短评价";
+}
+
+function hasUnprovidedRelationshipWords(review, persona, keywords) {
+  const reviewText = String(review || "");
+  const keywordText = String(keywords || "");
+  const hasChild = hasAnyWord(reviewText, ["孩子", "小朋友", "亲子"]);
+  const hasFriend = hasAnyWord(reviewText, ["朋友", "闺蜜", "同学", "同事"]);
+  const childProvided = persona.name === "亲子型" || hasAnyWord(keywordText, ["孩子", "小朋友", "亲子"]);
+  const friendProvided = persona.name === "陪朋友型" || hasAnyWord(keywordText, ["朋友", "闺蜜", "同学", "同事"]);
+
+  return (hasChild && !childProvided) || (hasFriend && !friendProvided);
+}
+
+function hasUnsupportedPinDouProcessing(review, project, focus) {
+  const text = String(review || "");
+  if (!hasAnyWord(text, ["熨", "处理成品", "帮忙处理"])) return false;
+  return !String(project || "").includes("拼豆") || !focus.includes("店员帮忙处理成品");
+}
+
 function countExclamationMarks(text) {
   return (String(text || "").match(/[!！]/g) || []).length;
 }
@@ -128,18 +312,27 @@ function makeHumanFallback(project, tone, keywords) {
 
   if (safeProject.includes("拼豆")) {
     const options = [
-      "拼豆比想象中更容易进入状态，选颜色的时候纠结了好久，慢慢拼出来还挺有成就感。成品店员会帮忙处理好，拿到手之后比想象中可爱。",
-      "刚开始还怕自己手残，拼着拼着就停不下来了。颜色选择挺多，做出来的小东西可以带走，放在桌面上或者包上都挺合适。",
-      "选图案的时候纠结了一会儿，最后还是挑了一个自己喜欢的。拼豆过程挺解压的，成品拿到手比图片上看着更有感觉。",
-      "本来以为拼豆会很难，实际做起来节奏刚刚好。慢慢把图案拼出来的过程挺有意思，最后成品也比预期好看。",
+      "拼豆这个东西有点神奇，看着是一颗颗小豆子，坐下来之后反而容易专注。最后图案出来的时候，确实会有一点小满足。",
+      "颜色比我想的多，挑的时候花了点时间。最后做了一个不算复杂的小图案，成品看着还挺顺眼。",
+      "本来以为会很快做完，结果细节还挺多。慢慢拼完之后，看到图案一点点出来，感觉还不错。",
+      "拼的时候需要一点耐心，但不会很难。中间改了几次颜色，最后出来的效果比一开始想的好。",
+      "这次做了个小图案，过程挺安静的。不是那种很热闹的项目，但适合坐下来慢慢弄。",
+      "成品比照片里看着更有质感一点，小小一个拿在手里还挺可爱。下次想试试复杂一点的图。",
+      "选颜色的时候有点选择困难，后来随便定了一套配色，没想到出来效果还行。",
+      "拼豆比想象中更考验耐心，尤其是小细节。不过完成之后看着自己的成品，还是挺值得的。",
+      "做的是一个比较简单的图案，没有翻车。整体体验比想象中轻松，适合想安静待一会儿的时候。",
+      "一开始只是想试试，结果拼到后面会有点停不下来。图案成型的过程还挺有意思。",
     ];
     return randomItem(options);
   }
 
   const options = [
-    `这次体验的${safeProject}比想象中更有意思，步骤不复杂，但做出来还挺有成就感。成品拿在手里的时候，感觉比单纯买一个东西更有纪念感。`,
-    `原本只是想找个地方坐一会儿，没想到${safeProject}做起来还挺投入。过程不赶，慢慢做完之后，成品看着也挺满意。`,
-    `第一次尝试${safeProject}，刚开始有点没思路，做着做着就顺了。最后出来的效果比预期好，适合想安静做点东西的时候来体验。`,
+    `这次做的${safeProject}比想象中更有参与感，不是简单看一下就结束，自己动手的过程还挺有意思。`,
+    `做${safeProject}的时候节奏比较慢，反而容易静下来。成品不算完美，但自己做出来的感觉还是不一样。`,
+    `本来没抱太大期待，实际体验下来还可以。步骤不复杂，做完之后有个自己的小作品。`,
+    `这类手作适合慢慢来，急着做反而没意思。最后成品出来的时候，还是会有一点小惊喜。`,
+    `第一次尝试${safeProject}，过程比想象中更细致。做完之后感觉比直接买现成的更有记忆点。`,
+    `整体不是那种很吵的体验，比较适合安静坐下来做点东西。成品完成后看着还挺满意。`,
   ];
 
   return randomItem(options);
@@ -172,7 +365,16 @@ export default async function handler(req, res) {
   const project = cleanText(body.project, "拼豆", 24);
   const tone = cleanText(body.tone, "自然真实", 24);
   const keywords = cleanText(body.keywords, "", 120);
-  const promptKeywords = keywords || randomItem(DEFAULT_KEYWORD_GROUPS);
+  const finalKeywords = keywords || randomItem(DEFAULT_KEYWORD_GROUPS);
+  const persona = pickPersona(project, tone, finalKeywords);
+  const structure = randomItem(STRUCTURES);
+  const focus = pickFocus(project, tone, finalKeywords, persona);
+  const wordCountRule = pickWordCountRule();
+  const debug = {
+    persona: persona.name,
+    structure,
+    focus,
+  };
 
   const baseUrl = normalizeBaseUrl(process.env.DEEPSEEK_BASE_URL || process.env.DEEPSEEK_API_BASE_URL);
   const model = cleanText(process.env.DEEPSEEK_MODEL, DEFAULT_DEEPSEEK_MODEL, 80);
@@ -184,7 +386,7 @@ export default async function handler(req, res) {
 你是一个真实顾客评价改写助手，不是商家宣传文案助手。
 
 你的任务：
-根据顾客选择的项目、语气和真实关键词，生成一条像普通顾客随手写出来的评价。
+根据顾客选择的项目、语气、真实关键词、本次随机顾客画像、本次写作结构和本次关注点，生成一条像普通顾客随手写出来的评价。
 
 门店信息：
 - 门店名称：时里白造物
@@ -204,13 +406,14 @@ export default async function handler(req, res) {
 2. 不要每条都出现门店名“时里白造物”。
 3. 不要使用固定句式：在XX体验了XX，环境XX，过程XX，成品XX，挺XX。
 4. 不要总是写“环境舒服、过程轻松、可以带走”。
-5. 允许有一点口语化，比如“还挺上头”“比想象中好看”“慢慢拼还挺解压”“刚开始有点怕手残”。
+5. 不要每次都写“第一次、怕手残、纠结、解压、有成就感、比想象中好看”。
 6. 句子长短要有变化，不要每句都很工整。
-7. 可以写一个具体小细节，比如选颜色、选图案、纠结颜色、拼到一半进入状态、成品拿到手有成就感。
-8. 不要写得太满，语气要自然克制。
-9. 字数控制在 70 到 130 字。
+7. 只能重点写本次给定的 1 到 2 个关注点，不要把所有优点都堆进去。
+8. 可以写一个具体小细节，但不要每次都是“选图案纠结”“怕手残”“进入状态”。
+9. 不要写得太满，语气要自然克制。
 10. 最多使用 1 个感叹号。
 11. 不要像广告文案，不要像官方介绍。
+12. 如果本次关注点没有“店员帮忙处理成品”，拼豆评价也不要主动写熨烫。
 
 禁止夸张词：
 全江油第一、天花板、必须冲、闭眼入、绝绝子、无敌、离谱、封神、YYDS、性价比天花板、老板人超好、老师特别专业、一对一指导、全程陪同、玩到不想走、来了就不想走。
@@ -227,7 +430,12 @@ JSON 格式：
     "图1：作品成品图，拍清楚细节。",
     "图2：制作过程图，比如选色、拼豆、上色或制作中的画面。",
     "图3：门店环境、朋友互动或亲子互动图。"
-  ]
+  ],
+  "debug": {
+    "persona": "本次随机的人设",
+    "structure": "本次随机结构",
+    "focus": ["重点1", "重点2"]
+  }
 }
 `.trim();
 
@@ -236,17 +444,30 @@ JSON 格式：
 
 体验项目：${project}
 评价语气：${tone}
-顾客真实关键词：${promptKeywords}
+顾客真实关键词：${finalKeywords}
+
+本次顾客画像：
+${persona.name}
+${persona.rule}
+
+本次写作结构：
+${structure}
+
+本次只允许重点写这些内容：
+${focus.join("、")}
+
+本次字数要求：
+${wordCountRule}
 
 请严格遵守：
 1. 不要每条都写门店名。
 2. 不要写成“在XX体验了XX，环境XX，过程XX，成品XX”的模板句式。
-3. 如果关键词没有提到店员，就不要主动写店员服务。
-4. 如果关键词没有提到孩子，就不要写孩子。
-5. 如果关键词没有提到朋友，就不要写朋友。
-6. 如果关键词没有提到具体时间，就不要写周末、假期、下午、晚上。
-7. 如果项目是拼豆，不要写顾客自己熨烫，也不要写店员教顾客熨烫。
-8. 可以加入一个真实的小细节，比如选颜色、选图案、纠结配色、做出来比想象中好看。
+3. 不要把所有优点都写进去，只写本次重点。
+4. 如果本次重点没有“店员帮忙处理成品”，拼豆评价也不要主动写熨烫。
+5. 如果关键词没有提到孩子，就不要写孩子。
+6. 如果关键词没有提到朋友，且 persona 不是陪朋友型，就不要写朋友。
+7. 如果关键词没有提到具体时间，就不要写周末、假期、下午、晚上。
+8. 可以有一个很小的真实细节，但不要每次都是“选图案纠结”“怕手残”。
 9. 评价要像普通顾客自己写的，不要像商家宣传。
 `.trim();
 
@@ -264,7 +485,7 @@ JSON 格式：
           { role: "user", content: userPrompt },
         ],
         temperature: 0.45,
-        max_tokens: 500,
+        max_tokens: 700,
         response_format: { type: "json_object" },
       }),
       signal: controller.signal,
@@ -287,16 +508,21 @@ JSON 格式：
 
     if (
       hasBadWords(review) ||
-      hasUnprovidedTimeWords(review, promptKeywords) ||
+      hasUnprovidedTimeWords(review, finalKeywords) ||
       looksLikeTemplate(review) ||
+      tooMuchTemplateFlavor(review) ||
+      hasUnwantedStoreName(review, persona, structure) ||
+      hasUnprovidedRelationshipWords(review, persona, finalKeywords) ||
+      hasUnsupportedPinDouProcessing(review, project, focus) ||
       countExclamationMarks(review) > 1
     ) {
-      review = makeHumanFallback(project, tone, promptKeywords);
+      review = makeHumanFallback(project, tone, finalKeywords);
     }
 
     return json(res, 200, {
       review,
       photoTips: normalizePhotoTips(),
+      debug,
     });
   } catch (error) {
     console.error("Review API error", error);
