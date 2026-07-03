@@ -402,8 +402,7 @@
         text-align: center;
       }
     </style>
-    <script src="/nfc/review-library.js?v=20260703-1" defer></script>
-    <script src="/nfc/app.js?v=20260703-9" defer></script>
+    <script src="/nfc/app.js?v=20260703-10" defer></script>
   </head>
   <body>
     <main class="page">
@@ -422,7 +421,7 @@
         <div class="coupon">
           <div>
             <b>带图评价福利</b><br />
-            <span>真实带图评价可领取钥匙扣一枚，评价几个送几个</span>
+            <span>发布真实带图体验，可领取门店小礼物。</span>
           </div>
           <span class="coupon-mark" aria-hidden="true">🎁</span>
         </div>
@@ -437,6 +436,14 @@
         </p>
 
         <div class="form-grid">
+          <label>
+            <span class="tiny">发布平台</span>
+            <select id="platform">
+              <option value="dianping">大众点评 / 美团</option>
+              <option value="xiaohongshu">小红书</option>
+              <option value="douyin">抖音</option>
+            </select>
+          </label>
           <label>
             <span class="tiny">体验项目</span>
             <select id="project">
@@ -455,8 +462,8 @@
             <select id="tone">
               <option value="自然真实">自然真实</option>
               <option value="亲子体验">亲子体验</option>
-              <option value="朋友打卡">朋友打卡</option>
-              <option value="解压治愈">解压治愈</option>
+              <option value="朋友同去">朋友同去</option>
+              <option value="逛街顺便">逛街顺便</option>
             </select>
           </label>
         </div>
@@ -465,7 +472,7 @@
           id="keywords"
           class="input"
           maxlength="80"
-          placeholder="可选：写一点真实细节，如 颜色纠结了很久、成品比想象中好看、孩子自己选的图案"
+          placeholder="可选：写一点真实场景，如 带孩子、朋友一起、逛商场顺便体验"
         />
 
         <div id="reviewText" class="review-box" tabindex="0" aria-live="polite">
@@ -489,7 +496,7 @@
           href="https://m.dianping.com/an/ugcastroreact/addreview_qrcode/page/addreviewrouter?lch=saomaxiepingjia&utm_source=saomaxiepingjia&shopcategoryid=144&id=1029212885625444&shoptype=30&shopuuid=l9wfdv6RIbERlpwV&cityid=1618&offlinecode=12508367426672&incentive=smreviewpuma01-daozong01-dpapp-myshop"
           target="_blank"
           rel="noopener"
-          >大众点评<small>评价有礼</small></a
+          >大众点评<small>发布入口</small></a
         >
         <a href="https://g.meituan.com/qrcode/transfer?scene=promo_shop&q=fzB8PQwj4S1" target="_blank" rel="noopener">美团<small>门店页</small></a>
         <a
