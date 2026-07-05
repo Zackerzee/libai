@@ -3,6 +3,7 @@
 
   const DEEPSEEK_TIMEOUT_MS = 12000;
   const CACHE_TTL_MS = 30000;
+  const DOUYIN_ID = "98526701829";
 
   let isGenerating = false;
   let lastRequestKey = "";
@@ -63,6 +64,8 @@
     stickyCopyReviewButton: $("stickyCopyReviewButton"),
     copyPhoneButton: $("copyPhoneButton"),
     copyWifiButton: $("copyWifiButton"),
+    copyDouyinButton: $("copyDouyinButton"),
+    wechatDouyinTip: $("wechatDouyinTip"),
     copyStatus: $("copyStatus"),
   };
 
@@ -221,4 +224,11 @@
   elements.copyWifiButton.addEventListener("click", () => {
     copyText("88888888", "WiFi密码已复制");
   });
+  elements.copyDouyinButton.addEventListener("click", () => {
+    copyText(DOUYIN_ID, "抖音号已复制，请打开抖音搜索关注");
+  });
+
+  if (/MicroMessenger/i.test(navigator.userAgent) && elements.wechatDouyinTip) {
+    elements.wechatDouyinTip.hidden = false;
+  }
 })();

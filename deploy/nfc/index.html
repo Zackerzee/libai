@@ -356,6 +356,41 @@
         font-weight: 500;
       }
 
+      .douyin-card {
+        margin-top: 12px;
+        border: 1px solid rgba(233, 91, 91, 0.22);
+        border-radius: var(--radius);
+        padding: 16px;
+        background: linear-gradient(135deg, #ffffff 0%, #fff7f7 100%);
+        box-shadow: 0 8px 20px rgba(70, 40, 20, 0.06);
+      }
+
+      .douyin-card p {
+        margin: 6px 0 0;
+      }
+
+      .douyin-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .douyin-id {
+        color: #5e554c;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .wechat-tip {
+        border-radius: 14px;
+        padding: 10px 12px;
+        background: #fff0e9;
+        color: #8a4b14;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
       .tag {
         display: inline-block;
         margin: 8px 4px 0 0;
@@ -425,7 +460,7 @@
         text-align: center;
       }
     </style>
-    <script src="/nfc/app.js?v=20260703-12" defer></script>
+    <script src="/nfc/app.js?v=20260705-1" defer></script>
   </head>
   <body>
     <main class="page">
@@ -526,9 +561,25 @@
           >小红书门店<small>定位打卡</small></a
         >
         <a href="https://xhslink.com/m/4ZCk8aiCIf5" target="_blank" rel="noopener">小红书主页<small>关注我们</small></a>
-        <a href="https://v.douyin.com/DcmPYf5Kd0o/" target="_blank" rel="noopener">抖音主页<small>关注我们</small></a>
+        <a href="https://v.douyin.com/IG9t-oxLEXc/" target="_blank" rel="noopener noreferrer">抖音主页<small>关注我们</small></a>
         <a href="https://www.libms.net" target="_blank" rel="noopener">生成拼豆图纸<small>libms.net</small></a>
       </div>
+
+      <section class="douyin-card" aria-labelledby="douyin-title">
+        <div class="service-header">
+          <div class="icon" aria-hidden="true">🎬</div>
+          <div class="service-title" id="douyin-title">关注我们的抖音</div>
+        </div>
+        <p class="service-text">查看门店作品、活动日常和最新手作内容</p>
+        <div class="douyin-actions">
+          <a class="btn btn-red" href="https://v.douyin.com/IG9t-oxLEXc/" target="_blank" rel="noopener noreferrer">打开抖音主页</a>
+          <button id="copyDouyinButton" class="btn-blue" type="button">复制抖音号</button>
+        </div>
+        <p class="douyin-id">抖音号：98526701829</p>
+        <p id="wechatDouyinTip" class="wechat-tip" hidden>
+          当前在微信内打开，如无法直接跳转抖音，请点击右上角「…」选择「在浏览器打开」，或复制抖音号到抖音搜索关注。
+        </p>
+      </section>
 
       <div class="section-title">门店服务</div>
       <div class="service-list">
