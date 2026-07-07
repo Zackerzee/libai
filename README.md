@@ -8,7 +8,11 @@
 /nfc/index.html       前端页面
 /nfc/app.js           前端交互逻辑，只请求 /api/review
 /nfc/review-library.js 本地随机评价兜底文案库
+/print/index.html     顾客拼豆图纸上传页面
+/admin/print-orders/  拼豆图纸后台页面
 /api/review.js        Vercel Serverless Function
+/api/print-orders/    Vercel 拼豆图纸上传 / 查询 / 下载接口
+/functions/api/print-orders/ Cloudflare Pages Functions 版本，使用 PRINT_UPLOADS R2 binding
 /package.json         Vercel / Node 项目配置，type: "module"
 /.gitignore           忽略本地环境变量和依赖目录
 /README.md            部署说明
@@ -59,3 +63,69 @@ npm run dev
 6. 绑定域名 `nfc.libms.net`。
 
 当前 `vercel.json` 已配置 host rewrite：访问 `https://nfc.libms.net/` 会显示 `/nfc` 页面。
+
+## 拼豆图纸打印
+
+顾客页面：
+
+```txt
+/print
+```
+
+后台页面：
+
+```txt
+/admin/print-orders
+```
+
+顾客上传 JPG / PNG / PDF 后，系统会生成订单号。后台输入 PIN 后可以查看最近 7 天订单并下载图纸。网页不会直接调用打印机，最终由店员确认后打印。
+
+### Cloudflare Pages + R2 配置
+
+如果部署到 Cloudflare Pages，请在项目中绑定 R2 bucket：
+
+```txt
+Binding name: PRINT_UPLOADS
+```
+
+并配置环境变量：
+
+```txt
+PRINT_ADMIN_PIN=你的后台 PIN
+```
+
+R2 生命周期规则需要手动配置，避免长期保存顾客图纸：
+
+```txt
+规则名称：delete-perler-print-orders-after-7-days
+规则前缀：perler-print-orders/
+过期时间：7 天
+```
+
+如果使用 Wrangler，可参考：
+
+```bash
+npx wrangler r2 bucket lifecycle add PRINT_UPLOADS delete-perler-print-orders-after-7-days perler-print-orders/ --expire-days 7
+```
+
+如果实际 bucket 名称不是 `PRINT_UPLOADS`，请把命令里的 bucket 名称替换成真实名称。
+
+### Vercel + Cloudflare R2 配置
+
+当前项目默认是 Vercel 结构。Vercel 不能直接使用 Cloudflare Pages 的 R2 binding，所以需要配置 R2 S3 兼容密钥：
+
+```txt
+PRINT_ADMIN_PIN=你的后台 PIN
+R2_ACCOUNT_ID=Cloudflare Account ID
+R2_ACCESS_KEY_ID=R2 API Token Access Key ID
+R2_SECRET_ACCESS_KEY=R2 API Token Secret Access Key
+PRINT_UPLOADS_BUCKET=R2 bucket 名称
+```
+
+文件会写入私有 R2 bucket，路径统一为：
+
+```txt
+perler-print-orders/YYYY-MM-DD/PB-MMDD-XXXXX/
+```
+
+不要把 R2 密钥写入前端或提交到 GitHub。

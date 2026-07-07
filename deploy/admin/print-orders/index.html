@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>拼豆图纸后台｜时里白造物</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <style>
+      :root {
+        --red: #e95b5b;
+        --blue: #5b8def;
+        --ink: #24211f;
+        --muted: #766e66;
+        --bg: #fff8f1;
+        --card: #ffffff;
+        --line: #f0e3d8;
+        --shadow: 0 10px 30px rgba(70, 40, 20, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: linear-gradient(180deg, #fffaf5 0%, var(--bg) 100%);
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      }
+
+      .page {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 22px 16px 42px;
+      }
+
+      .card,
+      .order-card {
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: var(--card);
+        box-shadow: var(--shadow);
+      }
+
+      .card {
+        padding: 18px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+
+      .muted,
+      .status {
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .pin-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 13px;
+        font: inherit;
+      }
+
+      button,
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 16px;
+        background: var(--red);
+        color: #ffffff;
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: 900;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .btn-blue {
+        background: var(--blue);
+      }
+
+      .orders {
+        display: grid;
+        gap: 12px;
+        margin-top: 14px;
+      }
+
+      .order-card {
+        padding: 16px;
+      }
+
+      .order-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+      }
+
+      .order-no {
+        color: var(--red);
+        font-weight: 950;
+      }
+
+      .meta {
+        display: grid;
+        gap: 6px;
+        margin-top: 10px;
+        color: #5e554c;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .files {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .file-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 10px;
+        background: #fffaf5;
+        font-size: 13px;
+      }
+
+      .empty {
+        border: 1px dashed var(--line);
+        border-radius: 18px;
+        padding: 18px;
+        color: var(--muted);
+        text-align: center;
+      }
+    </style>
+    <script src="/admin/print-orders/app.js?v=20260705-1" defer></script>
+  </head>
+  <body>
+    <main class="page">
+      <section class="card">
+        <h1>拼豆图纸后台</h1>
+        <p class="muted">输入 PIN 后查看最近 7 天顾客上传的拼豆图纸。下载文件前会再次通过后端校验 PIN。</p>
+        <div class="pin-row">
+          <input id="pinInput" type="password" inputmode="numeric" autocomplete="current-password" placeholder="请输入后台 PIN" />
+          <button id="loadButton" type="button">查看订单</button>
+        </div>
+        <p id="statusText" class="status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section id="orders" class="orders" aria-live="polite"></section>
+    </main>
+  </body>
+</html>
