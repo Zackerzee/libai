@@ -1,0 +1,11 @@
+name = "libai-print-orders"
+main = "cloudflare/print-orders-worker.js"
+compatibility_date = "2026-07-07"
+
+routes = [
+  { pattern = "www.libms.net/api/print-orders*", zone_name = "libms.net" }
+]
+
+[[r2_buckets]]
+binding = "PRINT_UPLOADS"
+bucket_name = "print-uploads"

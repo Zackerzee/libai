@@ -13,6 +13,8 @@
 /api/review.js        Vercel Serverless Function
 /api/print-orders/    Vercel 拼豆图纸上传 / 查询 / 下载接口
 /functions/api/print-orders/ Cloudflare Pages Functions 版本，使用 PRINT_UPLOADS R2 binding
+/cloudflare/print-orders-worker.js Cloudflare Worker 版本，用于在 Vercel 站点上接管 /api/print-orders*
+/wrangler.print-orders.toml Cloudflare Worker 路由和 R2 binding 配置
 /package.json         Vercel / Node 项目配置，type: "module"
 /.gitignore           忽略本地环境变量和依赖目录
 /README.md            部署说明
@@ -110,16 +112,16 @@ npx wrangler r2 bucket lifecycle add PRINT_UPLOADS delete-perler-print-orders-af
 
 如果实际 bucket 名称不是 `PRINT_UPLOADS`，请把命令里的 bucket 名称替换成真实名称。
 
-### Vercel + Cloudflare R2 配置
+### Vercel + Cloudflare Worker + R2 配置
 
-当前项目默认是 Vercel 结构。Vercel 不能直接使用 Cloudflare Pages 的 R2 binding，所以需要配置 R2 S3 兼容密钥：
+当前线上站点部署在 Vercel，但 `/api/print-orders*` 由 Cloudflare Worker 接管，并通过 R2 binding 写入私有 bucket。这样不需要在 Vercel 配置 R2 S3 密钥，也不会把文件公开到前端。
 
 ```txt
-PRINT_ADMIN_PIN=你的后台 PIN
-R2_ACCOUNT_ID=Cloudflare Account ID
-R2_ACCESS_KEY_ID=R2 API Token Access Key ID
-R2_SECRET_ACCESS_KEY=R2 API Token Secret Access Key
-PRINT_UPLOADS_BUCKET=R2 bucket 名称
+Worker name: libai-print-orders
+Route: www.libms.net/api/print-orders*
+R2 bucket: print-uploads
+Binding name: PRINT_UPLOADS
+Secret: PRINT_ADMIN_PIN
 ```
 
 文件会写入私有 R2 bucket，路径统一为：
@@ -128,4 +130,11 @@ PRINT_UPLOADS_BUCKET=R2 bucket 名称
 perler-print-orders/YYYY-MM-DD/PB-MMDD-XXXXX/
 ```
 
-不要把 R2 密钥写入前端或提交到 GitHub。
+部署 / 更新 Worker：
+
+```bash
+npx wrangler secret put PRINT_ADMIN_PIN --config wrangler.print-orders.toml
+npx wrangler deploy --config wrangler.print-orders.toml
+```
+
+不要把 PIN、R2 密钥或任何 `.env*` 文件写入前端或提交到 GitHub。

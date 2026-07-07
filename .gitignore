@@ -7,3 +7,4 @@ outputs/
 video_edit/
 node_modules/
 *.log
+.wrangler/
