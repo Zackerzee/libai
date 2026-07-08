@@ -1,88 +1,111 @@
 const { createApp, computed, h, onMounted, onUnmounted, ref } = Vue;
 
-const DESK_STORAGE_KEY = "libms_perler_mentor_timer_desks_v2";
-const LEGACY_DESK_STORAGE_KEY = "libms_perler_mentor_timer_desks_v1";
-const STAT_STORAGE_KEY = "libms_perler_mentor_timer_stats_v2";
-const LEGACY_STAT_STORAGE_KEY = "libms_perler_mentor_timer_stats_v1";
-const HALF_HOUR_MS = 30 * 60 * 1000;
-const TEN_MIN_MS = 10 * 60 * 1000;
-const ONE_MIN_MS = 60 * 1000;
+const DESK_STORAGE_KEY = "libms_perler_timer_desks_v3";
+const STAT_STORAGE_KEY = "libms_perler_timer_stats_v3";
+const LEGACY_DESK_KEYS = ["libms_perler_mentor_timer_desks_v2", "libms_perler_mentor_timer_desks_v1"];
+const LEGACY_STAT_KEYS = ["libms_perler_mentor_timer_stats_v2", "libms_perler_mentor_timer_stats_v1"];
 
-const sessionPresets = [
-  { type: "morning", label: "早鸟场", desc: "结束时间固定为当天 14:00。" },
-  { type: "afternoon", label: "下午场", desc: "结束时间固定为当天 19:00。" },
-  { type: "night", label: "星光夜场", desc: "结束时间固定为当天 21:00。" },
-  { type: "day", label: "包天场", desc: "结束时间固定为当天 21:00。" },
-  { type: "1h", label: "限时 1h", desc: "当前时间 + 60 分钟。" },
-  { type: "2h", label: "限时 2h", desc: "当前时间 + 120 分钟。" },
+const ONE_MIN_MS = 60 * 1000;
+const TEN_MIN_MS = 10 * ONE_MIN_MS;
+const THIRTY_MIN_MS = 30 * ONE_MIN_MS;
+
+const validStatuses = new Set(["empty", "preparing", "normal", "ending", "urgent", "timeout", "infinit"]);
+const validSessionTypes = new Set(["morning", "afternoon", "night", "day", "1h", "2h", "infinit"]);
+
+const regionMeta = [
+  { key: "window", label: "🪟 玻璃幕墙", title: "🪟 靠玻璃幕墙", range: "01 - 06" },
+  { key: "table1", label: "🪵 长桌①", title: "🪵 长桌区①", range: "07 - 16" },
+  { key: "table2", label: "🪵 长桌②", title: "🪵 长桌区②", range: "17 - 30" },
 ];
 
-const validStatuses = new Set(["empty", "normal", "ending", "urgent", "timeout"]);
-const validSessionTypes = new Set(["morning", "afternoon", "night", "1h", "2h", "day"]);
+const sessionPresets = [
+  { type: "morning", icon: "🌅", label: "早鸟场", desc: "限时倒计时，到当天 14:00", mode: "countdown", fixedHour: 14 },
+  { type: "afternoon", icon: "☀️", label: "下午场", desc: "限时倒计时，到当天 19:00", mode: "countdown", fixedHour: 19 },
+  { type: "night", icon: "🌙", label: "星光夜场", desc: "限时倒计时，到当天 21:00", mode: "countdown", fixedHour: 21 },
+  { type: "day", icon: "🎫", label: "包天场", desc: "限时倒计时，到当天 21:00", mode: "countdown", fixedHour: 21 },
+  { type: "1h", icon: "⏱", label: "限时 1h", desc: "开始后倒计时 60 分钟", mode: "countdown", durationMin: 60 },
+  { type: "2h", icon: "⏱", label: "限时 2h", desc: "开始后倒计时 120 分钟", mode: "countdown", durationMin: 120 },
+  { type: "infinit", icon: "♾️", label: "不限时畅玩", desc: "正计时模式，从 00:00:00 开始", mode: "countup" },
+];
 
-function getRegionById(idNumber) {
+function regionById(idNumber) {
   if (idNumber <= 6) return "window";
   if (idNumber <= 16) return "table1";
   return "table2";
 }
 
-function createEmptyDesk(idNumber) {
+function emptyDesk(idNumber) {
   const id = String(idNumber).padStart(2, "0");
   return {
     id,
-    region: getRegionById(idNumber),
+    region: regionById(idNumber),
     status: "empty",
-    sessionType: "1h",
+    sessionType: "",
+    mode: "countdown",
+    prepareTime: 0,
     startTime: 0,
     endTime: 0,
     overTimeDuration: 0,
     extraTimeCount: 0,
     extraTimeFee: 0,
+    note: "",
   };
 }
 
-function buildDefaultDesks() {
-  return Array.from({ length: 30 }, (_, index) => createEmptyDesk(index + 1));
+function defaultDesks() {
+  return Array.from({ length: 30 }, (_, index) => emptyDesk(index + 1));
 }
 
-function safeNumber(value) {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function readStorage(primaryKey, legacyKey) {
+function readStorage(keys) {
   try {
-    return window.localStorage.getItem(primaryKey) || (legacyKey ? window.localStorage.getItem(legacyKey) : "") || "";
+    for (const key of keys) {
+      const value = window.localStorage.getItem(key);
+      if (value) return value;
+    }
   } catch (_) {
     return "";
   }
+  return "";
 }
 
 function writeStorage(key, value) {
   try {
     window.localStorage.setItem(key, value);
   } catch (_) {
-    // localStorage may be blocked in private mode. The in-memory state still works.
+    // Private browsing can block localStorage. Runtime state still works.
   }
+}
+
+function safeNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function normalizeDesk(raw, fallback) {
   if (!raw || typeof raw !== "object") return fallback;
+
+  const sessionType = validSessionTypes.has(raw.sessionType) ? raw.sessionType : fallback.sessionType;
+  const mode = raw.mode === "countup" || sessionType === "infinit" ? "countup" : "countdown";
+  const status = validStatuses.has(raw.status) ? raw.status : fallback.status;
+
   return {
     id: fallback.id,
     region: fallback.region,
-    status: validStatuses.has(raw.status) ? raw.status : fallback.status,
-    sessionType: validSessionTypes.has(raw.sessionType) ? raw.sessionType : fallback.sessionType,
+    status: sessionType === "infinit" && status !== "empty" && status !== "preparing" ? "infinit" : status,
+    sessionType,
+    mode,
+    prepareTime: safeNumber(raw.prepareTime),
     startTime: safeNumber(raw.startTime),
     endTime: safeNumber(raw.endTime),
     overTimeDuration: safeNumber(raw.overTimeDuration),
     extraTimeCount: safeNumber(raw.extraTimeCount),
     extraTimeFee: safeNumber(raw.extraTimeFee),
+    note: typeof raw.note === "string" ? raw.note : "",
   };
 }
 
-function loadDeskCards() {
-  const fallback = buildDefaultDesks();
-  const raw = readStorage(DESK_STORAGE_KEY, LEGACY_DESK_STORAGE_KEY);
+function loadDesks() {
+  const fallback = defaultDesks();
+  const raw = readStorage([DESK_STORAGE_KEY, ...LEGACY_DESK_KEYS]);
   if (!raw) return fallback;
 
   try {
@@ -96,7 +119,7 @@ function loadDeskCards() {
 }
 
 function loadStats() {
-  const raw = readStorage(STAT_STORAGE_KEY, LEGACY_STAT_STORAGE_KEY);
+  const raw = readStorage([STAT_STORAGE_KEY, ...LEGACY_STAT_KEYS]);
   if (!raw) return {};
 
   try {
@@ -111,259 +134,280 @@ function pad(value) {
   return String(value).padStart(2, "0");
 }
 
-function getDateKey(timestamp) {
+function dateKey(timestamp) {
   const date = new Date(timestamp);
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-function formatTime(timestamp) {
+function timeOnly(timestamp) {
   if (!timestamp) return "--:--";
   const date = new Date(timestamp);
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-function formatDateTime(timestamp) {
-  if (!timestamp) return "";
+function dateTime(timestamp) {
+  if (!timestamp) return "--";
   const date = new Date(timestamp);
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-function formatClock(ms) {
+function durationClock(ms) {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  return [hours, minutes, seconds].map((value) => pad(value)).join(":");
+  return [hours, minutes, seconds].map(pad).join(":");
 }
 
-function formatDuration(ms) {
+function durationHuman(ms) {
   const totalMinutes = Math.max(0, Math.floor(ms / ONE_MIN_MS));
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   if (hours <= 0) return `${minutes} 分钟`;
+  if (minutes === 0) return `${hours} 小时`;
   return `${hours} 小时 ${minutes} 分钟`;
 }
 
-function deriveStatus(endTime, timestamp) {
+function sessionByType(sessionType) {
+  return sessionPresets.find((preset) => preset.type === sessionType) || sessionPresets[4];
+}
+
+function fixedEndTime(timestamp, hour) {
+  const date = new Date(timestamp);
+  date.setHours(hour, 0, 0, 0);
+  return date.getTime();
+}
+
+function computeEndTime(sessionType, startAt) {
+  const preset = sessionByType(sessionType);
+  if (preset.mode === "countup") return 0;
+  if (preset.durationMin) return startAt + preset.durationMin * ONE_MIN_MS;
+  return fixedEndTime(startAt, preset.fixedHour);
+}
+
+function deriveCountdownStatus(endTime, timestamp) {
   const diff = endTime - timestamp;
-  if (diff <= 0) {
-    return {
-      status: "timeout",
-      overTimeDuration: Math.floor(Math.abs(diff) / 1000),
-    };
-  }
-  if (diff > HALF_HOUR_MS) return { status: "normal", overTimeDuration: 0 };
+  if (diff <= 0) return { status: "timeout", overTimeDuration: Math.floor(Math.abs(diff) / 1000) };
+  if (diff > THIRTY_MIN_MS) return { status: "normal", overTimeDuration: 0 };
   if (diff > TEN_MIN_MS) return { status: "ending", overTimeDuration: 0 };
   return { status: "urgent", overTimeDuration: 0 };
 }
 
-function getFixedEndTime(timestamp, hour, minute) {
-  const date = new Date(timestamp);
-  date.setHours(hour, minute, 0, 0);
-  return date.getTime();
-}
-
-function getInitialEndTime(sessionType, timestamp) {
-  if (sessionType === "1h") return timestamp + 60 * ONE_MIN_MS;
-  if (sessionType === "2h") return timestamp + 120 * ONE_MIN_MS;
-  if (sessionType === "morning") return getFixedEndTime(timestamp, 14, 0);
-  if (sessionType === "afternoon") return getFixedEndTime(timestamp, 19, 0);
-  if (sessionType === "night") return getFixedEndTime(timestamp, 21, 0);
-  return getFixedEndTime(timestamp, 21, 0);
-}
-
-function getExtraTimeFee(mins, timestamp) {
+function extraFee(minutes, timestamp) {
   const hour = new Date(timestamp).getHours();
-  if (hour < 21) return mins === 30 ? 10 : 20;
-  return mins === 30 ? 30 : 50;
+  if (hour < 21) return minutes === 30 ? 10 : 20;
+  return minutes === 30 ? 30 : 50;
 }
 
-function statusLabel(status) {
-  if (status === "empty") return "空闲";
-  if (status === "normal") return "正常";
-  if (status === "ending") return "将结束";
-  if (status === "urgent") return "紧急";
-  return "超时";
+function statusText(status) {
+  const map = {
+    empty: "空闲",
+    preparing: "准备中",
+    normal: "正常",
+    ending: "尾声",
+    urgent: "紧急",
+    timeout: "已超时",
+    infinit: "不限时",
+  };
+  return map[status] || "未知";
 }
 
-function sessionLabel(sessionType) {
-  if (sessionType === "morning") return "早鸟场";
-  if (sessionType === "afternoon") return "下午场";
-  if (sessionType === "night") return "星光夜场";
-  if (sessionType === "1h") return "限时 1h";
-  if (sessionType === "2h") return "限时 2h";
-  return "包天场";
+function countupText(startTime, timestamp) {
+  return durationClock(timestamp - startTime);
 }
 
-function stopClick(event, handler) {
+function stop(event, handler) {
   event.stopPropagation();
   handler();
 }
 
 createApp({
   setup() {
-    const nowTick = ref(Date.now());
-    const desks = ref(loadDeskCards());
+    const now = ref(Date.now());
+    const desks = ref(loadDesks());
     const statsByDate = ref(loadStats());
+    const activeRegion = ref("window");
     const openingDesk = ref(null);
+    const showRecords = ref(false);
     const finishingDesk = ref(null);
 
-    let tickTimer;
-    let audioContext = null;
-    let lastBeepAt = 0;
+    let intervalId = 0;
 
-    const todayKey = computed(() => getDateKey(nowTick.value));
-    const todayStat = computed(() => getDailyStat(todayKey.value));
+    const today = computed(() => dateKey(now.value));
+    const todayStat = computed(() => getDailyStat(today.value));
+    const activeRegionMeta = computed(() => regionMeta.find((item) => item.key === activeRegion.value) || regionMeta[0]);
+    const activeRegionDesks = computed(() => desks.value.filter((desk) => desk.region === activeRegion.value));
     const topStats = computed(() => {
-      const dateKey = todayKey.value;
-      const activeToday = desks.value.filter((desk) => desk.status !== "empty" && getDateKey(desk.startTime) === dateKey);
-      const finishedToday = todayStat.value.records;
-      const activeTodayExtraFee = activeToday.reduce((sum, desk) => sum + desk.extraTimeFee, 0);
-      const finishedTodayExtraFee = finishedToday.reduce((sum, record) => sum + safeNumber(record.extraFee), 0);
-
+      const activeToday = desks.value.filter((desk) => desk.status !== "empty" && dateKey(desk.prepareTime || desk.startTime || now.value) === today.value);
+      const records = todayStat.value.records;
+      const activeFee = activeToday.reduce((sum, desk) => sum + desk.extraTimeFee, 0);
+      const closedFee = records.reduce((sum, record) => sum + safeNumber(record.extraFee), 0);
       return {
-        todayTotal: activeToday.length + finishedToday.length,
-        emptyCount: desks.value.filter((desk) => desk.status === "empty").length,
-        usingCount: desks.value.filter((desk) => desk.status !== "empty" && desk.status !== "timeout").length,
-        timeoutCount: desks.value.filter((desk) => desk.status === "timeout").length,
-        todayRevenue: activeTodayExtraFee + finishedTodayExtraFee,
+        total: desks.value.length,
+        empty: desks.value.filter((desk) => desk.status === "empty").length,
+        preparing: desks.value.filter((desk) => desk.status === "preparing").length,
+        using: desks.value.filter((desk) => ["normal", "ending", "urgent", "infinit"].includes(desk.status)).length,
+        timeout: desks.value.filter((desk) => desk.status === "timeout").length,
+        revenue: activeFee + closedFee,
       };
     });
-    const regionSections = computed(() => [
-      {
-        region: "window",
-        title: "🪟 靠玻璃幕墙",
-        desc: "01-06",
-        desks: desks.value.filter((desk) => desk.region === "window"),
-      },
-      {
-        region: "table1",
-        title: "🪵 长桌区①",
-        desc: "07-16",
-        desks: desks.value.filter((desk) => desk.region === "table1"),
-      },
-      {
-        region: "table2",
-        title: "🪵 长桌区②",
-        desc: "17-30",
-        desks: desks.value.filter((desk) => desk.region === "table2"),
-      },
-    ]);
 
-    function getDailyStat(dateKey) {
-      const existing = statsByDate.value[dateKey];
-      if (existing && Array.isArray(existing.records)) return existing;
+    function getDailyStat(key) {
+      const stat = statsByDate.value[key];
+      if (stat && Array.isArray(stat.records)) return stat;
       return { totalDesks: 0, totalRevenue: 0, records: [] };
     }
 
-    function saveDesks() {
+    function persistDesks() {
       writeStorage(DESK_STORAGE_KEY, JSON.stringify(desks.value));
     }
 
-    function saveStats() {
+    function persistStats() {
       writeStorage(STAT_STORAGE_KEY, JSON.stringify(statsByDate.value));
     }
 
     function tick() {
       const timestamp = Date.now();
-      nowTick.value = timestamp;
-
+      now.value = timestamp;
       let dirty = false;
-      let hasTimeoutDesk = false;
 
       for (const desk of desks.value) {
-        if (desk.status === "empty") continue;
-        const next = deriveStatus(desk.endTime, timestamp);
-        if (desk.overTimeDuration !== next.overTimeDuration) {
-          desk.overTimeDuration = next.overTimeDuration;
-          dirty = true;
-        }
+        if (desk.status === "empty" || desk.status === "preparing" || desk.status === "infinit") continue;
+
+        const next = deriveCountdownStatus(desk.endTime, timestamp);
         if (desk.status !== next.status) {
           desk.status = next.status;
           dirty = true;
         }
-        if (next.status === "timeout") hasTimeoutDesk = true;
+        if (desk.overTimeDuration !== next.overTimeDuration) {
+          desk.overTimeDuration = next.overTimeDuration;
+          dirty = true;
+        }
       }
 
-      if (dirty) saveDesks();
-      if (hasTimeoutDesk && timestamp - lastBeepAt >= 5000) {
-        lastBeepAt = timestamp;
-        playSoftBeep();
-      }
+      if (dirty) persistDesks();
     }
 
     function findDesk(id) {
       return desks.value.find((desk) => desk.id === id);
     }
 
-    function handleDeskTap(desk) {
+    function resetDesk(desk) {
+      Object.assign(desk, emptyDesk(Number(desk.id)));
+    }
+
+    function openDeskModal(desk) {
       if (desk.status !== "empty") return;
       openingDesk.value = desk;
     }
 
-    function closeOpenDialog() {
+    function closeOpenModal() {
       openingDesk.value = null;
     }
 
-    function isPresetAvailable(sessionType) {
-      return getInitialEndTime(sessionType, nowTick.value) > nowTick.value;
+    function canPrepare(sessionType) {
+      const preset = sessionByType(sessionType);
+      if (preset.mode === "countup" || preset.durationMin) return true;
+      return computeEndTime(sessionType, now.value) > now.value;
     }
 
-    function presetEndHint(sessionType) {
-      const endTime = getInitialEndTime(sessionType, nowTick.value);
-      if (endTime <= nowTick.value) return "当前时间已超过该场次";
-      return `预计结束：${formatTime(endTime)}`;
+    function endHint(sessionType) {
+      const preset = sessionByType(sessionType);
+      if (preset.mode === "countup") return "正计时，不设结束时间";
+      const endAt = computeEndTime(sessionType, now.value);
+      if (endAt <= now.value) return "当前时间已超过该场次";
+      return `预计结束 ${timeOnly(endAt)}`;
     }
 
-    function startDesk(deskId, sessionType) {
-      ensureAudioReady();
+    function prepareDesk(deskId, sessionType) {
       const desk = findDesk(deskId);
       if (!desk || desk.status !== "empty") return;
-
-      const timestamp = Date.now();
-      const endTime = getInitialEndTime(sessionType, timestamp);
-      if (endTime <= timestamp) {
-        window.alert("当前时间已超过该场次结束时间，请选择其他场次。");
+      if (!canPrepare(sessionType)) {
+        window.alert("当前时间已超过该场次结束时间，请选择其他模式。");
         return;
       }
-      const derived = deriveStatus(endTime, timestamp);
 
+      desk.status = "preparing";
       desk.sessionType = sessionType;
-      desk.startTime = timestamp;
-      desk.endTime = endTime;
-      desk.status = derived.status;
-      desk.overTimeDuration = derived.overTimeDuration;
+      desk.mode = sessionByType(sessionType).mode;
+      desk.prepareTime = Date.now();
+      desk.startTime = 0;
+      desk.endTime = 0;
+      desk.overTimeDuration = 0;
       desk.extraTimeCount = 0;
       desk.extraTimeFee = 0;
-
-      saveDesks();
-      closeOpenDialog();
+      desk.note = "";
+      persistDesks();
+      closeOpenModal();
     }
 
-    function addExtraTime(deskId, mins) {
-      ensureAudioReady();
+    function startPreparedDesk(deskId) {
       const desk = findDesk(deskId);
-      if (!desk || desk.status === "empty") return;
+      if (!desk || desk.status !== "preparing") return;
+
+      const startAt = Date.now();
+      const preset = sessionByType(desk.sessionType);
+      desk.startTime = startAt;
+      desk.mode = preset.mode;
+
+      if (preset.mode === "countup") {
+        desk.endTime = 0;
+        desk.status = "infinit";
+        desk.overTimeDuration = 0;
+      } else {
+        const endAt = computeEndTime(desk.sessionType, startAt);
+        if (endAt <= startAt) {
+          window.alert("当前时间已超过该场次结束时间，请重新选择场次。");
+          return;
+        }
+        desk.endTime = endAt;
+        const next = deriveCountdownStatus(endAt, startAt);
+        desk.status = next.status;
+        desk.overTimeDuration = next.overTimeDuration;
+      }
+
+      persistDesks();
+    }
+
+    function cancelPreparing(deskId) {
+      const desk = findDesk(deskId);
+      if (!desk || desk.status !== "preparing") return;
+      resetDesk(desk);
+      persistDesks();
+    }
+
+    function addTime(deskId, minutes) {
+      const desk = findDesk(deskId);
+      if (!desk || !["normal", "ending", "urgent", "timeout"].includes(desk.status)) return;
 
       const timestamp = Date.now();
-      const fee = getExtraTimeFee(mins, timestamp);
+      const fee = extraFee(minutes, timestamp);
       const baseEndTime = Math.max(desk.endTime, timestamp);
-
-      desk.endTime = baseEndTime + mins * ONE_MIN_MS;
+      desk.endTime = baseEndTime + minutes * ONE_MIN_MS;
       desk.extraTimeCount += 1;
       desk.extraTimeFee += fee;
 
-      const derived = deriveStatus(desk.endTime, timestamp);
-      desk.status = derived.status;
-      desk.overTimeDuration = derived.overTimeDuration;
-      saveDesks();
+      const next = deriveCountdownStatus(desk.endTime, timestamp);
+      desk.status = next.status;
+      desk.overTimeDuration = next.overTimeDuration;
+      persistDesks();
     }
 
-    function openFinishDialog(desk) {
+    function editNote(deskId) {
+      const desk = findDesk(deskId);
+      if (!desk || desk.status === "empty") return;
+      const next = window.prompt("备注内容", desk.note || "");
+      if (next === null) return;
+      desk.note = next.trim().slice(0, 80);
+      persistDesks();
+    }
+
+    function askFinish(desk) {
+      if (desk.status === "empty") return;
       finishingDesk.value = desk;
     }
 
-    function closeFinishDialog() {
+    function closeFinishModal() {
       finishingDesk.value = null;
     }
 
@@ -371,297 +415,308 @@ createApp({
       const desk = findDesk(deskId);
       if (!desk || desk.status === "empty") return;
 
-      const finishAt = Date.now();
-      const timeoutSeconds = Math.max(0, Math.floor((finishAt - desk.endTime) / 1000));
-      const dateKey = getDateKey(finishAt);
-      const current = getDailyStat(dateKey);
+      const closedAt = Date.now();
+      const isStarted = desk.startTime > 0;
+      const timeoutSeconds = desk.mode === "countdown" && isStarted ? Math.max(0, Math.floor((closedAt - desk.endTime) / 1000)) : 0;
+      const key = dateKey(closedAt);
+      const stat = getDailyStat(key);
+
+      const record = {
+        recordId: `${key}-${desk.id}-${closedAt}`,
+        date: key,
+        deskId: desk.id,
+        session: sessionByType(desk.sessionType).label,
+        mode: desk.mode,
+        prepareTime: dateTime(desk.prepareTime),
+        startTime: isStarted ? dateTime(desk.startTime) : "未开始",
+        expectedEndTime: desk.endTime ? dateTime(desk.endTime) : "不限时",
+        closedAt: dateTime(closedAt),
+        actualDuration: isStarted ? durationHuman(closedAt - desk.startTime) : durationHuman(closedAt - desk.prepareTime),
+        extraCount: desk.extraTimeCount,
+        extraFee: desk.extraTimeFee,
+        isTimeout: timeoutSeconds > 0,
+        timeoutDuration: timeoutSeconds,
+        note: desk.note || "",
+      };
 
       statsByDate.value = {
         ...statsByDate.value,
-        [dateKey]: {
-          totalDesks: current.totalDesks + 1,
-          totalRevenue: current.totalRevenue + desk.extraTimeFee,
-          records: [
-            ...current.records,
-            {
-              recordId: `${dateKey}-${desk.id}-${finishAt}`,
-              date: dateKey,
-              deskId: desk.id,
-              session: sessionLabel(desk.sessionType),
-              startTime: formatDateTime(desk.startTime),
-              expectedEndTime: formatDateTime(desk.endTime),
-              closedAt: formatDateTime(finishAt),
-              endTime: formatDateTime(finishAt),
-              actualDuration: formatDuration(finishAt - desk.startTime),
-              extraCount: desk.extraTimeCount,
-              extraFee: desk.extraTimeFee,
-              isTimeout: timeoutSeconds > 0,
-              timeoutDuration: timeoutSeconds,
-            },
-          ],
+        [key]: {
+          totalDesks: stat.totalDesks + 1,
+          totalRevenue: stat.totalRevenue + desk.extraTimeFee,
+          records: [...stat.records, record],
         },
       };
 
-      Object.assign(desk, createEmptyDesk(Number(desk.id)));
-      saveStats();
-      saveDesks();
-      closeFinishDialog();
+      resetDesk(desk);
+      persistStats();
+      persistDesks();
+      closeFinishModal();
     }
 
-    function ensureAudioReady() {
-      if (audioContext) return;
-      const AudioCtor = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtor) return;
-
-      audioContext = new AudioCtor();
-      if (audioContext.state === "suspended") {
-        audioContext.resume().catch(() => {});
-      }
-    }
-
-    function playSoftBeep() {
-      if (!audioContext) return;
-      if (audioContext.state === "suspended") {
-        audioContext.resume().catch(() => {});
-        return;
-      }
-
-      const start = audioContext.currentTime;
-      scheduleTone(start);
-      scheduleTone(start + 0.28);
-    }
-
-    function scheduleTone(startAt) {
-      if (!audioContext) return;
-      const oscillator = audioContext.createOscillator();
-      const gain = audioContext.createGain();
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(620, startAt);
-      oscillator.frequency.exponentialRampToValueAtTime(520, startAt + 0.18);
-      gain.gain.setValueAtTime(0.0001, startAt);
-      gain.gain.exponentialRampToValueAtTime(0.075, startAt + 0.025);
-      gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.22);
-      oscillator.connect(gain);
-      gain.connect(audioContext.destination);
-      oscillator.start(startAt);
-      oscillator.stop(startAt + 0.24);
-    }
-
-    function cardClass(desk) {
-      if (desk.status === "empty") return "desk-empty";
-      if (desk.status === "normal") return "desk-normal";
-      if (desk.status === "ending") return "desk-ending";
-      if (desk.status === "urgent") return "desk-urgent";
-      return "desk-timeout";
-    }
-
-    function timeDisplay(desk) {
-      const diff = desk.endTime - nowTick.value;
+    function primaryTimeText(desk) {
+      if (desk.status === "empty") return "开桌";
+      if (desk.status === "preparing") return `准备中 ${durationClock(now.value - desk.prepareTime)}`;
+      if (desk.status === "infinit") return countupText(desk.startTime, now.value);
+      const diff = desk.endTime - now.value;
       if (diff <= 0) return `⏱ 已超时 ${Math.floor(Math.abs(diff) / ONE_MIN_MS)} 分钟`;
-      return `剩余 ${formatClock(diff)}`;
+      return durationClock(diff);
     }
 
-    function renderHeader() {
-      return h("header", { class: "topbar" }, [
-        h("div", [
-          h("p", { class: "eyebrow" }, "LIBMS PERLER TIMER"),
-          h("h1", "拼豆计时器"),
-          h("p", { class: "subtitle" }, "30 个桌位 · 本地保存 · 无后端依赖"),
-        ]),
-        h("div", { class: "today-card", "aria-live": "polite" }, [
-          h("strong", `今日：${topStats.value.todayTotal} 桌 · ¥${topStats.value.todayRevenue}`),
-          h("span", `${todayKey.value} · localStorage`),
-        ]),
-      ]);
+    function timeLabel(desk) {
+      if (desk.status === "empty") return "点击开桌";
+      if (desk.status === "preparing") return "等待开始计时";
+      if (desk.status === "infinit") return "不限时正计时";
+      if (desk.status === "timeout") return "超时正计时";
+      return "剩余倒计时";
     }
 
-    function renderSummaryCard(label, value, variant) {
-      return h("article", { class: `summary-card ${variant || ""}` }, [
+    function deskClass(desk) {
+      return `desk-card status-${desk.status}`;
+    }
+
+    function renderStat(label, value, variant) {
+      return h("article", { class: `stat-card ${variant}` }, [
         h("span", label),
         h("strong", value),
       ]);
     }
 
-    function renderSummary() {
-      return h("section", { class: "summary-grid", "aria-label": "桌位概览" }, [
-        renderSummaryCard("今日总开桌数", topStats.value.todayTotal, ""),
-        renderSummaryCard("当前空闲数", topStats.value.emptyCount, "empty"),
-        renderSummaryCard("当前使用中", topStats.value.usingCount, "normal"),
-        renderSummaryCard("当前已超时", topStats.value.timeoutCount, "danger"),
-        renderSummaryCard("今日累计营收", `¥${topStats.value.todayRevenue}`, "income"),
+    function renderHeader() {
+      return h("header", { class: "app-header" }, [
+        h("div", [
+          h("p", { class: "eyebrow" }, "LIBMS PERLER TIMER"),
+          h("h1", "拼豆计时器"),
+          h("p", { class: "subtitle" }, "准备中 · 倒计时 · 超时正计时 · 不限时正计时"),
+        ]),
+        h("button", { type: "button", class: "ghost-button", onClick: () => (showRecords.value = !showRecords.value) }, showRecords.value ? "收起流水" : "今日流水"),
+      ]);
+    }
+
+    function renderStats() {
+      return h("section", { class: "stats-strip", "aria-label": "上帝视角统计" }, [
+        renderStat("总桌数", topStats.value.total, "slate"),
+        renderStat("空闲", topStats.value.empty, "neutral"),
+        renderStat("准备中", topStats.value.preparing, "cyan"),
+        renderStat("使用中", topStats.value.using, "emerald"),
+        renderStat("已超时", topStats.value.timeout, "rose"),
+        renderStat("今日营收", `¥${topStats.value.revenue}`, "amber"),
+      ]);
+    }
+
+    function renderTabs() {
+      return h(
+        "nav",
+        { class: "region-tabs", "aria-label": "区域切换" },
+        regionMeta.map((region) =>
+          h(
+            "button",
+            {
+              key: region.key,
+              type: "button",
+              class: `region-tab ${activeRegion.value === region.key ? "active" : ""}`,
+              onClick: () => (activeRegion.value = region.key),
+            },
+            region.label
+          )
+        )
+      );
+    }
+
+    function renderDeskMeta(desk) {
+      return h("div", { class: "desk-times" }, [
+        h("span", `准：${timeOnly(desk.prepareTime)}`),
+        h("span", `开：${timeOnly(desk.startTime)}`),
+      ]);
+    }
+
+    function renderEmptyDesk(desk) {
+      return h("div", { class: "empty-state" }, [
+        h("div", { class: "plus-mark" }, "+"),
+        h("strong", "开桌"),
+        h("span", "点击选择场次"),
+      ]);
+    }
+
+    function renderActionButtons(desk) {
+      if (desk.status === "empty") return null;
+
+      if (desk.status === "preparing") {
+        return h("div", { class: "desk-actions two" }, [
+          h("button", { type: "button", class: "action start", onClick: (event) => stop(event, () => startPreparedDesk(desk.id)) }, "开始计时"),
+          h("button", { type: "button", class: "action muted", onClick: (event) => stop(event, () => cancelPreparing(desk.id)) }, "取消"),
+        ]);
+      }
+
+      if (desk.status === "infinit") {
+        return h("div", { class: "desk-actions two" }, [
+          h("button", { type: "button", class: "action note", onClick: (event) => stop(event, () => editNote(desk.id)) }, "备注"),
+          h("button", { type: "button", class: "action finish", onClick: (event) => stop(event, () => askFinish(desk)) }, "完结结账"),
+        ]);
+      }
+
+      if (desk.status === "timeout") {
+        return h("div", { class: "desk-actions" }, [
+          h("button", { type: "button", class: "action plus", onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
+          h("button", { type: "button", class: "action plus", onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
+          h("button", { type: "button", class: "action finish danger", onClick: (event) => stop(event, () => askFinish(desk)) }, "⚠️ 完结结账"),
+        ]);
+      }
+
+      return h("div", { class: "desk-actions" }, [
+        h("button", { type: "button", class: "action plus", onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
+        h("button", { type: "button", class: "action plus", onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
+        h("button", { type: "button", class: "action note", onClick: (event) => stop(event, () => editNote(desk.id)) }, "备注"),
       ]);
     }
 
     function renderDeskCard(desk) {
-      const active = desk.status !== "empty";
       return h(
         "article",
         {
           key: desk.id,
-          class: `desk-card ${cardClass(desk)}`,
-          onClick: () => handleDeskTap(desk),
+          class: deskClass(desk),
+          onClick: () => openDeskModal(desk),
         },
         [
-          h("div", { class: "desk-card-head" }, [
-            h("div", [h("strong", { class: "desk-number" }, desk.id)]),
-            h("em", statusLabel(desk.status)),
+          h("div", { class: "desk-head" }, [
+            h("strong", { class: "desk-id" }, desk.id),
+            h("span", { class: "status-pill" }, statusText(desk.status)),
           ]),
-          h(
-            "div",
-            { class: "desk-main" },
-            active
-              ? [
-                  h("p", { class: "session-name" }, sessionLabel(desk.sessionType)),
-                  h("h3", timeDisplay(desk)),
-                  h("p", `结束 ${formatTime(desk.endTime)}`),
-                ]
-              : [h("h3", "空闲"), h("p", "点击开桌选择场次")]
-          ),
-          active
-            ? h("div", { class: "desk-actions", onClick: (event) => event.stopPropagation() }, [
-                h("div", { class: "desk-meta" }, [
-                  h("span", `开桌 ${formatTime(desk.startTime)}`),
-                  h("span", `加时 ${desk.extraTimeCount} 次 · ¥${desk.extraTimeFee}`),
+          desk.status === "empty"
+            ? renderEmptyDesk(desk)
+            : [
+                h("p", { class: "project-name" }, sessionByType(desk.sessionType).label),
+                renderDeskMeta(desk),
+                h("div", { class: "live-time" }, [
+                  h("small", timeLabel(desk)),
+                  h("strong", primaryTimeText(desk)),
                 ]),
-                h("div", { class: "action-row" }, [
-                  h("button", { type: "button", class: "btn green", onClick: (event) => stopClick(event, () => addExtraTime(desk.id, 30)) }, "+30min"),
-                  h("button", { type: "button", class: "btn blue", onClick: (event) => stopClick(event, () => addExtraTime(desk.id, 60)) }, "+60min"),
-                  h("button", { type: "button", class: "btn dark", onClick: (event) => stopClick(event, () => openFinishDialog(desk)) }, "完结"),
-                ]),
-              ])
-            : null,
+                desk.note ? h("p", { class: "desk-note" }, desk.note) : null,
+                renderActionButtons(desk),
+              ],
         ]
       );
     }
 
-    function renderRegion(region) {
-      return h("section", { key: region.region, class: "region-section" }, [
-        h("div", { class: "section-head" }, [
-          h("div", [h("h2", region.title), h("p", region.desc)]),
-          h("span", `${region.desks.length} 桌`),
+    function renderActiveRegion() {
+      const region = activeRegionMeta.value;
+      return h("section", { class: "region-panel" }, [
+        h("div", { class: "region-head" }, [
+          h("div", [h("h2", region.title), h("p", `${region.range} · ${activeRegionDesks.value.length} 桌`)]),
+          h("span", "手机端单区展示"),
         ]),
-        h("div", { class: "desk-grid" }, region.desks.map(renderDeskCard)),
-      ]);
-    }
-
-    function renderRecords() {
-      const records = todayStat.value.records;
-      return h("section", { class: "records-panel" }, [
-        h("div", { class: "section-head" }, [
-          h("div", [
-            h("h2", "今日完结流水历史表格"),
-            h("p", "点击完结后自动写入本机 localStorage。"),
-          ]),
-          h("span", `${records.length} 条`),
-        ]),
-        records.length === 0
-          ? h("div", { class: "empty-records" }, "今天还没有完结记录。")
-          : h("div", { class: "records-table-wrap" }, [
-              h("table", { class: "records-table" }, [
-                h("thead", [
-                  h("tr", ["桌号", "场次", "开桌时间", "预计结束", "完结时间", "实际用时", "加时", "超时"].map((label) => h("th", label))),
-                ]),
-                h(
-                  "tbody",
-                  [...records].reverse().map((record) =>
-                    h("tr", { key: record.recordId || `${record.date}-${record.deskId}-${record.startTime}` }, [
-                      h("td", [h("strong", record.deskId)]),
-                      h("td", record.session),
-                      h("td", record.startTime),
-                      h("td", record.expectedEndTime || "-"),
-                      h("td", record.closedAt || record.endTime),
-                      h("td", record.actualDuration),
-                      h("td", `${record.extraCount} 次 · ¥${record.extraFee}`),
-                      h(
-                        "td",
-                        { class: record.isTimeout ? "dangerText" : "" },
-                        record.isTimeout ? `${Math.floor(record.timeoutDuration / 60)} 分钟` : "否"
-                      ),
-                    ])
-                  )
-                ),
-              ]),
-            ]),
+        h("div", { class: "desk-grid" }, activeRegionDesks.value.map(renderDeskCard)),
       ]);
     }
 
     function renderOpenModal() {
       if (!openingDesk.value) return null;
-      return h(
-        "div",
-        {
-          class: "modal-backdrop",
-          onClick: (event) => {
-            if (event.target === event.currentTarget) closeOpenDialog();
-          },
-        },
-        [
-          h("section", { class: "modal-panel", role: "dialog", "aria-modal": "true" }, [
-            h("h2", `开桌 ${openingDesk.value.id}`),
-            h("p", "选择场次后立即开始计时，结束时间会自动写入桌卡。"),
-            h(
-              "div",
-              { class: "preset-grid" },
-              sessionPresets.map((preset) =>
-                h(
-                  "button",
-                  {
-                    key: preset.type,
-                    type: "button",
-                    class: `preset-card ${isPresetAvailable(preset.type) ? "" : "disabled"}`,
-                    disabled: !isPresetAvailable(preset.type),
-                    onClick: () => startDesk(openingDesk.value.id, preset.type),
-                  },
-                  [h("strong", preset.label), h("span", preset.desc), h("small", presetEndHint(preset.type))]
-                )
-              )
-            ),
-            h("button", { type: "button", class: "btn full dark", onClick: closeOpenDialog }, "取消"),
+      return h("div", { class: "modal-backdrop", onClick: (event) => event.target === event.currentTarget && closeOpenModal() }, [
+        h("section", { class: "sheet" }, [
+          h("div", { class: "sheet-handle" }),
+          h("div", { class: "sheet-title" }, [
+            h("span", `桌号 ${openingDesk.value.id}`),
+            h("strong", "选择开桌模式"),
           ]),
-        ]
-      );
+          h(
+            "div",
+            { class: "preset-list" },
+            sessionPresets.map((preset) =>
+              h(
+                "button",
+                {
+                  key: preset.type,
+                  type: "button",
+                  disabled: !canPrepare(preset.type),
+                  class: `preset-button ${canPrepare(preset.type) ? "" : "disabled"}`,
+                  onClick: () => prepareDesk(openingDesk.value.id, preset.type),
+                },
+                [
+                  h("span", { class: "preset-icon" }, preset.icon),
+                  h("span", { class: "preset-copy" }, [
+                    h("strong", preset.label),
+                    h("small", preset.desc),
+                  ]),
+                  h("em", endHint(preset.type)),
+                ]
+              )
+            )
+          ),
+          h("button", { type: "button", class: "sheet-cancel", onClick: closeOpenModal }, "取消"),
+        ]),
+      ]);
     }
 
     function renderFinishModal() {
       if (!finishingDesk.value) return null;
-      return h(
-        "div",
-        {
-          class: "modal-backdrop",
-          onClick: (event) => {
-            if (event.target === event.currentTarget) closeFinishDialog();
-          },
-        },
-        [
-          h("section", { class: "modal-panel", role: "dialog", "aria-modal": "true" }, [
-            h("h2", `确认完结 ${finishingDesk.value.id} 桌？`),
-            h("p", `完结后会写入今日归档，并将该桌恢复为空闲。当前加时费用：¥${finishingDesk.value.extraTimeFee}。`),
-            h("div", { class: "confirm-row" }, [
-              h("button", { type: "button", class: "btn full muted", onClick: closeFinishDialog }, "再看看"),
-              h("button", { type: "button", class: "btn full red", onClick: () => finishDesk(finishingDesk.value.id) }, "确认完结"),
-            ]),
+      const desk = finishingDesk.value;
+      return h("div", { class: "modal-backdrop", onClick: (event) => event.target === event.currentTarget && closeFinishModal() }, [
+        h("section", { class: "confirm-box" }, [
+          h("h2", `完结 ${desk.id} 号桌？`),
+          h("p", `场次：${sessionByType(desk.sessionType).label} · 加时 ${desk.extraTimeCount} 次 · ¥${desk.extraTimeFee}`),
+          h("div", { class: "confirm-actions" }, [
+            h("button", { type: "button", class: "confirm-cancel", onClick: closeFinishModal }, "再看看"),
+            h("button", { type: "button", class: "confirm-submit", onClick: () => finishDesk(desk.id) }, "确认归档"),
           ]),
-        ]
-      );
+        ]),
+      ]);
+    }
+
+    function renderRecords() {
+      const records = todayStat.value.records;
+      return h("section", { class: `records-drawer ${showRecords.value ? "open" : ""}` }, [
+        h("button", { type: "button", class: "records-toggle", onClick: () => (showRecords.value = !showRecords.value) }, [
+          h("span", "今日已完结订单明细"),
+          h("strong", `${records.length} 条 ${showRecords.value ? "收起" : "展开"}`),
+        ]),
+        showRecords.value
+          ? h(
+              "div",
+              { class: "records-table-wrap" },
+              records.length === 0
+                ? h("div", { class: "records-empty" }, "今天还没有完结订单。")
+                : h("table", { class: "records-table" }, [
+                    h("thead", [
+                      h("tr", ["桌号", "场次", "准备", "开始", "结束/完结", "实际用时", "加时费", "超时"].map((label) => h("th", label))),
+                    ]),
+                    h(
+                      "tbody",
+                      [...records].reverse().map((record) =>
+                        h("tr", { key: record.recordId }, [
+                          h("td", record.deskId),
+                          h("td", record.session),
+                          h("td", record.prepareTime),
+                          h("td", record.startTime),
+                          h("td", `${record.expectedEndTime} / ${record.closedAt}`),
+                          h("td", record.actualDuration),
+                          h("td", `¥${record.extraFee}`),
+                          h("td", { class: record.isTimeout ? "dangerText" : "" }, record.isTimeout ? `${Math.floor(record.timeoutDuration / 60)} 分钟` : "否"),
+                        ])
+                      )
+                    ),
+                  ])
+            )
+          : null,
+      ]);
     }
 
     onMounted(() => {
       tick();
-      tickTimer = window.setInterval(tick, 1000);
+      intervalId = window.setInterval(tick, 1000);
     });
 
     onUnmounted(() => {
-      if (tickTimer) window.clearInterval(tickTimer);
-      if (audioContext && audioContext.state !== "closed") {
-        audioContext.close().catch(() => {});
-      }
+      if (intervalId) window.clearInterval(intervalId);
     });
 
     return () =>
-      h("div", { class: "page-shell" }, [
+      h("div", { class: "app-shell" }, [
         renderHeader(),
-        renderSummary(),
-        h("main", [...regionSections.value.map(renderRegion), renderRecords()]),
+        renderStats(),
+        renderTabs(),
+        renderActiveRegion(),
+        renderRecords(),
         renderOpenModal(),
         renderFinishModal(),
       ]);
