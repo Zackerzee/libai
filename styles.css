@@ -210,6 +210,22 @@ img {
   background: linear-gradient(135deg, #fff4c2, #ffe28a);
 }
 
+.mentor-timer-hero-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 16px;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid rgba(245, 197, 66, 0.7);
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fff4c2, #ffe28a);
+  color: var(--ink);
+  font-weight: 850;
+  text-decoration: none;
+  box-shadow: 0 10px 22px rgba(245, 197, 66, 0.2);
+}
+
 .mode-tabs button:hover:not(:disabled),
 .soft-button:hover:not(:disabled) {
   border-color: var(--secondary-pressed);
