@@ -7,12 +7,12 @@ const TEN_MIN_MS = 10 * 60 * 1000;
 const ONE_MIN_MS = 60 * 1000;
 
 const sessionPresets = [
-  { type: "morning", label: "早鸟场", desc: "默认到今日 12:00；若已过点，顺延 3 小时。" },
-  { type: "afternoon", label: "下午场", desc: "默认到今日 18:00；若已过点，顺延 4 小时。" },
-  { type: "night", label: "星光夜场", desc: "默认到今日 22:30；若已过点，顺延 2 小时。" },
-  { type: "1h", label: "限时 1h", desc: "从开桌时间起计 60 分钟。" },
-  { type: "2h", label: "限时 2h", desc: "从开桌时间起计 120 分钟。" },
-  { type: "day", label: "包天", desc: "默认到今日 22:30；若已过点，顺延 8 小时。" },
+  { type: "morning", label: "早鸟场", desc: "结束时间固定为当天 14:00。" },
+  { type: "afternoon", label: "下午场", desc: "结束时间固定为当天 19:00。" },
+  { type: "night", label: "星光夜场", desc: "结束时间固定为当天 21:00。" },
+  { type: "day", label: "包天场", desc: "结束时间固定为当天 21:00。" },
+  { type: "1h", label: "限时 1h", desc: "当前时间 + 60 分钟。" },
+  { type: "2h", label: "限时 2h", desc: "当前时间 + 120 分钟。" },
 ];
 
 const validStatuses = new Set(["empty", "normal", "ending", "urgent", "timeout"]);
@@ -155,20 +155,19 @@ function deriveStatus(endTime, timestamp) {
   return { status: "urgent", overTimeDuration: 0 };
 }
 
-function getFixedEndOrFallback(timestamp, hour, minute, fallbackHours) {
+function getFixedEndTime(timestamp, hour, minute) {
   const date = new Date(timestamp);
   date.setHours(hour, minute, 0, 0);
-  const fixed = date.getTime();
-  return fixed > timestamp ? fixed : timestamp + fallbackHours * 60 * ONE_MIN_MS;
+  return date.getTime();
 }
 
 function getInitialEndTime(sessionType, timestamp) {
   if (sessionType === "1h") return timestamp + 60 * ONE_MIN_MS;
   if (sessionType === "2h") return timestamp + 120 * ONE_MIN_MS;
-  if (sessionType === "morning") return getFixedEndOrFallback(timestamp, 12, 0, 3);
-  if (sessionType === "afternoon") return getFixedEndOrFallback(timestamp, 18, 0, 4);
-  if (sessionType === "night") return getFixedEndOrFallback(timestamp, 22, 30, 2);
-  return getFixedEndOrFallback(timestamp, 22, 30, 8);
+  if (sessionType === "morning") return getFixedEndTime(timestamp, 14, 0);
+  if (sessionType === "afternoon") return getFixedEndTime(timestamp, 19, 0);
+  if (sessionType === "night") return getFixedEndTime(timestamp, 21, 0);
+  return getFixedEndTime(timestamp, 21, 0);
 }
 
 function getExtraTimeFee(mins, timestamp) {
@@ -191,7 +190,7 @@ function sessionLabel(sessionType) {
   if (sessionType === "night") return "星光夜场";
   if (sessionType === "1h") return "限时 1h";
   if (sessionType === "2h") return "限时 2h";
-  return "包天";
+  return "包天场";
 }
 
 createApp({
@@ -208,26 +207,37 @@ createApp({
 
     const todayKey = computed(() => getDateKey(nowTick.value));
     const todayStat = computed(() => getDailyStat(todayKey.value));
-    const activeDeskCount = computed(() => desks.value.filter((desk) => desk.status !== "empty").length);
-    const endingDeskCount = computed(() => desks.value.filter((desk) => desk.status === "ending" || desk.status === "urgent").length);
-    const timeoutDeskCount = computed(() => desks.value.filter((desk) => desk.status === "timeout").length);
-    const activeExtraFee = computed(() => desks.value.reduce((sum, desk) => sum + (desk.status === "empty" ? 0 : desk.extraTimeFee), 0));
+    const topStats = computed(() => {
+      const dateKey = todayKey.value;
+      const activeToday = desks.value.filter((desk) => desk.status !== "empty" && getDateKey(desk.startTime) === dateKey);
+      const finishedToday = todayStat.value.records;
+      const activeTodayExtraFee = activeToday.reduce((sum, desk) => sum + desk.extraTimeFee, 0);
+      const finishedTodayExtraFee = finishedToday.reduce((sum, record) => sum + safeNumber(record.extraFee), 0);
+
+      return {
+        todayTotal: activeToday.length + finishedToday.length,
+        emptyCount: desks.value.filter((desk) => desk.status === "empty").length,
+        usingCount: desks.value.filter((desk) => desk.status !== "empty" && desk.status !== "timeout").length,
+        timeoutCount: desks.value.filter((desk) => desk.status === "timeout").length,
+        todayRevenue: activeTodayExtraFee + finishedTodayExtraFee,
+      };
+    });
     const regionSections = computed(() => [
       {
         region: "window",
-        title: "靠玻璃幕墙",
+        title: "🪟 靠玻璃幕墙",
         desc: "01-06",
         desks: desks.value.filter((desk) => desk.region === "window"),
       },
       {
         region: "table1",
-        title: "长桌区 ①",
+        title: "🪵 长桌区①",
         desc: "07-16",
         desks: desks.value.filter((desk) => desk.region === "table1"),
       },
       {
         region: "table2",
-        title: "长桌区 ②",
+        title: "🪵 长桌区②",
         desc: "17-30",
         desks: desks.value.filter((desk) => desk.region === "table2"),
       },
@@ -251,21 +261,24 @@ createApp({
       const timestamp = Date.now();
       nowTick.value = timestamp;
 
-      let statusChanged = false;
+      let dirty = false;
       let hasTimeoutDesk = false;
 
       for (const desk of desks.value) {
         if (desk.status === "empty") continue;
         const next = deriveStatus(desk.endTime, timestamp);
-        desk.overTimeDuration = next.overTimeDuration;
+        if (desk.overTimeDuration !== next.overTimeDuration) {
+          desk.overTimeDuration = next.overTimeDuration;
+          dirty = true;
+        }
         if (desk.status !== next.status) {
           desk.status = next.status;
-          statusChanged = true;
+          dirty = true;
         }
         if (next.status === "timeout") hasTimeoutDesk = true;
       }
 
-      if (statusChanged) saveDesks();
+      if (dirty) saveDesks();
       if (hasTimeoutDesk && timestamp - lastBeepAt >= 5000) {
         lastBeepAt = timestamp;
         playSoftBeep();
@@ -285,6 +298,16 @@ createApp({
       openingDesk.value = null;
     }
 
+    function isPresetAvailable(sessionType) {
+      return getInitialEndTime(sessionType, nowTick.value) > nowTick.value;
+    }
+
+    function presetEndHint(sessionType) {
+      const endTime = getInitialEndTime(sessionType, nowTick.value);
+      if (endTime <= nowTick.value) return "当前时间已超过该场次";
+      return `预计结束：${formatTime(endTime)}`;
+    }
+
     function startDesk(deskId, sessionType) {
       ensureAudioReady();
       const desk = findDesk(deskId);
@@ -292,6 +315,10 @@ createApp({
 
       const timestamp = Date.now();
       const endTime = getInitialEndTime(sessionType, timestamp);
+      if (endTime <= timestamp) {
+        window.alert("当前时间已超过该场次结束时间，请选择其他场次。");
+        return;
+      }
       const derived = deriveStatus(endTime, timestamp);
 
       desk.sessionType = sessionType;
@@ -350,10 +377,13 @@ createApp({
           records: [
             ...current.records,
             {
+              recordId: `${dateKey}-${desk.id}-${finishAt}`,
               date: dateKey,
               deskId: desk.id,
               session: sessionLabel(desk.sessionType),
               startTime: formatDateTime(desk.startTime),
+              expectedEndTime: formatDateTime(desk.endTime),
+              closedAt: formatDateTime(finishAt),
               endTime: formatDateTime(finishAt),
               actualDuration: formatDuration(finishAt - desk.startTime),
               extraCount: desk.extraTimeCount,
@@ -437,28 +467,27 @@ createApp({
     });
 
     return {
-      activeDeskCount,
-      activeExtraFee,
       addExtraTime,
       cardClass,
       closeFinishDialog,
       closeOpenDialog,
-      endingDeskCount,
       finishDesk,
       finishingDesk,
       formatTime,
       handleDeskTap,
+      isPresetAvailable,
       openFinishDialog,
       openingDesk,
+      presetEndHint,
       regionSections,
       sessionLabel,
       sessionPresets,
       startDesk,
       statusLabel,
       timeDisplay,
-      timeoutDeskCount,
       todayKey,
       todayStat,
+      topStats,
     };
   },
 }).mount("#app");
