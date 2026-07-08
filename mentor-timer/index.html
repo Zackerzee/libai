@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="时里白造物 Perler 拼豆导师计时控制台，支持桌位开桌、倒计时、超时提醒、加时计费和本地归档。"
+    />
+    <title>导师计时控制台｜时里白造物</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/mentor-timer/style.css" />
+    <script src="/assets/vendor/vue.global.prod.js" defer></script>
+    <script src="/mentor-timer/app.js" defer></script>
+  </head>
+  <body>
+    <div id="app" class="page-shell" v-cloak>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">LIBMS PERLER TIMER</p>
+          <h1>导师计时控制台</h1>
+          <p class="subtitle">30 个桌位 · 本地保存 · 无后端依赖</p>
+        </div>
+        <div class="today-card" aria-live="polite">
+          <strong>今日：{{ todayStat.totalDesks }} 桌 · ¥{{ todayStat.totalRevenue }}</strong>
+          <span>{{ todayKey }} · localStorage</span>
+        </div>
+      </header>
+
+      <section class="summary-grid" aria-label="桌位概览">
+        <article class="summary-card">
+          <span>在座桌数</span>
+          <strong>{{ activeDeskCount }}</strong>
+        </article>
+        <article class="summary-card warning">
+          <span>即将结束</span>
+          <strong>{{ endingDeskCount }}</strong>
+        </article>
+        <article class="summary-card danger">
+          <span>已超时</span>
+          <strong>{{ timeoutDeskCount }}</strong>
+        </article>
+        <article class="summary-card income">
+          <span>当前加时收入</span>
+          <strong>¥{{ activeExtraFee }}</strong>
+        </article>
+      </section>
+
+      <main>
+        <section v-for="region in regionSections" :key="region.region" class="region-section">
+          <div class="section-head">
+            <div>
+              <h2>{{ region.title }}</h2>
+              <p>{{ region.desc }}</p>
+            </div>
+            <span>{{ region.desks.length }} 桌</span>
+          </div>
+
+          <div class="desk-grid">
+            <article
+              v-for="desk in region.desks"
+              :key="desk.id"
+              class="desk-card"
+              :class="cardClass(desk)"
+              @click="handleDeskTap(desk)"
+            >
+              <div class="desk-card-head">
+                <div>
+                  <span class="desk-label">桌号</span>
+                  <strong>{{ desk.id }}</strong>
+                </div>
+                <em>{{ statusLabel(desk.status) }}</em>
+              </div>
+
+              <div class="desk-main">
+                <template v-if="desk.status === 'empty'">
+                  <h3>空闲</h3>
+                  <p>点击开桌选择场次</p>
+                </template>
+                <template v-else>
+                  <p class="session-name">{{ sessionLabel(desk.sessionType) }}</p>
+                  <h3>{{ timeDisplay(desk) }}</h3>
+                  <p>结束 {{ formatTime(desk.endTime) }}</p>
+                </template>
+              </div>
+
+              <div v-if="desk.status !== 'empty'" class="desk-actions" @click.stop>
+                <div class="desk-meta">
+                  <span>开桌 {{ formatTime(desk.startTime) }}</span>
+                  <span>加时 {{ desk.extraTimeCount }} 次 · ¥{{ desk.extraTimeFee }}</span>
+                </div>
+                <div class="action-row">
+                  <button type="button" class="btn green" @click="addExtraTime(desk.id, 30)">+30min</button>
+                  <button type="button" class="btn blue" @click="addExtraTime(desk.id, 60)">+60min</button>
+                  <button type="button" class="btn dark" @click="openFinishDialog(desk)">完结</button>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="records-panel">
+          <div class="section-head">
+            <div>
+              <h2>今日归档记录</h2>
+              <p>点击完结后自动写入本机 localStorage。</p>
+            </div>
+            <span>{{ todayStat.records.length }} 条</span>
+          </div>
+
+          <div v-if="todayStat.records.length === 0" class="empty-records">
+            今天还没有完结记录。
+          </div>
+
+          <div v-else class="record-list">
+            <article
+              v-for="record in [...todayStat.records].reverse()"
+              :key="`${record.date}-${record.deskId}-${record.startTime}`"
+              class="record-row"
+            >
+              <div class="record-title">
+                <strong>桌 {{ record.deskId }} · {{ record.session }}</strong>
+                <span :class="{ dangerText: record.isTimeout }">
+                  {{ record.isTimeout ? `超时 ${Math.floor(record.timeoutDuration / 60)} 分钟` : '准时完结' }}
+                </span>
+              </div>
+              <div class="record-meta">
+                <span>开始：{{ record.startTime }}</span>
+                <span>结束：{{ record.endTime }}</span>
+                <span>实际：{{ record.actualDuration }}</span>
+                <span>加时：{{ record.extraCount }} 次 · ¥{{ record.extraFee }}</span>
+              </div>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <div v-if="openingDesk" class="modal-backdrop" @click.self="closeOpenDialog">
+        <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="openDeskTitle">
+          <h2 id="openDeskTitle">开桌 {{ openingDesk.id }}</h2>
+          <p>选择场次后立即开始计时，结束时间会自动写入桌卡。</p>
+          <div class="preset-grid">
+            <button
+              v-for="preset in sessionPresets"
+              :key="preset.type"
+              type="button"
+              class="preset-card"
+              @click="startDesk(openingDesk.id, preset.type)"
+            >
+              <strong>{{ preset.label }}</strong>
+              <span>{{ preset.desc }}</span>
+            </button>
+          </div>
+          <button type="button" class="btn full dark" @click="closeOpenDialog">取消</button>
+        </section>
+      </div>
+
+      <div v-if="finishingDesk" class="modal-backdrop" @click.self="closeFinishDialog">
+        <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="finishDeskTitle">
+          <h2 id="finishDeskTitle">确认完结 {{ finishingDesk.id }} 桌？</h2>
+          <p>完结后会写入今日归档，并将该桌恢复为空闲。当前加时费用：¥{{ finishingDesk.extraTimeFee }}。</p>
+          <div class="confirm-row">
+            <button type="button" class="btn full muted" @click="closeFinishDialog">再看看</button>
+            <button type="button" class="btn full red" @click="finishDesk(finishingDesk.id)">确认完结</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </body>
+</html>

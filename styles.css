@@ -202,6 +202,12 @@ img {
 .soft-button {
   border-radius: 16px;
   background: var(--secondary-bg);
+  text-decoration: none;
+}
+
+.mentor-timer-entry {
+  border-color: rgba(245, 197, 66, 0.58);
+  background: linear-gradient(135deg, #fff4c2, #ffe28a);
 }
 
 .mode-tabs button:hover:not(:disabled),
