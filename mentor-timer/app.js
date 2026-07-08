@@ -1,7 +1,9 @@
-const { createApp, computed, onMounted, onUnmounted, ref } = Vue;
+const { createApp, computed, h, onMounted, onUnmounted, ref } = Vue;
 
-const DESK_STORAGE_KEY = "libms_perler_mentor_timer_desks_v1";
-const STAT_STORAGE_KEY = "libms_perler_mentor_timer_stats_v1";
+const DESK_STORAGE_KEY = "libms_perler_mentor_timer_desks_v2";
+const LEGACY_DESK_STORAGE_KEY = "libms_perler_mentor_timer_desks_v1";
+const STAT_STORAGE_KEY = "libms_perler_mentor_timer_stats_v2";
+const LEGACY_STAT_STORAGE_KEY = "libms_perler_mentor_timer_stats_v1";
 const HALF_HOUR_MS = 30 * 60 * 1000;
 const TEN_MIN_MS = 10 * 60 * 1000;
 const ONE_MIN_MS = 60 * 1000;
@@ -18,6 +20,12 @@ const sessionPresets = [
 const validStatuses = new Set(["empty", "normal", "ending", "urgent", "timeout"]);
 const validSessionTypes = new Set(["morning", "afternoon", "night", "1h", "2h", "day"]);
 
+function getRegionById(idNumber) {
+  if (idNumber <= 6) return "window";
+  if (idNumber <= 16) return "table1";
+  return "table2";
+}
+
 function createEmptyDesk(idNumber) {
   const id = String(idNumber).padStart(2, "0");
   return {
@@ -33,12 +41,6 @@ function createEmptyDesk(idNumber) {
   };
 }
 
-function getRegionById(idNumber) {
-  if (idNumber <= 6) return "window";
-  if (idNumber <= 16) return "table1";
-  return "table2";
-}
-
 function buildDefaultDesks() {
   return Array.from({ length: 30 }, (_, index) => createEmptyDesk(index + 1));
 }
@@ -47,9 +49,9 @@ function safeNumber(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-function readStorage(key) {
+function readStorage(primaryKey, legacyKey) {
   try {
-    return window.localStorage.getItem(key) || "";
+    return window.localStorage.getItem(primaryKey) || (legacyKey ? window.localStorage.getItem(legacyKey) : "") || "";
   } catch (_) {
     return "";
   }
@@ -80,7 +82,7 @@ function normalizeDesk(raw, fallback) {
 
 function loadDeskCards() {
   const fallback = buildDefaultDesks();
-  const raw = readStorage(DESK_STORAGE_KEY);
+  const raw = readStorage(DESK_STORAGE_KEY, LEGACY_DESK_STORAGE_KEY);
   if (!raw) return fallback;
 
   try {
@@ -94,7 +96,7 @@ function loadDeskCards() {
 }
 
 function loadStats() {
-  const raw = readStorage(STAT_STORAGE_KEY);
+  const raw = readStorage(STAT_STORAGE_KEY, LEGACY_STAT_STORAGE_KEY);
   if (!raw) return {};
 
   try {
@@ -179,7 +181,7 @@ function getExtraTimeFee(mins, timestamp) {
 function statusLabel(status) {
   if (status === "empty") return "空闲";
   if (status === "normal") return "正常";
-  if (status === "ending") return "临近";
+  if (status === "ending") return "将结束";
   if (status === "urgent") return "紧急";
   return "超时";
 }
@@ -191,6 +193,11 @@ function sessionLabel(sessionType) {
   if (sessionType === "1h") return "限时 1h";
   if (sessionType === "2h") return "限时 2h";
   return "包天场";
+}
+
+function stopClick(event, handler) {
+  event.stopPropagation();
+  handler();
 }
 
 createApp({
@@ -454,6 +461,190 @@ createApp({
       return `剩余 ${formatClock(diff)}`;
     }
 
+    function renderHeader() {
+      return h("header", { class: "topbar" }, [
+        h("div", [
+          h("p", { class: "eyebrow" }, "LIBMS PERLER TIMER"),
+          h("h1", "拼豆计时器"),
+          h("p", { class: "subtitle" }, "30 个桌位 · 本地保存 · 无后端依赖"),
+        ]),
+        h("div", { class: "today-card", "aria-live": "polite" }, [
+          h("strong", `今日：${topStats.value.todayTotal} 桌 · ¥${topStats.value.todayRevenue}`),
+          h("span", `${todayKey.value} · localStorage`),
+        ]),
+      ]);
+    }
+
+    function renderSummaryCard(label, value, variant) {
+      return h("article", { class: `summary-card ${variant || ""}` }, [
+        h("span", label),
+        h("strong", value),
+      ]);
+    }
+
+    function renderSummary() {
+      return h("section", { class: "summary-grid", "aria-label": "桌位概览" }, [
+        renderSummaryCard("今日总开桌数", topStats.value.todayTotal, ""),
+        renderSummaryCard("当前空闲数", topStats.value.emptyCount, "empty"),
+        renderSummaryCard("当前使用中", topStats.value.usingCount, "normal"),
+        renderSummaryCard("当前已超时", topStats.value.timeoutCount, "danger"),
+        renderSummaryCard("今日累计营收", `¥${topStats.value.todayRevenue}`, "income"),
+      ]);
+    }
+
+    function renderDeskCard(desk) {
+      const active = desk.status !== "empty";
+      return h(
+        "article",
+        {
+          key: desk.id,
+          class: `desk-card ${cardClass(desk)}`,
+          onClick: () => handleDeskTap(desk),
+        },
+        [
+          h("div", { class: "desk-card-head" }, [
+            h("div", [h("strong", { class: "desk-number" }, desk.id)]),
+            h("em", statusLabel(desk.status)),
+          ]),
+          h(
+            "div",
+            { class: "desk-main" },
+            active
+              ? [
+                  h("p", { class: "session-name" }, sessionLabel(desk.sessionType)),
+                  h("h3", timeDisplay(desk)),
+                  h("p", `结束 ${formatTime(desk.endTime)}`),
+                ]
+              : [h("h3", "空闲"), h("p", "点击开桌选择场次")]
+          ),
+          active
+            ? h("div", { class: "desk-actions", onClick: (event) => event.stopPropagation() }, [
+                h("div", { class: "desk-meta" }, [
+                  h("span", `开桌 ${formatTime(desk.startTime)}`),
+                  h("span", `加时 ${desk.extraTimeCount} 次 · ¥${desk.extraTimeFee}`),
+                ]),
+                h("div", { class: "action-row" }, [
+                  h("button", { type: "button", class: "btn green", onClick: (event) => stopClick(event, () => addExtraTime(desk.id, 30)) }, "+30min"),
+                  h("button", { type: "button", class: "btn blue", onClick: (event) => stopClick(event, () => addExtraTime(desk.id, 60)) }, "+60min"),
+                  h("button", { type: "button", class: "btn dark", onClick: (event) => stopClick(event, () => openFinishDialog(desk)) }, "完结"),
+                ]),
+              ])
+            : null,
+        ]
+      );
+    }
+
+    function renderRegion(region) {
+      return h("section", { key: region.region, class: "region-section" }, [
+        h("div", { class: "section-head" }, [
+          h("div", [h("h2", region.title), h("p", region.desc)]),
+          h("span", `${region.desks.length} 桌`),
+        ]),
+        h("div", { class: "desk-grid" }, region.desks.map(renderDeskCard)),
+      ]);
+    }
+
+    function renderRecords() {
+      const records = todayStat.value.records;
+      return h("section", { class: "records-panel" }, [
+        h("div", { class: "section-head" }, [
+          h("div", [
+            h("h2", "今日完结流水历史表格"),
+            h("p", "点击完结后自动写入本机 localStorage。"),
+          ]),
+          h("span", `${records.length} 条`),
+        ]),
+        records.length === 0
+          ? h("div", { class: "empty-records" }, "今天还没有完结记录。")
+          : h("div", { class: "records-table-wrap" }, [
+              h("table", { class: "records-table" }, [
+                h("thead", [
+                  h("tr", ["桌号", "场次", "开桌时间", "预计结束", "完结时间", "实际用时", "加时", "超时"].map((label) => h("th", label))),
+                ]),
+                h(
+                  "tbody",
+                  [...records].reverse().map((record) =>
+                    h("tr", { key: record.recordId || `${record.date}-${record.deskId}-${record.startTime}` }, [
+                      h("td", [h("strong", record.deskId)]),
+                      h("td", record.session),
+                      h("td", record.startTime),
+                      h("td", record.expectedEndTime || "-"),
+                      h("td", record.closedAt || record.endTime),
+                      h("td", record.actualDuration),
+                      h("td", `${record.extraCount} 次 · ¥${record.extraFee}`),
+                      h(
+                        "td",
+                        { class: record.isTimeout ? "dangerText" : "" },
+                        record.isTimeout ? `${Math.floor(record.timeoutDuration / 60)} 分钟` : "否"
+                      ),
+                    ])
+                  )
+                ),
+              ]),
+            ]),
+      ]);
+    }
+
+    function renderOpenModal() {
+      if (!openingDesk.value) return null;
+      return h(
+        "div",
+        {
+          class: "modal-backdrop",
+          onClick: (event) => {
+            if (event.target === event.currentTarget) closeOpenDialog();
+          },
+        },
+        [
+          h("section", { class: "modal-panel", role: "dialog", "aria-modal": "true" }, [
+            h("h2", `开桌 ${openingDesk.value.id}`),
+            h("p", "选择场次后立即开始计时，结束时间会自动写入桌卡。"),
+            h(
+              "div",
+              { class: "preset-grid" },
+              sessionPresets.map((preset) =>
+                h(
+                  "button",
+                  {
+                    key: preset.type,
+                    type: "button",
+                    class: `preset-card ${isPresetAvailable(preset.type) ? "" : "disabled"}`,
+                    disabled: !isPresetAvailable(preset.type),
+                    onClick: () => startDesk(openingDesk.value.id, preset.type),
+                  },
+                  [h("strong", preset.label), h("span", preset.desc), h("small", presetEndHint(preset.type))]
+                )
+              )
+            ),
+            h("button", { type: "button", class: "btn full dark", onClick: closeOpenDialog }, "取消"),
+          ]),
+        ]
+      );
+    }
+
+    function renderFinishModal() {
+      if (!finishingDesk.value) return null;
+      return h(
+        "div",
+        {
+          class: "modal-backdrop",
+          onClick: (event) => {
+            if (event.target === event.currentTarget) closeFinishDialog();
+          },
+        },
+        [
+          h("section", { class: "modal-panel", role: "dialog", "aria-modal": "true" }, [
+            h("h2", `确认完结 ${finishingDesk.value.id} 桌？`),
+            h("p", `完结后会写入今日归档，并将该桌恢复为空闲。当前加时费用：¥${finishingDesk.value.extraTimeFee}。`),
+            h("div", { class: "confirm-row" }, [
+              h("button", { type: "button", class: "btn full muted", onClick: closeFinishDialog }, "再看看"),
+              h("button", { type: "button", class: "btn full red", onClick: () => finishDesk(finishingDesk.value.id) }, "确认完结"),
+            ]),
+          ]),
+        ]
+      );
+    }
+
     onMounted(() => {
       tick();
       tickTimer = window.setInterval(tick, 1000);
@@ -466,28 +657,13 @@ createApp({
       }
     });
 
-    return {
-      addExtraTime,
-      cardClass,
-      closeFinishDialog,
-      closeOpenDialog,
-      finishDesk,
-      finishingDesk,
-      formatTime,
-      handleDeskTap,
-      isPresetAvailable,
-      openFinishDialog,
-      openingDesk,
-      presetEndHint,
-      regionSections,
-      sessionLabel,
-      sessionPresets,
-      startDesk,
-      statusLabel,
-      timeDisplay,
-      todayKey,
-      todayStat,
-      topStats,
-    };
+    return () =>
+      h("div", { class: "page-shell" }, [
+        renderHeader(),
+        renderSummary(),
+        h("main", [...regionSections.value.map(renderRegion), renderRecords()]),
+        renderOpenModal(),
+        renderFinishModal(),
+      ]);
   },
 }).mount("#app");
