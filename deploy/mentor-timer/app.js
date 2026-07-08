@@ -19,13 +19,13 @@ const regionMeta = [
 ];
 
 const sessionPresets = [
-  { type: "morning", icon: "🌅", label: "早鸟场", desc: "限时倒计时，到当天 14:00", mode: "countdown", fixedHour: 14 },
-  { type: "afternoon", icon: "☀️", label: "下午场", desc: "限时倒计时，到当天 19:00", mode: "countdown", fixedHour: 19 },
-  { type: "night", icon: "🌙", label: "星光夜场", desc: "限时倒计时，到当天 21:00", mode: "countdown", fixedHour: 21 },
-  { type: "day", icon: "🎫", label: "包天场", desc: "限时倒计时，到当天 21:00", mode: "countdown", fixedHour: 21 },
-  { type: "1h", icon: "⏱", label: "限时 1h", desc: "开始后倒计时 60 分钟", mode: "countdown", durationMin: 60 },
-  { type: "2h", icon: "⏱", label: "限时 2h", desc: "开始后倒计时 120 分钟", mode: "countdown", durationMin: 120 },
-  { type: "infinit", icon: "♾️", label: "不限时畅玩", desc: "正计时模式，从 00:00:00 开始", mode: "countup" },
+  { type: "morning", icon: "🌅", label: "早鸟场", desc: "限时倒计时，到当天 14:00", mode: "countdown", fixedHour: 14, baseFee: 0 },
+  { type: "afternoon", icon: "☀️", label: "下午场", desc: "限时倒计时，到当天 19:00", mode: "countdown", fixedHour: 19, baseFee: 0 },
+  { type: "night", icon: "🌙", label: "星光夜场", desc: "限时倒计时，到当天 21:00", mode: "countdown", fixedHour: 21, baseFee: 0 },
+  { type: "day", icon: "🎫", label: "包天场", desc: "限时倒计时，到当天 21:00", mode: "countdown", fixedHour: 21, baseFee: 0 },
+  { type: "1h", icon: "⏱", label: "限时 1h", desc: "开始后倒计时 60 分钟", mode: "countdown", durationMin: 60, baseFee: 0 },
+  { type: "2h", icon: "⏱", label: "限时 2h", desc: "开始后倒计时 120 分钟", mode: "countdown", durationMin: 120, baseFee: 0 },
+  { type: "infinit", icon: "♾️", label: "不限时畅玩", desc: "正计时模式，从 00:00:00 开始", mode: "countup", baseFee: 0 },
 ];
 
 function regionById(idNumber) {
@@ -48,6 +48,9 @@ function emptyDesk(idNumber) {
     overTimeDuration: 0,
     extraTimeCount: 0,
     extraTimeFee: 0,
+    isPaused: false,
+    pauseStartTime: 0,
+    pausedDuration: 0,
     note: "",
   };
 }
@@ -99,6 +102,9 @@ function normalizeDesk(raw, fallback) {
     overTimeDuration: safeNumber(raw.overTimeDuration),
     extraTimeCount: safeNumber(raw.extraTimeCount),
     extraTimeFee: safeNumber(raw.extraTimeFee),
+    isPaused: raw.isPaused === true,
+    pauseStartTime: safeNumber(raw.pauseStartTime),
+    pausedDuration: safeNumber(raw.pausedDuration),
     note: typeof raw.note === "string" ? raw.note : "",
   };
 }
@@ -212,8 +218,13 @@ function statusText(status) {
   return map[status] || "未知";
 }
 
-function countupText(startTime, timestamp) {
-  return durationClock(timestamp - startTime);
+function elapsedMs(desk, timestamp) {
+  if (!desk.startTime) return 0;
+  return Math.max(0, timestamp - desk.startTime - desk.pausedDuration);
+}
+
+function countupText(desk, timestamp) {
+  return durationClock(elapsedMs(desk, timestamp));
 }
 
 function stop(event, handler) {
@@ -229,7 +240,7 @@ createApp({
     const activeRegion = ref("window");
     const openingDesk = ref(null);
     const showRecords = ref(false);
-    const finishingDesk = ref(null);
+    const checkoutDraft = ref(null);
 
     let intervalId = 0;
 
@@ -241,7 +252,7 @@ createApp({
       const activeToday = desks.value.filter((desk) => desk.status !== "empty" && dateKey(desk.prepareTime || desk.startTime || now.value) === today.value);
       const records = todayStat.value.records;
       const activeFee = activeToday.reduce((sum, desk) => sum + desk.extraTimeFee, 0);
-      const closedFee = records.reduce((sum, record) => sum + safeNumber(record.extraFee), 0);
+      const closedFee = records.reduce((sum, record) => sum + safeNumber(record.totalFee ?? record.extraFee), 0);
       return {
         total: desks.value.length,
         empty: desks.value.filter((desk) => desk.status === "empty").length,
@@ -272,7 +283,7 @@ createApp({
       let dirty = false;
 
       for (const desk of desks.value) {
-        if (desk.status === "empty" || desk.status === "preparing" || desk.status === "infinit") continue;
+        if (desk.status === "empty" || desk.status === "preparing" || desk.status === "infinit" || desk.isPaused) continue;
 
         const next = deriveCountdownStatus(desk.endTime, timestamp);
         if (desk.status !== next.status) {
@@ -336,6 +347,9 @@ createApp({
       desk.overTimeDuration = 0;
       desk.extraTimeCount = 0;
       desk.extraTimeFee = 0;
+      desk.isPaused = false;
+      desk.pauseStartTime = 0;
+      desk.pausedDuration = 0;
       desk.note = "";
       persistDesks();
       closeOpenModal();
@@ -349,6 +363,9 @@ createApp({
       const preset = sessionByType(desk.sessionType);
       desk.startTime = startAt;
       desk.mode = preset.mode;
+      desk.isPaused = false;
+      desk.pauseStartTime = 0;
+      desk.pausedDuration = 0;
 
       if (preset.mode === "countup") {
         desk.endTime = 0;
@@ -378,7 +395,7 @@ createApp({
 
     function addTime(deskId, minutes) {
       const desk = findDesk(deskId);
-      if (!desk || !["normal", "ending", "urgent", "timeout"].includes(desk.status)) return;
+      if (!desk || desk.isPaused || !["normal", "ending", "urgent", "timeout"].includes(desk.status)) return;
 
       const timestamp = Date.now();
       const fee = extraFee(minutes, timestamp);
@@ -393,6 +410,47 @@ createApp({
       persistDesks();
     }
 
+    function isPausable(desk) {
+      return ["normal", "ending", "urgent", "timeout", "infinit"].includes(desk.status);
+    }
+
+    function pauseDesk(deskId) {
+      const desk = findDesk(deskId);
+      if (!desk || !isPausable(desk) || desk.isPaused) return;
+      desk.isPaused = true;
+      desk.pauseStartTime = Date.now();
+      persistDesks();
+    }
+
+    function resumeDesk(deskId) {
+      const desk = findDesk(deskId);
+      if (!desk || !desk.isPaused || !desk.pauseStartTime) return;
+
+      const resumedAt = Date.now();
+      const pausedMs = Math.max(0, resumedAt - desk.pauseStartTime);
+      desk.pausedDuration += pausedMs;
+
+      if (desk.mode === "countdown" && desk.endTime) {
+        desk.endTime += pausedMs;
+        const next = deriveCountdownStatus(desk.endTime, resumedAt);
+        desk.status = next.status;
+        desk.overTimeDuration = next.overTimeDuration;
+      } else if (desk.mode === "countup") {
+        desk.status = "infinit";
+      }
+
+      desk.isPaused = false;
+      desk.pauseStartTime = 0;
+      persistDesks();
+    }
+
+    function togglePause(deskId) {
+      const desk = findDesk(deskId);
+      if (!desk) return;
+      if (desk.isPaused) resumeDesk(deskId);
+      else pauseDesk(deskId);
+    }
+
     function editNote(deskId) {
       const desk = findDesk(deskId);
       if (!desk || desk.status === "empty") return;
@@ -402,48 +460,100 @@ createApp({
       persistDesks();
     }
 
+    function checkoutTime(desk, timestamp) {
+      if (desk.isPaused && desk.pauseStartTime) return desk.pauseStartTime;
+      return timestamp;
+    }
+
+    function buildCheckoutDraft(desk, timestamp, autoPaused, wasPausedBefore) {
+      const closedAt = checkoutTime(desk, timestamp);
+      const preset = sessionByType(desk.sessionType);
+      const billableMs = desk.startTime ? elapsedMs(desk, closedAt) : 0;
+      const billableMinutes = Math.max(0, Math.ceil(billableMs / ONE_MIN_MS));
+      const timeoutSeconds = desk.mode === "countdown" && desk.startTime ? Math.max(0, Math.floor((closedAt - desk.endTime) / 1000)) : 0;
+      const baseFee = safeNumber(preset.baseFee);
+      const extra = safeNumber(desk.extraTimeFee);
+
+      return {
+        deskId: desk.id,
+        sessionType: desk.sessionType,
+        session: preset.label,
+        mode: desk.mode,
+        prepareTime: desk.prepareTime,
+        startTime: desk.startTime,
+        endTime: desk.endTime,
+        closedAt,
+        billableMs,
+        billableMinutes,
+        baseFee,
+        extraFee: extra,
+        totalFee: baseFee + extra,
+        extraCount: desk.extraTimeCount,
+        timeoutSeconds,
+        pausedDuration: desk.pausedDuration,
+        note: desk.note || "",
+        wasPaused: wasPausedBefore,
+        autoPaused,
+      };
+    }
+
     function askFinish(desk) {
       if (desk.status === "empty") return;
-      finishingDesk.value = desk;
+      const timestamp = Date.now();
+      const wasPausedBefore = desk.isPaused;
+      const autoPaused = isPausable(desk) && !wasPausedBefore;
+      if (autoPaused) {
+        desk.isPaused = true;
+        desk.pauseStartTime = timestamp;
+        persistDesks();
+      }
+      checkoutDraft.value = buildCheckoutDraft(desk, timestamp, autoPaused, wasPausedBefore);
     }
 
     function closeFinishModal() {
-      finishingDesk.value = null;
+      const draft = checkoutDraft.value;
+      if (draft && draft.autoPaused) {
+        resumeDesk(draft.deskId);
+      }
+      checkoutDraft.value = null;
     }
 
-    function finishDesk(deskId) {
-      const desk = findDesk(deskId);
+    function finishDesk() {
+      const draft = checkoutDraft.value;
+      if (!draft) return;
+      const desk = findDesk(draft.deskId);
       if (!desk || desk.status === "empty") return;
 
-      const closedAt = Date.now();
-      const isStarted = desk.startTime > 0;
-      const timeoutSeconds = desk.mode === "countdown" && isStarted ? Math.max(0, Math.floor((closedAt - desk.endTime) / 1000)) : 0;
-      const key = dateKey(closedAt);
+      const key = dateKey(draft.closedAt);
       const stat = getDailyStat(key);
 
       const record = {
-        recordId: `${key}-${desk.id}-${closedAt}`,
+        recordId: `${key}-${desk.id}-${draft.closedAt}`,
         date: key,
-        deskId: desk.id,
-        session: sessionByType(desk.sessionType).label,
-        mode: desk.mode,
-        prepareTime: dateTime(desk.prepareTime),
-        startTime: isStarted ? dateTime(desk.startTime) : "未开始",
-        expectedEndTime: desk.endTime ? dateTime(desk.endTime) : "不限时",
-        closedAt: dateTime(closedAt),
-        actualDuration: isStarted ? durationHuman(closedAt - desk.startTime) : durationHuman(closedAt - desk.prepareTime),
-        extraCount: desk.extraTimeCount,
-        extraFee: desk.extraTimeFee,
-        isTimeout: timeoutSeconds > 0,
-        timeoutDuration: timeoutSeconds,
-        note: desk.note || "",
+        deskId: draft.deskId,
+        session: draft.session,
+        mode: draft.mode,
+        prepareTime: dateTime(draft.prepareTime),
+        startTime: draft.startTime ? dateTime(draft.startTime) : "未开始",
+        expectedEndTime: draft.endTime ? dateTime(draft.endTime) : "不限时",
+        closedAt: dateTime(draft.closedAt),
+        actualDuration: durationHuman(draft.billableMs),
+        actualMinutes: draft.billableMinutes,
+        baseFee: draft.baseFee,
+        extraCount: draft.extraCount,
+        extraFee: draft.extraFee,
+        totalFee: draft.totalFee,
+        isTimeout: draft.timeoutSeconds > 0,
+        timeoutDuration: draft.timeoutSeconds,
+        pausedDuration: draft.pausedDuration,
+        note: draft.note,
       };
 
       statsByDate.value = {
         ...statsByDate.value,
         [key]: {
           totalDesks: stat.totalDesks + 1,
-          totalRevenue: stat.totalRevenue + desk.extraTimeFee,
+          totalRevenue: stat.totalRevenue + draft.totalFee,
           records: [...stat.records, record],
         },
       };
@@ -451,20 +561,22 @@ createApp({
       resetDesk(desk);
       persistStats();
       persistDesks();
-      closeFinishModal();
+      checkoutDraft.value = null;
     }
 
     function primaryTimeText(desk) {
+      const displayAt = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : now.value;
       if (desk.status === "empty") return "开桌";
       if (desk.status === "preparing") return `准备中 ${durationClock(now.value - desk.prepareTime)}`;
-      if (desk.status === "infinit") return countupText(desk.startTime, now.value);
-      const diff = desk.endTime - now.value;
+      if (desk.status === "infinit") return countupText(desk, displayAt);
+      const diff = desk.endTime - displayAt;
       if (diff <= 0) return `⏱ 已超时 ${Math.floor(Math.abs(diff) / ONE_MIN_MS)} 分钟`;
       return durationClock(diff);
     }
 
     function timeLabel(desk) {
       if (desk.status === "empty") return "点击开桌";
+      if (desk.isPaused) return "已暂停 · 时间冻结";
       if (desk.status === "preparing") return "等待开始计时";
       if (desk.status === "infinit") return "不限时正计时";
       if (desk.status === "timeout") return "超时正计时";
@@ -472,7 +584,7 @@ createApp({
     }
 
     function deskClass(desk) {
-      return `desk-card status-${desk.status}`;
+      return `desk-card status-${desk.status} ${desk.isPaused ? "is-paused" : ""}`;
     }
 
     function renderStat(label, value, variant) {
@@ -548,25 +660,36 @@ createApp({
         ]);
       }
 
-      if (desk.status === "infinit") {
-        return h("div", { class: "desk-actions two" }, [
+      if (desk.isPaused) {
+        return h("div", { class: "desk-actions three" }, [
+          h("button", { type: "button", class: "action resume", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "▶️ 恢复"),
           h("button", { type: "button", class: "action note", onClick: (event) => stop(event, () => editNote(desk.id)) }, "备注"),
-          h("button", { type: "button", class: "action finish", onClick: (event) => stop(event, () => askFinish(desk)) }, "完结结账"),
+          h("button", { type: "button", class: "action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "🛑 结束"),
+        ]);
+      }
+
+      if (desk.status === "infinit") {
+        return h("div", { class: "desk-actions three" }, [
+          h("button", { type: "button", class: "action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️ 暂停"),
+          h("button", { type: "button", class: "action note", onClick: (event) => stop(event, () => editNote(desk.id)) }, "备注"),
+          h("button", { type: "button", class: "action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "🛑 结束"),
         ]);
       }
 
       if (desk.status === "timeout") {
-        return h("div", { class: "desk-actions" }, [
+        return h("div", { class: "desk-actions four" }, [
+          h("button", { type: "button", class: "action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
           h("button", { type: "button", class: "action plus", onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
           h("button", { type: "button", class: "action plus", onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
-          h("button", { type: "button", class: "action finish danger", onClick: (event) => stop(event, () => askFinish(desk)) }, "⚠️ 完结结账"),
+          h("button", { type: "button", class: "action stop danger", onClick: (event) => stop(event, () => askFinish(desk)) }, "🛑"),
         ]);
       }
 
-      return h("div", { class: "desk-actions" }, [
+      return h("div", { class: "desk-actions four" }, [
+        h("button", { type: "button", class: "action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
         h("button", { type: "button", class: "action plus", onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
         h("button", { type: "button", class: "action plus", onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
-        h("button", { type: "button", class: "action note", onClick: (event) => stop(event, () => editNote(desk.id)) }, "备注"),
+        h("button", { type: "button", class: "action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "🛑"),
       ]);
     }
 
@@ -581,7 +704,7 @@ createApp({
         [
           h("div", { class: "desk-head" }, [
             h("strong", { class: "desk-id" }, desk.id),
-            h("span", { class: "status-pill" }, statusText(desk.status)),
+            h("span", { class: "status-pill" }, desk.isPaused ? "已暂停" : statusText(desk.status)),
           ]),
           desk.status === "empty"
             ? renderEmptyDesk(desk)
@@ -649,15 +772,22 @@ createApp({
     }
 
     function renderFinishModal() {
-      if (!finishingDesk.value) return null;
-      const desk = finishingDesk.value;
+      if (!checkoutDraft.value) return null;
+      const draft = checkoutDraft.value;
       return h("div", { class: "modal-backdrop", onClick: (event) => event.target === event.currentTarget && closeFinishModal() }, [
         h("section", { class: "confirm-box" }, [
-          h("h2", `完结 ${desk.id} 号桌？`),
-          h("p", `场次：${sessionByType(desk.sessionType).label} · 加时 ${desk.extraTimeCount} 次 · ¥${desk.extraTimeFee}`),
+          h("h2", `🛑 ${draft.deskId} 号桌结算`),
+          h("p", `场次：${draft.session} · 已停表 · ${draft.wasPaused ? "停表前已处于暂停状态" : "停表时已自动暂停"}`),
+          h("div", { class: "settlement-grid" }, [
+            h("div", [h("span", "实际使用"), h("strong", `${draft.billableMinutes} 分钟`)]),
+            h("div", [h("span", "基础费"), h("strong", `¥${draft.baseFee}`)]),
+            h("div", [h("span", "加时费"), h("strong", `¥${draft.extraFee}`)]),
+            h("div", [h("span", "应收合计"), h("strong", `¥${draft.totalFee}`)]),
+          ]),
+          h("p", { class: "settlement-tip" }, "基础费当前按门店套餐价配置为 0；如需接入固定套餐价，可直接在场次配置里填写。"),
           h("div", { class: "confirm-actions" }, [
-            h("button", { type: "button", class: "confirm-cancel", onClick: closeFinishModal }, "再看看"),
-            h("button", { type: "button", class: "confirm-submit", onClick: () => finishDesk(desk.id) }, "确认归档"),
+            h("button", { type: "button", class: "confirm-cancel", onClick: closeFinishModal }, "继续计时"),
+            h("button", { type: "button", class: "confirm-submit", onClick: finishDesk }, "确认结账"),
           ]),
         ]),
       ]);
@@ -678,7 +808,7 @@ createApp({
                 ? h("div", { class: "records-empty" }, "今天还没有完结订单。")
                 : h("table", { class: "records-table" }, [
                     h("thead", [
-                      h("tr", ["桌号", "场次", "准备", "开始", "结束/完结", "实际用时", "加时费", "超时"].map((label) => h("th", label))),
+                      h("tr", ["桌号", "场次", "准备", "开始", "结束/完结", "实际用时", "基础费", "加时费", "合计", "超时"].map((label) => h("th", label))),
                     ]),
                     h(
                       "tbody",
@@ -690,7 +820,9 @@ createApp({
                           h("td", record.startTime),
                           h("td", `${record.expectedEndTime} / ${record.closedAt}`),
                           h("td", record.actualDuration),
+                          h("td", `¥${safeNumber(record.baseFee)}`),
                           h("td", `¥${record.extraFee}`),
+                          h("td", `¥${safeNumber(record.totalFee ?? record.extraFee)}`),
                           h("td", { class: record.isTimeout ? "dangerText" : "" }, record.isTimeout ? `${Math.floor(record.timeoutDuration / 60)} 分钟` : "否"),
                         ])
                       )

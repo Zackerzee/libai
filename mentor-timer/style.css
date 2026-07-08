@@ -329,6 +329,24 @@ h1 {
   background: linear-gradient(155deg, rgba(124, 58, 237, 0.36), rgba(15, 23, 42, 0.98));
 }
 
+.desk-card.is-paused {
+  border-color: rgba(148, 163, 184, 0.46);
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(148, 163, 184, 0.08) 0,
+      rgba(148, 163, 184, 0.08) 9px,
+      rgba(15, 23, 42, 0.1) 9px,
+      rgba(15, 23, 42, 0.1) 18px
+    ),
+    linear-gradient(155deg, rgba(30, 41, 59, 0.8), rgba(2, 6, 23, 0.98));
+  animation: none;
+}
+
+.desk-card.is-paused .live-time strong {
+  color: #bfdbfe;
+}
+
 .desk-head {
   display: flex;
   align-items: flex-start;
@@ -456,6 +474,14 @@ h1 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.desk-actions.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.desk-actions.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .action {
   min-height: 36px;
   border-radius: 14px;
@@ -463,6 +489,22 @@ h1 {
   color: #ffffff;
   font-size: 11px;
   font-weight: 950;
+  touch-action: manipulation;
+  transition:
+    transform 120ms ease,
+    filter 120ms ease,
+    background 120ms ease;
+}
+
+.action:active,
+.preset-button:active,
+.sheet-cancel:active,
+.confirm-cancel:active,
+.confirm-submit:active,
+.ghost-button:active,
+.region-tab:active,
+.records-toggle:active {
+  transform: scale(0.95);
 }
 
 .action.plus {
@@ -478,6 +520,21 @@ h1 {
 .action.start {
   background: rgba(34, 211, 238, 0.24);
   color: #ffffff;
+}
+
+.action.pause {
+  background: rgba(59, 130, 246, 0.2);
+  color: #bfdbfe;
+}
+
+.action.resume {
+  background: rgba(34, 211, 238, 0.24);
+  color: #cffafe;
+}
+
+.action.stop {
+  background: rgba(244, 63, 94, 0.2);
+  color: #fecdd3;
 }
 
 .action.finish {
@@ -625,6 +682,45 @@ h1 {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.6;
+}
+
+.settlement-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.settlement-grid div {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 18px;
+  padding: 12px;
+  background: rgba(30, 41, 59, 0.62);
+}
+
+.settlement-grid span,
+.settlement-grid strong {
+  display: block;
+}
+
+.settlement-grid span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.settlement-grid strong {
+  margin-top: 6px;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 950;
+  letter-spacing: -0.03em;
+}
+
+.settlement-tip {
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(251, 191, 36, 0.09);
 }
 
 .confirm-actions {
