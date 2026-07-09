@@ -1,3 +1,7 @@
+if (window.LIBMS_TIMER_FORCE_COMPAT) {
+  throw new Error("LIBMS timer compat mode forced.");
+}
+
 const { createApp, computed, h, onMounted, onUnmounted, ref } = Vue;
 
 const DESK_STORAGE_KEY = "libms_perler_timer_desks_v3";
@@ -863,3 +867,5 @@ createApp({
       ]);
   },
 }).mount("#app");
+
+window.LIBMS_TIMER_APP_READY = true;

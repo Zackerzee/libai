@@ -985,3 +985,314 @@ h1 {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
+
+.compat-shell {
+  width: 100%;
+  max-width: 1180px;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 14px 14px 34px;
+  color: #f8fafc;
+}
+
+.compat-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 -14px 12px;
+  padding: 13px 14px;
+  border-bottom: 1px solid rgba(30, 41, 59, 0.96);
+  background: rgba(15, 23, 42, 0.92);
+  box-shadow: 0 12px 34px rgba(2, 6, 23, 0.34);
+}
+
+.compat-header .brand-kicker {
+  color: #22d3ee;
+}
+
+.compat-header .brand-subtitle,
+.compat-header .clock-card span {
+  color: #94a3b8;
+}
+
+.compat-header .clock-card {
+  flex: none;
+  min-width: 260px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 20px;
+  padding: 10px 13px;
+  background: rgba(2, 6, 23, 0.58);
+  text-align: right;
+}
+
+.compat-stats {
+  display: flex;
+  gap: 10px;
+  margin: 0 -14px 14px;
+  padding: 0 14px 4px;
+  overflow-x: auto;
+}
+
+.compat-stat {
+  flex: 0 0 112px;
+  min-height: 82px;
+  padding: 13px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 22px;
+  background: #0f172a;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.26);
+}
+
+.compat-stat span,
+.compat-stat strong {
+  display: block;
+}
+
+.compat-stat span {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.compat-stat strong {
+  margin-top: 9px;
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.compat-stat.neutral strong {
+  color: #e2e8f0;
+}
+
+.compat-stat.cyan strong {
+  color: #22d3ee;
+}
+
+.compat-stat.emerald strong {
+  color: #34d399;
+}
+
+.compat-stat.rose strong {
+  color: #fb7185;
+}
+
+.compat-stat.amber strong {
+  color: #fbbf24;
+}
+
+.compat-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 22px;
+  background: rgba(15, 23, 42, 0.78);
+}
+
+.compat-tab {
+  flex: 1 1 0;
+  min-height: 42px;
+  border-radius: 16px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.compat-tab.active {
+  background: rgba(34, 211, 238, 0.22);
+  color: #ffffff;
+}
+
+.compat-desk-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.compat-desk-card {
+  position: relative;
+  flex: 0 0 calc(50% - 5px);
+  min-height: 210px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 26px;
+  padding: 13px;
+  background: #0f172a;
+  box-shadow: 0 22px 52px rgba(0, 0, 0, 0.36);
+}
+
+.compat-desk-card.status-empty {
+  min-height: 178px;
+  border-style: dashed;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.compat-desk-card.status-preparing {
+  border-color: rgba(34, 211, 238, 0.46);
+  background: #0e7490;
+}
+
+.compat-desk-card.status-normal {
+  border-color: rgba(52, 211, 153, 0.52);
+  background: #065f46;
+}
+
+.compat-desk-card.status-ending {
+  border-color: rgba(251, 191, 36, 0.58);
+  background: #92400e;
+}
+
+.compat-desk-card.status-urgent {
+  border-color: rgba(251, 146, 60, 0.7);
+  background: #9a3412;
+  animation: microShake 2s ease-in-out infinite;
+}
+
+.compat-desk-card.status-timeout {
+  border-color: rgba(251, 113, 133, 0.78);
+  background: #9f1239;
+  animation: timeoutPulse 1.4s ease-in-out infinite;
+}
+
+.compat-desk-card.status-infinit {
+  border-color: rgba(167, 139, 250, 0.6);
+  background: #4c1d95;
+}
+
+.compat-desk-card.is-paused {
+  border-color: rgba(148, 163, 184, 0.46);
+  background: #1e293b;
+  animation: none;
+}
+
+.compat-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.compat-actions .compat-action {
+  flex: 1 1 0;
+}
+
+.compat-action {
+  min-height: 36px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.compat-action.plus {
+  background: rgba(52, 211, 153, 0.2);
+  color: #a7f3d0;
+}
+
+.compat-action.pause,
+.compat-action.resume {
+  background: rgba(59, 130, 246, 0.22);
+  color: #bfdbfe;
+}
+
+.compat-action.note {
+  background: rgba(34, 211, 238, 0.18);
+  color: #a5f3fc;
+}
+
+.compat-action.stop {
+  background: rgba(244, 63, 94, 0.22);
+  color: #fecdd3;
+}
+
+.compat-action.start {
+  background: rgba(34, 211, 238, 0.28);
+}
+
+.compat-action.muted {
+  background: rgba(148, 163, 184, 0.16);
+  color: #cbd5e1;
+}
+
+.compat-action:active,
+.compat-tab:active {
+  transform: scale(0.95);
+}
+
+.compat-modal {
+  position: fixed;
+  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.66);
+}
+
+.compat-sheet {
+  width: 100%;
+  max-width: 560px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 30px;
+  padding: 10px 14px 14px;
+  background: #0f172a;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.56);
+}
+
+@media (max-width: 559px) {
+  .compat-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    text-align: center;
+  }
+
+  .compat-header .clock-card {
+    min-width: 0;
+    width: 100%;
+    text-align: center;
+  }
+}
+
+@media (min-width: 560px) {
+  .compat-desk-card {
+    flex-basis: calc(33.333% - 7px);
+  }
+
+  .compat-stat {
+    flex-basis: 132px;
+  }
+}
+
+@media (min-width: 900px) {
+  .compat-desk-card {
+    flex-basis: calc(25% - 11px);
+  }
+
+  .compat-stat {
+    flex: 1 1 0;
+  }
+
+  .compat-modal {
+    align-items: center;
+  }
+}
+
+@media (min-width: 1180px) {
+  .compat-desk-card {
+    flex-basis: calc(20% - 12px);
+  }
+}
