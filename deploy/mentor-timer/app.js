@@ -151,6 +151,12 @@ function timeOnly(timestamp) {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function fullDateTime(timestamp) {
+  const weekDays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${weekDays[date.getDay()]} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 function dateTime(timestamp) {
   if (!timestamp) return "--";
   const date = new Date(timestamp);
@@ -596,12 +602,15 @@ createApp({
 
     function renderHeader() {
       return h("header", { class: "app-header" }, [
-        h("div", [
-          h("p", { class: "eyebrow" }, "LIBMS PERLER TIMER"),
-          h("h1", "拼豆计时器"),
-          h("p", { class: "subtitle" }, "准备中 · 倒计时 · 超时正计时 · 不限时正计时"),
+        h("div", { class: "brand-block" }, [
+          h("p", { class: "brand-kicker" }, "LIBMS PERLER TIMER"),
+          h("h1", { class: "brand-title" }, "✨ 时里白造物创意手作体验空间 ✨"),
+          h("p", { class: "brand-subtitle" }, "拼豆计时管理控制台 · 准备中 / 倒计时 / 不限时 / 结账归档"),
         ]),
-        h("button", { type: "button", class: "ghost-button", onClick: () => (showRecords.value = !showRecords.value) }, showRecords.value ? "收起流水" : "今日流水"),
+        h("div", { class: "clock-card", "aria-live": "polite" }, [
+          h("span", "当前时间"),
+          h("strong", fullDateTime(now.value)),
+        ]),
       ]);
     }
 
