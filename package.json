@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vercel dev",
+    "vercel-build": "node scripts/build-public.js",
     "check": "node --check api/review.js && node --check api/print-orders/index.js && node --check api/print-orders/download.js && node --check functions/api/print-orders/index.js && node --check functions/api/print-orders/download.js && node --check lib/print-orders-core.js && node --check lib/r2-s3.js && node --check nfc/review-library.js && node --check nfc/app.js && node --check print/app.js && node --check admin/print-orders/app.js && node --check mentor-timer/app.js && node --check mentor-timer/compat-loader.js && node --check mentor-timer/compat-app.js"
   },
   "engines": {

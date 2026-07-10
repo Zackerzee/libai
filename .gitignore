@@ -3,6 +3,7 @@
 .env.local
 .vercel
 .next/
+public/
 outputs/
 video_edit/
 node_modules/
