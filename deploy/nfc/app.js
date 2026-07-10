@@ -2,7 +2,7 @@
   "use strict";
 
   const DEEPSEEK_TIMEOUT_MS = 12000;
-  const CACHE_TTL_MS = 30000;
+  const CACHE_TTL_MS = 8000;
   const DOUYIN_ID = "98526701829";
 
   let isGenerating = false;

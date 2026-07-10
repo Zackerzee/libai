@@ -2,6 +2,7 @@ const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STALE_ENTRY_MS = DAY_MS * 2;
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+const REVIEW_REFILL_WINDOW_MS = 64 * 1000;
 
 const rateLimits = new Map();
 let lastCleanup = Date.now();
@@ -40,17 +41,22 @@ function cleanupStaleEntries(now) {
   }
 }
 
-function consumeRateLimit(ip, now) {
+function consumeRateLimit(ip, now, pathname) {
   cleanupStaleEntries(now);
+  const isReviewApi = pathname === "/api/review";
+  const minuteCapacity = isReviewApi ? 8 : 5;
+  const minuteWindowMs = isReviewApi ? REVIEW_REFILL_WINDOW_MS : MINUTE_MS;
 
   let entry = rateLimits.get(ip);
   if (!entry) {
     entry = {
-      minute: createBucket(5, MINUTE_MS, now),
+      minute: createBucket(minuteCapacity, minuteWindowMs, now),
       day: createBucket(50, DAY_MS, now),
       lastSeen: now,
     };
     rateLimits.set(ip, entry);
+  } else if (entry.minute.capacity !== minuteCapacity) {
+    entry.minute = createBucket(minuteCapacity, minuteWindowMs, now);
   }
 
   entry.lastSeen = now;
@@ -81,7 +87,7 @@ function tooManyRequests(retryAfter) {
 }
 
 export function middleware(request) {
-  const result = consumeRateLimit(getClientIp(request), Date.now());
+  const result = consumeRateLimit(getClientIp(request), Date.now(), request.nextUrl?.pathname || "");
   if (!result.allowed) return tooManyRequests(result.retryAfter);
 }
 
