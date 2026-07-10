@@ -68,6 +68,7 @@ const TEMPLATE_AND_MARKETING_WORDS = [
   "地址",
   "商圈",
   "全江油第一",
+  "有成就感",
   "天花板",
   "宝藏",
   "必须冲",
@@ -178,6 +179,16 @@ function looksTooFormal(text) {
   return formalPatterns.some((pattern) => pattern.test(safeText));
 }
 
+function countWildDetailGroups(text) {
+  const safeText = String(text || "");
+  const detailGroups = [
+    ["外面热", "太热", "避暑", "空调", "放的歌", "歌很好听", "安静", "发呆", "放空", "戒掉手机", "少刷"],
+    ["手残", "搞砸", "图纸", "抓瞎", "丑萌", "体力活", "摆烂"],
+    ["今日份", "晒图", "朋友圈", "快乐", "绝美", "存档", "纪念"],
+  ];
+  return detailGroups.filter((group) => group.some((word) => safeText.includes(word))).length;
+}
+
 function isTooSimilarToRecent(text) {
   const safeText = String(text || "").trim();
   if (!safeText) return true;
@@ -196,6 +207,7 @@ function getInvalidReason(review, projectName, { checkSimilarity = true } = {}) 
   if (length < 30 || length > 75) return "length";
   if (hasInvalidWords(text, projectName)) return "bad_words";
   if (looksTooFormal(text)) return "formal";
+  if (countWildDetailGroups(text) > 1) return "too_many_detail_groups";
   if (checkSimilarity && isTooSimilarToRecent(text)) return "similar";
   return "";
 }
