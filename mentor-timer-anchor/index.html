@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>拼豆桌台时间锚点看板</title>
+    <link rel="stylesheet" href="./timer-board.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="topbar">
+        <div>
+          <p class="kicker">LIBMS TIMER V2</p>
+          <h1>时里白造物桌台计时看板</h1>
+        </div>
+        <button id="statsButton" type="button">查看统计</button>
+      </header>
+
+      <section id="tableGrid" class="grid" aria-live="polite"></section>
+    </main>
+
+    <dialog id="statsModal" class="modal">
+      <div class="modal-head">
+        <h2>桌台状态统计</h2>
+        <button id="closeStatsButton" type="button">关闭</button>
+      </div>
+      <div id="statsContent" class="stats-content"></div>
+    </dialog>
+
+    <script src="./timer-board.js" type="module"></script>
+  </body>
+</html>
