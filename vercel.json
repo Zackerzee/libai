@@ -3,6 +3,22 @@
   "trailingSlash": false,
   "rewrites": [
     {
+      "source": "/nfc",
+      "destination": "/nfc/index.html"
+    },
+    {
+      "source": "/mentor-timer",
+      "destination": "/mentor-timer/index.html"
+    },
+    {
+      "source": "/print",
+      "destination": "/print/index.html"
+    },
+    {
+      "source": "/admin/print-orders",
+      "destination": "/admin/print-orders/index.html"
+    },
+    {
       "source": "/",
       "has": [
         {
@@ -10,7 +26,7 @@
           "value": "nfc.libms.net"
         }
       ],
-      "destination": "/nfc"
+      "destination": "/nfc/index.html"
     }
   ],
   "headers": [
