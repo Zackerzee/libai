@@ -10,46 +10,16 @@
   let lastReviewData = null;
   let lastRequestTime = 0;
 
-  const defaultKeywordGroups = [
-    "带孩子来玩",
-    "朋友一起坐会儿",
-    "逛商场顺便体验",
-    "不想一直逛街",
-    "作品可以带走",
-    "位置在圣名国际",
+  const wildLocalReviewTemplates = [
+    "今日份手作存档，做了{project}，比我想的更费手，弄完只想先拍照炫一下。",
+    "外面热到不想动，坐下来做了个{project}，慢慢弄完，手机都少刷了好一会儿。",
+    "手残党挑战{project}，中间一度怀疑自己，最后看着还行，丑萌丑萌的我也喜欢。",
+    "本来只是随便试试{project}，结果做着做着安静下来了，时间过得比刷手机快。",
+    "做{project}的时候有点上头，前面还在纠结怎么弄，后面就只想赶紧看看最后效果。",
+    "今天不想走路逛太久，就坐下来弄了个{project}，过程比想象中更消磨时间。",
+    "{project}完成，手是真的忙，脑子反而放空了一会儿，这种慢吞吞的感觉还不错。",
+    "给自己安排了一点手作时间，做了{project}，不算完美，但越看越觉得是我的风格。",
   ];
-
-  const localReviewOptions = {
-    dianping: [
-      "带孩子来玩的，拼豆颜色挺多，孩子能坐住，做完的小作品也可以带走。",
-      "在圣名国际逛街时看到的，项目还不少，这次先体验了拼豆。",
-      "适合带小朋友来坐一会儿，大人也可以一起做，整体还可以。",
-      "朋友一起去的，坐下来做个手作，比单纯逛街有意思。",
-      "店里项目选择挺多，拼豆比较适合第一次体验。",
-      "孩子自己选的图案，做完可以带走，体验还可以。",
-      "位置比较好找，逛商场的时候顺便玩了一下。",
-      "拼豆适合亲子一起做，不需要太复杂的基础。",
-      "第一次带孩子体验这类手作，整体比较顺利。",
-      "项目挺多的，这次做了拼豆，下次可以试试别的。",
-    ],
-    xiaohongshu: [
-      "江油圣名国际这家手作店可以坐下来慢慢玩，拼豆、石膏、蜡烛这些项目都有。今天先体验了拼豆，做完的小作品可以带走。",
-      "不想一直逛商场的话，可以找个地方坐下来做点手作。拼豆上手不难，适合朋友一起边做边聊。",
-      "带孩子来做拼豆，孩子自己选图案，大人在旁边帮忙找颜色，整个过程比想象中更能坐得住。",
-      "江油带娃又多了一个选择，逛商场的时候可以顺便来体验一下手作。",
-      "朋友约着来做手作，这次先试了拼豆。店里项目不少，适合想找地方坐会儿的时候。",
-    ],
-    douyin: [
-      "江油圣名国际这个手作店，带娃能坐得住。",
-      "本来陪孩子玩，结果大人也跟着做起来了。",
-      "不想逛街的时候，做个拼豆还挺合适。",
-      "朋友一起做手作，比单纯喝奶茶有意思。",
-      "拼豆这个项目，小朋友真的能安静坐一会儿。",
-      "江油带娃可以试试这种手作体验。",
-      "逛商场累了，坐下来做个小手作。",
-      "第一次玩拼豆，比想象中容易上手。",
-    ],
-  };
 
   const $ = (id) => document.getElementById(id);
 
@@ -77,27 +47,13 @@
     return items[Math.floor(Math.random() * items.length)];
   }
 
-  function hasAnyWord(text, words) {
-    const value = String(text || "");
-    return words.some((word) => value.includes(word));
-  }
-
-  function matchesLocalContext(review, context) {
-    const hasChildInReview = hasAnyWord(review, ["孩子", "小朋友", "带娃", "亲子"]);
-    const hasFriendInReview = hasAnyWord(review, ["朋友", "一起去", "一起做"]);
-    const hasChildContext = hasAnyWord(context, ["孩子", "小朋友", "带娃", "亲子"]);
-    const hasFriendContext = hasAnyWord(context, ["朋友", "闺蜜", "同学", "同事", "小聚", "同去"]);
-    return (!hasChildInReview || hasChildContext) && (!hasFriendInReview || hasFriendContext);
-  }
-
   function getFinalKeywords(rawKeywords) {
     return String(rawKeywords || "").trim();
   }
 
-  function getLocalFallback(platform, context) {
-    const options = localReviewOptions[platform] || localReviewOptions.dianping;
-    const matchedOptions = options.filter((review) => matchesLocalContext(review, context));
-    return randomItem(matchedOptions.length > 0 ? matchedOptions : options);
+  function getLocalFallback(project) {
+    const safeProject = String(project || "手作").trim() || "手作";
+    return randomItem(wildLocalReviewTemplates).replace(/\{project\}/g, safeProject);
   }
 
   function getRequestKey(payload) {
@@ -166,7 +122,7 @@
       saveCache(payload, review);
       setStatus("已生成评价，可按真实体验稍微修改后发布。");
     } catch (error) {
-      const fallback = getLocalFallback(payload.platform, `${payload.project} ${payload.tone} ${payload.keywords}`);
+      const fallback = getLocalFallback(payload.project);
       elements.reviewText.innerText = fallback;
       setStatus("网络暂时不稳定，已生成本地评价参考，可按真实体验稍微修改后发布。");
     } finally {
