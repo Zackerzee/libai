@@ -1,10 +1,14 @@
 const API_BASE = "/api/timer";
 const TEN_MINUTES = 10 * 60;
+const DEFAULT_TABLE_COUNT = 30;
+const DEFAULT_TOTAL_SECONDS = 60 * 60;
+const PREVIEW_STORAGE_KEY = "libms_timer_anchor_preview_v1";
 
 const state = {
   tables: [],
   previousRemaining: new Map(),
   tenMinuteLocks: new Set(),
+  previewMode: false,
 };
 
 const grid = document.getElementById("tableGrid");
@@ -12,6 +16,7 @@ const statsButton = document.getElementById("statsButton");
 const statsModal = document.getElementById("statsModal");
 const closeStatsButton = document.getElementById("closeStatsButton");
 const statsContent = document.getElementById("statsContent");
+const modeHint = document.getElementById("modeHint");
 
 function pad(value) {
   return String(value).padStart(2, "0");
@@ -104,13 +109,148 @@ async function requestJson(url, options = {}) {
   return data;
 }
 
+function setModeHint(message, isPreview = false) {
+  modeHint.textContent = message;
+  modeHint.classList.toggle("preview", isPreview);
+}
+
+function defaultPreviewTables() {
+  return Array.from({ length: DEFAULT_TABLE_COUNT }, (_, index) => ({
+    table_id: index + 1,
+    status: "IDLE",
+    total_seconds: DEFAULT_TOTAL_SECONDS,
+    end_time: null,
+    paused_remaining_seconds: 0,
+    is_paused: false,
+    updated_at: new Date().toISOString(),
+  }));
+}
+
+function loadPreviewTables() {
+  try {
+    const raw = localStorage.getItem(PREVIEW_STORAGE_KEY);
+    if (!raw) return defaultPreviewTables();
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : defaultPreviewTables();
+  } catch (_) {
+    return defaultPreviewTables();
+  }
+}
+
+function savePreviewTables() {
+  try {
+    localStorage.setItem(PREVIEW_STORAGE_KEY, JSON.stringify(state.tables));
+  } catch (_) {
+    // 预览模式 localStorage 不可写时，只保留当前页面内存状态。
+  }
+}
+
+function deriveBackendStatus(table, nowMs = Date.now()) {
+  if (table.status === "IDLE" || table.is_paused || !table.end_time) return table;
+  const next = { ...table };
+  next.status = parseEndTimeMs(next) <= nowMs ? "OVERTIME" : "RUNNING";
+  return next;
+}
+
+function updatePreviewTable(tableId, updater) {
+  state.tables = state.tables.map((table) => {
+    if (table.table_id !== tableId) return deriveBackendStatus(table);
+    const next = updater(deriveBackendStatus({ ...table }));
+    next.updated_at = new Date().toISOString();
+    return deriveBackendStatus(next);
+  });
+  savePreviewTables();
+}
+
+function applyPreviewAction(tableId, action, payload = {}) {
+  const nowMs = Date.now();
+
+  updatePreviewTable(tableId, (table) => {
+    if (action === "start") {
+      const remaining = table.is_paused ? table.paused_remaining_seconds : table.total_seconds;
+      return {
+        ...table,
+        status: "RUNNING",
+        end_time: new Date(nowMs + Math.max(1, remaining) * 1000).toISOString(),
+        paused_remaining_seconds: 0,
+        is_paused: false,
+      };
+    }
+
+    if (action === "pause") {
+      if (table.status === "IDLE" || table.is_paused) return table;
+      const remaining = table.end_time ? Math.max(0, Math.floor((parseEndTimeMs(table) - nowMs) / 1000)) : table.total_seconds;
+      return {
+        ...table,
+        status: "RUNNING",
+        end_time: null,
+        paused_remaining_seconds: remaining,
+        is_paused: true,
+      };
+    }
+
+    if (action === "reset") {
+      return {
+        ...table,
+        status: "IDLE",
+        end_time: null,
+        paused_remaining_seconds: 0,
+        is_paused: false,
+      };
+    }
+
+    if (action === "set_total") {
+      const totalSeconds = Math.max(60, Number(payload.total_minutes || 60) * 60);
+      if (table.status === "IDLE") {
+        return { ...table, total_seconds: totalSeconds, end_time: null, paused_remaining_seconds: 0, is_paused: false };
+      }
+      if (table.is_paused) {
+        return { ...table, total_seconds: totalSeconds, paused_remaining_seconds: totalSeconds };
+      }
+      return { ...table, status: "RUNNING", total_seconds: totalSeconds, end_time: new Date(nowMs + totalSeconds * 1000).toISOString() };
+    }
+
+    if (action === "add_time" || action === "sub_time") {
+      const deltaSeconds = Number(payload.minutes || 60) * 60 * (action === "add_time" ? 1 : -1);
+      if (table.status === "IDLE") {
+        return { ...table, total_seconds: Math.max(60, table.total_seconds + deltaSeconds) };
+      }
+      if (table.is_paused) {
+        return { ...table, paused_remaining_seconds: Math.max(0, table.paused_remaining_seconds + deltaSeconds) };
+      }
+      const endMs = (parseEndTimeMs(table) || nowMs) + deltaSeconds * 1000;
+      return { ...table, end_time: new Date(endMs).toISOString(), status: endMs <= nowMs ? "OVERTIME" : "RUNNING" };
+    }
+
+    return table;
+  });
+}
+
 async function loadTables() {
-  const data = await requestJson(`${API_BASE}/tables`);
-  state.tables = Array.isArray(data.tables) ? data.tables : [];
+  try {
+    const data = await requestJson(`${API_BASE}/tables`);
+    state.tables = Array.isArray(data.tables) ? data.tables : [];
+    state.previewMode = false;
+    setModeHint("已连接后端计时服务，所有桌台状态以后端为准。");
+  } catch (error) {
+    state.tables = loadPreviewTables();
+    state.previewMode = true;
+    setModeHint("预览模式：后端尚未接入生产持久化，当前操作只保存在本机浏览器。", true);
+  }
   renderGrid();
 }
 
 async function sendAction(tableId, action, payload = {}) {
+  if (state.previewMode) {
+    applyPreviewAction(tableId, action, payload);
+    if (["start", "reset", "set_total"].includes(action)) {
+      const nextTable = state.tables.find((table) => table.table_id === tableId);
+      if (nextTable) state.tenMinuteLocks.delete(lockKey(nextTable));
+    }
+    renderGrid();
+    return;
+  }
+
   const data = await requestJson(`${API_BASE}/tables/${tableId}/actions`, {
     method: "POST",
     body: JSON.stringify({ action, ...payload }),

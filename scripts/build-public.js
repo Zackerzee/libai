@@ -17,6 +17,7 @@ const staticEntries = [
   "libai-logo-pixel.svg",
   "libai-logo.png",
   "mentor-timer",
+  "mentor-timer-anchor",
   "nfc",
   "pricing.css",
   "pricing.html",

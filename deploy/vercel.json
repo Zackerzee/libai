@@ -11,6 +11,14 @@
       "destination": "/mentor-timer/index.html"
     },
     {
+      "source": "/mentor-timer-preview",
+      "destination": "/mentor-timer-anchor/index.html"
+    },
+    {
+      "source": "/mentor-timer-anchor",
+      "destination": "/mentor-timer-anchor/index.html"
+    },
+    {
       "source": "/print",
       "destination": "/print/index.html"
     },
