@@ -335,11 +335,38 @@
         gap: 10px;
       }
 
-      .platforms a {
+      .platform-panel {
+        display: grid;
+        gap: 12px;
+      }
+
+      .platform-group {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.88);
+        box-shadow: 0 8px 20px rgba(70, 40, 20, 0.05);
+      }
+
+      .platform-group h3 {
+        margin: 0 0 12px;
+        font-size: 18px;
+        line-height: 1.25;
+      }
+
+      .platform-icon-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .platforms a,
+      .platforms button {
         position: relative;
+        display: grid;
+        justify-items: center;
+        gap: 8px;
         border: 1px solid var(--line);
         border-radius: 18px;
-        padding: 14px 8px;
+        padding: 13px 8px 12px;
         background: #ffffff;
         box-shadow: 0 6px 16px rgba(70, 40, 20, 0.05);
         color: #222222;
@@ -348,13 +375,71 @@
         line-height: 1.3;
         text-align: center;
         text-decoration: none;
+        appearance: none;
+        cursor: pointer;
+        transition: transform 0.16s ease, box-shadow 0.16s ease;
+      }
+
+      .platforms a:active,
+      .platforms button:active {
+        transform: scale(0.96);
       }
 
       .platforms small {
         display: block;
-        margin-top: 4px;
         color: #888888;
         font-weight: 500;
+      }
+
+      .platform-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 50px;
+        height: 50px;
+        border-radius: 18px;
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 950;
+        line-height: 1;
+      }
+
+      .platform-icon-dp {
+        background: #ff6633;
+      }
+
+      .platform-icon-mt {
+        background: #ffd100;
+        color: #222222;
+      }
+
+      .platform-icon-xhs {
+        background: #ff2442;
+      }
+
+      .platform-icon-dy {
+        background: #111111;
+      }
+
+      .platform-icon-wifi {
+        background: #3b82f6;
+      }
+
+      .platform-icon-wechat {
+        background: #29b34a;
+      }
+
+      .platform-note {
+        margin: 10px 0 0;
+        color: #8a4b14;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      @media (max-width: 420px) {
+        .platform-icon-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
       }
 
       .visit-badge {
@@ -372,34 +457,9 @@
         box-shadow: 0 6px 14px rgba(154, 92, 32, 0.12);
       }
 
-      .platforms a.visited .visit-badge {
+      .platforms a.visited .visit-badge,
+      .platforms button.visited .visit-badge {
         display: inline-flex;
-      }
-
-      .douyin-card {
-        margin-top: 12px;
-        border: 1px solid rgba(233, 91, 91, 0.22);
-        border-radius: var(--radius);
-        padding: 16px;
-        background: linear-gradient(135deg, #ffffff 0%, #fff7f7 100%);
-        box-shadow: 0 8px 20px rgba(70, 40, 20, 0.06);
-      }
-
-      .douyin-card p {
-        margin: 6px 0 0;
-      }
-
-      .douyin-actions {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-        margin-top: 12px;
-      }
-
-      .douyin-id {
-        color: #5e554c;
-        font-size: 13px;
-        line-height: 1.5;
       }
 
       .wechat-tip {
@@ -480,7 +540,7 @@
         text-align: center;
       }
     </style>
-    <script src="/nfc/app.js?v=20260712-visit-1" defer></script>
+    <script src="/nfc/app.js?v=20260712-portal-1" defer></script>
   </head>
   <body>
     <main class="page">
@@ -569,70 +629,107 @@
         <div class="tiny">温馨提示：建议加上你的作品照片一起发布哦～你的评价对我们小店真的很重要 ♡</div>
       </section>
 
-      <div id="platform-links" class="section-title">发布 / 评价入口</div>
-      <div class="platforms">
-        <a
-          data-visit-key="dianping-checkin"
-          href="https://m.dianping.com/shopshare/l9wfdv6RIbERlpwV"
-          target="_blank"
-          rel="noopener"
-          >大众点评<small>去打卡 / 收藏</small><span class="visit-badge">已前往</span></a
-        >
-        <a
-          data-visit-key="dianping-review"
-          href="https://m.dianping.com/an/ugcastroreact/addreview_qrcode/page/addreviewrouter?lch=saomaxiepingjia&utm_source=saomaxiepingjia&shopcategoryid=144&id=1029212885625444&shoptype=30&shopuuid=l9wfdv6RIbERlpwV&cityid=1618&offlinecode=12508367426672&incentive=smreviewpuma01-daozong01-dpapp-myshop"
-          target="_blank"
-          rel="noopener"
-          >大众点评<small>去点评</small><span class="visit-badge">已前往</span></a
-        >
-        <a data-visit-key="meituan-review" href="https://g.meituan.com/qrcode/transfer?scene=promo_shop&q=fzB8PQwj4S1" target="_blank" rel="noopener"
-          >美团<small>写评价 / 门店页</small><span class="visit-badge">已前往</span></a
-        >
-        <a
-          data-visit-key="xiaohongshu-post"
-          href="https://xhslink.com/m/2DusZnAnZaP"
-          target="_blank"
-          rel="noopener"
-          >小红书<small>图文发布 / 定位</small><span class="visit-badge">已前往</span></a
-        >
-        <a data-visit-key="douyin-review" href="https://v.douyin.com/fA8z1S8iVmI/" target="_blank" rel="noopener noreferrer"
-          >抖音团购<small>写评价</small><span class="visit-badge">已前往</span></a
-        >
-      </div>
-
-      <div class="section-title">关注 / 收藏门店</div>
-      <div class="platforms">
-        <a data-visit-key="dianping-follow" href="https://m.dianping.com/shopshare/l9wfdv6RIbERlpwV" target="_blank" rel="noopener"
-          >大众点评<small>收藏门店</small><span class="visit-badge">已前往</span></a
-        >
-        <a data-visit-key="meituan-follow" href="https://g.meituan.com/qrcode/transfer?scene=promo_shop&q=fzB8PQwj4S1" target="_blank" rel="noopener"
-          >美团<small>收藏门店</small><span class="visit-badge">已前往</span></a
-        >
-        <a data-visit-key="xiaohongshu-follow" href="https://xhslink.com/m/4ZCk8aiCIf5" target="_blank" rel="noopener"
-          >小红书<small>关注主页</small><span class="visit-badge">已前往</span></a
-        >
-        <a data-visit-key="douyin-follow" href="https://v.douyin.com/IG9t-oxLEXc/" target="_blank" rel="noopener noreferrer"
-          >抖音<small>关注主页</small><span class="visit-badge">已前往</span></a
-        >
-        <a data-visit-key="libms-pattern" href="https://www.libms.net" target="_blank" rel="noopener"
-          >生成拼豆图纸<small>libms.net</small><span class="visit-badge">已前往</span></a
-        >
-      </div>
-
-      <section class="douyin-card" aria-labelledby="douyin-title">
-        <div class="service-header">
-          <div class="icon" aria-hidden="true">🎬</div>
-          <div class="service-title" id="douyin-title">关注我们的抖音</div>
+      <div id="platform-links" class="section-title">门店快捷入口</div>
+      <section class="platform-panel" aria-label="门店快捷入口">
+        <div class="platform-group">
+          <h3>打卡 / 点评 / 收藏</h3>
+          <div class="platforms platform-icon-grid">
+            <a data-visit-key="dianping-checkin" href="https://m.dianping.com/shopshare/l9wfdv6RIbERlpwV" target="_blank" rel="noopener">
+              <span class="platform-icon platform-icon-dp">点评</span>
+              点评 + 打卡
+              <small>进入门店页打卡 / 收藏</small>
+              <span class="visit-badge">已前往</span>
+            </a>
+            <a
+              data-visit-key="dianping-review"
+              href="https://m.dianping.com/an/ugcastroreact/addreview_qrcode/page/addreviewrouter?lch=saomaxiepingjia&utm_source=saomaxiepingjia&shopcategoryid=144&id=1029212885625444&shoptype=30&shopuuid=l9wfdv6RIbERlpwV&cityid=1618&offlinecode=12508367426672&incentive=smreviewpuma01-daozong01-dpapp-myshop"
+              target="_blank"
+              rel="noopener"
+            >
+              <span class="platform-icon platform-icon-dp">点评</span>
+              大众点评
+              <small>去写评价</small>
+              <span class="visit-badge">已前往</span>
+            </a>
+            <a data-visit-key="meituan-review" href="https://g.meituan.com/qrcode/transfer?scene=promo_shop&q=fzB8PQwj4S1" target="_blank" rel="noopener">
+              <span class="platform-icon platform-icon-mt">美团</span>
+              点评 + 收藏
+              <small>美团门店页</small>
+              <span class="visit-badge">已前往</span>
+            </a>
+          </div>
         </div>
-        <p class="service-text">查看门店作品、活动日常和最新手作内容</p>
-        <div class="douyin-actions">
-          <a class="btn btn-red" href="https://v.douyin.com/IG9t-oxLEXc/" target="_blank" rel="noopener noreferrer">打开抖音主页</a>
-          <button id="copyDouyinButton" class="btn-blue" type="button">复制抖音号</button>
+
+        <div class="platform-group">
+          <h3>图文发布</h3>
+          <div class="platforms platform-icon-grid">
+            <a data-visit-key="xiaohongshu-post" href="https://xhslink.com/m/2DusZnAnZaP" target="_blank" rel="noopener">
+              <span class="platform-icon platform-icon-xhs">小红书</span>
+              小红书图文
+              <small>打开后手动选图发布</small>
+              <span class="visit-badge">已前往</span>
+            </a>
+            <a data-visit-key="dianping-note" href="https://m.dianping.com/shopshare/l9wfdv6RIbERlpwV" target="_blank" rel="noopener">
+              <span class="platform-icon platform-icon-dp">点评</span>
+              大众点评图文
+              <small>进入门店页发笔记</small>
+              <span class="visit-badge">已前往</span>
+            </a>
+            <a data-visit-key="douyin-post" href="https://v.douyin.com/fA8z1S8iVmI/" target="_blank" rel="noopener noreferrer">
+              <span class="platform-icon platform-icon-dy">抖音</span>
+              抖音图文 / 评价
+              <small>打开团购评价页</small>
+              <span class="visit-badge">已前往</span>
+            </a>
+          </div>
+          <p class="platform-note">打开平台后，按平台提示选择作品照片并发布；可先复制上方评价参考。</p>
         </div>
-        <p class="douyin-id">抖音号：98526701829</p>
-        <p id="wechatDouyinTip" class="wechat-tip" hidden>
-          当前在微信内打开，如无法直接跳转抖音，请点击右上角「…」选择「在浏览器打开」，或复制抖音号到抖音搜索关注。
-        </p>
+
+        <div class="platform-group">
+          <h3>关注账号</h3>
+          <div class="platforms platform-icon-grid">
+            <a data-visit-key="douyin-follow" href="https://v.douyin.com/IG9t-oxLEXc/" target="_blank" rel="noopener noreferrer">
+              <span class="platform-icon platform-icon-dy">抖音</span>
+              关注抖音
+              <small>作品 / 活动日常</small>
+              <span class="visit-badge">已前往</span>
+            </a>
+            <a data-visit-key="xiaohongshu-follow" href="https://xhslink.com/m/4ZCk8aiCIf5" target="_blank" rel="noopener">
+              <span class="platform-icon platform-icon-xhs">小红书</span>
+              关注小红书
+              <small>门店主页</small>
+              <span class="visit-badge">已前往</span>
+            </a>
+            <a data-visit-key="libms-pattern" href="https://www.libms.net" target="_blank" rel="noopener">
+              <span class="platform-icon platform-icon-wifi">图纸</span>
+              生成拼豆图纸
+              <small>libms.net</small>
+              <span class="visit-badge">已前往</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="platform-group">
+          <h3>连 WiFi & 加微信</h3>
+          <div class="platforms platform-icon-grid">
+            <button id="connectWifiButton" type="button" data-visit-key="wifi-connect">
+              <span class="platform-icon platform-icon-wifi">WiFi</span>
+              连接 WiFi
+              <small>复制密码并尝试打开设置</small>
+              <span class="visit-badge">已前往</span>
+            </button>
+            <button id="copyWechatButton" type="button" data-visit-key="wechat-copy">
+              <span class="platform-icon platform-icon-wechat">微信</span>
+              加微信
+              <small>复制门店电话 / 微信</small>
+              <span class="visit-badge">已前往</span>
+            </button>
+          </div>
+          <p id="wifiConnectHint" class="platform-note">WiFi名称：时里白造物｜密码：88888888</p>
+          <p id="wechatDouyinTip" class="wechat-tip" hidden>
+            当前在微信内打开，如无法直接跳转抖音或小红书，请点击右上角「…」选择「在浏览器打开」。
+          </p>
+        </div>
       </section>
 
       <div class="section-title">门店服务</div>

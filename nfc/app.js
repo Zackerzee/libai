@@ -3,7 +3,6 @@
 
   const DEEPSEEK_TIMEOUT_MS = 12000;
   const CACHE_TTL_MS = 8000;
-  const DOUYIN_ID = "98526701829";
   const VISITED_PLATFORM_KEY = "libms_nfc_visited_platforms_v1";
 
   let isGenerating = false;
@@ -35,7 +34,9 @@
     stickyCopyReviewButton: $("stickyCopyReviewButton"),
     copyPhoneButton: $("copyPhoneButton"),
     copyWifiButton: $("copyWifiButton"),
-    copyDouyinButton: $("copyDouyinButton"),
+    connectWifiButton: $("connectWifiButton"),
+    copyWechatButton: $("copyWechatButton"),
+    wifiConnectHint: $("wifiConnectHint"),
     wechatDouyinTip: $("wechatDouyinTip"),
     copyStatus: $("copyStatus"),
   };
@@ -90,6 +91,28 @@
       saveVisitedPlatforms(visited);
     }
     renderVisitedPlatforms();
+  }
+
+  function setWifiHint(message) {
+    if (elements.wifiConnectHint) {
+      elements.wifiConnectHint.textContent = message;
+    }
+  }
+
+  function openSystemWifiSettings() {
+    const ua = navigator.userAgent || "";
+
+    if (/iPhone|iPad|iPod/i.test(ua)) {
+      window.location.href = "App-Prefs:root=WIFI";
+      return true;
+    }
+
+    if (/Android/i.test(ua)) {
+      window.location.href = "intent:#Intent;action=android.settings.WIFI_SETTINGS;end";
+      return true;
+    }
+
+    return false;
   }
 
   function getRequestKey(payload) {
@@ -217,8 +240,15 @@
   elements.copyWifiButton.addEventListener("click", () => {
     copyText("88888888", "WiFi密码已复制");
   });
-  elements.copyDouyinButton.addEventListener("click", () => {
-    copyText(DOUYIN_ID, "抖音号已复制，请打开抖音搜索关注");
+  elements.connectWifiButton?.addEventListener("click", () => {
+    markPlatformVisited("wifi-connect");
+    copyText("88888888", "WiFi密码已复制，可打开系统 WiFi 连接“时里白造物”。", { alert: false });
+    const opened = openSystemWifiSettings();
+    setWifiHint(opened ? "已复制密码，并尝试打开系统 WiFi 设置；请选择“时里白造物”。" : "已复制 WiFi 密码：88888888。请在系统 WiFi 中选择“时里白造物”。");
+  });
+  elements.copyWechatButton?.addEventListener("click", () => {
+    markPlatformVisited("wechat-copy");
+    copyText("19949539970", "门店电话 / 微信已复制");
   });
   visitLinks.forEach((link) => {
     link.addEventListener("click", () => markPlatformVisited(link.dataset.visitKey));
