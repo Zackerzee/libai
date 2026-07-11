@@ -329,6 +329,133 @@
         line-height: 1.5;
       }
 
+      .quick-card {
+        border-color: rgba(91, 141, 239, 0.2);
+        background: linear-gradient(135deg, #ffffff 0%, #f7fbff 100%);
+      }
+
+      .quick-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .quick-badge {
+        flex: 0 0 auto;
+        border-radius: 999px;
+        padding: 6px 10px;
+        background: #eef4ff;
+        color: #2d5fb9;
+        font-size: 12px;
+        font-weight: 850;
+      }
+
+      .quick-rating {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 6px;
+        margin-top: 10px;
+      }
+
+      .star-button {
+        min-height: 42px;
+        border: 1px solid #f5df9c;
+        border-radius: 14px;
+        padding: 0;
+        background: #fff8df;
+        color: #c4830a;
+        font-size: 21px;
+        line-height: 1;
+      }
+
+      .star-button.inactive {
+        border-color: var(--line);
+        background: #ffffff;
+        color: #d6c7b8;
+      }
+
+      .review-textarea {
+        width: 100%;
+        min-height: 132px;
+        margin-top: 12px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 14px;
+        background: #ffffff;
+        color: #333333;
+        font: inherit;
+        font-size: 15px;
+        line-height: 1.7;
+        resize: vertical;
+      }
+
+      .upload-box {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+        border: 1.5px dashed #d8c7b8;
+        border-radius: 18px;
+        padding: 14px;
+        background: #fffaf5;
+      }
+
+      .upload-box input {
+        width: 100%;
+        font-size: 14px;
+      }
+
+      .preview-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .preview-item {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #ffffff;
+      }
+
+      .preview-item img {
+        display: block;
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: cover;
+      }
+
+      .preview-item button {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        background: rgba(34, 34, 34, 0.82);
+        color: #ffffff;
+        font-size: 14px;
+      }
+
+      .preview-name {
+        overflow: hidden;
+        padding: 7px;
+        color: #6d6258;
+        font-size: 11px;
+        line-height: 1.35;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .quick-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
       .platforms {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
@@ -460,7 +587,7 @@
         text-align: center;
       }
     </style>
-    <script src="/nfc/app.js?v=20260710-wild-2" defer></script>
+    <script src="/nfc/app.js?v=20260712-quick-1" defer></script>
   </head>
   <body>
     <main class="page">
@@ -486,6 +613,49 @@
       </section>
 
       <div class="section-title">评价小助手</div>
+      <section class="wide-card quick-card" aria-labelledby="quick-review-title">
+        <div class="quick-head">
+          <div>
+            <b id="quick-review-title">吧台快捷评价</b>
+            <p>系统先放一段评价参考，你可以换一句或直接微调。作品照片只在本机预览，请到平台发布时自行上传。</p>
+          </div>
+          <span class="quick-badge">免打字</span>
+        </div>
+
+        <label>
+          <span class="tiny">发布去向</span>
+          <select id="quickPlatform">
+            <option value="dianping">大众点评</option>
+            <option value="meituan">美团</option>
+            <option value="xiaohongshu">小红书</option>
+            <option value="douyin">抖音</option>
+          </select>
+        </label>
+
+        <div class="tiny">评分请按真实体验调整，当前选择：<strong id="quickRatingValue">5 星</strong></div>
+        <div id="quickRating" class="quick-rating" role="radiogroup" aria-label="评价星级"></div>
+
+        <textarea id="quickReviewText" class="review-textarea" maxlength="260" aria-label="评价内容"></textarea>
+        <div class="quick-actions">
+          <button id="quickChangeButton" class="btn-blue" type="button">换一句</button>
+          <button id="quickCopyButton" type="button">复制评价</button>
+        </div>
+
+        <div class="upload-box">
+          <b>上传作品照片预览</b>
+          <span class="tiny">支持从相册选择多张图片。图片不会上传到本站，只用于你发布前确认。</span>
+          <input id="quickPhotoInput" type="file" accept="image/*" multiple />
+          <div id="quickPhotoMeta" class="tiny">暂未选择图片</div>
+          <div id="quickPreviewGrid" class="preview-grid" aria-live="polite"></div>
+        </div>
+
+        <div class="actions">
+          <button id="quickCopyOpenButton" class="btn-red" type="button">复制评价并去发布</button>
+          <a class="btn btn-blue" href="#platform-links">查看发布入口</a>
+        </div>
+        <p id="quickStatus" class="status" role="status" aria-live="polite"></p>
+      </section>
+
       <section class="wide-card" aria-labelledby="review-title">
         <b id="review-title">时里白造物评价小助手</b>
         <p>
@@ -549,7 +719,7 @@
         <div class="tiny">温馨提示：建议加上你的作品照片一起发布哦～你的评价对我们小店真的很重要 ♡</div>
       </section>
 
-      <div class="section-title">发布 / 评价入口</div>
+      <div id="platform-links" class="section-title">发布 / 评价入口</div>
       <div class="platforms">
         <a
           href="https://m.dianping.com/an/ugcastroreact/addreview_qrcode/page/addreviewrouter?lch=saomaxiepingjia&utm_source=saomaxiepingjia&shopcategoryid=144&id=1029212885625444&shoptype=30&shopuuid=l9wfdv6RIbERlpwV&cityid=1618&offlinecode=12508367426672&incentive=smreviewpuma01-daozong01-dpapp-myshop"
