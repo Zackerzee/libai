@@ -5,6 +5,7 @@
   const CACHE_TTL_MS = 8000;
   const DOUYIN_ID = "98526701829";
   const MAX_QUICK_PHOTOS = 9;
+  const QUICK_REVIEW_HISTORY_KEY = "libms_dynamic_review_card_history_v1";
 
   let isGenerating = false;
   let lastRequestKey = "";
@@ -24,17 +25,49 @@
     "给自己安排了一点手作时间，做了{project}，不算完美，但越看越觉得是我的风格。",
   ];
 
-  const quickReviewPool = [
-    "今天做了一个手作小作品，过程比想象中更能坐得住。成品拿到手还挺有纪念感，已经拍照存档了。",
-    "逛商场的时候顺便坐下来做点手作，节奏不赶，慢慢弄完刚刚好。适合想休息一下又不想只刷手机的时候来。",
-    "第一次认真做这种小手作，刚开始有点没思路，后面慢慢就顺了。最后效果比预想好，发出来纪念一下。",
-    "带孩子来体验了一下，孩子自己选喜欢的图案和颜色，大人在旁边陪着也不无聊。做完的小作品可以带走。",
-    "和朋友一起坐下来做手作，比单纯逛街更有参与感。边做边聊天，最后每个人都有一个自己的小作品。",
-    "店里可以坐下来慢慢做，项目选择也比较多。这次先做了一个小作品，下次有机会想再试试别的。",
-    "本来只是想找个地方休息一下，结果做手作还蛮投入的。完成后看着自己的作品，感觉这趟没白来。",
-    "手作过程挺适合放空，步骤不算复杂，但需要一点耐心。最后成品拍照还蛮有感觉，可以留作纪念。",
-    "今天的快乐来自这次手作体验，过程里有一点小纠结，但做完之后越看越喜欢，发出来记录一下。",
-    "环境比较适合安静坐会儿，做东西的时候时间过得很快。完成的小作品很适合拍照，也算给今天留个纪念。",
+  const quickReviewOpenings = [
+    "今天做了一个手作小作品",
+    "逛商场的时候顺便坐下来做点手作",
+    "第一次认真体验这种小手作",
+    "本来只是想找个地方休息一下",
+    "和朋友一起坐下来做手作",
+    "带孩子来体验了一下",
+    "给自己安排了一点慢下来的时间",
+    "今天没有一直逛街，改成坐下来做点东西",
+    "手作这件事比想象中更容易投入",
+    "进店后选了一个自己喜欢的项目",
+    "今天的快乐来自这次手作体验",
+    "做完以后第一反应就是想拍照留一下",
+  ];
+
+  const quickReviewMiddles = [
+    "刚开始还有点没思路，做着做着就顺了",
+    "过程不赶，慢慢弄完刚刚好",
+    "中间有一点小纠结，但完成后越看越喜欢",
+    "比单纯刷手机更容易让人安静下来",
+    "步骤不算复杂，但需要一点耐心",
+    "边做边聊天，时间过得还挺快",
+    "自己动手做出来的感觉确实不太一样",
+    "孩子自己选喜欢的图案和颜色，大人在旁边陪着也不无聊",
+    "整体节奏比较舒服，不会有被催着完成的感觉",
+    "选材料的时候纠结了一会儿，最后效果比预想好",
+    "做的时候手一直在忙，脑子反而放空了一下",
+    "完成的小作品拿在手里还挺有纪念感",
+  ];
+
+  const quickReviewEndings = [
+    "最后成品拿到手还挺满意，已经拍照存档了。",
+    "适合想休息一下，又不想只是坐着玩手机的时候来。",
+    "发出来记录一下，算是给今天留个小纪念。",
+    "下次有机会还想试试别的项目。",
+    "做完的小作品可以带走，这点还蛮加分。",
+    "整体是一次比较轻松的体验。",
+    "照片拍出来也挺有生活感，适合带作品一起发。",
+    "如果带朋友或者孩子一起，会更有参与感。",
+    "不算很难，但认真做完还是会有点小满足。",
+    "这种慢慢完成一件小东西的感觉还不错。",
+    "最后效果比刚开始想的更好，先发出来纪念一下。",
+    "坐下来做一会儿，比一直逛商场舒服不少。",
   ];
 
   const platformUrls = {
@@ -74,6 +107,8 @@
     quickStatus: $("quickStatus"),
   };
 
+  const quickPlatformButtons = Array.from(document.querySelectorAll("[data-quick-platform]"));
+
   function setStatus(message) {
     elements.copyStatus.textContent = message || "";
   }
@@ -95,17 +130,84 @@
     if (elements.quickStatus) elements.quickStatus.textContent = message || "";
   }
 
+  function normalizeReviewText(text) {
+    return String(text || "").replace(/\s+/g, " ").trim();
+  }
+
+  function loadQuickReviewHistory() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(QUICK_REVIEW_HISTORY_KEY) || "[]");
+      if (!Array.isArray(raw)) return [];
+      return raw.map(normalizeReviewText).filter(Boolean);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function saveQuickReviewHistory(history) {
+    try {
+      localStorage.setItem(QUICK_REVIEW_HISTORY_KEY, JSON.stringify(Array.from(new Set(history)).slice(-2500)));
+    } catch (error) {
+      // localStorage 写满或被禁用时，页面仍可继续生成，只是不再保证本机去重。
+    }
+  }
+
+  function markQuickReviewUsed(text) {
+    const normalized = normalizeReviewText(text);
+    if (!normalized) return;
+    const history = loadQuickReviewHistory();
+    if (!history.includes(normalized)) {
+      history.push(normalized);
+      saveQuickReviewHistory(history);
+    }
+  }
+
+  function buildQuickReviewCandidate(opening, middle, ending) {
+    return `${opening}，${middle}。${ending}`;
+  }
+
+  function getQuickReviewCandidates() {
+    const candidates = [];
+    for (const opening of quickReviewOpenings) {
+      for (const middle of quickReviewMiddles) {
+        for (const ending of quickReviewEndings) {
+          candidates.push(buildQuickReviewCandidate(opening, middle, ending));
+        }
+      }
+    }
+    return candidates;
+  }
+
+  function getUnusedQuickReview(currentText) {
+    const history = new Set(loadQuickReviewHistory());
+    const current = normalizeReviewText(currentText);
+    const available = getQuickReviewCandidates().filter((text) => {
+      const normalized = normalizeReviewText(text);
+      return normalized !== current && !history.has(normalized);
+    });
+
+    if (available.length === 0) return "";
+    return randomItem(available);
+  }
+
   function fillQuickReview() {
     if (!elements.quickReviewText) return;
-    const current = elements.quickReviewText.value.trim();
-    let next = randomItem(quickReviewPool);
-
-    for (let index = 0; index < 8 && next === current; index += 1) {
-      next = randomItem(quickReviewPool);
+    const next = getUnusedQuickReview(elements.quickReviewText.value);
+    if (!next) {
+      setQuickStatus("本机灵动文案已全部用过，请使用下方 AI 评价助手重新生成。");
+      return;
     }
 
     elements.quickReviewText.value = next;
-    setQuickStatus("已换好一条评价参考，可按真实体验微调。");
+    markQuickReviewUsed(next);
+    setQuickStatus("已换好一条未在本机出现过的评价参考，可按真实体验微调。");
+  }
+
+  function setQuickPlatform(platform) {
+    if (elements.quickPlatform) elements.quickPlatform.value = platform;
+    quickPlatformButtons.forEach((button) => {
+      button.classList.toggle("active", button.dataset.quickPlatform === platform);
+    });
   }
 
   function renderQuickRating() {
@@ -203,6 +305,7 @@
 
   async function copyQuickReview(options = {}) {
     const text = elements.quickReviewText?.value || "";
+    markQuickReviewUsed(text);
     await copyText(text, "评价已复制，请按真实体验确认后发布", options);
     setQuickStatus("评价已复制。作品照片请在平台发布页手动上传。");
   }
@@ -339,10 +442,20 @@
 
   renderQuickRating();
   fillQuickReview();
+  setQuickPlatform(elements.quickPlatform?.value || "dianping");
   elements.quickChangeButton?.addEventListener("click", fillQuickReview);
   elements.quickCopyButton?.addEventListener("click", copyQuickReview);
   elements.quickCopyOpenButton?.addEventListener("click", copyQuickReviewAndOpen);
   elements.quickPhotoInput?.addEventListener("change", handleQuickPhotoChange);
+  elements.quickPlatform?.addEventListener("change", () => {
+    setQuickPlatform(elements.quickPlatform.value);
+  });
+  quickPlatformButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      setQuickPlatform(button.dataset.quickPlatform || "dianping");
+      copyQuickReviewAndOpen();
+    });
+  });
 
   elements.aiBtn.addEventListener("click", generateReview);
   elements.copyReviewButton.addEventListener("click", () => {

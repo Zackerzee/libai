@@ -456,6 +456,61 @@
         margin-top: 12px;
       }
 
+      .platform-picker {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .platform-logo-button {
+        display: grid;
+        gap: 8px;
+        justify-items: center;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 12px 6px;
+        background: #ffffff;
+        color: #2d2925;
+        font-size: 12px;
+        font-weight: 850;
+      }
+
+      .platform-logo-button.active {
+        border-color: rgba(233, 91, 91, 0.45);
+        box-shadow: 0 8px 18px rgba(233, 91, 91, 0.12);
+      }
+
+      .platform-logo {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        border-radius: 16px;
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 950;
+        line-height: 1;
+      }
+
+      .platform-logo-dp {
+        background: #ff6633;
+      }
+
+      .platform-logo-mt {
+        background: #ffd100;
+        color: #222222;
+      }
+
+      .platform-logo-xhs {
+        background: #ff2442;
+      }
+
+      .platform-logo-dy {
+        background: #111111;
+      }
+
       .platforms {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
@@ -587,7 +642,7 @@
         text-align: center;
       }
     </style>
-    <script src="/nfc/app.js?v=20260712-quick-1" defer></script>
+    <script src="/nfc/app.js?v=20260712-dynamic-1" defer></script>
   </head>
   <body>
     <main class="page">
@@ -616,14 +671,14 @@
       <section class="wide-card quick-card" aria-labelledby="quick-review-title">
         <div class="quick-head">
           <div>
-            <b id="quick-review-title">吧台快捷评价</b>
-            <p>系统先放一段评价参考，你可以换一句或直接微调。作品照片只在本机预览，请到平台发布时自行上传。</p>
+            <b id="quick-review-title">灵动评价卡</b>
+            <p>系统先放一段评价参考，你可以换一句或直接微调。点平台图标会复制当前评价，并直接打开对应发布入口。</p>
           </div>
-          <span class="quick-badge">免打字</span>
+          <span class="quick-badge">灵动文案</span>
         </div>
 
         <label>
-          <span class="tiny">发布去向</span>
+          <span class="tiny">默认发布去向</span>
           <select id="quickPlatform">
             <option value="dianping">大众点评</option>
             <option value="meituan">美团</option>
@@ -631,6 +686,25 @@
             <option value="douyin">抖音</option>
           </select>
         </label>
+
+        <div class="platform-picker" aria-label="选择平台并发布">
+          <button class="platform-logo-button active" type="button" data-quick-platform="dianping">
+            <span class="platform-logo platform-logo-dp">点评</span>
+            点评
+          </button>
+          <button class="platform-logo-button" type="button" data-quick-platform="meituan">
+            <span class="platform-logo platform-logo-mt">美团</span>
+            美团
+          </button>
+          <button class="platform-logo-button" type="button" data-quick-platform="xiaohongshu">
+            <span class="platform-logo platform-logo-xhs">小红书</span>
+            图文
+          </button>
+          <button class="platform-logo-button" type="button" data-quick-platform="douyin">
+            <span class="platform-logo platform-logo-dy">抖音</span>
+            抖音
+          </button>
+        </div>
 
         <div class="tiny">评分请按真实体验调整，当前选择：<strong id="quickRatingValue">5 星</strong></div>
         <div id="quickRating" class="quick-rating" role="radiogroup" aria-label="评价星级"></div>
@@ -643,7 +717,7 @@
 
         <div class="upload-box">
           <b>上传作品照片预览</b>
-          <span class="tiny">支持从相册选择多张图片。图片不会上传到本站，只用于你发布前确认。</span>
+          <span class="tiny">支持从相册选择多张图片。图片不会上传到本站，只用于你发布前确认；打开平台后请手动选择这些照片。</span>
           <input id="quickPhotoInput" type="file" accept="image/*" multiple />
           <div id="quickPhotoMeta" class="tiny">暂未选择图片</div>
           <div id="quickPreviewGrid" class="preview-grid" aria-live="polite"></div>
