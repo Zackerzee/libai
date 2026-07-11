@@ -210,11 +210,23 @@ img {
   background: linear-gradient(135deg, #fff4c2, #ffe28a);
 }
 
+.nfc-entry {
+  border-color: rgba(230, 0, 35, 0.34);
+  background: linear-gradient(135deg, #fff2f4, #ffe4e8);
+  color: var(--primary);
+}
+
+.hero-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
 .mentor-timer-hero-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-top: 16px;
   min-height: 42px;
   padding: 0 16px;
   border: 1px solid rgba(245, 197, 66, 0.7);
@@ -499,6 +511,12 @@ img {
   color: var(--ink);
   font-size: 14px;
   font-weight: 800;
+}
+
+.nfc-hero-link {
+  border-color: rgba(230, 0, 35, 0.32);
+  background: linear-gradient(135deg, #fff4f6, #ffe5e9);
+  color: var(--primary);
 }
 
 .text-link-button:hover {

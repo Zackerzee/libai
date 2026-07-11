@@ -4,6 +4,7 @@
   const DEEPSEEK_TIMEOUT_MS = 12000;
   const CACHE_TTL_MS = 8000;
   const DOUYIN_ID = "98526701829";
+  const VISITED_PLATFORM_KEY = "libms_nfc_visited_platforms_v1";
 
   let isGenerating = false;
   let lastRequestKey = "";
@@ -38,6 +39,7 @@
     wechatDouyinTip: $("wechatDouyinTip"),
     copyStatus: $("copyStatus"),
   };
+  const visitLinks = Array.from(document.querySelectorAll("[data-visit-key]"));
 
   function setStatus(message) {
     elements.copyStatus.textContent = message || "";
@@ -54,6 +56,40 @@
   function getLocalFallback(project) {
     const safeProject = String(project || "手作").trim() || "手作";
     return randomItem(wildLocalReviewTemplates).replace(/\{project\}/g, safeProject);
+  }
+
+  function loadVisitedPlatforms() {
+    try {
+      const value = JSON.parse(localStorage.getItem(VISITED_PLATFORM_KEY) || "[]");
+      return Array.isArray(value) ? value.filter(Boolean) : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function saveVisitedPlatforms(keys) {
+    try {
+      localStorage.setItem(VISITED_PLATFORM_KEY, JSON.stringify(Array.from(new Set(keys)).slice(-80)));
+    } catch (error) {
+      // localStorage 不可用时不影响跳转，只是不显示“已前往”。
+    }
+  }
+
+  function renderVisitedPlatforms() {
+    const visited = new Set(loadVisitedPlatforms());
+    visitLinks.forEach((link) => {
+      link.classList.toggle("visited", visited.has(link.dataset.visitKey));
+    });
+  }
+
+  function markPlatformVisited(key) {
+    if (!key) return;
+    const visited = loadVisitedPlatforms();
+    if (!visited.includes(key)) {
+      visited.push(key);
+      saveVisitedPlatforms(visited);
+    }
+    renderVisitedPlatforms();
   }
 
   function getRequestKey(payload) {
@@ -184,6 +220,10 @@
   elements.copyDouyinButton.addEventListener("click", () => {
     copyText(DOUYIN_ID, "抖音号已复制，请打开抖音搜索关注");
   });
+  visitLinks.forEach((link) => {
+    link.addEventListener("click", () => markPlatformVisited(link.dataset.visitKey));
+  });
+  renderVisitedPlatforms();
 
   if (/MicroMessenger/i.test(navigator.userAgent) && elements.wechatDouyinTip) {
     elements.wechatDouyinTip.hidden = false;

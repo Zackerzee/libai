@@ -336,6 +336,7 @@
       }
 
       .platforms a {
+        position: relative;
         border: 1px solid var(--line);
         border-radius: 18px;
         padding: 14px 8px;
@@ -354,6 +355,25 @@
         margin-top: 4px;
         color: #888888;
         font-weight: 500;
+      }
+
+      .visit-badge {
+        position: absolute;
+        top: -9px;
+        right: 8px;
+        display: none;
+        border: 1px solid #efdcc8;
+        border-radius: 999px;
+        padding: 4px 8px;
+        background: #fff2e3;
+        color: #9a5c20;
+        font-size: 12px;
+        font-weight: 900;
+        box-shadow: 0 6px 14px rgba(154, 92, 32, 0.12);
+      }
+
+      .platforms a.visited .visit-badge {
+        display: inline-flex;
       }
 
       .douyin-card {
@@ -460,7 +480,7 @@
         text-align: center;
       }
     </style>
-    <script src="/nfc/app.js?v=20260712-helper-1" defer></script>
+    <script src="/nfc/app.js?v=20260712-visit-1" defer></script>
   </head>
   <body>
     <main class="page">
@@ -552,28 +572,51 @@
       <div id="platform-links" class="section-title">发布 / 评价入口</div>
       <div class="platforms">
         <a
+          data-visit-key="dianping-checkin"
+          href="https://m.dianping.com/shopshare/l9wfdv6RIbERlpwV"
+          target="_blank"
+          rel="noopener"
+          >大众点评<small>去打卡 / 收藏</small><span class="visit-badge">已前往</span></a
+        >
+        <a
+          data-visit-key="dianping-review"
           href="https://m.dianping.com/an/ugcastroreact/addreview_qrcode/page/addreviewrouter?lch=saomaxiepingjia&utm_source=saomaxiepingjia&shopcategoryid=144&id=1029212885625444&shoptype=30&shopuuid=l9wfdv6RIbERlpwV&cityid=1618&offlinecode=12508367426672&incentive=smreviewpuma01-daozong01-dpapp-myshop"
           target="_blank"
           rel="noopener"
-          >大众点评<small>写评价</small></a
+          >大众点评<small>去点评</small><span class="visit-badge">已前往</span></a
         >
-        <a href="https://g.meituan.com/qrcode/transfer?scene=promo_shop&q=fzB8PQwj4S1" target="_blank" rel="noopener">美团<small>写评价 / 门店页</small></a>
+        <a data-visit-key="meituan-review" href="https://g.meituan.com/qrcode/transfer?scene=promo_shop&q=fzB8PQwj4S1" target="_blank" rel="noopener"
+          >美团<small>写评价 / 门店页</small><span class="visit-badge">已前往</span></a
+        >
         <a
+          data-visit-key="xiaohongshu-post"
           href="https://xhslink.com/m/2DusZnAnZaP"
           target="_blank"
           rel="noopener"
-          >小红书<small>图文发布 / 定位</small></a
+          >小红书<small>图文发布 / 定位</small><span class="visit-badge">已前往</span></a
         >
-        <a href="https://v.douyin.com/fA8z1S8iVmI/" target="_blank" rel="noopener noreferrer">抖音团购<small>写评价</small></a>
+        <a data-visit-key="douyin-review" href="https://v.douyin.com/fA8z1S8iVmI/" target="_blank" rel="noopener noreferrer"
+          >抖音团购<small>写评价</small><span class="visit-badge">已前往</span></a
+        >
       </div>
 
       <div class="section-title">关注 / 收藏门店</div>
       <div class="platforms">
-        <a href="https://m.dianping.com/shopshare/l9wfdv6RIbERlpwV" target="_blank" rel="noopener">大众点评<small>收藏门店</small></a>
-        <a href="https://g.meituan.com/qrcode/transfer?scene=promo_shop&q=fzB8PQwj4S1" target="_blank" rel="noopener">美团<small>收藏门店</small></a>
-        <a href="https://xhslink.com/m/4ZCk8aiCIf5" target="_blank" rel="noopener">小红书<small>关注主页</small></a>
-        <a href="https://v.douyin.com/IG9t-oxLEXc/" target="_blank" rel="noopener noreferrer">抖音<small>关注主页</small></a>
-        <a href="https://www.libms.net" target="_blank" rel="noopener">生成拼豆图纸<small>libms.net</small></a>
+        <a data-visit-key="dianping-follow" href="https://m.dianping.com/shopshare/l9wfdv6RIbERlpwV" target="_blank" rel="noopener"
+          >大众点评<small>收藏门店</small><span class="visit-badge">已前往</span></a
+        >
+        <a data-visit-key="meituan-follow" href="https://g.meituan.com/qrcode/transfer?scene=promo_shop&q=fzB8PQwj4S1" target="_blank" rel="noopener"
+          >美团<small>收藏门店</small><span class="visit-badge">已前往</span></a
+        >
+        <a data-visit-key="xiaohongshu-follow" href="https://xhslink.com/m/4ZCk8aiCIf5" target="_blank" rel="noopener"
+          >小红书<small>关注主页</small><span class="visit-badge">已前往</span></a
+        >
+        <a data-visit-key="douyin-follow" href="https://v.douyin.com/IG9t-oxLEXc/" target="_blank" rel="noopener noreferrer"
+          >抖音<small>关注主页</small><span class="visit-badge">已前往</span></a
+        >
+        <a data-visit-key="libms-pattern" href="https://www.libms.net" target="_blank" rel="noopener"
+          >生成拼豆图纸<small>libms.net</small><span class="visit-badge">已前往</span></a
+        >
       </div>
 
       <section class="douyin-card" aria-labelledby="douyin-title">
