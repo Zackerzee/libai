@@ -75,7 +75,7 @@
       "https://m.dianping.com/an/ugcastroreact/addreview_qrcode/page/addreviewrouter?lch=saomaxiepingjia&utm_source=saomaxiepingjia&shopcategoryid=144&id=1029212885625444&shoptype=30&shopuuid=l9wfdv6RIbERlpwV&cityid=1618&offlinecode=12508367426672&incentive=smreviewpuma01-daozong01-dpapp-myshop",
     meituan: "https://g.meituan.com/qrcode/transfer?scene=promo_shop&q=fzB8PQwj4S1",
     xiaohongshu: "https://xhslink.com/m/2DusZnAnZaP",
-    douyin: "https://v.douyin.com/IG9t-oxLEXc/",
+    douyin: "https://v.douyin.com/fA8z1S8iVmI/",
   };
 
   const $ = (id) => document.getElementById(id);
