@@ -36,6 +36,9 @@
     copyWifiButton: $("copyWifiButton"),
     connectWifiButton: $("connectWifiButton"),
     copyWechatButton: $("copyWechatButton"),
+    copyMomentsVideoButton: $("copyMomentsVideoButton"),
+    copyMomentsPostButton: $("copyMomentsPostButton"),
+    copyWechatChannelsButton: $("copyWechatChannelsButton"),
     wifiConnectHint: $("wifiConnectHint"),
     wechatDouyinTip: $("wechatDouyinTip"),
     copyStatus: $("copyStatus"),
@@ -57,6 +60,16 @@
   function getLocalFallback(project) {
     const safeProject = String(project || "手作").trim() || "手作";
     return randomItem(wildLocalReviewTemplates).replace(/\{project\}/g, safeProject);
+  }
+
+  function getShareableReviewText() {
+    const text = String(elements.reviewText.innerText || "").trim();
+    if (!text || /点击下方按钮|正在生成/.test(text)) {
+      const fallback = getLocalFallback(elements.project.value || "手作");
+      elements.reviewText.innerText = fallback;
+      return fallback;
+    }
+    return text;
   }
 
   function loadVisitedPlatforms() {
@@ -113,6 +126,10 @@
     }
 
     return false;
+  }
+
+  function openWechatApp() {
+    window.location.href = "weixin://";
   }
 
   function getRequestKey(payload) {
@@ -249,6 +266,24 @@
   elements.copyWechatButton?.addEventListener("click", () => {
     markPlatformVisited("wechat-copy");
     copyText("19949539970", "门店电话 / 微信已复制");
+  });
+  elements.copyMomentsVideoButton?.addEventListener("click", () => {
+    markPlatformVisited("wechat-moments-video");
+    copyText(getShareableReviewText(), "评价参考已复制，请在微信选择视频发布。", { alert: false });
+    setStatus("评价参考已复制，请在微信朋友圈选择视频发布。");
+    openWechatApp();
+  });
+  elements.copyMomentsPostButton?.addEventListener("click", () => {
+    markPlatformVisited("wechat-moments-post");
+    copyText(getShareableReviewText(), "评价参考已复制，请在微信选择照片发布。", { alert: false });
+    setStatus("评价参考已复制，请在微信朋友圈选择照片发布。");
+    openWechatApp();
+  });
+  elements.copyWechatChannelsButton?.addEventListener("click", () => {
+    markPlatformVisited("wechat-channels");
+    copyText(getShareableReviewText(), "评价参考已复制，请在视频号选择作品发布。", { alert: false });
+    setStatus("评价参考已复制，请在微信视频号选择作品发布。");
+    openWechatApp();
   });
   visitLinks.forEach((link) => {
     link.addEventListener("click", () => markPlatformVisited(link.dataset.visitKey));
