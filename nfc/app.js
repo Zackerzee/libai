@@ -85,11 +85,21 @@
   function sanitizeClipboardText(text) {
     return String(text || "")
       .normalize("NFC")
+      .replace(/https?:\/\/[^\s"'<>，。！？、；：）)】\]]+/gi, "")
       .replace(/\u00a0/g, " ")
       .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, "")
       .replace(/[^\S\r\n]+/g, " ")
       .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
       .trim();
+  }
+
+  function isSafeReviewClipboardText(value) {
+    const text = String(value || "").trim();
+    if (!text) return false;
+    if (/https?:\/\//i.test(text)) return false;
+    if (/(^|\s)[a-z][a-z0-9.+-]*:\/\//i.test(text)) return false;
+    if (/复制所有描述|后到|#\*[a-z0-9]{6,}\*#|@[^\s]{1,20}/i.test(text)) return false;
+    return true;
   }
 
   function rememberReviewText(text) {
@@ -263,8 +273,11 @@
   }
 
   function copyByTextareaSelection(value) {
+    if (!isSafeReviewClipboardText(value)) return false;
+
     const textarea = document.createElement("textarea");
     textarea.value = value;
+    if (textarea.value !== value) return false;
     textarea.setAttribute("aria-hidden", "true");
     textarea.style.position = "fixed";
     textarea.style.top = "0";
@@ -291,6 +304,8 @@
   }
 
   function copyByContentEditable(value) {
+    if (!isSafeReviewClipboardText(value)) return false;
+
     const container = document.createElement("div");
     container.textContent = value;
     container.contentEditable = "true";
@@ -322,6 +337,7 @@
   }
 
   async function copyByClipboardApi(value) {
+    if (!isSafeReviewClipboardText(value)) return false;
     if (!navigator.clipboard || !window.isSecureContext) return false;
     try {
       await navigator.clipboard.writeText(value);
@@ -367,9 +383,9 @@
   async function copyText(text, successMessage, options = {}) {
     const value = sanitizeClipboardText(text);
     const shouldAlert = options.alert === true;
-    if (!value) {
-      setStatus("暂无可复制内容");
-      if (shouldAlert) alert("暂无可复制内容");
+    if (!isSafeReviewClipboardText(value)) {
+      setStatus("复制内容为空或包含平台短链接，请重新生成评价后再复制。");
+      if (shouldAlert) alert("复制内容为空或包含平台短链接，请重新生成评价后再复制。");
       return false;
     }
 
