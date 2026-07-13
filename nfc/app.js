@@ -4,6 +4,7 @@
   const DEEPSEEK_TIMEOUT_MS = 12000;
   const CACHE_TTL_MS = 8000;
   const MIN_LOCAL_REVIEW_LENGTH = 75;
+  const MAX_LOCAL_REVIEW_LENGTH = 300;
   const VISITED_PLATFORM_KEY = "libms_nfc_visited_platforms_v1";
   const LAST_REVIEW_TEXT_KEY = "libms_nfc_last_review_text_v2";
   const RETURN_COPY_PENDING_KEY = "libms_nfc_return_copy_pending_v1";
@@ -15,53 +16,39 @@
   let lastRequestTime = 0;
 
   const wildLocalReviewTemplates = [
-    "今日份手作存档，做了{project}，比我想的更费手，弄完只想先拍照炫一下。",
-    "外面热到不想动，坐下来做了个{project}，慢慢弄完，手机都少刷了好一会儿。",
-    "手残党挑战{project}，中间一度怀疑自己，最后看着还行，丑萌丑萌的我也喜欢。",
-    "本来只是随便试试{project}，结果做着做着安静下来了，时间过得比刷手机快。",
-    "做{project}的时候有点上头，前面还在纠结怎么弄，后面就只想赶紧看看最后效果。",
-    "今天不想走路逛太久，就坐下来弄了个{project}，过程比想象中更消磨时间。",
-    "{project}完成，手是真的忙，脑子反而放空了一会儿，这种慢吞吞的感觉还不错。",
-    "给自己安排了一点手作时间，做了{project}，不算完美，但越看越觉得是我的风格。",
-    "第一次认真做{project}，刚开始有点没思路，后面慢慢就顺了。",
-    "选{project}的时候只是想随便试试，结果做起来比想象中更能坐得住。",
-    "{project}做完之后有点舍不得放下，虽然不是特别完美，但很像自己做出来的东西。",
-    "今天这份{project}算是意外收获，过程里有点小手忙脚乱，最后效果还挺满意。",
-    "本来以为{project}会很简单，真正动手才发现还是要一点耐心。",
-    "和朋友一起做了{project}，边做边聊天，时间过得比想象中快。",
+    "做{project}的时候有点上头，前面还在纠结怎么弄，后面就只想赶紧看看最后效果。手残党本残了属于是，中间一度怀疑自己要翻车，还好最后看着还行，丑萌丑萌的越看越顺眼。",
+    "今天不想走路逛街太久，就跟朋友找了这家店坐下来弄{project}。讲真过程比想象中更消磨时间，坐下之后手机都少刷了好一会儿，整个人难得安静下来弄个小玩意。",
+    "周末过得有点无聊，跑来挑战一下{project}。刚开始做得手忙脚乱的，脑子反而放空了一会儿。这种慢吞吞、完全不用赶时间的感觉还挺解压的，比窝在家里睡觉有意思多了。",
+    "本来只是想随便体验一下{project}，结果坐下来之后还挺投入的哈。前面有点不知道从哪里下手，后面越做越想看看成品长啥样，最后拿到手的时候还挺开心。",
+    "{project}比我想象中更需要耐心一点，刚开始还觉得自己肯定搞不定，做着做着反而安静下来了。虽然中间有点小翻车，但最后成品出来还蛮像那么回事的啦。",
+    "和朋友一起做{project}真的比单纯逛街有意思，边聊天边慢慢弄，时间一下就过去了。做完以后还有个小东西可以带走，感觉今天没有白出门啊。",
   ];
 
   const envTemplates = [
-    "环境很舒服，不知不觉就坐了两个小时",
-    "整个过程节奏很慢，不用赶时间",
-    "店里氛围挺放松的，适合找个地方安静待一会儿",
-    "空调很足，坐下来做手作比一直逛街舒服",
-    "桌面和工具都准备得比较清楚，新手也不会太慌",
-    "店里不会很吵，慢慢做的时候还挺容易放空",
-    "位置比较好找，逛到累了坐下来做点东西刚好",
-    "整体体验不赶，想慢慢调整细节也可以",
+    "店里环境挺舒服的，背景音乐也刚好，坐着不知不觉两个多小时就过去了，很适合周末跟闺蜜来泡一下午",
+    "整体氛围蛮松弛的，店员小姐姐人也很nice，中间卡壳了还会过来指导，完全不会有催促感，体验很加分",
+    "店里各种手工小样琳琅满目的，看着就很治愈。而且位置蛮好找的，很适合坐下来安安静静做点喜欢的事",
+    "空调很足，桌面也收拾得挺干净，坐下来以后就不太想继续逛了，慢慢做东西的感觉还挺舒服",
+    "工具和材料摆得比较清楚，新手也不会太慌，反正不懂就问一下，整体体验下来还蛮顺的",
+    "店里不会很吵，适合想放空的时候过来坐坐，做着做着整个人就慢下来了，挺难得的啊",
   ];
 
   const photoTemplates = [
-    "做完赶紧拍了几张作品照片炫一下",
-    "成品带回家摆在桌上当个小摆件还挺好",
-    "拿在手里越看越喜欢，赶紧拍照留念",
-    "最后成品比刚开始想象的更上镜",
-    "拍照的时候才发现自己做的细节还挺多",
-    "带回去之后放在包里或者桌边都挺合适",
-    "成品拿到手那一刻还是忍不住多拍了几张",
-    "照片看着也挺有生活感，发出来留个纪念",
+    "做完赶紧拉着朋友拍了几张作品照片发朋友圈炫耀一下，感觉有被自己心灵手巧到哈",
+    "拿回家摆在床头柜上当个小摆件还挺可爱的，自己亲手做出来的东西就是自带一层滤镜，怎么看怎么喜欢",
+    "成品带走的时候店家还给包装了一下，拿在手里沉甸甸的很有成就感，赶紧用原相机记录一下今天的手作初体验",
+    "拍照的时候才发现细节还挺多的，虽然不是那种完美作品，但就是有一点自己的小风格在里面",
+    "成品拿在手里越看越顺眼，刚做完就忍不住找角度拍了几张，发给朋友看还被夸了一下哈哈",
+    "带回去之后放在桌上也不突兀，偶尔看到会想起今天坐在店里慢慢做东西的那段时间",
   ];
 
   const moodTemplates = [
-    "发出来也算给这次手作体验留个记录",
-    "算是给今天的生活加点小小的仪式感",
-    "虽然手有点酸，但看着成品超有成就感",
-    "做完之后心情还不错，有种认真完成一件小事的感觉",
-    "中间有点想摆烂，做完反而觉得挺值得",
-    "慢慢做完之后，人也跟着安静下来了一点",
-    "不是很完美，但自己动手做出来就会觉得特别一点",
-    "这次体验比单纯买一个成品更有记忆点",
+    "发出来也算给这次手作留个认真的记录吧，下次有空打算再过来挑战个稍微复杂点的款式",
+    "算是给今天的生活加点小小的仪式感，以后想放空或者找地方发呆的时候，这地方肯定在我的首选清单里了",
+    "这次体验直接入坑了，感觉以后每个周末都要多一个手工DIY的项目了，总体来说强推强推",
+    "虽然中间一度想摆烂，但做完以后真的会有一点小骄傲，属于越看越觉得还不错的那种",
+    "整个过程没什么压力，做完以后心情也变好了点，感觉偶尔认真完成一个小东西还挺治愈的啦",
+    "这次算是给自己找了个不用一直刷手机的理由，慢慢做完以后还挺有满足感的啊",
   ];
 
   const $ = (id) => document.getElementById(id);
@@ -100,21 +87,66 @@
     return Array.from(String(text || "").trim()).length;
   }
 
+  function randomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function shuffle(items) {
+    const result = [...items];
+    for (let index = result.length - 1; index > 0; index -= 1) {
+      const target = Math.floor(Math.random() * (index + 1));
+      [result[index], result[target]] = [result[target], result[index]];
+    }
+    return result;
+  }
+
+  function sampleUnique(items, count) {
+    return shuffle(items).slice(0, Math.min(count, items.length));
+  }
+
+  function trimToMaxLength(text) {
+    const chars = Array.from(String(text || "").trim());
+    if (chars.length <= MAX_LOCAL_REVIEW_LENGTH) return chars.join("");
+    return chars.slice(0, MAX_LOCAL_REVIEW_LENGTH).join("").replace(/[，、；：,.!?！？\s]+$/g, "");
+  }
+
+  function normalizeReviewSentence(text) {
+    const value = String(text || "").trim().replace(/[。！？!?\s]+$/g, "");
+    return value ? `${value}。` : "";
+  }
+
   function ensureLocalReviewLength(text) {
     const value = String(text || "").trim();
-    if (textLength(value) >= MIN_LOCAL_REVIEW_LENGTH) return value;
+    const currentLength = textLength(value);
+    if (currentLength >= MIN_LOCAL_REVIEW_LENGTH && currentLength <= MAX_LOCAL_REVIEW_LENGTH) return value;
+    if (currentLength > MAX_LOCAL_REVIEW_LENGTH) return trimToMaxLength(value);
 
-    const suffix = [randomItem(envTemplates), randomItem(photoTemplates), randomItem(moodTemplates)]
-      .filter(Boolean)
-      .join("，");
-    let result = `${value} ${suffix}。`;
-    const extraTemplates = [...envTemplates, ...photoTemplates, ...moodTemplates];
+    const fragments = shuffle([
+      ...sampleUnique(envTemplates, randomInt(1, 2)),
+      ...sampleUnique(photoTemplates, randomInt(1, 2)),
+      ...sampleUnique(moodTemplates, randomInt(1, 2)),
+    ]);
 
-    for (let attempts = 0; textLength(result) < MIN_LOCAL_REVIEW_LENGTH && attempts < 3; attempts += 1) {
-      result = `${result}${randomItem(extraTemplates)}。`;
+    let result = normalizeReviewSentence(value);
+    for (const fragment of fragments) {
+      const next = `${result}${normalizeReviewSentence(fragment)}`;
+      if (textLength(next) <= MAX_LOCAL_REVIEW_LENGTH) {
+        result = next;
+      }
+      if (textLength(result) >= MIN_LOCAL_REVIEW_LENGTH) break;
     }
 
-    return result;
+    if (textLength(result) < MIN_LOCAL_REVIEW_LENGTH) {
+      for (const fragment of shuffle([...envTemplates, ...photoTemplates, ...moodTemplates])) {
+        const next = `${result}${normalizeReviewSentence(fragment)}`;
+        if (textLength(next) <= MAX_LOCAL_REVIEW_LENGTH) {
+          result = next;
+        }
+        if (textLength(result) >= MIN_LOCAL_REVIEW_LENGTH) break;
+      }
+    }
+
+    return trimToMaxLength(result);
   }
 
   function getLocalFallback(project) {
