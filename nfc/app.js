@@ -363,8 +363,9 @@
 
   async function copyText(text, successMessage, options = {}) {
     const value = sanitizeClipboardText(text);
-    const shouldAlert = options.alert !== false;
+    const shouldAlert = options.alert === true;
     if (!value) {
+      setStatus("暂无可复制内容");
       if (shouldAlert) alert("暂无可复制内容");
       return false;
     }
@@ -415,9 +416,7 @@
     const review = getShareableReviewText();
     rememberReviewText(review);
 
-    const copied = await copyText(review, "已复制评价，正在打开平台。若平台粘贴出错，请返回本页点“复制评价”重新复制。", {
-      alert: false,
-    });
+    const copied = await copyText(review, "评价已复制，正在打开平台。进入评价框后直接粘贴；如出现平台口令，返回本页重新复制。");
 
     if (!copied) return;
 
@@ -430,12 +429,12 @@
   elements.copyReviewButton.addEventListener("click", () => {
     const review = getShareableReviewText();
     rememberReviewText(review);
-    copyText(review, "已复制，可以去点评/小红书粘贴啦");
+    copyText(review, "评价已重新复制。现在回到平台评价框粘贴，不要再点平台跳转入口。");
   });
   elements.stickyCopyReviewButton.addEventListener("click", () => {
     const review = getShareableReviewText();
     rememberReviewText(review);
-    copyText(review, "已复制，可以去点评/小红书粘贴啦");
+    copyText(review, "评价已重新复制。现在回到平台评价框粘贴，不要再点平台跳转入口。");
   });
   elements.copyPhoneButton.addEventListener("click", () => {
     copyText("19949539970", "电话已复制");
