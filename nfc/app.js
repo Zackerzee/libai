@@ -14,6 +14,7 @@
   let lastRequestKey = "";
   let lastReviewData = null;
   let lastRequestTime = 0;
+  let lastPlatformOpenAt = 0;
 
   const wildLocalReviewTemplates = [
     "做{project}的时候有点上头，前面还在纠结怎么弄，后面就只想赶紧看看最后效果。手残党本残了属于是，中间一度怀疑自己要翻车，还好最后看着还行，丑萌丑萌的越看越顺眼。",
@@ -429,6 +430,25 @@
     }
   }
 
+  async function verifyClipboardWrite(value) {
+    if (!navigator.clipboard?.readText || !window.isSecureContext) return true;
+    let timeout = 0;
+    try {
+      const current = await Promise.race([
+        navigator.clipboard.readText(),
+        new Promise((_, reject) => {
+          timeout = window.setTimeout(() => reject(new Error("clipboard_read_timeout")), 600);
+        }),
+      ]);
+      const cleanCurrent = sanitizeClipboardText(current);
+      return cleanCurrent === value;
+    } catch (error) {
+      return true;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
   function showManualCopyPanel(value) {
     const existing = $("manualCopyPanel");
     if (existing) existing.remove();
@@ -471,9 +491,9 @@
       return false;
     }
 
-    const copied = copyByTextareaSelection(value) || copyByContentEditable(value) || (await copyByClipboardApi(value));
+    const copied = (await copyByClipboardApi(value)) || copyByTextareaSelection(value) || copyByContentEditable(value);
 
-    if (copied) {
+    if (copied && (await verifyClipboardWrite(value))) {
       setStatus(successMessage || "已复制");
       if (shouldAlert) alert(successMessage || "已复制");
       return true;
@@ -526,8 +546,15 @@
     const review = getShareableReviewText();
     rememberReviewText(review);
     setReturnCopyPending(true);
+    lastPlatformOpenAt = Date.now();
+    setStatus("已打开平台入口。不要在跳转前复制，平台会覆盖剪贴板；返回本页后点“复制评价正文”再粘贴。");
+  }
+
+  function showReturnCopyPanelAfterPlatformReturn() {
+    if (!hasReturnCopyPending() || !getRememberedReviewText()) return;
+    if (Date.now() - lastPlatformOpenAt < 1200) return;
     showReturnCopyPanel();
-    setStatus("已打开平台入口。平台可能覆盖剪贴板，返回本页后点“复制评价正文”再粘贴。");
+    setStatus("平台可能已把剪贴板改成短链接。请点“复制评价正文”后再切回平台粘贴。");
   }
 
   elements.aiBtn.addEventListener("click", generateReview);
@@ -563,9 +590,14 @@
   renderVisitedPlatforms();
 
   window.addEventListener("pageshow", () => {
-    if (hasReturnCopyPending() && getRememberedReviewText()) {
-      showReturnCopyPanel();
-      setStatus("平台可能已把剪贴板改成短链接。请点“复制评价正文”后再切回平台粘贴。");
+    showReturnCopyPanelAfterPlatformReturn();
+  });
+  window.addEventListener("focus", () => {
+    showReturnCopyPanelAfterPlatformReturn();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      showReturnCopyPanelAfterPlatformReturn();
     }
   });
 

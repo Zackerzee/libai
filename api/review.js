@@ -3,7 +3,14 @@ const DEFAULT_DEEPSEEK_MODEL = "deepseek-chat";
 const DEFAULT_QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
 const DEFAULT_QWEN_MODEL = "qwen-plus";
 const DEFAULT_QIANFAN_BASE_URL = "https://qianfan.baidubce.com/v2/chat/completions";
-const DEFAULT_QIANFAN_MODEL = "ERNIE-Speed-8K";
+const DEFAULT_QIANFAN_MODEL = "ernie-speed-8k";
+const DEFAULT_QIANFAN_MODEL_CANDIDATES = [
+  DEFAULT_QIANFAN_MODEL,
+  "ernie-speed-pro-128k",
+  "ernie-lite-8k",
+  "ernie-3.5-8k",
+  "ERNIE-Speed-8K",
+];
 const DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 const DEFAULT_GEMINI_MODEL = "gemini-1.5-flash";
 const MIN_REVIEW_LENGTH = 75;
@@ -189,6 +196,13 @@ function getProviderTimeout(providerName) {
   return Math.max(3000, Math.min(specific || fallback || 15000, 30000));
 }
 
+function parseCsvList(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 async function fetchTextWithTimeout(url, options, timeoutMs) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -260,7 +274,7 @@ function getInvalidReason(review, projectName, { checkSimilarity = true } = {}) 
   if (length < MIN_REVIEW_LENGTH || length > MAX_REVIEW_LENGTH) return "length";
   if (hasInvalidWords(text, projectName)) return "bad_words";
   if (looksTooFormal(text)) return "formal";
-  if (countWildDetailGroups(text) > 1) return "too_many_detail_groups";
+  if (countWildDetailGroups(text) > 2) return "too_many_detail_groups";
   if (checkSimilarity && isTooSimilarToRecent(text)) return "similar";
   return "";
 }
@@ -397,23 +411,36 @@ async function fetchFromTongyiQianwen({ context }) {
     url,
     model,
     context,
-    temperature: 0.85,
+    temperature: 0.65,
   });
 }
 
 async function fetchFromWenxinQianfan({ context }) {
   const apiKey = getEnvKey("QIANFAN_API_KEY", "WENXIN_QIANFAN_API_KEY", "BAIDU_QIANFAN_API_KEY");
   const url = normalizeChatCompletionsUrl(process.env.QIANFAN_BASE_URL, DEFAULT_QIANFAN_BASE_URL);
-  const model = cleanText(process.env.QIANFAN_MODEL, DEFAULT_QIANFAN_MODEL, 80);
+  const models = [
+    ...parseCsvList(process.env.QIANFAN_MODEL),
+    ...DEFAULT_QIANFAN_MODEL_CANDIDATES,
+  ].filter((model, index, list) => model && list.indexOf(model) === index);
 
-  return requestOpenAICompatibleReview({
-    providerName: "QIANFAN",
-    apiKey,
-    url,
-    model,
-    context,
-    temperature: 0.85,
-  });
+  let lastError;
+  for (const model of models) {
+    try {
+      return await requestOpenAICompatibleReview({
+        providerName: "QIANFAN",
+        apiKey,
+        url,
+        model,
+        context,
+        temperature: 0.85,
+      });
+    } catch (error) {
+      lastError = error;
+      console.error(`QIANFAN model failed: ${model}`, error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  throw lastError || new Error("QIANFAN request failed");
 }
 
 async function fetchFromGemini({ context }) {

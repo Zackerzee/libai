@@ -48,7 +48,7 @@ QWEN_MODEL=qwen-plus
 
 QIANFAN_API_KEY=你的百度千帆 Key
 QIANFAN_BASE_URL=https://qianfan.baidubce.com/v2/chat/completions
-QIANFAN_MODEL=ERNIE-Speed-8K
+QIANFAN_MODEL=ernie-speed-8k
 
 GEMINI_API_KEY=你的 Gemini Key
 GEMINI_MODEL=gemini-1.5-flash
