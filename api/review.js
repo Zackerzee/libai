@@ -486,7 +486,7 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error("Review API all providers failed", error);
-    return json(res, 502, {
+    return json(res, 424, {
       success: false,
       error: "AI_PROVIDERS_FAILED",
       photoTips: DEFAULT_PHOTO_TIPS,
