@@ -1,5 +1,9 @@
 const DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
 const DEFAULT_DEEPSEEK_MODEL = "deepseek-chat";
+const DEFAULT_DOMESTIC_AI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+const DEFAULT_DOMESTIC_AI_MODEL = "qwen-plus";
+const DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+const DEFAULT_GEMINI_MODEL = "gemini-1.5-flash";
 const MIN_REVIEW_LENGTH = 75;
 const MAX_REVIEW_LENGTH = 250;
 const DEFAULT_PHOTO_TIPS = [
@@ -113,19 +117,6 @@ const PIN_DOU_BAD_WORDS = [
   "自己把作品熨好",
 ];
 
-const WILD_FALLBACKS = [
-  "今日份手作存档，做了{project}，比我想的更费手，弄完只想先拍照炫一下。",
-  "外面热到不想动，坐下来做了个{project}，慢慢弄完，手机都少刷了好一会儿。",
-  "手残党挑战{project}，中间一度怀疑自己，最后看着还行，丑萌丑萌的我也喜欢。",
-  "本来只是随便试试{project}，结果做着做着安静下来了，时间过得比刷手机快。",
-  "做{project}的时候有点上头，前面还在纠结怎么弄，后面就只想赶紧看看最后效果。",
-  "今天不想走路逛太久，就坐下来弄了个{project}，过程比想象中更消磨时间。",
-  "{project}完成，手是真的忙，脑子反而放空了一会儿，这种慢吞吞的感觉还不错。",
-  "给自己安排了一点手作时间，做了{project}，不算完美，但越看越觉得是我的风格。",
-  "做了一下午{project}，中途差点想摆烂，最后拿起来看看又觉得还蛮可爱。",
-  "今日份快乐来自{project}，手忙脚乱了一阵，最后居然也能看，先发出来纪念一下。",
-];
-
 let recentReviews = [];
 
 function json(res, statusCode, payload) {
@@ -137,6 +128,13 @@ function normalizeBaseUrl(value) {
   const baseUrl = String(value || DEFAULT_DEEPSEEK_BASE_URL).replace(/\/+$/, "");
   if (baseUrl === "https://api.deepseek.com") return `${baseUrl}/v1`;
   return baseUrl;
+}
+
+function normalizeChatCompletionsUrl(value, fallback) {
+  const baseUrl = String(value || fallback).replace(/\/+$/, "");
+  if (/\/chat\/completions$/i.test(baseUrl)) return baseUrl;
+  if (/\/v1$/i.test(baseUrl)) return `${baseUrl}/chat/completions`;
+  return `${baseUrl}/chat/completions`;
 }
 
 function cleanText(value, fallback, maxLength) {
@@ -153,10 +151,6 @@ function normalizeProject(value) {
 
 function isOfficialProject(projectName) {
   return OFFICIAL_PROJECT_WHITELIST.includes(projectName);
-}
-
-function randomItem(items) {
-  return items[Math.floor(Math.random() * items.length)];
 }
 
 function hasAnyWord(text, words) {
@@ -177,6 +171,39 @@ function stripModelNoise(value) {
     .replace(/^(评价|点评|文案|输出|review)\s*[:：]\s*/i, "")
     .replace(/\s*\n+\s*/g, " ")
     .trim();
+}
+
+function getEnvKey(...names) {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value && !value.includes("your-") && !value.includes("你的")) return value;
+  }
+  return "";
+}
+
+function getProviderTimeout(providerName) {
+  const specific = Number(process.env[`${providerName}_TIMEOUT_MS`]);
+  const fallback = Number(process.env.REVIEW_AI_TIMEOUT_MS || process.env.DEEPSEEK_TIMEOUT_MS);
+  return Math.max(3000, Math.min(specific || fallback || 15000, 30000));
+}
+
+async function fetchTextWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return {
+      ok: response.ok,
+      status: response.status,
+      text: await response.text(),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function hasInvalidWords(text, projectName) {
@@ -245,26 +272,6 @@ function recordRecentReview(review) {
   }
 }
 
-function ensureMinimumReviewLength(review) {
-  const text = stripModelNoise(review);
-  if (textLength(text) >= MIN_REVIEW_LENGTH) return text;
-  return `${text} 拿回去看了看也还行，适合想坐下来做点手作的时候。整个过程不用赶，慢慢弄完再拍张作品照片，发出来也算给这次体验留个记录。`;
-}
-
-function makeWildFallback(projectName) {
-  for (let index = 0; index < 30; index += 1) {
-    const candidate = ensureMinimumReviewLength(randomItem(WILD_FALLBACKS).replaceAll("{project}", projectName));
-    if (!getInvalidReason(candidate, projectName, { checkSimilarity: true })) return candidate;
-  }
-
-  for (let index = 0; index < 30; index += 1) {
-    const candidate = ensureMinimumReviewLength(randomItem(WILD_FALLBACKS).replaceAll("{project}", projectName));
-    if (!getInvalidReason(candidate, projectName, { checkSimilarity: false })) return candidate;
-  }
-
-  return ensureMinimumReviewLength(`今日份手作存档，做了${projectName}，过程有点忙乱，最后看着还行，先发出来纪念一下。`);
-}
-
 function buildSystemPrompt() {
   return `
 You are a random customer who just completed a DIY handcraft project. Write one short, highly casual Chinese review based only on the provided project name.
@@ -300,33 +307,148 @@ async function getBody(req) {
   return {};
 }
 
-async function requestDeepSeekWildReview({ apiKey, baseUrl, model, signal, projectName }) {
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: buildSystemPrompt() },
-        { role: "user", content: buildUserPrompt(projectName) },
-      ],
-      temperature: 1.1,
-      max_tokens: 420,
-    }),
-    signal,
-  });
+function parseOpenAICompatibleReview(raw, providerName) {
+  const completion = JSON.parse(raw);
+  const review = stripModelNoise(completion?.choices?.[0]?.message?.content || "");
+  if (!review) throw new Error(`${providerName} returned empty review`);
+  return review;
+}
 
-  const raw = await response.text();
-  if (!response.ok) {
-    console.error("DeepSeek request failed", response.status, raw.slice(0, 500));
-    throw new Error("DeepSeek request failed");
+async function requestOpenAICompatibleReview({ providerName, apiKey, url, model, projectName, temperature = 1.1 }) {
+  if (!apiKey) throw new Error(`${providerName} API key missing`);
+
+  const result = await fetchTextWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: buildSystemPrompt() },
+          { role: "user", content: buildUserPrompt(projectName) },
+        ],
+        temperature,
+        max_tokens: 420,
+      }),
+    },
+    getProviderTimeout(providerName),
+  );
+
+  if (!result.ok) {
+    console.error(`${providerName} request failed`, result.status, result.text.slice(0, 500));
+    throw new Error(`${providerName} request failed`);
   }
 
-  const completion = JSON.parse(raw);
-  return stripModelNoise(completion?.choices?.[0]?.message?.content || "");
+  return parseOpenAICompatibleReview(result.text, providerName);
+}
+
+async function fetchFromDeepSeek({ projectName }) {
+  const apiKey = getEnvKey("DEEPSEEK_API_KEY");
+  const baseUrl = normalizeBaseUrl(process.env.DEEPSEEK_BASE_URL || process.env.DEEPSEEK_API_BASE_URL);
+  const model = cleanText(process.env.DEEPSEEK_MODEL, DEFAULT_DEEPSEEK_MODEL, 80);
+
+  return requestOpenAICompatibleReview({
+    providerName: "DEEPSEEK",
+    apiKey,
+    url: `${baseUrl}/chat/completions`,
+    model,
+    projectName,
+    temperature: 1.1,
+  });
+}
+
+async function fetchFromDomesticAI({ projectName }) {
+  const apiKey = getEnvKey("DOMESTIC_AI_API_KEY", "ALIYUN_BAILIAN_API_KEY", "QIANFAN_API_KEY");
+  const url = normalizeChatCompletionsUrl(process.env.DOMESTIC_AI_BASE_URL, DEFAULT_DOMESTIC_AI_BASE_URL);
+  const model = cleanText(process.env.DOMESTIC_AI_MODEL, DEFAULT_DOMESTIC_AI_MODEL, 80);
+
+  return requestOpenAICompatibleReview({
+    providerName: "DOMESTIC_AI",
+    apiKey,
+    url,
+    model,
+    projectName,
+    temperature: 0.85,
+  });
+}
+
+async function fetchFromGemini({ projectName }) {
+  const apiKey = getEnvKey("GEMINI_API_KEY", "GOOGLE_GEMINI_API_KEY");
+  if (!apiKey) throw new Error("GEMINI API key missing");
+
+  const baseUrl = String(process.env.GEMINI_BASE_URL || DEFAULT_GEMINI_BASE_URL).replace(/\/+$/, "");
+  const model = cleanText(process.env.GEMINI_MODEL, DEFAULT_GEMINI_MODEL, 80);
+  const url = `${baseUrl}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const result = await fetchTextWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: buildSystemPrompt() }],
+        },
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: buildUserPrompt(projectName) }],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.9,
+          maxOutputTokens: 420,
+        },
+      }),
+    },
+    getProviderTimeout("GEMINI"),
+  );
+
+  if (!result.ok) {
+    console.error("GEMINI request failed", result.status, result.text.slice(0, 500));
+    throw new Error("GEMINI request failed");
+  }
+
+  const completion = JSON.parse(result.text);
+  const review = stripModelNoise(
+    completion?.candidates?.[0]?.content?.parts?.map((part) => part?.text || "").join("") || "",
+  );
+  if (!review) throw new Error("GEMINI returned empty review");
+  return review;
+}
+
+async function generateReviewWithProviderChain(projectName) {
+  const providers = [
+    { name: "deepseek", fetcher: fetchFromDeepSeek },
+    { name: "domestic_ai", fetcher: fetchFromDomesticAI },
+    { name: "gemini", fetcher: fetchFromGemini },
+  ];
+  const errors = [];
+
+  for (const provider of providers) {
+    try {
+      const review = await provider.fetcher({ projectName });
+      const invalidReason = getInvalidReason(review, projectName);
+      if (invalidReason) {
+        throw new Error(`invalid_${invalidReason}`);
+      }
+      return {
+        review,
+        source: provider.name,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`${provider.name}:${message}`);
+      console.warn(`Review provider failed, switching provider: ${provider.name}`, message);
+    }
+  }
+
+  throw new Error(`All review providers failed: ${errors.join(" | ")}`);
 }
 
 export default async function handler(req, res) {
@@ -350,80 +472,28 @@ export default async function handler(req, res) {
     });
   }
 
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  const baseUrl = normalizeBaseUrl(process.env.DEEPSEEK_BASE_URL || process.env.DEEPSEEK_API_BASE_URL);
-  const model = cleanText(process.env.DEEPSEEK_MODEL, DEFAULT_DEEPSEEK_MODEL, 80);
-
-  if (!apiKey || apiKey.includes("your-deepseek-api-key")) {
-    const review = makeWildFallback(projectName);
-    recordRecentReview(review);
-    return json(res, 200, {
-      review,
-      photoTips: DEFAULT_PHOTO_TIPS,
-      debug: {
-        project: projectName,
-        source: "fallback_missing_key",
-      },
-    });
-  }
-
-  const timeoutMs = Math.max(3000, Math.min(Number(process.env.DEEPSEEK_TIMEOUT_MS) || 15000, 30000));
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
-    let review = await requestDeepSeekWildReview({
-      apiKey,
-      baseUrl,
-      model,
-      signal: controller.signal,
-      projectName,
-    });
-
-    let invalidReason = getInvalidReason(review, projectName);
-    if (invalidReason === "similar") {
-      const retryReview = await requestDeepSeekWildReview({
-        apiKey,
-        baseUrl,
-        model,
-        signal: controller.signal,
-        projectName,
-      });
-      const retryInvalidReason = getInvalidReason(retryReview, projectName);
-      if (!retryInvalidReason) {
-        review = retryReview;
-        invalidReason = "";
-      } else {
-        invalidReason = retryInvalidReason;
-      }
-    }
-
-    if (invalidReason) {
-      review = makeWildFallback(projectName);
-    }
-
+    const { review, source } = await generateReviewWithProviderChain(projectName);
     recordRecentReview(review);
     return json(res, 200, {
+      success: true,
       review,
       photoTips: DEFAULT_PHOTO_TIPS,
       debug: {
         project: projectName,
-        source: invalidReason ? `fallback_${invalidReason}` : "deepseek",
+        source,
       },
     });
   } catch (error) {
-    console.error("Review API error", error);
-    const review = makeWildFallback(projectName);
-    recordRecentReview(review);
-    return json(res, 200, {
-      review,
+    console.error("Review API all providers failed", error);
+    return json(res, 502, {
+      success: false,
+      error: "AI_PROVIDERS_FAILED",
       photoTips: DEFAULT_PHOTO_TIPS,
       debug: {
         project: projectName,
-        source: "fallback_error",
+        source: "provider_chain_failed",
       },
     });
-  } finally {
-    clearTimeout(timeout);
   }
 }
