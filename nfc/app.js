@@ -32,7 +32,6 @@
     reviewText: $("reviewText"),
     aiBtn: $("aiBtn"),
     copyReviewButton: $("copyReviewButton"),
-    stickyCopyReviewButton: $("stickyCopyReviewButton"),
     copyPhoneButton: $("copyPhoneButton"),
     copyWifiButton: $("copyWifiButton"),
     connectWifiButton: $("connectWifiButton"),
@@ -349,10 +348,6 @@
 
   elements.aiBtn.addEventListener("click", generateReview);
   elements.copyReviewButton.addEventListener("click", () => {
-    const review = getShareableReviewText();
-    copyText(review, "评价已复制。请在目标平台评价输入框长按粘贴；如果出现平台口令，请回本页重新复制。");
-  });
-  elements.stickyCopyReviewButton.addEventListener("click", () => {
     const review = getShareableReviewText();
     copyText(review, "评价已复制。请在目标平台评价输入框长按粘贴；如果出现平台口令，请回本页重新复制。");
   });

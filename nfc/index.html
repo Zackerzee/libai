@@ -529,21 +529,6 @@
         line-height: 1.45;
       }
 
-      .sticky {
-        position: sticky;
-        bottom: 12px;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-        margin-top: 18px;
-        border: 1px solid var(--line);
-        border-radius: 24px;
-        padding: 10px;
-        background: rgba(255, 255, 255, 0.92);
-        box-shadow: var(--shadow);
-        backdrop-filter: blur(12px);
-      }
-
       .footer {
         margin-top: 28px;
         color: #999999;
@@ -552,7 +537,7 @@
         text-align: center;
       }
     </style>
-    <script src="/nfc/app.js?v=20260713-copyfix-4" defer></script>
+    <script src="/nfc/app.js?v=20260713-copyfix-5" defer></script>
   </head>
   <body>
     <main class="page">
@@ -659,8 +644,8 @@
             </a>
             <a data-visit-key="meituan-review" href="https://g.meituan.com/qrcode/transfer?scene=promo_shop&q=fzB8PQwj4S1" target="_blank" rel="noopener">
               <span class="platform-icon platform-icon-mt">美团</span>
-              美团评价
-              <small>打开门店评价 / 收藏</small>
+              美团 App 评价
+              <small>小程序无法评价时用 App 打开</small>
               <span class="visit-badge">已前往</span>
             </a>
             <a data-visit-key="douyin-review" href="https://v.douyin.com/fA8z1S8iVmI/" target="_blank" rel="noopener noreferrer">
@@ -676,7 +661,7 @@
               <span class="visit-badge">已前往</span>
             </a>
           </div>
-          <p class="platform-note">为避免平台跳转口令覆盖剪贴板，平台入口不会自动复制评价。建议先打开评价页，再回到本页点“复制评价”，最后切回平台粘贴。</p>
+          <p class="platform-note">为避免平台跳转口令覆盖剪贴板，平台入口不会自动复制评价。建议先打开评价页，再回到本页点“复制评价”，最后切回平台粘贴。美团小程序内若无法评价，请点击右上角「…」选择在浏览器打开，或复制链接到美团 App 打开。</p>
         </div>
 
         <div class="platform-group">
@@ -836,19 +821,6 @@
           </p>
         </section>
       </div>
-
-      <div class="sticky">
-        <a
-          id="stickyReviewOpenLink"
-          class="btn btn-red"
-          href="https://m.dianping.com/an/ugcastroreact/addreview_qrcode/page/addreviewrouter?lch=saomaxiepingjia&utm_source=saomaxiepingjia&shopcategoryid=144&id=1029212885625444&shoptype=30&shopuuid=l9wfdv6RIbERlpwV&cityid=1618&offlinecode=12508367426672&incentive=smreviewpuma01-daozong01-dpapp-myshop"
-          target="_blank"
-          rel="noopener"
-          >打开点评</a
-        >
-        <button id="stickyCopyReviewButton" type="button">复制评价</button>
-      </div>
-
       <div class="footer">© 时里白造物创意手作体验空间<br />圣名国际购物广场 2 层 · 电话 19949539970</div>
     </main>
 
