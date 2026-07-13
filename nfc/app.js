@@ -23,6 +23,45 @@
     "今天不想走路逛太久，就坐下来弄了个{project}，过程比想象中更消磨时间。",
     "{project}完成，手是真的忙，脑子反而放空了一会儿，这种慢吞吞的感觉还不错。",
     "给自己安排了一点手作时间，做了{project}，不算完美，但越看越觉得是我的风格。",
+    "第一次认真做{project}，刚开始有点没思路，后面慢慢就顺了。",
+    "选{project}的时候只是想随便试试，结果做起来比想象中更能坐得住。",
+    "{project}做完之后有点舍不得放下，虽然不是特别完美，但很像自己做出来的东西。",
+    "今天这份{project}算是意外收获，过程里有点小手忙脚乱，最后效果还挺满意。",
+    "本来以为{project}会很简单，真正动手才发现还是要一点耐心。",
+    "和朋友一起做了{project}，边做边聊天，时间过得比想象中快。",
+  ];
+
+  const envTemplates = [
+    "环境很舒服，不知不觉就坐了两个小时",
+    "整个过程节奏很慢，不用赶时间",
+    "店里氛围挺放松的，适合找个地方安静待一会儿",
+    "空调很足，坐下来做手作比一直逛街舒服",
+    "桌面和工具都准备得比较清楚，新手也不会太慌",
+    "店里不会很吵，慢慢做的时候还挺容易放空",
+    "位置比较好找，逛到累了坐下来做点东西刚好",
+    "整体体验不赶，想慢慢调整细节也可以",
+  ];
+
+  const photoTemplates = [
+    "做完赶紧拍了几张作品照片炫一下",
+    "成品带回家摆在桌上当个小摆件还挺好",
+    "拿在手里越看越喜欢，赶紧拍照留念",
+    "最后成品比刚开始想象的更上镜",
+    "拍照的时候才发现自己做的细节还挺多",
+    "带回去之后放在包里或者桌边都挺合适",
+    "成品拿到手那一刻还是忍不住多拍了几张",
+    "照片看着也挺有生活感，发出来留个纪念",
+  ];
+
+  const moodTemplates = [
+    "发出来也算给这次手作体验留个记录",
+    "算是给今天的生活加点小小的仪式感",
+    "虽然手有点酸，但看着成品超有成就感",
+    "做完之后心情还不错，有种认真完成一件小事的感觉",
+    "中间有点想摆烂，做完反而觉得挺值得",
+    "慢慢做完之后，人也跟着安静下来了一点",
+    "不是很完美，但自己动手做出来就会觉得特别一点",
+    "这次体验比单纯买一个成品更有记忆点",
   ];
 
   const $ = (id) => document.getElementById(id);
@@ -64,7 +103,18 @@
   function ensureLocalReviewLength(text) {
     const value = String(text || "").trim();
     if (textLength(value) >= MIN_LOCAL_REVIEW_LENGTH) return value;
-    return `${value} 拿回去看了看也还行，适合想坐下来做点手作的时候。整个过程不用赶，慢慢弄完再拍张作品照片，发出来也算给这次体验留个记录。`;
+
+    const suffix = [randomItem(envTemplates), randomItem(photoTemplates), randomItem(moodTemplates)]
+      .filter(Boolean)
+      .join("，");
+    let result = `${value} ${suffix}。`;
+    const extraTemplates = [...envTemplates, ...photoTemplates, ...moodTemplates];
+
+    for (let attempts = 0; textLength(result) < MIN_LOCAL_REVIEW_LENGTH && attempts < 3; attempts += 1) {
+      result = `${result}${randomItem(extraTemplates)}。`;
+    }
+
+    return result;
   }
 
   function getLocalFallback(project) {
