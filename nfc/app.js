@@ -6,6 +6,7 @@
   const MIN_LOCAL_REVIEW_LENGTH = 75;
   const VISITED_PLATFORM_KEY = "libms_nfc_visited_platforms_v1";
   const LAST_REVIEW_TEXT_KEY = "libms_nfc_last_review_text_v2";
+  const RETURN_COPY_PENDING_KEY = "libms_nfc_return_copy_pending_v1";
   const REVIEW_OPEN_KEYS = new Set(["dianping-review", "meituan-review", "douyin-review"]);
 
   let isGenerating = false;
@@ -106,6 +107,26 @@
       return sanitizeClipboardText(sessionStorage.getItem(LAST_REVIEW_TEXT_KEY) || "");
     } catch (error) {
       return "";
+    }
+  }
+
+  function setReturnCopyPending(isPending) {
+    try {
+      if (isPending) {
+        sessionStorage.setItem(RETURN_COPY_PENDING_KEY, "1");
+      } else {
+        sessionStorage.removeItem(RETURN_COPY_PENDING_KEY);
+      }
+    } catch (error) {
+      // sessionStorage 不可用不影响复制按钮。
+    }
+  }
+
+  function hasReturnCopyPending() {
+    try {
+      return sessionStorage.getItem(RETURN_COPY_PENDING_KEY) === "1";
+    } catch (error) {
+      return false;
     }
   }
 
@@ -366,43 +387,49 @@
     return false;
   }
 
-  function restoreClipboardBurst(text) {
-    const value = sanitizeClipboardText(text);
-    if (!value) return;
+  function showReturnCopyPanel() {
+    const review = getRememberedReviewText();
+    if (!review) return;
 
-    // 平台短链页有时会在拉起 App 前改写剪贴板。这里在用户点击后的短时间内补写几次，
-    // 尽量让最后留在剪贴板里的仍然是评价正文。
-    [80, 220, 480, 900, 1500, 2400, 3800].forEach((delay) => {
-      setTimeout(() => {
-        copyByTextareaSelection(value) || copyByContentEditable(value);
-      }, delay);
-    });
-  }
+    const existing = $("returnCopyPanel");
+    if (existing) existing.remove();
 
-  function openExternalLink(url) {
-    const opened = window.open(url, "_blank");
-    if (opened) {
-      try {
-        opened.opener = null;
-      } catch (error) {
-        // 部分内置浏览器不允许设置 opener，不影响跳转。
+    const panel = document.createElement("div");
+    panel.id = "returnCopyPanel";
+    panel.style.position = "fixed";
+    panel.style.left = "14px";
+    panel.style.right = "14px";
+    panel.style.bottom = "14px";
+    panel.style.zIndex = "9998";
+    panel.style.border = "1px solid #f0d2c2";
+    panel.style.borderRadius = "20px";
+    panel.style.padding = "14px";
+    panel.style.background = "#fff8f1";
+    panel.style.boxShadow = "0 16px 44px rgba(70, 40, 20, 0.22)";
+    panel.innerHTML = `
+      <div style="font-weight:950;margin-bottom:6px;">返回后请先复制评价</div>
+      <div style="color:#766e66;font-size:13px;line-height:1.5;margin-bottom:10px;">平台会把剪贴板改成短链接。回到这里点下面按钮，再切回平台粘贴。</div>
+      <button id="returnCopyButton" type="button" style="width:100%;background:#222;color:#fff;">复制评价正文</button>
+      <button id="closeReturnCopyPanel" type="button" style="width:100%;margin-top:8px;background:#fff;color:#766e66;border:1px solid #f0e3d8;">暂时关闭</button>
+    `;
+    document.body.appendChild(panel);
+
+    $("returnCopyButton")?.addEventListener("click", async () => {
+      const copied = await copyText(review, "评价已复制。现在切回平台评价框粘贴。");
+      if (copied) {
+        setReturnCopyPending(false);
+        panel.remove();
       }
-      return;
-    }
-
-    window.location.href = url;
+    });
+    $("closeReturnCopyPanel")?.addEventListener("click", () => panel.remove(), { once: true });
   }
 
-  async function copyReviewAndOpen(link) {
+  function prepareReturnCopyAfterOpen() {
     const review = getShareableReviewText();
     rememberReviewText(review);
-
-    const copied = await copyText(review, "已复制评价，正在打开平台。进入评价框后直接粘贴。");
-    if (!copied) return;
-
-    restoreClipboardBurst(review);
-    setStatus("已复制评价，正在打开平台。如果粘贴成短链接，请返回本页点“复制评价”重新复制。");
-    setTimeout(() => openExternalLink(link.href), 260);
+    setReturnCopyPending(true);
+    showReturnCopyPanel();
+    setStatus("已打开平台入口。平台可能覆盖剪贴板，返回本页后点“复制评价正文”再粘贴。");
   }
 
   elements.aiBtn.addEventListener("click", generateReview);
@@ -428,19 +455,19 @@
     copyText("19949539970", "门店电话 / 微信已复制");
   });
   visitLinks.forEach((link) => {
-    link.addEventListener("click", (event) => {
+    link.addEventListener("click", () => {
       markPlatformVisited(link.dataset.visitKey);
       if (REVIEW_OPEN_KEYS.has(link.dataset.visitKey)) {
-        event.preventDefault();
-        copyReviewAndOpen(link);
+        prepareReturnCopyAfterOpen();
       }
     });
   });
   renderVisitedPlatforms();
 
   window.addEventListener("pageshow", () => {
-    if (getRememberedReviewText()) {
-      setStatus("如果刚才平台把剪贴板改成短链接，请点“复制评价”重新复制后再粘贴。");
+    if (hasReturnCopyPending() && getRememberedReviewText()) {
+      showReturnCopyPanel();
+      setStatus("平台可能已把剪贴板改成短链接。请点“复制评价正文”后再切回平台粘贴。");
     }
   });
 
