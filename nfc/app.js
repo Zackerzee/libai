@@ -3,20 +3,8 @@
 
   const DEEPSEEK_TIMEOUT_MS = 12000;
   const CACHE_TTL_MS = 8000;
-  const MIN_LOCAL_REVIEW_LENGTH = 36;
+  const MIN_LOCAL_REVIEW_LENGTH = 50;
   const VISITED_PLATFORM_KEY = "libms_nfc_visited_platforms_v1";
-  const LAST_REVIEW_TEXT_KEY = "libms_nfc_last_review_text_v1";
-  const COPY_BEFORE_OPEN_KEYS = new Set([
-    "dianping-review",
-    "meituan-review",
-    "douyin-review",
-    "douyin-post",
-    "xiaohongshu-video",
-    "xiaohongshu-post",
-    "xiaohongshu-note",
-    "dianping-note",
-    "douyin-note",
-  ]);
 
   let isGenerating = false;
   let lastRequestKey = "";
@@ -49,9 +37,6 @@
     copyWifiButton: $("copyWifiButton"),
     connectWifiButton: $("connectWifiButton"),
     copyWechatButton: $("copyWechatButton"),
-    copyMomentsVideoButton: $("copyMomentsVideoButton"),
-    copyMomentsPostButton: $("copyMomentsPostButton"),
-    copyWechatChannelsButton: $("copyWechatChannelsButton"),
     wifiConnectHint: $("wifiConnectHint"),
     wechatDouyinTip: $("wechatDouyinTip"),
     copyStatus: $("copyStatus"),
@@ -77,7 +62,7 @@
   function ensureLocalReviewLength(text) {
     const value = String(text || "").trim();
     if (textLength(value) >= MIN_LOCAL_REVIEW_LENGTH) return value;
-    return `${value} 拿回去看了看也还行。`;
+    return `${value} 拿回去看了看也还行，适合想坐下来做点手作的时候。`;
   }
 
   function getLocalFallback(project) {
@@ -103,24 +88,6 @@
       .replace(/[^\S\r\n]+/g, " ")
       .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
       .trim();
-  }
-
-  function rememberReviewText(text) {
-    const value = sanitizeClipboardText(text);
-    if (!value) return;
-    try {
-      localStorage.setItem(LAST_REVIEW_TEXT_KEY, value);
-    } catch (error) {
-      // localStorage 不可用不影响复制。
-    }
-  }
-
-  function getRememberedReviewText() {
-    try {
-      return sanitizeClipboardText(localStorage.getItem(LAST_REVIEW_TEXT_KEY) || "");
-    } catch (error) {
-      return "";
-    }
   }
 
   function loadVisitedPlatforms() {
@@ -177,10 +144,6 @@
     }
 
     return false;
-  }
-
-  function openWechatApp() {
-    window.location.href = "weixin://";
   }
 
   function getRequestKey(payload) {
@@ -384,57 +347,14 @@
     return false;
   }
 
-  function retryCopyQuietly(value) {
-    const text = sanitizeClipboardText(value);
-    if (!text) return;
-    [300, 900, 1600].forEach((delay) => {
-      setTimeout(() => {
-        copyByTextareaSelection(text) || copyByContentEditable(text);
-      }, delay);
-    });
-  }
-
-  function openExternalLink(url) {
-    const opened = window.open(url, "_blank");
-    if (opened) {
-      try {
-        opened.opener = null;
-      } catch (error) {
-        // 某些内置浏览器不允许设置 opener，不影响跳转。
-      }
-    }
-    if (!opened) {
-      window.location.href = url;
-    }
-  }
-
-  function shouldCopyReviewBeforeOpen(link) {
-    return link.dataset.copyOpen === "review" || COPY_BEFORE_OPEN_KEYS.has(link.dataset.visitKey);
-  }
-
-  async function copyReviewThenOpen(link) {
-    const review = getShareableReviewText();
-    rememberReviewText(review);
-
-    const copied = await copyText(review, "评价已复制，正在打开平台。进入评价框后直接粘贴；如出现平台口令，返回本页重新复制。");
-
-    if (!copied) return;
-
-    retryCopyQuietly(review);
-    setStatus("已复制评价，正在打开平台。若粘贴出平台口令，请返回本页点“复制评价”重新复制。");
-    openExternalLink(link.href);
-  }
-
   elements.aiBtn.addEventListener("click", generateReview);
   elements.copyReviewButton.addEventListener("click", () => {
     const review = getShareableReviewText();
-    rememberReviewText(review);
-    copyText(review, "评价已重新复制。现在回到平台评价框粘贴，不要再点平台跳转入口。");
+    copyText(review, "评价已复制。请在目标平台评价输入框长按粘贴；如果出现平台口令，请回本页重新复制。");
   });
   elements.stickyCopyReviewButton.addEventListener("click", () => {
     const review = getShareableReviewText();
-    rememberReviewText(review);
-    copyText(review, "评价已重新复制。现在回到平台评价框粘贴，不要再点平台跳转入口。");
+    copyText(review, "评价已复制。请在目标平台评价输入框长按粘贴；如果出现平台口令，请回本页重新复制。");
   });
   elements.copyPhoneButton.addEventListener("click", () => {
     copyText("19949539970", "电话已复制");
@@ -452,51 +372,12 @@
     markPlatformVisited("wechat-copy");
     copyText("19949539970", "门店电话 / 微信已复制");
   });
-  elements.copyMomentsVideoButton?.addEventListener("click", async () => {
-    markPlatformVisited("wechat-moments-video");
-    const copied = await copyText(getShareableReviewText(), "评价参考已复制，请在微信选择视频发布。", { alert: false });
-    if (!copied) return;
-    setStatus("评价参考已复制，请在微信朋友圈选择视频发布。");
-    setTimeout(openWechatApp, 250);
-  });
-  elements.copyMomentsPostButton?.addEventListener("click", async () => {
-    markPlatformVisited("wechat-moments-post");
-    const copied = await copyText(getShareableReviewText(), "评价参考已复制，请在微信选择照片发布。", { alert: false });
-    if (!copied) return;
-    setStatus("评价参考已复制，请在微信朋友圈选择照片发布。");
-    setTimeout(openWechatApp, 250);
-  });
-  elements.copyWechatChannelsButton?.addEventListener("click", async () => {
-    markPlatformVisited("wechat-channels");
-    const copied = await copyText(getShareableReviewText(), "评价参考已复制，请在视频号选择作品发布。", { alert: false });
-    if (!copied) return;
-    setStatus("评价参考已复制，请在微信视频号选择作品发布。");
-    setTimeout(openWechatApp, 250);
-  });
   visitLinks.forEach((link) => {
-    link.addEventListener("click", (event) => {
-      if (shouldCopyReviewBeforeOpen(link)) {
-        event.preventDefault();
-        markPlatformVisited(link.dataset.visitKey);
-        copyReviewThenOpen(link);
-        return;
-      }
+    link.addEventListener("click", () => {
       markPlatformVisited(link.dataset.visitKey);
     });
   });
-  document.querySelectorAll("a[data-copy-open='review']").forEach((link) => {
-    link.addEventListener("click", (event) => {
-      event.preventDefault();
-      copyReviewThenOpen(link);
-    });
-  });
   renderVisitedPlatforms();
-
-  window.addEventListener("pageshow", () => {
-    if (getRememberedReviewText()) {
-      setStatus("如果平台粘贴出“复制所有描述…”这类口令，请点“复制评价”重新复制后再粘贴。");
-    }
-  });
 
   if (/MicroMessenger/i.test(navigator.userAgent) && elements.wechatDouyinTip) {
     elements.wechatDouyinTip.hidden = false;
