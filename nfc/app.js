@@ -83,6 +83,16 @@
     return text;
   }
 
+  function sanitizeClipboardText(text) {
+    return String(text || "")
+      .normalize("NFC")
+      .replace(/\u00a0/g, " ")
+      .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, "")
+      .replace(/[^\S\r\n]+/g, " ")
+      .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
+      .trim();
+  }
+
   function loadVisitedPlatforms() {
     try {
       const value = JSON.parse(localStorage.getItem(VISITED_PLATFORM_KEY) || "[]");
@@ -219,48 +229,136 @@
     }
   }
 
+  function copyByTextareaSelection(value) {
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.setAttribute("aria-hidden", "true");
+    textarea.style.position = "fixed";
+    textarea.style.top = "0";
+    textarea.style.left = "0";
+    textarea.style.width = "1px";
+    textarea.style.height = "1px";
+    textarea.style.padding = "0";
+    textarea.style.border = "0";
+    textarea.style.opacity = "0.01";
+    textarea.style.fontSize = "16px";
+    textarea.style.zIndex = "-1";
+    document.body.appendChild(textarea);
+
+    try {
+      textarea.focus({ preventScroll: true });
+      textarea.select();
+      textarea.setSelectionRange(0, value.length);
+      return document.execCommand("copy");
+    } catch (error) {
+      return false;
+    } finally {
+      setTimeout(() => textarea.remove(), 80);
+    }
+  }
+
+  function copyByContentEditable(value) {
+    const container = document.createElement("div");
+    container.textContent = value;
+    container.contentEditable = "true";
+    container.setAttribute("aria-hidden", "true");
+    container.style.position = "fixed";
+    container.style.top = "0";
+    container.style.left = "0";
+    container.style.width = "1px";
+    container.style.height = "1px";
+    container.style.overflow = "hidden";
+    container.style.opacity = "0.01";
+    container.style.zIndex = "-1";
+    document.body.appendChild(container);
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+
+    try {
+      range.selectNodeContents(container);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return document.execCommand("copy");
+    } catch (error) {
+      return false;
+    } finally {
+      selection?.removeAllRanges();
+      setTimeout(() => container.remove(), 80);
+    }
+  }
+
+  async function copyByClipboardApi(value) {
+    if (!navigator.clipboard || !window.isSecureContext) return false;
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function showManualCopyPanel(value) {
+    const existing = $("manualCopyPanel");
+    if (existing) existing.remove();
+
+    const panel = document.createElement("div");
+    panel.id = "manualCopyPanel";
+    panel.style.position = "fixed";
+    panel.style.left = "14px";
+    panel.style.right = "14px";
+    panel.style.bottom = "14px";
+    panel.style.zIndex = "9999";
+    panel.style.border = "1px solid #f0d2c2";
+    panel.style.borderRadius = "18px";
+    panel.style.padding = "14px";
+    panel.style.background = "#fff8f1";
+    panel.style.boxShadow = "0 16px 44px rgba(70, 40, 20, 0.22)";
+
+    panel.innerHTML = `
+      <div style="font-weight:900;margin-bottom:8px;">复制被浏览器拦截</div>
+      <div style="color:#766e66;font-size:13px;line-height:1.5;margin-bottom:10px;">请长按下面文字，选择“复制”，再去平台粘贴。</div>
+      <textarea id="manualCopyTextarea" style="width:100%;min-height:108px;border:1px solid #f0e3d8;border-radius:14px;padding:10px;font-size:15px;line-height:1.6;background:#fff;" readonly></textarea>
+      <button id="closeManualCopyPanel" type="button" style="width:100%;margin-top:10px;background:#222;color:#fff;">我知道了</button>
+    `;
+    document.body.appendChild(panel);
+
+    const textarea = $("manualCopyTextarea");
+    textarea.value = value;
+    textarea.focus({ preventScroll: true });
+    textarea.select();
+    textarea.setSelectionRange(0, value.length);
+    $("closeManualCopyPanel")?.addEventListener("click", () => panel.remove(), { once: true });
+  }
+
   async function copyText(text, successMessage, options = {}) {
-    const value = String(text || "").trim();
+    const value = sanitizeClipboardText(text);
     const shouldAlert = options.alert !== false;
     if (!value) {
       if (shouldAlert) alert("暂无可复制内容");
-      return;
+      return false;
     }
 
-    try {
-      await navigator.clipboard.writeText(value);
+    const copied = copyByTextareaSelection(value) || copyByContentEditable(value) || (await copyByClipboardApi(value));
+
+    if (copied) {
       setStatus(successMessage || "已复制");
       if (shouldAlert) alert(successMessage || "已复制");
-      return;
-    } catch (error) {
-      const textarea = document.createElement("textarea");
-      textarea.value = value;
-      textarea.setAttribute("readonly", "");
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
-      document.body.appendChild(textarea);
-      textarea.select();
-
-      try {
-        const ok = document.execCommand("copy");
-        if (!ok) throw new Error("execCommand failed");
-        setStatus(successMessage || "已复制");
-        if (shouldAlert) alert(successMessage || "已复制");
-      } catch (fallbackError) {
-        setStatus("复制失败，请长按文字手动复制");
-        if (shouldAlert) alert("复制失败，请长按文字手动复制");
-      } finally {
-        textarea.remove();
-      }
+      return true;
     }
+
+    showManualCopyPanel(value);
+    setStatus("自动复制被浏览器拦截，请长按弹窗文字手动复制。");
+    if (shouldAlert) alert("自动复制被浏览器拦截，请长按弹窗文字手动复制。");
+    return false;
   }
 
   elements.aiBtn.addEventListener("click", generateReview);
   elements.copyReviewButton.addEventListener("click", () => {
-    copyText(elements.reviewText.innerText, "已复制，可以去点评/小红书粘贴啦");
+    copyText(getShareableReviewText(), "已复制，可以去点评/小红书粘贴啦");
   });
   elements.stickyCopyReviewButton.addEventListener("click", () => {
-    copyText(elements.reviewText.innerText, "已复制，可以去点评/小红书粘贴啦");
+    copyText(getShareableReviewText(), "已复制，可以去点评/小红书粘贴啦");
   });
   elements.copyPhoneButton.addEventListener("click", () => {
     copyText("19949539970", "电话已复制");
@@ -278,23 +376,26 @@
     markPlatformVisited("wechat-copy");
     copyText("19949539970", "门店电话 / 微信已复制");
   });
-  elements.copyMomentsVideoButton?.addEventListener("click", () => {
+  elements.copyMomentsVideoButton?.addEventListener("click", async () => {
     markPlatformVisited("wechat-moments-video");
-    copyText(getShareableReviewText(), "评价参考已复制，请在微信选择视频发布。", { alert: false });
+    const copied = await copyText(getShareableReviewText(), "评价参考已复制，请在微信选择视频发布。", { alert: false });
+    if (!copied) return;
     setStatus("评价参考已复制，请在微信朋友圈选择视频发布。");
-    openWechatApp();
+    setTimeout(openWechatApp, 250);
   });
-  elements.copyMomentsPostButton?.addEventListener("click", () => {
+  elements.copyMomentsPostButton?.addEventListener("click", async () => {
     markPlatformVisited("wechat-moments-post");
-    copyText(getShareableReviewText(), "评价参考已复制，请在微信选择照片发布。", { alert: false });
+    const copied = await copyText(getShareableReviewText(), "评价参考已复制，请在微信选择照片发布。", { alert: false });
+    if (!copied) return;
     setStatus("评价参考已复制，请在微信朋友圈选择照片发布。");
-    openWechatApp();
+    setTimeout(openWechatApp, 250);
   });
-  elements.copyWechatChannelsButton?.addEventListener("click", () => {
+  elements.copyWechatChannelsButton?.addEventListener("click", async () => {
     markPlatformVisited("wechat-channels");
-    copyText(getShareableReviewText(), "评价参考已复制，请在视频号选择作品发布。", { alert: false });
+    const copied = await copyText(getShareableReviewText(), "评价参考已复制，请在视频号选择作品发布。", { alert: false });
+    if (!copied) return;
     setStatus("评价参考已复制，请在微信视频号选择作品发布。");
-    openWechatApp();
+    setTimeout(openWechatApp, 250);
   });
   visitLinks.forEach((link) => {
     link.addEventListener("click", () => markPlatformVisited(link.dataset.visitKey));
