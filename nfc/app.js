@@ -5,6 +5,8 @@
   const CACHE_TTL_MS = 8000;
   const MIN_LOCAL_REVIEW_LENGTH = 75;
   const VISITED_PLATFORM_KEY = "libms_nfc_visited_platforms_v1";
+  const LAST_REVIEW_TEXT_KEY = "libms_nfc_last_review_text_v2";
+  const REVIEW_OPEN_KEYS = new Set(["dianping-review", "meituan-review", "douyin-review"]);
 
   let isGenerating = false;
   let lastRequestKey = "";
@@ -87,6 +89,24 @@
       .replace(/[^\S\r\n]+/g, " ")
       .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
       .trim();
+  }
+
+  function rememberReviewText(text) {
+    const value = sanitizeClipboardText(text);
+    if (!value) return;
+    try {
+      sessionStorage.setItem(LAST_REVIEW_TEXT_KEY, value);
+    } catch (error) {
+      // sessionStorage 不可用不影响主流程。
+    }
+  }
+
+  function getRememberedReviewText() {
+    try {
+      return sanitizeClipboardText(sessionStorage.getItem(LAST_REVIEW_TEXT_KEY) || "");
+    } catch (error) {
+      return "";
+    }
   }
 
   function loadVisitedPlatforms() {
@@ -346,9 +366,49 @@
     return false;
   }
 
+  function restoreClipboardBurst(text) {
+    const value = sanitizeClipboardText(text);
+    if (!value) return;
+
+    // 平台短链页有时会在拉起 App 前改写剪贴板。这里在用户点击后的短时间内补写几次，
+    // 尽量让最后留在剪贴板里的仍然是评价正文。
+    [80, 220, 480, 900, 1500, 2400, 3800].forEach((delay) => {
+      setTimeout(() => {
+        copyByTextareaSelection(value) || copyByContentEditable(value);
+      }, delay);
+    });
+  }
+
+  function openExternalLink(url) {
+    const opened = window.open(url, "_blank");
+    if (opened) {
+      try {
+        opened.opener = null;
+      } catch (error) {
+        // 部分内置浏览器不允许设置 opener，不影响跳转。
+      }
+      return;
+    }
+
+    window.location.href = url;
+  }
+
+  async function copyReviewAndOpen(link) {
+    const review = getShareableReviewText();
+    rememberReviewText(review);
+
+    const copied = await copyText(review, "已复制评价，正在打开平台。进入评价框后直接粘贴。");
+    if (!copied) return;
+
+    restoreClipboardBurst(review);
+    setStatus("已复制评价，正在打开平台。如果粘贴成短链接，请返回本页点“复制评价”重新复制。");
+    setTimeout(() => openExternalLink(link.href), 260);
+  }
+
   elements.aiBtn.addEventListener("click", generateReview);
   elements.copyReviewButton.addEventListener("click", () => {
     const review = getShareableReviewText();
+    rememberReviewText(review);
     copyText(review, "评价已复制。请在目标平台评价输入框长按粘贴；如果出现平台口令，请回本页重新复制。");
   });
   elements.copyPhoneButton.addEventListener("click", () => {
@@ -368,11 +428,21 @@
     copyText("19949539970", "门店电话 / 微信已复制");
   });
   visitLinks.forEach((link) => {
-    link.addEventListener("click", () => {
+    link.addEventListener("click", (event) => {
       markPlatformVisited(link.dataset.visitKey);
+      if (REVIEW_OPEN_KEYS.has(link.dataset.visitKey)) {
+        event.preventDefault();
+        copyReviewAndOpen(link);
+      }
     });
   });
   renderVisitedPlatforms();
+
+  window.addEventListener("pageshow", () => {
+    if (getRememberedReviewText()) {
+      setStatus("如果刚才平台把剪贴板改成短链接，请点“复制评价”重新复制后再粘贴。");
+    }
+  });
 
   if (/MicroMessenger/i.test(navigator.userAgent) && elements.wechatDouyinTip) {
     elements.wechatDouyinTip.hidden = false;
