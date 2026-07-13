@@ -5,6 +5,18 @@
   const CACHE_TTL_MS = 8000;
   const MIN_LOCAL_REVIEW_LENGTH = 36;
   const VISITED_PLATFORM_KEY = "libms_nfc_visited_platforms_v1";
+  const LAST_REVIEW_TEXT_KEY = "libms_nfc_last_review_text_v1";
+  const COPY_BEFORE_OPEN_KEYS = new Set([
+    "dianping-review",
+    "meituan-review",
+    "douyin-review",
+    "douyin-post",
+    "xiaohongshu-video",
+    "xiaohongshu-post",
+    "xiaohongshu-note",
+    "dianping-note",
+    "douyin-note",
+  ]);
 
   let isGenerating = false;
   let lastRequestKey = "";
@@ -91,6 +103,24 @@
       .replace(/[^\S\r\n]+/g, " ")
       .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
       .trim();
+  }
+
+  function rememberReviewText(text) {
+    const value = sanitizeClipboardText(text);
+    if (!value) return;
+    try {
+      localStorage.setItem(LAST_REVIEW_TEXT_KEY, value);
+    } catch (error) {
+      // localStorage 不可用不影响复制。
+    }
+  }
+
+  function getRememberedReviewText() {
+    try {
+      return sanitizeClipboardText(localStorage.getItem(LAST_REVIEW_TEXT_KEY) || "");
+    } catch (error) {
+      return "";
+    }
   }
 
   function loadVisitedPlatforms() {
@@ -353,12 +383,59 @@
     return false;
   }
 
+  function retryCopyQuietly(value) {
+    const text = sanitizeClipboardText(value);
+    if (!text) return;
+    [300, 900, 1600].forEach((delay) => {
+      setTimeout(() => {
+        copyByTextareaSelection(text) || copyByContentEditable(text);
+      }, delay);
+    });
+  }
+
+  function openExternalLink(url) {
+    const opened = window.open(url, "_blank");
+    if (opened) {
+      try {
+        opened.opener = null;
+      } catch (error) {
+        // 某些内置浏览器不允许设置 opener，不影响跳转。
+      }
+    }
+    if (!opened) {
+      window.location.href = url;
+    }
+  }
+
+  function shouldCopyReviewBeforeOpen(link) {
+    return link.dataset.copyOpen === "review" || COPY_BEFORE_OPEN_KEYS.has(link.dataset.visitKey);
+  }
+
+  async function copyReviewThenOpen(link) {
+    const review = getShareableReviewText();
+    rememberReviewText(review);
+
+    const copied = await copyText(review, "已复制评价，正在打开平台。若平台粘贴出错，请返回本页点“复制评价”重新复制。", {
+      alert: false,
+    });
+
+    if (!copied) return;
+
+    retryCopyQuietly(review);
+    setStatus("已复制评价，正在打开平台。若粘贴出平台口令，请返回本页点“复制评价”重新复制。");
+    openExternalLink(link.href);
+  }
+
   elements.aiBtn.addEventListener("click", generateReview);
   elements.copyReviewButton.addEventListener("click", () => {
-    copyText(getShareableReviewText(), "已复制，可以去点评/小红书粘贴啦");
+    const review = getShareableReviewText();
+    rememberReviewText(review);
+    copyText(review, "已复制，可以去点评/小红书粘贴啦");
   });
   elements.stickyCopyReviewButton.addEventListener("click", () => {
-    copyText(getShareableReviewText(), "已复制，可以去点评/小红书粘贴啦");
+    const review = getShareableReviewText();
+    rememberReviewText(review);
+    copyText(review, "已复制，可以去点评/小红书粘贴啦");
   });
   elements.copyPhoneButton.addEventListener("click", () => {
     copyText("19949539970", "电话已复制");
@@ -398,9 +475,29 @@
     setTimeout(openWechatApp, 250);
   });
   visitLinks.forEach((link) => {
-    link.addEventListener("click", () => markPlatformVisited(link.dataset.visitKey));
+    link.addEventListener("click", (event) => {
+      if (shouldCopyReviewBeforeOpen(link)) {
+        event.preventDefault();
+        markPlatformVisited(link.dataset.visitKey);
+        copyReviewThenOpen(link);
+        return;
+      }
+      markPlatformVisited(link.dataset.visitKey);
+    });
+  });
+  document.querySelectorAll("a[data-copy-open='review']").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      copyReviewThenOpen(link);
+    });
   });
   renderVisitedPlatforms();
+
+  window.addEventListener("pageshow", () => {
+    if (getRememberedReviewText()) {
+      setStatus("如果平台粘贴出“复制所有描述…”这类口令，请点“复制评价”重新复制后再粘贴。");
+    }
+  });
 
   if (/MicroMessenger/i.test(navigator.userAgent) && elements.wechatDouyinTip) {
     elements.wechatDouyinTip.hidden = false;
