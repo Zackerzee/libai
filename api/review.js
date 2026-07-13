@@ -1,7 +1,7 @@
 const DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
 const DEFAULT_DEEPSEEK_MODEL = "deepseek-chat";
-const MIN_REVIEW_LENGTH = 50;
-const MAX_REVIEW_LENGTH = 150;
+const MIN_REVIEW_LENGTH = 75;
+const MAX_REVIEW_LENGTH = 250;
 const DEFAULT_PHOTO_TIPS = [
   "图1：作品或体验过程图。",
   "图2：门店环境或制作过程图。",
@@ -248,7 +248,7 @@ function recordRecentReview(review) {
 function ensureMinimumReviewLength(review) {
   const text = stripModelNoise(review);
   if (textLength(text) >= MIN_REVIEW_LENGTH) return text;
-  return `${text} 拿回去看了看也还行，适合想坐下来做点手作的时候。`;
+  return `${text} 拿回去看了看也还行，适合想坐下来做点手作的时候。整个过程不用赶，慢慢弄完再拍张作品照片，发出来也算给这次体验留个记录。`;
 }
 
 function makeWildFallback(projectName) {
@@ -279,7 +279,7 @@ You are a random customer who just completed a DIY handcraft project. Write one 
 4. 门店范围：只能围绕创意手作体验写。可写的项目只有：拼豆、蔬果花皂DIY、香薰蜡烛、海岛礼物、串珠DIY、韩国刺绣布贴、毛料娃娃、石膏娃娃DIY、数字油画DIY、台灯拼布手作、夏日甜品冰淇淋、中药香囊。禁止写美甲、美睫、按摩、理发、摄影、医美、儿童乐园、电玩城、KTV、住宿、培训机构等不属于门店范围的内容。
 5. 事实边界：不要编造价格、优惠、团购、会员、老师专业、一对一指导、全程陪同、老板人超好、排队、课程、生日会、团建等顾客没有提供的信息。
 6. 拼豆规则：拼豆成品可以写店员帮忙处理成品，但禁止写顾客自己熨烫、店员教顾客熨烫、学习熨烫。
-7. 字数必须控制在 50 到 150 个中文字之间，不能少于 50 字。
+7. 字数必须控制在 75 到 250 个中文字之间，不能少于 75 字。
 8. 只输出评价正文，不要 JSON、Markdown、前缀、括号、解释。
 `.trim();
 }
@@ -314,7 +314,7 @@ async function requestDeepSeekWildReview({ apiKey, baseUrl, model, signal, proje
         { role: "user", content: buildUserPrompt(projectName) },
       ],
       temperature: 1.1,
-      max_tokens: 260,
+      max_tokens: 420,
     }),
     signal,
   });

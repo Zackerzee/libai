@@ -3,7 +3,7 @@
 
   const DEEPSEEK_TIMEOUT_MS = 12000;
   const CACHE_TTL_MS = 8000;
-  const MIN_LOCAL_REVIEW_LENGTH = 50;
+  const MIN_LOCAL_REVIEW_LENGTH = 75;
   const VISITED_PLATFORM_KEY = "libms_nfc_visited_platforms_v1";
 
   let isGenerating = false;
@@ -61,7 +61,7 @@
   function ensureLocalReviewLength(text) {
     const value = String(text || "").trim();
     if (textLength(value) >= MIN_LOCAL_REVIEW_LENGTH) return value;
-    return `${value} 拿回去看了看也还行，适合想坐下来做点手作的时候。`;
+    return `${value} 拿回去看了看也还行，适合想坐下来做点手作的时候。整个过程不用赶，慢慢弄完再拍张作品照片，发出来也算给这次体验留个记录。`;
   }
 
   function getLocalFallback(project) {
