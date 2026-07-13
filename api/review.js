@@ -1,7 +1,9 @@
 const DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
 const DEFAULT_DEEPSEEK_MODEL = "deepseek-chat";
-const DEFAULT_DOMESTIC_AI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
-const DEFAULT_DOMESTIC_AI_MODEL = "qwen-plus";
+const DEFAULT_QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+const DEFAULT_QWEN_MODEL = "qwen-plus";
+const DEFAULT_QIANFAN_BASE_URL = "https://qianfan.baidubce.com/v2/chat/completions";
+const DEFAULT_QIANFAN_MODEL = "ERNIE-Speed-8K";
 const DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 const DEFAULT_GEMINI_MODEL = "gemini-1.5-flash";
 const MIN_REVIEW_LENGTH = 75;
@@ -291,8 +293,24 @@ You are a random customer who just completed a DIY handcraft project. Write one 
 `.trim();
 }
 
-function buildUserPrompt(projectName) {
-  return `输入项目：【${projectName}】。请直接输出针对该项目的野生人类评价文本，不要任何前缀、括号、解释和 Markdown 标记。`;
+function buildReviewContext(body, projectName) {
+  return {
+    projectName,
+    platform: cleanText(body.platform, "大众点评/美团", 40),
+    tone: cleanText(body.tone, "自然真实", 40),
+    keywords: cleanText(body.keywords, "", 160),
+  };
+}
+
+function buildUserPrompt(context) {
+  const keywordsText = context.keywords ? `顾客真实关键词：【${context.keywords}】。` : "顾客没有额外填写关键词。";
+  return [
+    `发布平台：【${context.platform}】。`,
+    `体验项目：【${context.projectName}】。`,
+    `评价语气：【${context.tone}】。`,
+    keywordsText,
+    "请直接输出针对该项目的野生人类评价文本，不要任何前缀、括号、解释和 Markdown 标记。",
+  ].join("");
 }
 
 async function getBody(req) {
@@ -314,7 +332,7 @@ function parseOpenAICompatibleReview(raw, providerName) {
   return review;
 }
 
-async function requestOpenAICompatibleReview({ providerName, apiKey, url, model, projectName, temperature = 1.1 }) {
+async function requestOpenAICompatibleReview({ providerName, apiKey, url, model, context, temperature = 1.1 }) {
   if (!apiKey) throw new Error(`${providerName} API key missing`);
 
   const result = await fetchTextWithTimeout(
@@ -329,7 +347,7 @@ async function requestOpenAICompatibleReview({ providerName, apiKey, url, model,
         model,
         messages: [
           { role: "system", content: buildSystemPrompt() },
-          { role: "user", content: buildUserPrompt(projectName) },
+          { role: "user", content: buildUserPrompt(context) },
         ],
         temperature,
         max_tokens: 420,
@@ -346,7 +364,7 @@ async function requestOpenAICompatibleReview({ providerName, apiKey, url, model,
   return parseOpenAICompatibleReview(result.text, providerName);
 }
 
-async function fetchFromDeepSeek({ projectName }) {
+async function fetchFromDeepSeek({ context }) {
   const apiKey = getEnvKey("DEEPSEEK_API_KEY");
   const baseUrl = normalizeBaseUrl(process.env.DEEPSEEK_BASE_URL || process.env.DEEPSEEK_API_BASE_URL);
   const model = cleanText(process.env.DEEPSEEK_MODEL, DEFAULT_DEEPSEEK_MODEL, 80);
@@ -356,27 +374,49 @@ async function fetchFromDeepSeek({ projectName }) {
     apiKey,
     url: `${baseUrl}/chat/completions`,
     model,
-    projectName,
+    context,
     temperature: 1.1,
   });
 }
 
-async function fetchFromDomesticAI({ projectName }) {
-  const apiKey = getEnvKey("DOMESTIC_AI_API_KEY", "ALIYUN_BAILIAN_API_KEY", "QIANFAN_API_KEY");
-  const url = normalizeChatCompletionsUrl(process.env.DOMESTIC_AI_BASE_URL, DEFAULT_DOMESTIC_AI_BASE_URL);
-  const model = cleanText(process.env.DOMESTIC_AI_MODEL, DEFAULT_DOMESTIC_AI_MODEL, 80);
+async function fetchFromTongyiQianwen({ context }) {
+  const apiKey = getEnvKey("QWEN_API_KEY", "ALIYUN_BAILIAN_API_KEY", "DASHSCOPE_API_KEY", "DOMESTIC_AI_API_KEY");
+  const url = normalizeChatCompletionsUrl(
+    process.env.QWEN_BASE_URL || process.env.ALIYUN_BAILIAN_BASE_URL || process.env.DOMESTIC_AI_BASE_URL,
+    DEFAULT_QWEN_BASE_URL,
+  );
+  const model = cleanText(
+    process.env.QWEN_MODEL || process.env.ALIYUN_BAILIAN_MODEL || process.env.DOMESTIC_AI_MODEL,
+    DEFAULT_QWEN_MODEL,
+    80,
+  );
 
   return requestOpenAICompatibleReview({
-    providerName: "DOMESTIC_AI",
+    providerName: "QWEN",
     apiKey,
     url,
     model,
-    projectName,
+    context,
     temperature: 0.85,
   });
 }
 
-async function fetchFromGemini({ projectName }) {
+async function fetchFromWenxinQianfan({ context }) {
+  const apiKey = getEnvKey("QIANFAN_API_KEY", "WENXIN_QIANFAN_API_KEY", "BAIDU_QIANFAN_API_KEY");
+  const url = normalizeChatCompletionsUrl(process.env.QIANFAN_BASE_URL, DEFAULT_QIANFAN_BASE_URL);
+  const model = cleanText(process.env.QIANFAN_MODEL, DEFAULT_QIANFAN_MODEL, 80);
+
+  return requestOpenAICompatibleReview({
+    providerName: "QIANFAN",
+    apiKey,
+    url,
+    model,
+    context,
+    temperature: 0.85,
+  });
+}
+
+async function fetchFromGemini({ context }) {
   const apiKey = getEnvKey("GEMINI_API_KEY", "GOOGLE_GEMINI_API_KEY");
   if (!apiKey) throw new Error("GEMINI API key missing");
 
@@ -397,7 +437,7 @@ async function fetchFromGemini({ projectName }) {
         contents: [
           {
             role: "user",
-            parts: [{ text: buildUserPrompt(projectName) }],
+            parts: [{ text: buildUserPrompt(context) }],
           },
         ],
         generationConfig: {
@@ -422,18 +462,19 @@ async function fetchFromGemini({ projectName }) {
   return review;
 }
 
-async function generateReviewWithProviderChain(projectName) {
+async function generateReviewWithProviderChain(context) {
   const providers = [
     { name: "deepseek", fetcher: fetchFromDeepSeek },
-    { name: "domestic_ai", fetcher: fetchFromDomesticAI },
+    { name: "tongyi_qianwen", fetcher: fetchFromTongyiQianwen },
+    { name: "wenxin_qianfan", fetcher: fetchFromWenxinQianfan },
     { name: "gemini", fetcher: fetchFromGemini },
   ];
   const errors = [];
 
   for (const provider of providers) {
     try {
-      const review = await provider.fetcher({ projectName });
-      const invalidReason = getInvalidReason(review, projectName);
+      const review = await provider.fetcher({ context });
+      const invalidReason = getInvalidReason(review, context.projectName);
       if (invalidReason) {
         throw new Error(`invalid_${invalidReason}`);
       }
@@ -472,8 +513,10 @@ export default async function handler(req, res) {
     });
   }
 
+  const context = buildReviewContext(body, projectName);
+
   try {
-    const { review, source } = await generateReviewWithProviderChain(projectName);
+    const { review, source } = await generateReviewWithProviderChain(context);
     recordRecentReview(review);
     return json(res, 200, {
       success: true,

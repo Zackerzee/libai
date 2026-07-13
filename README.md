@@ -26,12 +26,12 @@
 /nfc/index.html
   ↓ POST /api/review
 /api/review.js
-  ↓ DeepSeek → 国内 OpenAI 兼容模型 → Gemini
+  ↓ DeepSeek → 通义千问/阿里云百炼 → 文心千帆/百度千帆 → Gemini
   ↓
 返回评价 review + 3 张图建议 photoTips
 ```
 
-前端不会直接请求任何 AI API，也不会包含 `DEEPSEEK_API_KEY`、`DOMESTIC_AI_API_KEY` 或 `GEMINI_API_KEY`。
+前端不会直接请求任何 AI API，也不会包含 `DEEPSEEK_API_KEY`、`QWEN_API_KEY`、`QIANFAN_API_KEY` 或 `GEMINI_API_KEY`。
 
 ## Vercel 环境变量
 
@@ -42,9 +42,13 @@ DEEPSEEK_API_KEY=你的 DeepSeek API 密钥
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 
-DOMESTIC_AI_API_KEY=你的阿里云百炼或百度千帆 Key
-DOMESTIC_AI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
-DOMESTIC_AI_MODEL=qwen-plus
+QWEN_API_KEY=你的阿里云百炼或 DashScope Key
+QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+QWEN_MODEL=qwen-plus
+
+QIANFAN_API_KEY=你的百度千帆 Key
+QIANFAN_BASE_URL=https://qianfan.baidubce.com/v2/chat/completions
+QIANFAN_MODEL=ERNIE-Speed-8K
 
 GEMINI_API_KEY=你的 Gemini Key
 GEMINI_MODEL=gemini-1.5-flash
@@ -52,7 +56,7 @@ GEMINI_MODEL=gemini-1.5-flash
 
 不要把真实 Key 写入前端、`.env`、`.env.local` 或提交到 GitHub。
 
-`/api/review` 会按顺序尝试 DeepSeek、国内 OpenAI 兼容模型、Gemini。某个模型缺少 Key、超时、返回空内容或内容未通过门店规则校验时，会自动切换到下一个模型。所有模型都失败时接口返回 `502`，前端会触发本地碎碎念评价兜底。
+`/api/review` 会按顺序尝试 DeepSeek、通义千问、文心千帆、Gemini。某个模型缺少 Key、超时、返回空内容或内容未通过门店规则校验时，会自动切换到下一个模型。所有模型都失败时接口返回非 2xx JSON，前端会触发本地碎碎念评价兜底。
 
 ## 本地开发
 
