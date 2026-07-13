@@ -3,6 +3,7 @@
 
   const DEEPSEEK_TIMEOUT_MS = 12000;
   const CACHE_TTL_MS = 8000;
+  const MIN_LOCAL_REVIEW_LENGTH = 36;
   const VISITED_PLATFORM_KEY = "libms_nfc_visited_platforms_v1";
 
   let isGenerating = false;
@@ -57,9 +58,19 @@
     return String(rawKeywords || "").trim();
   }
 
+  function textLength(text) {
+    return Array.from(String(text || "").trim()).length;
+  }
+
+  function ensureLocalReviewLength(text) {
+    const value = String(text || "").trim();
+    if (textLength(value) >= MIN_LOCAL_REVIEW_LENGTH) return value;
+    return `${value} 拿回去看了看也还行。`;
+  }
+
   function getLocalFallback(project) {
     const safeProject = String(project || "手作").trim() || "手作";
-    return randomItem(wildLocalReviewTemplates).replace(/\{project\}/g, safeProject);
+    return ensureLocalReviewLength(randomItem(wildLocalReviewTemplates).replace(/\{project\}/g, safeProject));
   }
 
   function getShareableReviewText() {

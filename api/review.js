@@ -1,5 +1,7 @@
 const DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
 const DEFAULT_DEEPSEEK_MODEL = "deepseek-chat";
+const MIN_REVIEW_LENGTH = 36;
+const MAX_REVIEW_LENGTH = 75;
 const DEFAULT_PHOTO_TIPS = [
   "图1：作品或体验过程图。",
   "图2：门店环境或制作过程图。",
@@ -204,7 +206,7 @@ function getInvalidReason(review, projectName, { checkSimilarity = true } = {}) 
   const text = stripModelNoise(review);
   const length = textLength(text);
   if (!text) return "empty";
-  if (length < 30 || length > 75) return "length";
+  if (length < MIN_REVIEW_LENGTH || length > MAX_REVIEW_LENGTH) return "length";
   if (hasInvalidWords(text, projectName)) return "bad_words";
   if (looksTooFormal(text)) return "formal";
   if (countWildDetailGroups(text) > 1) return "too_many_detail_groups";
@@ -221,18 +223,24 @@ function recordRecentReview(review) {
   }
 }
 
+function ensureMinimumReviewLength(review) {
+  const text = stripModelNoise(review);
+  if (textLength(text) >= MIN_REVIEW_LENGTH) return text;
+  return `${text} 拿回去看了看也还行。`;
+}
+
 function makeWildFallback(projectName) {
   for (let index = 0; index < 30; index += 1) {
-    const candidate = randomItem(WILD_FALLBACKS).replaceAll("{project}", projectName);
+    const candidate = ensureMinimumReviewLength(randomItem(WILD_FALLBACKS).replaceAll("{project}", projectName));
     if (!getInvalidReason(candidate, projectName, { checkSimilarity: true })) return candidate;
   }
 
   for (let index = 0; index < 30; index += 1) {
-    const candidate = randomItem(WILD_FALLBACKS).replaceAll("{project}", projectName);
+    const candidate = ensureMinimumReviewLength(randomItem(WILD_FALLBACKS).replaceAll("{project}", projectName));
     if (!getInvalidReason(candidate, projectName, { checkSimilarity: false })) return candidate;
   }
 
-  return `今日份手作存档，做了${projectName}，过程有点忙乱，最后看着还行，先发出来纪念一下。`;
+  return ensureMinimumReviewLength(`今日份手作存档，做了${projectName}，过程有点忙乱，最后看着还行，先发出来纪念一下。`);
 }
 
 function buildSystemPrompt() {
@@ -246,7 +254,7 @@ You are a random customer who just completed a DIY handcraft project. Write one 
    - 细节 B：手残党差点搞砸、幸好有图纸不然抓瞎、成品丑萌丑萌的很治愈、自己动手是个体力活。
    - 细节 C：极度精简，只有一两句话，类似朋友圈晒图配文。
 3. 仿生红线：严禁出现“总之、总而言之、值得一提、不容错过、快来体验吧”等 AI 模板腔。短句为主，多用空格代替逗号，允许标点随意一点。
-4. 字数死死卡在 30 到 75 个中文字之间，越长越假。
+4. 字数必须大于 35 个中文字，控制在 36 到 75 个中文字之间，越长越假。
 5. 只输出评价正文，不要 JSON、Markdown、前缀、括号、解释。
 `.trim();
 }
