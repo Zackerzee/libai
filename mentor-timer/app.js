@@ -22,6 +22,59 @@ const regionMeta = [
   { key: "table2", label: "🪵 长桌②", title: "🪵 长桌区②", range: "17 - 30" },
 ];
 
+const seatMapLayouts = [
+  {
+    id: "front-table",
+    title: "门口长桌",
+    subtitle: "01 - 06",
+    hint: "一排 6 位",
+    orientation: "horizontal",
+    seats: ["01", "02", "03", "04", "05", "06"].map((id) => ({ id, pos: "top" })),
+  },
+  {
+    id: "right-table",
+    title: "右侧长桌",
+    subtitle: "07 - 16",
+    hint: "右侧 4 位 · 左侧 4 位",
+    orientation: "vertical",
+    seats: [
+      { id: "12", pos: "top" },
+      { id: "13", pos: "left" },
+      { id: "14", pos: "left" },
+      { id: "15", pos: "left" },
+      { id: "16", pos: "left" },
+      { id: "11", pos: "right" },
+      { id: "10", pos: "right" },
+      { id: "09", pos: "right" },
+      { id: "08", pos: "right" },
+      { id: "07", pos: "bottom" },
+    ],
+  },
+  {
+    id: "left-table",
+    title: "左侧大长桌",
+    subtitle: "17 - 30",
+    hint: "两侧环绕 14 位",
+    orientation: "vertical large",
+    seats: [
+      { id: "24", pos: "top" },
+      { id: "25", pos: "top" },
+      { id: "23", pos: "left" },
+      { id: "22", pos: "left" },
+      { id: "21", pos: "left" },
+      { id: "20", pos: "left" },
+      { id: "19", pos: "left" },
+      { id: "26", pos: "right" },
+      { id: "27", pos: "right" },
+      { id: "28", pos: "right" },
+      { id: "29", pos: "right" },
+      { id: "30", pos: "right" },
+      { id: "18", pos: "bottom" },
+      { id: "17", pos: "bottom" },
+    ],
+  },
+];
+
 const sessionPresets = [
   { type: "morning", icon: "🌅", label: "早鸟场", desc: "限时倒计时，到当天 14:00", mode: "countdown", fixedHour: 14, baseFee: 0 },
   { type: "afternoon", icon: "☀️", label: "下午场", desc: "限时倒计时，到当天 19:00", mode: "countdown", fixedHour: 19, baseFee: 0 },
@@ -830,6 +883,145 @@ createApp({
       );
     }
 
+    function compactTimeText(desk) {
+      const displayAt = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : now.value;
+      if (desk.status === "empty") return "";
+      if (desk.status === "preparing") {
+        if (desk.startTime && desk.startTime > now.value) return `待 ${durationClock(desk.startTime - now.value)}`;
+        return "准备中";
+      }
+      if (desk.status === "infinit") return countupText(desk, displayAt);
+
+      const diff = desk.endTime - displayAt;
+      if (diff <= 0) return `超 ${Math.floor(Math.abs(diff) / ONE_MIN_MS)} 分`;
+      return durationClock(diff);
+    }
+
+    function renderSeatActions(desk) {
+      if (desk.status === "empty") return null;
+
+      if (desk.status === "preparing") {
+        return h("div", { class: "seat-actions two" }, [
+          h("button", { type: "button", class: "seat-action start", onClick: (event) => stop(event, () => startPreparedDesk(desk.id)) }, "开始"),
+          h("button", { type: "button", class: "seat-action muted", onClick: (event) => stop(event, () => cancelPreparing(desk.id)) }, "取消"),
+        ]);
+      }
+
+      if (desk.isPaused) {
+        return h("div", { class: "seat-actions two" }, [
+          h("button", { type: "button", class: "seat-action resume", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "▶️"),
+          h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "结束"),
+        ]);
+      }
+
+      if (desk.status === "infinit") {
+        return h("div", { class: "seat-actions two" }, [
+          h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
+          h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "结束"),
+        ]);
+      }
+
+      if (desk.status === "timeout") {
+        return h("div", { class: "seat-actions three" }, [
+          h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
+          h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
+          h("button", { type: "button", class: "seat-action stop danger", onClick: (event) => stop(event, () => askFinish(desk)) }, "结账"),
+        ]);
+      }
+
+      return h("div", { class: "seat-actions four" }, [
+        h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
+        h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
+        h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
+        h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "🛑"),
+      ]);
+    }
+
+    function renderSeatCard(desk) {
+      return h(
+        "article",
+        {
+          key: desk.id,
+          class: `seat-card seat-status-${desk.status} ${desk.isPaused ? "is-paused" : ""}`,
+          onClick: () => openDeskModal(desk),
+        },
+        [
+          h("div", { class: "seat-head" }, [
+            h("strong", { class: "seat-id" }, desk.id),
+            h("span", { class: "seat-status" }, desk.isPaused ? "暂停" : statusText(desk.status)),
+          ]),
+          desk.status === "empty"
+            ? h("div", { class: "seat-empty" }, [h("b", "+"), h("span", "开桌")])
+            : h("div", { class: "seat-body" }, [
+                h("span", { class: "seat-session" }, sessionByType(desk.sessionType).label),
+                h("strong", { class: "seat-time" }, compactTimeText(desk)),
+                h("small", `${timeLabel(desk)} · 开 ${timeOnly(desk.startTime)}`),
+                renderSeatActions(desk),
+              ]),
+        ]
+      );
+    }
+
+    function renderSeatById(seat) {
+      const desk = findDesk(seat.id);
+      return h("div", { key: seat.id, class: `seat-slot seat-${seat.pos}` }, desk ? renderSeatCard(desk) : null);
+    }
+
+    function renderTableLayout(layout) {
+      const seatsByPosition = (position) => layout.seats.filter((seat) => seat.pos === position);
+      return h("article", { key: layout.id, class: `table-zone ${layout.id}` }, [
+        h("div", { class: "table-zone-head" }, [
+          h("div", [h("h2", layout.title), h("p", `${layout.subtitle} · ${layout.hint}`)]),
+          h("span", layout.orientation.includes("large") ? "大桌" : "长桌"),
+        ]),
+        h("div", { class: `seat-map ${layout.orientation}` }, [
+          h("div", { class: "seat-row seat-row-top" }, seatsByPosition("top").map(renderSeatById)),
+          h("div", { class: "table-middle" }, [
+            h("div", { class: "seat-col seat-col-left" }, seatsByPosition("left").map(renderSeatById)),
+            h("div", { class: "table-surface" }, [
+              h("strong", layout.title),
+              h("span", layout.subtitle),
+            ]),
+            h("div", { class: "seat-col seat-col-right" }, seatsByPosition("right").map(renderSeatById)),
+          ]),
+          h("div", { class: "seat-row seat-row-bottom" }, seatsByPosition("bottom").map(renderSeatById)),
+        ]),
+      ]);
+    }
+
+    function renderFloorPlan() {
+      if (isAggregatedOnly.value) {
+        return h("section", { class: "floor-plan-panel active-only-panel" }, [
+          h("div", { class: "floor-plan-head" }, [
+            h("div", [
+              h("h2", "使用中桌位聚合"),
+              h("p", `隐藏空闲座位 · 当前 ${activeDesks.value.length} 位在计时`),
+            ]),
+            h("button", { type: "button", class: "plan-toggle", onClick: () => (isAggregatedOnly.value = false) }, "返回座位图"),
+          ]),
+          activeDesks.value.length
+            ? h("div", { class: "active-seat-grid" }, activeDesks.value.map(renderSeatCard))
+            : h("div", { class: "aggregate-empty" }, "当前没有使用中的桌位。"),
+        ]);
+      }
+
+      return h("section", { class: "floor-plan-panel" }, [
+        h("div", { class: "floor-plan-head" }, [
+          h("div", [
+            h("h2", "门店座位布置图"),
+            h("p", "按现场桌位排布展示，点击座位即可开桌或操作计时。"),
+          ]),
+          h("div", { class: "status-legend" }, [
+            h("span", { class: "legend-dot empty" }, "空闲"),
+            h("span", { class: "legend-dot normal" }, "计时"),
+            h("span", { class: "legend-dot ending" }, "尾声"),
+            h("span", { class: "legend-dot timeout" }, "超时"),
+          ]),
+        ]),
+        h("div", { class: "floor-plan-grid" }, seatMapLayouts.map(renderTableLayout)),
+      ]);
+    }
+
     function renderActiveRegion() {
       const region = activeRegionMeta.value;
       const desksToRender = displayedDesks.value;
@@ -998,8 +1190,7 @@ createApp({
       h("div", { class: "app-shell" }, [
         renderHeader(),
         renderStats(),
-        renderTabs(),
-        renderActiveRegion(),
+        renderFloorPlan(),
         renderRecords(),
         renderOpenModal(),
         renderFinishModal(),
