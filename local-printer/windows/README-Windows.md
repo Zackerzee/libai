@@ -11,7 +11,15 @@
 
 ## 一键安装所有
 
-先把精臣 B3S-P 开机并用 USB 插到 Windows 电脑。解压后，直接双击：
+先右键 zip 选择“全部解压”，再把精臣 B3S-P 开机并用 USB 插到 Windows 电脑。
+
+推荐直接双击解压目录根部的：
+
+```text
+START-HERE-Windows-One-Click.bat
+```
+
+也可以进入 `windows` 文件夹后双击：
 
 ```text
 one-click-install-start.bat
