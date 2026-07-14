@@ -1983,6 +1983,10 @@ body {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.seat-actions.five {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .seat-action {
   min-height: 30px;
   border-radius: 11px;
@@ -2005,7 +2009,8 @@ body {
 
 .seat-action.pause,
 .seat-action.resume,
-.seat-action.start {
+.seat-action.start,
+.seat-action.adjust {
   background: #e8f5f7;
   color: #1f758e;
 }
@@ -2101,6 +2106,79 @@ body {
 
 .sheet-handle {
   background: #d2c1aa;
+}
+
+.adjust-sheet {
+  max-width: 620px;
+}
+
+.adjust-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.adjust-summary div,
+.adjust-form {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 11px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.adjust-summary span,
+.adjust-summary strong,
+.adjust-form label span {
+  display: block;
+}
+
+.adjust-summary span,
+.adjust-form label span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.adjust-summary strong {
+  overflow: hidden;
+  margin-top: 6px;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adjust-quick-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.adjust-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.adjust-form .time-input {
+  width: 100%;
+  margin-top: 7px;
+}
+
+.adjust-submit {
+  min-height: 42px;
+  border-radius: 15px;
+  padding: 0 12px;
+  background: #e8f5f7;
+  color: #1f758e;
+  font-size: 12px;
+  font-weight: 950;
+  white-space: nowrap;
 }
 
 .start-time-card,
@@ -2260,5 +2338,17 @@ body {
 
   .seat-time {
     font-size: 18px;
+  }
+
+  .adjust-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .adjust-form {
+    grid-template-columns: 1fr;
+  }
+
+  .adjust-submit {
+    width: 100%;
   }
 }

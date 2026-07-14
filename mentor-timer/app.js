@@ -331,8 +331,14 @@ createApp({
     const isAggregatedOnly = ref(false);
     const showRecords = ref(false);
     const checkoutDraft = ref(null);
+    const adjustingDesk = ref(null);
+    const adjustRemainingInput = ref("30");
+    const adjustEndInput = ref(timeInputValue(Date.now()));
 
     let intervalId = 0;
+    let audioContext = null;
+    let unlockBellHandler = null;
+    const timeoutBellDeskIds = new Set(desks.value.filter((desk) => desk.status === "timeout").map((desk) => desk.id));
 
     const today = computed(() => dateKey(now.value));
     const todayStat = computed(() => getDailyStat(today.value));
@@ -369,6 +375,72 @@ createApp({
       writeStorage(STAT_STORAGE_KEY, JSON.stringify(statsByDate.value));
     }
 
+    function ensureBellAudio() {
+      const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextCtor) return null;
+      if (!audioContext) audioContext = new AudioContextCtor();
+      if (audioContext.state === "suspended") {
+        audioContext.resume().catch(() => {});
+      }
+      return audioContext;
+    }
+
+    function playTimeoutBell(desk) {
+      const context = ensureBellAudio();
+      if (window.navigator && typeof window.navigator.vibrate === "function") {
+        window.navigator.vibrate([180, 80, 180, 80, 260]);
+      }
+      if (!context) return;
+
+      const startAt = context.currentTime + 0.02;
+      [0, 0.22, 0.46].forEach((offset, index) => {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(index === 1 ? 740 : 880, startAt + offset);
+        gain.gain.setValueAtTime(0.0001, startAt + offset);
+        gain.gain.exponentialRampToValueAtTime(0.18, startAt + offset + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + offset + 0.18);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start(startAt + offset);
+        oscillator.stop(startAt + offset + 0.2);
+      });
+
+      if (document && document.title) {
+        document.title = `⏰ ${desk.id}号桌到时｜拼豆计时器`;
+        window.setTimeout(() => {
+          document.title = "拼豆计时器｜时里白造物创意手作体验空间";
+        }, 8000);
+      }
+    }
+
+    function ringTimeoutOnce(desk) {
+      if (!desk || timeoutBellDeskIds.has(desk.id)) return;
+      timeoutBellDeskIds.add(desk.id);
+      playTimeoutBell(desk);
+    }
+
+    function markDeskNotTimeout(deskId) {
+      timeoutBellDeskIds.delete(deskId);
+    }
+
+    function applyCountdownStatus(desk, timestamp, options = {}) {
+      const previousStatus = desk.status;
+      const previousOverTime = desk.overTimeDuration;
+      const next = deriveCountdownStatus(desk.endTime, timestamp);
+      desk.status = next.status;
+      desk.overTimeDuration = next.overTimeDuration;
+
+      if (next.status === "timeout") {
+        if (options.ring !== false && previousStatus !== "timeout") ringTimeoutOnce(desk);
+      } else {
+        markDeskNotTimeout(desk.id);
+      }
+
+      return previousStatus !== desk.status || previousOverTime !== desk.overTimeDuration;
+    }
+
     function tick() {
       const timestamp = Date.now();
       now.value = timestamp;
@@ -382,25 +454,19 @@ createApp({
             if (desk.mode === "countup") {
               desk.status = "infinit";
               desk.overTimeDuration = 0;
+              markDeskNotTimeout(desk.id);
             } else {
-              const next = deriveCountdownStatus(desk.endTime, timestamp);
-              desk.status = next.status;
-              desk.overTimeDuration = next.overTimeDuration;
+              applyCountdownStatus(desk, timestamp);
             }
             dirty = true;
           }
           continue;
         }
 
-        const next = deriveCountdownStatus(desk.endTime, timestamp);
-        if (desk.status !== next.status) {
-          desk.status = next.status;
-          dirty = true;
-        }
-        if (desk.overTimeDuration !== next.overTimeDuration) {
-          desk.overTimeDuration = next.overTimeDuration;
-          dirty = true;
-        }
+        const beforeStatus = desk.status;
+        const beforeOverTime = desk.overTimeDuration;
+        applyCountdownStatus(desk, timestamp);
+        if (desk.status !== beforeStatus || desk.overTimeDuration !== beforeOverTime) dirty = true;
       }
 
       if (dirty) persistDesks();
@@ -415,6 +481,7 @@ createApp({
     }
 
     function openDeskModal(desk) {
+      ensureBellAudio();
       if (desk.status !== "empty") return;
       openingDesk.value = desk;
       openStartUseNow.value = true;
@@ -467,6 +534,7 @@ createApp({
       desk.pauseStartTime = 0;
       desk.pausedDuration = 0;
       desk.note = "";
+      markDeskNotTimeout(desk.id);
 
       if (preset.mode === "countup") {
         desk.endTime = 0;
@@ -486,10 +554,12 @@ createApp({
       const next = deriveCountdownStatus(endAt, timestamp);
       desk.status = next.status;
       desk.overTimeDuration = next.overTimeDuration;
+      if (next.status === "timeout") timeoutBellDeskIds.add(desk.id);
       return true;
     }
 
     function prepareDesk(deskId, sessionType) {
+      ensureBellAudio();
       const desk = findDesk(deskId);
       const timestamp = Date.now();
       const startAt = openStartUseNow.value ? timestamp : timestampFromTimeInput(openStartInput.value, timestamp);
@@ -504,6 +574,7 @@ createApp({
     }
 
     function startPreparedDesk(deskId) {
+      ensureBellAudio();
       const desk = findDesk(deskId);
       if (!desk || desk.status !== "preparing") return;
 
@@ -518,13 +589,16 @@ createApp({
     }
 
     function cancelPreparing(deskId) {
+      ensureBellAudio();
       const desk = findDesk(deskId);
       if (!desk || desk.status !== "preparing") return;
+      markDeskNotTimeout(desk.id);
       resetDesk(desk);
       persistDesks();
     }
 
     function addTime(deskId, minutes) {
+      ensureBellAudio();
       const desk = findDesk(deskId);
       if (!desk || desk.isPaused || !["normal", "ending", "urgent", "timeout"].includes(desk.status)) return;
 
@@ -535,10 +609,71 @@ createApp({
       desk.extraTimeCount += 1;
       desk.extraTimeFee += fee;
 
-      const next = deriveCountdownStatus(desk.endTime, timestamp);
-      desk.status = next.status;
-      desk.overTimeDuration = next.overTimeDuration;
+      applyCountdownStatus(desk, timestamp, { ring: false });
       persistDesks();
+    }
+
+    function canAdjustTime(desk) {
+      return desk && desk.mode === "countdown" && desk.status !== "empty";
+    }
+
+    function openAdjustModal(desk) {
+      ensureBellAudio();
+      if (!canAdjustTime(desk)) return;
+      const anchor = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : Date.now();
+      const remainingMinutes = Math.max(0, Math.ceil((desk.endTime - anchor) / ONE_MIN_MS));
+      adjustingDesk.value = desk;
+      adjustRemainingInput.value = String(remainingMinutes || 30);
+      adjustEndInput.value = timeInputValue(desk.endTime || anchor + 30 * ONE_MIN_MS);
+    }
+
+    function closeAdjustModal() {
+      adjustingDesk.value = null;
+    }
+
+    function setDeskEndTime(desk, endAt, options = {}) {
+      if (!canAdjustTime(desk)) return;
+      const timestamp = Date.now();
+      desk.endTime = endAt;
+      if (desk.isPaused) {
+        desk.pauseStartTime = timestamp;
+      }
+      const statusAt = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : timestamp;
+      applyCountdownStatus(desk, statusAt, { ring: false });
+      if (desk.status !== "timeout") markDeskNotTimeout(desk.id);
+      if (options.close !== false) closeAdjustModal();
+      persistDesks();
+    }
+
+    function setRemainingMinutes() {
+      const desk = adjustingDesk.value;
+      if (!canAdjustTime(desk)) return;
+      const raw = Number(adjustRemainingInput.value);
+      if (!Number.isFinite(raw) || raw < 0 || raw > 24 * 60) {
+        window.alert("请输入 0 到 1440 之间的剩余分钟数。");
+        return;
+      }
+      const anchor = Date.now();
+      setDeskEndTime(desk, anchor + Math.round(raw) * ONE_MIN_MS);
+    }
+
+    function setEndTimeByInput() {
+      const desk = adjustingDesk.value;
+      if (!canAdjustTime(desk)) return;
+      const timestamp = Date.now();
+      const endAt = timestampFromTimeInput(adjustEndInput.value, timestamp);
+      setDeskEndTime(desk, endAt);
+    }
+
+    function nudgeEndTime(minutes) {
+      const desk = adjustingDesk.value;
+      if (!canAdjustTime(desk)) return;
+      const currentEnd = desk.endTime || Date.now();
+      const nextEnd = currentEnd + minutes * ONE_MIN_MS;
+      adjustEndInput.value = timeInputValue(nextEnd);
+      const anchor = Date.now();
+      adjustRemainingInput.value = String(Math.max(0, Math.ceil((nextEnd - anchor) / ONE_MIN_MS)));
+      setDeskEndTime(desk, nextEnd, { close: false });
     }
 
     function isPausable(desk) {
@@ -546,6 +681,7 @@ createApp({
     }
 
     function pauseDesk(deskId) {
+      ensureBellAudio();
       const desk = findDesk(deskId);
       if (!desk || !isPausable(desk) || desk.isPaused) return;
       desk.isPaused = true;
@@ -554,6 +690,7 @@ createApp({
     }
 
     function resumeDesk(deskId) {
+      ensureBellAudio();
       const desk = findDesk(deskId);
       if (!desk || !desk.isPaused || !desk.pauseStartTime) return;
 
@@ -563,11 +700,10 @@ createApp({
 
       if (desk.mode === "countdown" && desk.endTime) {
         desk.endTime += pausedMs;
-        const next = deriveCountdownStatus(desk.endTime, resumedAt);
-        desk.status = next.status;
-        desk.overTimeDuration = next.overTimeDuration;
+        applyCountdownStatus(desk, resumedAt, { ring: false });
       } else if (desk.mode === "countup") {
         desk.status = "infinit";
+        markDeskNotTimeout(desk.id);
       }
 
       desk.isPaused = false;
@@ -576,6 +712,7 @@ createApp({
     }
 
     function togglePause(deskId) {
+      ensureBellAudio();
       const desk = findDesk(deskId);
       if (!desk) return;
       if (desk.isPaused) resumeDesk(deskId);
@@ -583,6 +720,7 @@ createApp({
     }
 
     function editNote(deskId) {
+      ensureBellAudio();
       const desk = findDesk(deskId);
       if (!desk || desk.status === "empty") return;
       const next = window.prompt("备注内容", desk.note || "");
@@ -629,6 +767,7 @@ createApp({
     }
 
     function askFinish(desk) {
+      ensureBellAudio();
       if (desk.status === "empty") return;
       const timestamp = Date.now();
       const wasPausedBefore = desk.isPaused;
@@ -690,6 +829,7 @@ createApp({
       };
 
       resetDesk(desk);
+      markDeskNotTimeout(desk.id);
       persistStats();
       persistDesks();
       checkoutDraft.value = null;
@@ -901,15 +1041,17 @@ createApp({
       if (desk.status === "empty") return null;
 
       if (desk.status === "preparing") {
-        return h("div", { class: "seat-actions two" }, [
+        return h("div", { class: "seat-actions three" }, [
           h("button", { type: "button", class: "seat-action start", onClick: (event) => stop(event, () => startPreparedDesk(desk.id)) }, "开始"),
+          desk.mode === "countdown" ? h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整") : null,
           h("button", { type: "button", class: "seat-action muted", onClick: (event) => stop(event, () => cancelPreparing(desk.id)) }, "取消"),
         ]);
       }
 
       if (desk.isPaused) {
-        return h("div", { class: "seat-actions two" }, [
+        return h("div", { class: "seat-actions three" }, [
           h("button", { type: "button", class: "seat-action resume", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "▶️"),
+          desk.mode === "countdown" ? h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整") : null,
           h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "结束"),
         ]);
       }
@@ -922,16 +1064,19 @@ createApp({
       }
 
       if (desk.status === "timeout") {
-        return h("div", { class: "seat-actions three" }, [
+        return h("div", { class: "seat-actions five" }, [
           h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
           h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
+          h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整"),
+          h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
           h("button", { type: "button", class: "seat-action stop danger", onClick: (event) => stop(event, () => askFinish(desk)) }, "结账"),
         ]);
       }
 
-      return h("div", { class: "seat-actions four" }, [
+      return h("div", { class: "seat-actions five" }, [
         h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
         h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
+        h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整"),
         h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
         h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "🛑"),
       ]);
@@ -1115,6 +1260,63 @@ createApp({
       ]);
     }
 
+    function renderAdjustModal() {
+      if (!adjustingDesk.value) return null;
+      const desk = adjustingDesk.value;
+      const anchor = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : now.value;
+      const remainingMinutes = Math.max(0, Math.ceil((desk.endTime - anchor) / ONE_MIN_MS));
+
+      return h("div", { class: "modal-backdrop", onClick: (event) => event.target === event.currentTarget && closeAdjustModal() }, [
+        h("section", { class: "sheet adjust-sheet" }, [
+          h("div", { class: "sheet-handle" }),
+          h("div", { class: "sheet-title" }, [
+            h("span", `桌号 ${desk.id}`),
+            h("strong", "调整计时时间"),
+          ]),
+          h("div", { class: "adjust-summary" }, [
+            h("div", [h("span", "当前状态"), h("strong", desk.isPaused ? "已暂停" : statusText(desk.status))]),
+            h("div", [h("span", "预计结束"), h("strong", timeOnly(desk.endTime))]),
+            h("div", [h("span", "剩余"), h("strong", desk.status === "timeout" ? `已超 ${Math.floor((anchor - desk.endTime) / ONE_MIN_MS)} 分` : `${remainingMinutes} 分`)]),
+          ]),
+          h("div", { class: "adjust-quick-row" }, [
+            h("button", { type: "button", class: "time-nudge", onClick: () => nudgeEndTime(-15) }, "-15"),
+            h("button", { type: "button", class: "time-nudge", onClick: () => nudgeEndTime(15) }, "+15"),
+            h("button", { type: "button", class: "time-nudge", onClick: () => nudgeEndTime(30) }, "+30"),
+            h("button", { type: "button", class: "time-nudge", onClick: () => nudgeEndTime(60) }, "+60"),
+          ]),
+          h("div", { class: "adjust-form" }, [
+            h("label", [
+              h("span", "设置剩余分钟"),
+              h("input", {
+                class: "time-input",
+                type: "number",
+                min: "0",
+                max: "1440",
+                inputmode: "numeric",
+                value: adjustRemainingInput.value,
+                onInput: (event) => (adjustRemainingInput.value = event.target.value),
+              }),
+            ]),
+            h("button", { type: "button", class: "adjust-submit", onClick: setRemainingMinutes }, "按剩余时间保存"),
+          ]),
+          h("div", { class: "adjust-form" }, [
+            h("label", [
+              h("span", "设置结束时间"),
+              h("input", {
+                class: "time-input",
+                type: "time",
+                value: adjustEndInput.value,
+                onInput: (event) => (adjustEndInput.value = event.target.value),
+              }),
+            ]),
+            h("button", { type: "button", class: "adjust-submit", onClick: setEndTimeByInput }, "按结束时间保存"),
+          ]),
+          h("p", { class: "start-time-tip" }, "这里用于手动修正时间，不计入加时费；需要收费加时仍使用 +30 / +60。"),
+          h("button", { type: "button", class: "sheet-cancel", onClick: closeAdjustModal }, "取消"),
+        ]),
+      ]);
+    }
+
     function renderFinishModal() {
       if (!checkoutDraft.value) return null;
       const draft = checkoutDraft.value;
@@ -1178,12 +1380,18 @@ createApp({
     }
 
     onMounted(() => {
+      unlockBellHandler = () => ensureBellAudio();
+      window.addEventListener("pointerdown", unlockBellHandler, { once: true, passive: true });
       tick();
       intervalId = window.setInterval(tick, 1000);
     });
 
     onUnmounted(() => {
       if (intervalId) window.clearInterval(intervalId);
+      if (unlockBellHandler) window.removeEventListener("pointerdown", unlockBellHandler);
+      if (audioContext && typeof audioContext.close === "function") {
+        audioContext.close().catch(() => {});
+      }
     });
 
     return () =>
@@ -1193,6 +1401,7 @@ createApp({
         renderFloorPlan(),
         renderRecords(),
         renderOpenModal(),
+        renderAdjustModal(),
         renderFinishModal(),
       ]);
   },
