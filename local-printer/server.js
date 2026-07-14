@@ -9,9 +9,9 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const HOST = process.env.LIBMS_PRINT_HOST || "127.0.0.1";
 const PORT = Number(process.env.LIBMS_PRINT_PORT || 17888);
-const SERIAL_PORT = process.env.LIBMS_NIIMBOT_PORT || "/dev/cu.usbmodem1301";
 const PRINT_DENSITY = Number(process.env.LIBMS_NIIMBOT_DENSITY || 2);
 const PYTHON_BIN = process.env.LIBMS_PYTHON_BIN || "python3";
+const RAW_SERIAL_PORT = process.env.LIBMS_NIIMBOT_PORT || "/dev/cu.usbmodem1301";
 const ALLOWED_ORIGINS = new Set([
   "https://www.libms.net",
   "https://libms.net",
@@ -22,6 +22,18 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 let printQueue = Promise.resolve();
+
+function normalizeSerialPort(value) {
+  const port = String(value || "").trim();
+  const match = /^COM(\d+)$/i.exec(port);
+  if (process.platform === "win32" && match) {
+    const normalized = `COM${Number(match[1])}`;
+    return Number(match[1]) >= 10 ? `\\\\.\\${normalized}` : normalized;
+  }
+  return port;
+}
+
+const SERIAL_PORT = normalizeSerialPort(RAW_SERIAL_PORT);
 
 function corsHeaders(request) {
   const origin = request.headers.get("origin") || "";
@@ -129,7 +141,10 @@ async function handleRequest(request) {
     return jsonResponse(request, 200, {
       ok: true,
       printer: "NIIMBOT B3S-P",
+      platform: process.platform,
+      rawSerialPort: RAW_SERIAL_PORT,
       serialPort: SERIAL_PORT,
+      pythonBin: PYTHON_BIN,
       port: PORT,
     });
   }

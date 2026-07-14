@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import base64
 import json
+import os
 import sys
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
@@ -9,14 +10,27 @@ COLS = 576
 ROWS = 240
 
 FONT_CANDIDATES = [
+    os.environ.get("LIBMS_LABEL_FONT", ""),
+    "C:/Windows/Fonts/msyh.ttc",
+    "C:/Windows/Fonts/msyhbd.ttc",
+    "C:/Windows/Fonts/simhei.ttf",
+    "C:/Windows/Fonts/simsun.ttc",
+    "C:/Windows/Fonts/Deng.ttf",
+    "C:/Windows/Fonts/Dengb.ttf",
     "/System/Library/Fonts/STHeiti Medium.ttc",
     "/System/Library/Fonts/STHeiti Light.ttc",
     "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+    "/System/Library/Fonts/PingFang.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
 ]
 
 
 def load_font(size):
     for path in FONT_CANDIDATES:
+        if not path:
+            continue
+        path = os.path.expandvars(os.path.expanduser(path))
         try:
             return ImageFont.truetype(path, size)
         except Exception:

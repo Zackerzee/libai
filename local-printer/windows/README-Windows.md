@@ -47,6 +47,20 @@ printer.env
 LIBMS_NIIMBOT_PORT=COM3
 ```
 
+如果设备管理器显示的是 `COM10` 或更大的端口号，也直接填写：
+
+```text
+LIBMS_NIIMBOT_PORT=COM10
+```
+
+打印桥会自动转换为 Windows 串口需要的内部格式。
+
+中文标签字体默认使用微软雅黑：
+
+```text
+LIBMS_LABEL_FONT=C:\Windows\Fonts\msyh.ttc
+```
+
 ## 4. 启动打印桥
 
 双击：
@@ -100,6 +114,8 @@ http://127.0.0.1:17888/health
 ```
 
 能看到 `{"ok":true...}` 才表示本机打印桥正常。
+
+健康检查里会显示 `rawSerialPort`、`serialPort`、`pythonBin`，用于确认实际使用的串口和 Python。
 
 ### 找不到 COM 口
 

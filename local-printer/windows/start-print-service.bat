@@ -29,6 +29,7 @@ for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%ENV_FILE%") do (
 if not defined LIBMS_NIIMBOT_PORT set "LIBMS_NIIMBOT_PORT=COM3"
 if not defined LIBMS_PRINT_PORT set "LIBMS_PRINT_PORT=17888"
 if not defined LIBMS_PYTHON_BIN set "LIBMS_PYTHON_BIN=python"
+if not defined LIBMS_LABEL_FONT set "LIBMS_LABEL_FONT=C:\Windows\Fonts\msyh.ttc"
 
 where node >nul 2>nul
 if errorlevel 1 (
@@ -64,6 +65,14 @@ if errorlevel 1 (
   )
 )
 
+if defined LIBMS_LABEL_FONT (
+  if not exist "%LIBMS_LABEL_FONT%" (
+    echo [提醒] 未找到字体文件：%LIBMS_LABEL_FONT%
+    echo 标签仍会尝试打印，但中文可能显示异常。建议在 printer.env 里改成 C:\Windows\Fonts\msyh.ttc 或 simhei.ttf。
+    echo.
+  )
+)
+
 if not exist "%ROOT_DIR%\node_modules\@mmote\niimbluelib" (
   echo 正在安装 Node 打印依赖...
   npm install
@@ -78,6 +87,7 @@ echo.
 echo 打印桥即将启动：
 echo - 服务地址：http://127.0.0.1:%LIBMS_PRINT_PORT%
 echo - 标签机串口：%LIBMS_NIIMBOT_PORT%
+echo - 标签字体：%LIBMS_LABEL_FONT%
 echo.
 echo 保持此窗口运行，网页开台后会自动打印标签。
 echo 如需后台自动启动，请运行 install-autostart.bat。
