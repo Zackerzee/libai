@@ -12,6 +12,7 @@ const LEGACY_STAT_KEYS = ["libms_perler_mentor_timer_stats_v2", "libms_perler_me
 const ONE_MIN_MS = 60 * 1000;
 const TEN_MIN_MS = 10 * ONE_MIN_MS;
 const THIRTY_MIN_MS = 30 * ONE_MIN_MS;
+const PRINT_BRIDGE_URL = "http://127.0.0.1:17888/print-label";
 
 const validStatuses = new Set(["empty", "preparing", "normal", "ending", "urgent", "timeout", "infinit"]);
 const validSessionTypes = new Set(["morning", "afternoon", "night", "day", "1h", "2h", "infinit", "iron52", "iron78"]);
@@ -321,6 +322,36 @@ function countupText(desk, timestamp) {
   return durationClock(elapsedMs(desk, timestamp));
 }
 
+function requestPrintBridge(payload) {
+  if (!window.fetch) return;
+
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutId = controller ? window.setTimeout(() => controller.abort(), 10000) : 0;
+
+  window
+    .fetch(PRINT_BRIDGE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller ? controller.signal : undefined,
+      mode: "cors",
+    })
+    .then((response) => {
+      if (!response.ok) throw new Error(`print bridge ${response.status}`);
+      return response.json().catch(() => ({}));
+    })
+    .then((data) => {
+      if (data && data.ok === false) throw new Error(data.error || "print failed");
+      console.info("[LIBMS Timer] 开台标签已发送到本机打印桥", payload);
+    })
+    .catch((error) => {
+      console.warn("[LIBMS Timer] 本机打印桥未完成打印，开台不受影响：", error);
+    })
+    .finally(() => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+    });
+}
+
 function stop(event, handler) {
   event.stopPropagation();
   handler();
@@ -580,6 +611,14 @@ createApp({
       }
 
       persistDesks();
+      requestPrintBridge({
+        deskId: desk.id,
+        session: sessionByType(desk.sessionType).label,
+        mode: desk.mode,
+        startLabel: timeOnly(desk.startTime),
+        endLabel: desk.mode === "countdown" ? timeOnly(desk.endTime) : "",
+        note: desk.mode === "countdown" ? "请按时提醒顾客" : "不限时 / 正计时",
+      });
       closeOpenModal();
     }
 

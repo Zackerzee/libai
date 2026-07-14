@@ -12,9 +12,10 @@ const LEGACY_STAT_KEYS = ["libms_perler_mentor_timer_stats_v2", "libms_perler_me
 const ONE_MIN_MS = 60 * 1000;
 const TEN_MIN_MS = 10 * ONE_MIN_MS;
 const THIRTY_MIN_MS = 30 * ONE_MIN_MS;
+const PRINT_BRIDGE_URL = "http://127.0.0.1:17888/print-label";
 
 const validStatuses = new Set(["empty", "preparing", "normal", "ending", "urgent", "timeout", "infinit"]);
-const validSessionTypes = new Set(["morning", "afternoon", "night", "day", "1h", "2h", "infinit"]);
+const validSessionTypes = new Set(["morning", "afternoon", "night", "day", "1h", "2h", "infinit", "iron52", "iron78"]);
 
 const regionMeta = [
   { key: "window", label: "🪟 玻璃幕墙", title: "🪟 靠玻璃幕墙", range: "01 - 06" },
@@ -22,14 +23,69 @@ const regionMeta = [
   { key: "table2", label: "🪵 长桌②", title: "🪵 长桌区②", range: "17 - 30" },
 ];
 
+const seatMapLayouts = [
+  {
+    id: "front-table",
+    title: "上方横桌",
+    subtitle: "01 - 06",
+    hint: "从左到右 06 - 01",
+    orientation: "horizontal",
+    seats: ["06", "05", "04", "03", "02", "01"].map((id) => ({ id, pos: "bottom" })),
+  },
+  {
+    id: "left-table",
+    title: "左侧长桌",
+    subtitle: "07 - 16",
+    hint: "上 07 · 下 12",
+    orientation: "vertical",
+    seats: [
+      { id: "07", pos: "top" },
+      { id: "08", pos: "right" },
+      { id: "09", pos: "right" },
+      { id: "10", pos: "right" },
+      { id: "11", pos: "right" },
+      { id: "16", pos: "left" },
+      { id: "15", pos: "left" },
+      { id: "14", pos: "left" },
+      { id: "13", pos: "left" },
+      { id: "12", pos: "bottom" },
+    ],
+  },
+  {
+    id: "right-table",
+    title: "右侧大长桌",
+    subtitle: "17 - 30",
+    hint: "上 17/18 · 下 25/24",
+    orientation: "vertical large",
+    seats: [
+      { id: "17", pos: "top" },
+      { id: "18", pos: "top" },
+      { id: "30", pos: "left" },
+      { id: "29", pos: "left" },
+      { id: "28", pos: "left" },
+      { id: "27", pos: "left" },
+      { id: "26", pos: "left" },
+      { id: "19", pos: "right" },
+      { id: "20", pos: "right" },
+      { id: "21", pos: "right" },
+      { id: "22", pos: "right" },
+      { id: "23", pos: "right" },
+      { id: "25", pos: "bottom" },
+      { id: "24", pos: "bottom" },
+    ],
+  },
+];
+
 const sessionPresets = [
-  { type: "morning", icon: "🌅", label: "早鸟场", desc: "限时倒计时，到当天 14:00", mode: "countdown", fixedHour: 14, baseFee: 0 },
-  { type: "afternoon", icon: "☀️", label: "下午场", desc: "限时倒计时，到当天 19:00", mode: "countdown", fixedHour: 19, baseFee: 0 },
-  { type: "night", icon: "🌙", label: "星光夜场", desc: "限时倒计时，到当天 21:00", mode: "countdown", fixedHour: 21, baseFee: 0 },
-  { type: "day", icon: "🎫", label: "包天场", desc: "限时倒计时，到当天 21:00", mode: "countdown", fixedHour: 21, baseFee: 0 },
+  { type: "morning", icon: "🌅", label: "早鸟场（工作日）", desc: "工作日可开，到当天 14:00", mode: "countdown", fixedHour: 14, weekdayOnly: true, baseFee: 0 },
+  { type: "afternoon", icon: "☀️", label: "午后休闲（工作日）", desc: "工作日可开，到当天 19:00", mode: "countdown", fixedHour: 19, weekdayOnly: true, baseFee: 0 },
+  { type: "night", icon: "🌙", label: "星光夜场（工作日）", desc: "工作日可开，到当天 21:00", mode: "countdown", fixedHour: 21, weekdayOnly: true, baseFee: 0 },
+  { type: "day", icon: "🎫", label: "全天不限时", desc: "正计时记录，不设结束时间", mode: "countup", baseFee: 0 },
   { type: "1h", icon: "⏱", label: "限时 1h", desc: "开始后倒计时 60 分钟", mode: "countdown", durationMin: 60, baseFee: 0 },
   { type: "2h", icon: "⏱", label: "限时 2h", desc: "开始后倒计时 120 分钟", mode: "countdown", durationMin: 120, baseFee: 0 },
   { type: "infinit", icon: "♾️", label: "不限时畅玩", desc: "正计时模式，从 00:00:00 开始", mode: "countup", baseFee: 0 },
+  { type: "iron52", icon: "🧩", label: "52×52 单板熨烫一次", desc: "单次熨烫服务，正计时记录", mode: "countup", baseFee: 0 },
+  { type: "iron78", icon: "🧩", label: "78×78 单板熨烫一次", desc: "单次熨烫服务，正计时记录", mode: "countup", baseFee: 0 },
 ];
 
 function regionById(idNumber) {
@@ -174,6 +230,11 @@ function shiftTimeInputValue(value, minutes, baseTimestamp = Date.now()) {
   return timeInputValue(timestampFromTimeInput(value, baseTimestamp) + minutes * ONE_MIN_MS);
 }
 
+function isWeekend(timestamp) {
+  const day = new Date(timestamp).getDay();
+  return day === 0 || day === 6;
+}
+
 function fullDateTime(timestamp) {
   const weekDays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
   const date = new Date(timestamp);
@@ -261,6 +322,36 @@ function countupText(desk, timestamp) {
   return durationClock(elapsedMs(desk, timestamp));
 }
 
+function requestPrintBridge(payload) {
+  if (!window.fetch) return;
+
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutId = controller ? window.setTimeout(() => controller.abort(), 10000) : 0;
+
+  window
+    .fetch(PRINT_BRIDGE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller ? controller.signal : undefined,
+      mode: "cors",
+    })
+    .then((response) => {
+      if (!response.ok) throw new Error(`print bridge ${response.status}`);
+      return response.json().catch(() => ({}));
+    })
+    .then((data) => {
+      if (data && data.ok === false) throw new Error(data.error || "print failed");
+      console.info("[LIBMS Timer] 开台标签已发送到本机打印桥", payload);
+    })
+    .catch((error) => {
+      console.warn("[LIBMS Timer] 本机打印桥未完成打印，开台不受影响：", error);
+    })
+    .finally(() => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+    });
+}
+
 function stop(event, handler) {
   event.stopPropagation();
   handler();
@@ -278,8 +369,15 @@ createApp({
     const isAggregatedOnly = ref(false);
     const showRecords = ref(false);
     const checkoutDraft = ref(null);
+    const adjustingDesk = ref(null);
+    const adjustStartInput = ref(timeInputValue(Date.now()));
+    const adjustRemainingInput = ref("30");
+    const adjustEndInput = ref(timeInputValue(Date.now()));
 
     let intervalId = 0;
+    let audioContext = null;
+    let unlockBellHandler = null;
+    const timeoutBellDeskIds = new Set(desks.value.filter((desk) => desk.status === "timeout").map((desk) => desk.id));
 
     const today = computed(() => dateKey(now.value));
     const todayStat = computed(() => getDailyStat(today.value));
@@ -316,6 +414,72 @@ createApp({
       writeStorage(STAT_STORAGE_KEY, JSON.stringify(statsByDate.value));
     }
 
+    function ensureBellAudio() {
+      const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextCtor) return null;
+      if (!audioContext) audioContext = new AudioContextCtor();
+      if (audioContext.state === "suspended") {
+        audioContext.resume().catch(() => {});
+      }
+      return audioContext;
+    }
+
+    function playTimeoutBell(desk) {
+      const context = ensureBellAudio();
+      if (window.navigator && typeof window.navigator.vibrate === "function") {
+        window.navigator.vibrate([180, 80, 180, 80, 260]);
+      }
+      if (!context) return;
+
+      const startAt = context.currentTime + 0.02;
+      [0, 0.22, 0.46].forEach((offset, index) => {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(index === 1 ? 740 : 880, startAt + offset);
+        gain.gain.setValueAtTime(0.0001, startAt + offset);
+        gain.gain.exponentialRampToValueAtTime(0.18, startAt + offset + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + offset + 0.18);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start(startAt + offset);
+        oscillator.stop(startAt + offset + 0.2);
+      });
+
+      if (document && document.title) {
+        document.title = `⏰ ${desk.id}号桌到时｜拼豆计时器`;
+        window.setTimeout(() => {
+          document.title = "拼豆计时器｜时里白造物创意手作体验空间";
+        }, 8000);
+      }
+    }
+
+    function ringTimeoutOnce(desk) {
+      if (!desk || timeoutBellDeskIds.has(desk.id)) return;
+      timeoutBellDeskIds.add(desk.id);
+      playTimeoutBell(desk);
+    }
+
+    function markDeskNotTimeout(deskId) {
+      timeoutBellDeskIds.delete(deskId);
+    }
+
+    function applyCountdownStatus(desk, timestamp, options = {}) {
+      const previousStatus = desk.status;
+      const previousOverTime = desk.overTimeDuration;
+      const next = deriveCountdownStatus(desk.endTime, timestamp);
+      desk.status = next.status;
+      desk.overTimeDuration = next.overTimeDuration;
+
+      if (next.status === "timeout") {
+        if (options.ring !== false && previousStatus !== "timeout") ringTimeoutOnce(desk);
+      } else {
+        markDeskNotTimeout(desk.id);
+      }
+
+      return previousStatus !== desk.status || previousOverTime !== desk.overTimeDuration;
+    }
+
     function tick() {
       const timestamp = Date.now();
       now.value = timestamp;
@@ -329,25 +493,19 @@ createApp({
             if (desk.mode === "countup") {
               desk.status = "infinit";
               desk.overTimeDuration = 0;
+              markDeskNotTimeout(desk.id);
             } else {
-              const next = deriveCountdownStatus(desk.endTime, timestamp);
-              desk.status = next.status;
-              desk.overTimeDuration = next.overTimeDuration;
+              applyCountdownStatus(desk, timestamp);
             }
             dirty = true;
           }
           continue;
         }
 
-        const next = deriveCountdownStatus(desk.endTime, timestamp);
-        if (desk.status !== next.status) {
-          desk.status = next.status;
-          dirty = true;
-        }
-        if (desk.overTimeDuration !== next.overTimeDuration) {
-          desk.overTimeDuration = next.overTimeDuration;
-          dirty = true;
-        }
+        const beforeStatus = desk.status;
+        const beforeOverTime = desk.overTimeDuration;
+        applyCountdownStatus(desk, timestamp);
+        if (desk.status !== beforeStatus || desk.overTimeDuration !== beforeOverTime) dirty = true;
       }
 
       if (dirty) persistDesks();
@@ -362,6 +520,7 @@ createApp({
     }
 
     function openDeskModal(desk) {
+      ensureBellAudio();
       if (desk.status !== "empty") return;
       openingDesk.value = desk;
       openStartUseNow.value = true;
@@ -389,12 +548,14 @@ createApp({
 
     function canPrepare(sessionType, startAt = resolveOpenStartAt()) {
       const preset = sessionByType(sessionType);
+      if (preset.weekdayOnly && isWeekend(startAt)) return false;
       if (preset.mode === "countup" || preset.durationMin) return true;
       return hasValidEndTime(sessionType, startAt);
     }
 
     function endHint(sessionType, startAt = resolveOpenStartAt()) {
       const preset = sessionByType(sessionType);
+      if (preset.weekdayOnly && isWeekend(startAt)) return "周六周日不可开";
       if (preset.mode === "countup") return "正计时，不设结束时间";
       const endAt = computeEndTime(sessionType, startAt);
       if (endAt <= startAt) return "开始时间已超过场次";
@@ -414,6 +575,7 @@ createApp({
       desk.pauseStartTime = 0;
       desk.pausedDuration = 0;
       desk.note = "";
+      markDeskNotTimeout(desk.id);
 
       if (preset.mode === "countup") {
         desk.endTime = 0;
@@ -433,24 +595,35 @@ createApp({
       const next = deriveCountdownStatus(endAt, timestamp);
       desk.status = next.status;
       desk.overTimeDuration = next.overTimeDuration;
+      if (next.status === "timeout") timeoutBellDeskIds.add(desk.id);
       return true;
     }
 
     function prepareDesk(deskId, sessionType) {
+      ensureBellAudio();
       const desk = findDesk(deskId);
       const timestamp = Date.now();
       const startAt = openStartUseNow.value ? timestamp : timestampFromTimeInput(openStartInput.value, timestamp);
       if (!desk || desk.status !== "empty") return;
       if (!canPrepare(sessionType, startAt) || !applyDeskStart(desk, sessionType, startAt, timestamp)) {
-        window.alert("开始时间不适合该场次，请调整开始时间或选择其他模式。");
+        window.alert("开始时间不适合该场次：工作日场次周六周日不可开，或开始时间已超过场次结束时间。");
         return;
       }
 
       persistDesks();
+      requestPrintBridge({
+        deskId: desk.id,
+        session: sessionByType(desk.sessionType).label,
+        mode: desk.mode,
+        startLabel: timeOnly(desk.startTime),
+        endLabel: desk.mode === "countdown" ? timeOnly(desk.endTime) : "",
+        note: desk.mode === "countdown" ? "请按时提醒顾客" : "不限时 / 正计时",
+      });
       closeOpenModal();
     }
 
     function startPreparedDesk(deskId) {
+      ensureBellAudio();
       const desk = findDesk(deskId);
       if (!desk || desk.status !== "preparing") return;
 
@@ -465,13 +638,16 @@ createApp({
     }
 
     function cancelPreparing(deskId) {
+      ensureBellAudio();
       const desk = findDesk(deskId);
       if (!desk || desk.status !== "preparing") return;
+      markDeskNotTimeout(desk.id);
       resetDesk(desk);
       persistDesks();
     }
 
     function addTime(deskId, minutes) {
+      ensureBellAudio();
       const desk = findDesk(deskId);
       if (!desk || desk.isPaused || !["normal", "ending", "urgent", "timeout"].includes(desk.status)) return;
 
@@ -482,10 +658,86 @@ createApp({
       desk.extraTimeCount += 1;
       desk.extraTimeFee += fee;
 
-      const next = deriveCountdownStatus(desk.endTime, timestamp);
-      desk.status = next.status;
-      desk.overTimeDuration = next.overTimeDuration;
+      applyCountdownStatus(desk, timestamp, { ring: false });
       persistDesks();
+    }
+
+    function canAdjustTime(desk) {
+      return desk && desk.mode === "countdown" && desk.status !== "empty";
+    }
+
+    function openAdjustModal(desk) {
+      ensureBellAudio();
+      if (!canAdjustTime(desk)) return;
+      const anchor = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : Date.now();
+      const remainingMinutes = Math.max(0, Math.ceil((desk.endTime - anchor) / ONE_MIN_MS));
+      adjustingDesk.value = desk;
+      adjustStartInput.value = timeInputValue(desk.startTime || anchor);
+      adjustRemainingInput.value = String(remainingMinutes || 30);
+      adjustEndInput.value = timeInputValue(desk.endTime || anchor + 30 * ONE_MIN_MS);
+    }
+
+    function closeAdjustModal() {
+      adjustingDesk.value = null;
+    }
+
+    function setDeskTiming(desk, startAt, endAt) {
+      if (!canAdjustTime(desk)) return;
+      const timestamp = Date.now();
+      if (!startAt || !endAt || endAt <= startAt) {
+        window.alert("结束时间必须晚于开始时间，请重新调整。");
+        return;
+      }
+
+      desk.startTime = startAt;
+      desk.endTime = endAt;
+      if (startAt > timestamp) {
+        desk.status = "preparing";
+        desk.overTimeDuration = 0;
+        desk.isPaused = false;
+        desk.pauseStartTime = 0;
+        markDeskNotTimeout(desk.id);
+      } else {
+        if (desk.isPaused) desk.pauseStartTime = timestamp;
+        const statusAt = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : timestamp;
+        applyCountdownStatus(desk, statusAt, { ring: false });
+      }
+      if (desk.status !== "timeout") markDeskNotTimeout(desk.id);
+      closeAdjustModal();
+      persistDesks();
+    }
+
+    function updateDraftRemainingFromEnd() {
+      const base = Date.now();
+      const endAt = timestampFromTimeInput(adjustEndInput.value, base);
+      adjustRemainingInput.value = String(Math.max(0, Math.ceil((endAt - base) / ONE_MIN_MS)));
+    }
+
+    function applyRemainingToDraftEnd() {
+      const raw = Number(adjustRemainingInput.value);
+      if (!Number.isFinite(raw) || raw < 0 || raw > 24 * 60) {
+        window.alert("请输入 0 到 1440 之间的剩余分钟数。");
+        return;
+      }
+      const anchor = Date.now();
+      adjustEndInput.value = timeInputValue(anchor + Math.round(raw) * ONE_MIN_MS);
+    }
+
+    function confirmAdjustTiming() {
+      const desk = adjustingDesk.value;
+      if (!canAdjustTime(desk)) return;
+      const timestamp = Date.now();
+      const startAt = timestampFromTimeInput(adjustStartInput.value, timestamp);
+      const endAt = timestampFromTimeInput(adjustEndInput.value, timestamp);
+      setDeskTiming(desk, startAt, endAt);
+    }
+
+    function nudgeEndTime(minutes) {
+      const currentEnd = timestampFromTimeInput(adjustEndInput.value, Date.now());
+      const nextEnd = currentEnd + minutes * ONE_MIN_MS;
+      adjustEndInput.value = timeInputValue(nextEnd);
+      const anchor = Date.now();
+      adjustRemainingInput.value = String(Math.max(0, Math.ceil((nextEnd - anchor) / ONE_MIN_MS)));
     }
 
     function isPausable(desk) {
@@ -493,6 +745,7 @@ createApp({
     }
 
     function pauseDesk(deskId) {
+      ensureBellAudio();
       const desk = findDesk(deskId);
       if (!desk || !isPausable(desk) || desk.isPaused) return;
       desk.isPaused = true;
@@ -501,6 +754,7 @@ createApp({
     }
 
     function resumeDesk(deskId) {
+      ensureBellAudio();
       const desk = findDesk(deskId);
       if (!desk || !desk.isPaused || !desk.pauseStartTime) return;
 
@@ -510,11 +764,10 @@ createApp({
 
       if (desk.mode === "countdown" && desk.endTime) {
         desk.endTime += pausedMs;
-        const next = deriveCountdownStatus(desk.endTime, resumedAt);
-        desk.status = next.status;
-        desk.overTimeDuration = next.overTimeDuration;
+        applyCountdownStatus(desk, resumedAt, { ring: false });
       } else if (desk.mode === "countup") {
         desk.status = "infinit";
+        markDeskNotTimeout(desk.id);
       }
 
       desk.isPaused = false;
@@ -523,6 +776,7 @@ createApp({
     }
 
     function togglePause(deskId) {
+      ensureBellAudio();
       const desk = findDesk(deskId);
       if (!desk) return;
       if (desk.isPaused) resumeDesk(deskId);
@@ -530,6 +784,7 @@ createApp({
     }
 
     function editNote(deskId) {
+      ensureBellAudio();
       const desk = findDesk(deskId);
       if (!desk || desk.status === "empty") return;
       const next = window.prompt("备注内容", desk.note || "");
@@ -576,6 +831,7 @@ createApp({
     }
 
     function askFinish(desk) {
+      ensureBellAudio();
       if (desk.status === "empty") return;
       const timestamp = Date.now();
       const wasPausedBefore = desk.isPaused;
@@ -637,6 +893,7 @@ createApp({
       };
 
       resetDesk(desk);
+      markDeskNotTimeout(desk.id);
       persistStats();
       persistDesks();
       checkoutDraft.value = null;
@@ -830,6 +1087,150 @@ createApp({
       );
     }
 
+    function compactTimeText(desk) {
+      const displayAt = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : now.value;
+      if (desk.status === "empty") return "";
+      if (desk.status === "preparing") {
+        if (desk.startTime && desk.startTime > now.value) return `待 ${durationClock(desk.startTime - now.value)}`;
+        return "准备中";
+      }
+      if (desk.status === "infinit") return countupText(desk, displayAt);
+
+      const diff = desk.endTime - displayAt;
+      if (diff <= 0) return `超 ${Math.floor(Math.abs(diff) / ONE_MIN_MS)} 分`;
+      return durationClock(diff);
+    }
+
+    function renderSeatActions(desk) {
+      if (desk.status === "empty") return null;
+
+      if (desk.status === "preparing") {
+        return h("div", { class: "seat-actions three" }, [
+          h("button", { type: "button", class: "seat-action start", onClick: (event) => stop(event, () => startPreparedDesk(desk.id)) }, "开始"),
+          desk.mode === "countdown" ? h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整") : null,
+          h("button", { type: "button", class: "seat-action muted", onClick: (event) => stop(event, () => cancelPreparing(desk.id)) }, "取消"),
+        ]);
+      }
+
+      if (desk.isPaused) {
+        return h("div", { class: "seat-actions three" }, [
+          h("button", { type: "button", class: "seat-action resume", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "▶️"),
+          desk.mode === "countdown" ? h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整") : null,
+          h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "结束"),
+        ]);
+      }
+
+      if (desk.status === "infinit") {
+        return h("div", { class: "seat-actions two" }, [
+          h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
+          h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "结束"),
+        ]);
+      }
+
+      if (desk.status === "timeout") {
+        return h("div", { class: "seat-actions five" }, [
+          h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
+          h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
+          h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整"),
+          h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
+          h("button", { type: "button", class: "seat-action stop danger", onClick: (event) => stop(event, () => askFinish(desk)) }, "结账"),
+        ]);
+      }
+
+      return h("div", { class: "seat-actions five" }, [
+        h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
+        h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
+        h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整"),
+        h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
+        h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "🛑"),
+      ]);
+    }
+
+    function renderSeatCard(desk) {
+      return h(
+        "article",
+        {
+          key: desk.id,
+          class: `seat-card seat-status-${desk.status} ${desk.isPaused ? "is-paused" : ""}`,
+          onClick: () => openDeskModal(desk),
+        },
+        [
+          h("div", { class: "seat-head" }, [
+            h("strong", { class: "seat-id" }, desk.id),
+            h("span", { class: "seat-status" }, desk.isPaused ? "暂停" : statusText(desk.status)),
+          ]),
+          desk.status === "empty"
+            ? h("div", { class: "seat-empty" }, [h("b", "+"), h("span", "开桌")])
+            : h("div", { class: "seat-body" }, [
+                h("span", { class: "seat-session" }, sessionByType(desk.sessionType).label),
+                h("strong", { class: "seat-time" }, compactTimeText(desk)),
+                h("small", `${timeLabel(desk)} · 开 ${timeOnly(desk.startTime)}`),
+                renderSeatActions(desk),
+              ]),
+        ]
+      );
+    }
+
+    function renderSeatById(seat) {
+      const desk = findDesk(seat.id);
+      return h("div", { key: seat.id, class: `seat-slot seat-${seat.pos}` }, desk ? renderSeatCard(desk) : null);
+    }
+
+    function renderTableLayout(layout) {
+      const seatsByPosition = (position) => layout.seats.filter((seat) => seat.pos === position);
+      return h("article", { key: layout.id, class: `table-zone ${layout.id}` }, [
+        h("div", { class: "table-zone-head" }, [
+          h("div", [h("h2", layout.title), h("p", `${layout.subtitle} · ${layout.hint}`)]),
+          h("span", layout.orientation.includes("large") ? "大桌" : "长桌"),
+        ]),
+        h("div", { class: `seat-map ${layout.orientation}` }, [
+          h("div", { class: "seat-row seat-row-top" }, seatsByPosition("top").map(renderSeatById)),
+          h("div", { class: "table-middle" }, [
+            h("div", { class: "seat-col seat-col-left" }, seatsByPosition("left").map(renderSeatById)),
+            h("div", { class: "table-surface" }, [
+              h("strong", layout.title),
+              h("span", layout.subtitle),
+            ]),
+            h("div", { class: "seat-col seat-col-right" }, seatsByPosition("right").map(renderSeatById)),
+          ]),
+          h("div", { class: "seat-row seat-row-bottom" }, seatsByPosition("bottom").map(renderSeatById)),
+        ]),
+      ]);
+    }
+
+    function renderFloorPlan() {
+      if (isAggregatedOnly.value) {
+        return h("section", { class: "floor-plan-panel active-only-panel" }, [
+          h("div", { class: "floor-plan-head" }, [
+            h("div", [
+              h("h2", "使用中桌位聚合"),
+              h("p", `隐藏空闲座位 · 当前 ${activeDesks.value.length} 位在计时`),
+            ]),
+            h("button", { type: "button", class: "plan-toggle", onClick: () => (isAggregatedOnly.value = false) }, "返回座位图"),
+          ]),
+          activeDesks.value.length
+            ? h("div", { class: "active-seat-grid" }, activeDesks.value.map(renderSeatCard))
+            : h("div", { class: "aggregate-empty" }, "当前没有使用中的桌位。"),
+        ]);
+      }
+
+      return h("section", { class: "floor-plan-panel" }, [
+        h("div", { class: "floor-plan-head" }, [
+          h("div", [
+            h("h2", "门店座位布置图"),
+            h("p", "按现场桌位排布展示，点击座位即可开桌或操作计时。"),
+          ]),
+          h("div", { class: "status-legend" }, [
+            h("span", { class: "legend-dot empty" }, "空闲"),
+            h("span", { class: "legend-dot normal" }, "计时"),
+            h("span", { class: "legend-dot ending" }, "尾声"),
+            h("span", { class: "legend-dot timeout" }, "超时"),
+          ]),
+        ]),
+        h("div", { class: "floor-plan-grid" }, seatMapLayouts.map(renderTableLayout)),
+      ]);
+    }
+
     function renderActiveRegion() {
       const region = activeRegionMeta.value;
       const desksToRender = displayedDesks.value;
@@ -887,7 +1288,7 @@ createApp({
     function renderOpenModal() {
       if (!openingDesk.value) return null;
       return h("div", { class: "modal-backdrop", onClick: (event) => event.target === event.currentTarget && closeOpenModal() }, [
-        h("section", { class: "sheet" }, [
+        h("section", { class: "sheet open-sheet" }, [
           h("div", { class: "sheet-handle" }),
           h("div", { class: "sheet-title" }, [
             h("span", `桌号 ${openingDesk.value.id}`),
@@ -919,6 +1320,81 @@ createApp({
             )
           ),
           h("button", { type: "button", class: "sheet-cancel", onClick: closeOpenModal }, "取消"),
+        ]),
+      ]);
+    }
+
+    function renderAdjustModal() {
+      if (!adjustingDesk.value) return null;
+      const desk = adjustingDesk.value;
+      const anchor = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : now.value;
+      const remainingMinutes = Math.max(0, Math.ceil((desk.endTime - anchor) / ONE_MIN_MS));
+
+      return h("div", { class: "modal-backdrop", onClick: (event) => event.target === event.currentTarget && closeAdjustModal() }, [
+        h("section", { class: "sheet adjust-sheet" }, [
+          h("div", { class: "sheet-handle" }),
+          h("div", { class: "sheet-title" }, [
+            h("span", `桌号 ${desk.id}`),
+            h("strong", "调整计时时间"),
+          ]),
+          h("div", { class: "adjust-summary" }, [
+            h("div", [h("span", "当前状态"), h("strong", desk.isPaused ? "已暂停" : statusText(desk.status))]),
+            h("div", [h("span", "预计结束"), h("strong", timeOnly(desk.endTime))]),
+            h("div", [h("span", "剩余"), h("strong", desk.status === "timeout" ? `已超 ${Math.floor((anchor - desk.endTime) / ONE_MIN_MS)} 分` : `${remainingMinutes} 分`)]),
+          ]),
+          h("div", { class: "adjust-quick-row" }, [
+            h("button", { type: "button", class: "time-nudge", onClick: () => nudgeEndTime(-15) }, "-15"),
+            h("button", { type: "button", class: "time-nudge", onClick: () => nudgeEndTime(15) }, "+15"),
+            h("button", { type: "button", class: "time-nudge", onClick: () => nudgeEndTime(30) }, "+30"),
+            h("button", { type: "button", class: "time-nudge", onClick: () => nudgeEndTime(60) }, "+60"),
+          ]),
+          h("div", { class: "adjust-form" }, [
+            h("label", [
+              h("span", "调整开始时间"),
+              h("input", {
+                class: "time-input",
+                type: "time",
+                value: adjustStartInput.value,
+                onInput: (event) => (adjustStartInput.value = event.target.value),
+              }),
+            ]),
+            h("p", { class: "adjust-form-note" }, "用于补录或修正开台时间，会影响实际用时记录。"),
+          ]),
+          h("div", { class: "adjust-form" }, [
+            h("label", [
+              h("span", "设置剩余分钟"),
+              h("input", {
+                class: "time-input",
+                type: "number",
+                min: "0",
+                max: "1440",
+                inputmode: "numeric",
+                value: adjustRemainingInput.value,
+                onInput: (event) => (adjustRemainingInput.value = event.target.value),
+              }),
+            ]),
+            h("button", { type: "button", class: "adjust-submit", onClick: applyRemainingToDraftEnd }, "换算结束时间"),
+          ]),
+          h("div", { class: "adjust-form" }, [
+            h("label", [
+              h("span", "设置结束时间"),
+              h("input", {
+                class: "time-input",
+                type: "time",
+                value: adjustEndInput.value,
+                onInput: (event) => {
+                  adjustEndInput.value = event.target.value;
+                  updateDraftRemainingFromEnd();
+                },
+              }),
+            ]),
+            h("p", { class: "adjust-form-note" }, "例如 16:45 改 16:40，修改这里后点确认调整。"),
+          ]),
+          h("p", { class: "start-time-tip" }, "这里用于手动修正时间，不计入加时费；需要收费加时仍使用 +30 / +60。"),
+          h("div", { class: "confirm-actions" }, [
+            h("button", { type: "button", class: "confirm-cancel", onClick: closeAdjustModal }, "取消"),
+            h("button", { type: "button", class: "confirm-submit", onClick: confirmAdjustTiming }, "确认调整"),
+          ]),
         ]),
       ]);
     }
@@ -986,22 +1462,28 @@ createApp({
     }
 
     onMounted(() => {
+      unlockBellHandler = () => ensureBellAudio();
+      window.addEventListener("pointerdown", unlockBellHandler, { once: true, passive: true });
       tick();
       intervalId = window.setInterval(tick, 1000);
     });
 
     onUnmounted(() => {
       if (intervalId) window.clearInterval(intervalId);
+      if (unlockBellHandler) window.removeEventListener("pointerdown", unlockBellHandler);
+      if (audioContext && typeof audioContext.close === "function") {
+        audioContext.close().catch(() => {});
+      }
     });
 
     return () =>
       h("div", { class: "app-shell" }, [
         renderHeader(),
         renderStats(),
-        renderTabs(),
-        renderActiveRegion(),
+        renderFloorPlan(),
         renderRecords(),
         renderOpenModal(),
+        renderAdjustModal(),
         renderFinishModal(),
       ]);
   },

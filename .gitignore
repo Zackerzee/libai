@@ -7,5 +7,6 @@ public/
 outputs/
 video_edit/
 node_modules/
+__pycache__/
 *.log
 .wrangler/
