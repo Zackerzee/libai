@@ -1249,7 +1249,7 @@ createApp({
     function renderOpenModal() {
       if (!openingDesk.value) return null;
       return h("div", { class: "modal-backdrop", onClick: (event) => event.target === event.currentTarget && closeOpenModal() }, [
-        h("section", { class: "sheet" }, [
+        h("section", { class: "sheet open-sheet" }, [
           h("div", { class: "sheet-handle" }),
           h("div", { class: "sheet-title" }, [
             h("span", `桌号 ${openingDesk.value.id}`),
