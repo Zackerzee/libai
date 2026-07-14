@@ -41,6 +41,23 @@
   ],
   "headers": [
     {
+      "source": "/downloads/libms-niimbot-windows-bridge.zip",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/zip"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "attachment; filename=\"libms-niimbot-windows-bridge.zip\""
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300, must-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/(.*)",
       "headers": [
         {

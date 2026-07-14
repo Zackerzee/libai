@@ -2,6 +2,13 @@
   publish = "deploy"
 
 [[headers]]
+  for = "/downloads/libms-niimbot-windows-bridge.zip"
+  [headers.values]
+    Content-Type = "application/zip"
+    Content-Disposition = "attachment; filename=\"libms-niimbot-windows-bridge.zip\""
+    Cache-Control = "public, max-age=300, must-revalidate"
+
+[[headers]]
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"

@@ -959,7 +959,8 @@ createApp({
             {
               class: "download-bridge-link",
               href: "/downloads/libms-niimbot-windows-bridge.zip",
-              download: "libms-niimbot-windows-bridge.zip",
+              target: "_blank",
+              rel: "noopener",
             },
             "下载 Windows 打印桥"
           ),
