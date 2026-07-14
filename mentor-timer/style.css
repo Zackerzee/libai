@@ -2186,6 +2186,14 @@ body {
   white-space: nowrap;
 }
 
+.adjust-form-note {
+  align-self: center;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
 .start-time-card,
 .preset-button,
 .settlement-grid div,

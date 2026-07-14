@@ -14,7 +14,7 @@ const TEN_MIN_MS = 10 * ONE_MIN_MS;
 const THIRTY_MIN_MS = 30 * ONE_MIN_MS;
 
 const validStatuses = new Set(["empty", "preparing", "normal", "ending", "urgent", "timeout", "infinit"]);
-const validSessionTypes = new Set(["morning", "afternoon", "night", "day", "1h", "2h", "infinit"]);
+const validSessionTypes = new Set(["morning", "afternoon", "night", "day", "1h", "2h", "infinit", "iron52", "iron78"]);
 
 const regionMeta = [
   { key: "window", label: "🪟 玻璃幕墙", title: "🪟 靠玻璃幕墙", range: "01 - 06" },
@@ -76,13 +76,15 @@ const seatMapLayouts = [
 ];
 
 const sessionPresets = [
-  { type: "morning", icon: "🌅", label: "早鸟场", desc: "限时倒计时，到当天 14:00", mode: "countdown", fixedHour: 14, baseFee: 0 },
-  { type: "afternoon", icon: "☀️", label: "下午场", desc: "限时倒计时，到当天 19:00", mode: "countdown", fixedHour: 19, baseFee: 0 },
-  { type: "night", icon: "🌙", label: "星光夜场", desc: "限时倒计时，到当天 21:00", mode: "countdown", fixedHour: 21, baseFee: 0 },
-  { type: "day", icon: "🎫", label: "包天场", desc: "限时倒计时，到当天 21:00", mode: "countdown", fixedHour: 21, baseFee: 0 },
+  { type: "morning", icon: "🌅", label: "早鸟场（工作日）", desc: "工作日可开，到当天 14:00", mode: "countdown", fixedHour: 14, weekdayOnly: true, baseFee: 0 },
+  { type: "afternoon", icon: "☀️", label: "午后休闲（工作日）", desc: "工作日可开，到当天 19:00", mode: "countdown", fixedHour: 19, weekdayOnly: true, baseFee: 0 },
+  { type: "night", icon: "🌙", label: "星光夜场（工作日）", desc: "工作日可开，到当天 21:00", mode: "countdown", fixedHour: 21, weekdayOnly: true, baseFee: 0 },
+  { type: "day", icon: "🎫", label: "全天不限时", desc: "正计时记录，不设结束时间", mode: "countup", baseFee: 0 },
   { type: "1h", icon: "⏱", label: "限时 1h", desc: "开始后倒计时 60 分钟", mode: "countdown", durationMin: 60, baseFee: 0 },
   { type: "2h", icon: "⏱", label: "限时 2h", desc: "开始后倒计时 120 分钟", mode: "countdown", durationMin: 120, baseFee: 0 },
   { type: "infinit", icon: "♾️", label: "不限时畅玩", desc: "正计时模式，从 00:00:00 开始", mode: "countup", baseFee: 0 },
+  { type: "iron52", icon: "🧩", label: "52×52 单板熨烫一次", desc: "单次熨烫服务，正计时记录", mode: "countup", baseFee: 0 },
+  { type: "iron78", icon: "🧩", label: "78×78 单板熨烫一次", desc: "单次熨烫服务，正计时记录", mode: "countup", baseFee: 0 },
 ];
 
 function regionById(idNumber) {
@@ -227,6 +229,11 @@ function shiftTimeInputValue(value, minutes, baseTimestamp = Date.now()) {
   return timeInputValue(timestampFromTimeInput(value, baseTimestamp) + minutes * ONE_MIN_MS);
 }
 
+function isWeekend(timestamp) {
+  const day = new Date(timestamp).getDay();
+  return day === 0 || day === 6;
+}
+
 function fullDateTime(timestamp) {
   const weekDays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
   const date = new Date(timestamp);
@@ -332,6 +339,7 @@ createApp({
     const showRecords = ref(false);
     const checkoutDraft = ref(null);
     const adjustingDesk = ref(null);
+    const adjustStartInput = ref(timeInputValue(Date.now()));
     const adjustRemainingInput = ref("30");
     const adjustEndInput = ref(timeInputValue(Date.now()));
 
@@ -509,12 +517,14 @@ createApp({
 
     function canPrepare(sessionType, startAt = resolveOpenStartAt()) {
       const preset = sessionByType(sessionType);
+      if (preset.weekdayOnly && isWeekend(startAt)) return false;
       if (preset.mode === "countup" || preset.durationMin) return true;
       return hasValidEndTime(sessionType, startAt);
     }
 
     function endHint(sessionType, startAt = resolveOpenStartAt()) {
       const preset = sessionByType(sessionType);
+      if (preset.weekdayOnly && isWeekend(startAt)) return "周六周日不可开";
       if (preset.mode === "countup") return "正计时，不设结束时间";
       const endAt = computeEndTime(sessionType, startAt);
       if (endAt <= startAt) return "开始时间已超过场次";
@@ -565,7 +575,7 @@ createApp({
       const startAt = openStartUseNow.value ? timestamp : timestampFromTimeInput(openStartInput.value, timestamp);
       if (!desk || desk.status !== "empty") return;
       if (!canPrepare(sessionType, startAt) || !applyDeskStart(desk, sessionType, startAt, timestamp)) {
-        window.alert("开始时间不适合该场次，请调整开始时间或选择其他模式。");
+        window.alert("开始时间不适合该场次：工作日场次周六周日不可开，或开始时间已超过场次结束时间。");
         return;
       }
 
@@ -623,6 +633,7 @@ createApp({
       const anchor = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : Date.now();
       const remainingMinutes = Math.max(0, Math.ceil((desk.endTime - anchor) / ONE_MIN_MS));
       adjustingDesk.value = desk;
+      adjustStartInput.value = timeInputValue(desk.startTime || anchor);
       adjustRemainingInput.value = String(remainingMinutes || 30);
       adjustEndInput.value = timeInputValue(desk.endTime || anchor + 30 * ONE_MIN_MS);
     }
@@ -631,49 +642,63 @@ createApp({
       adjustingDesk.value = null;
     }
 
-    function setDeskEndTime(desk, endAt, options = {}) {
+    function setDeskTiming(desk, startAt, endAt) {
       if (!canAdjustTime(desk)) return;
       const timestamp = Date.now();
-      desk.endTime = endAt;
-      if (desk.isPaused) {
-        desk.pauseStartTime = timestamp;
+      if (!startAt || !endAt || endAt <= startAt) {
+        window.alert("结束时间必须晚于开始时间，请重新调整。");
+        return;
       }
-      const statusAt = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : timestamp;
-      applyCountdownStatus(desk, statusAt, { ring: false });
+
+      desk.startTime = startAt;
+      desk.endTime = endAt;
+      if (startAt > timestamp) {
+        desk.status = "preparing";
+        desk.overTimeDuration = 0;
+        desk.isPaused = false;
+        desk.pauseStartTime = 0;
+        markDeskNotTimeout(desk.id);
+      } else {
+        if (desk.isPaused) desk.pauseStartTime = timestamp;
+        const statusAt = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : timestamp;
+        applyCountdownStatus(desk, statusAt, { ring: false });
+      }
       if (desk.status !== "timeout") markDeskNotTimeout(desk.id);
-      if (options.close !== false) closeAdjustModal();
+      closeAdjustModal();
       persistDesks();
     }
 
-    function setRemainingMinutes() {
-      const desk = adjustingDesk.value;
-      if (!canAdjustTime(desk)) return;
+    function updateDraftRemainingFromEnd() {
+      const base = Date.now();
+      const endAt = timestampFromTimeInput(adjustEndInput.value, base);
+      adjustRemainingInput.value = String(Math.max(0, Math.ceil((endAt - base) / ONE_MIN_MS)));
+    }
+
+    function applyRemainingToDraftEnd() {
       const raw = Number(adjustRemainingInput.value);
       if (!Number.isFinite(raw) || raw < 0 || raw > 24 * 60) {
         window.alert("请输入 0 到 1440 之间的剩余分钟数。");
         return;
       }
       const anchor = Date.now();
-      setDeskEndTime(desk, anchor + Math.round(raw) * ONE_MIN_MS);
+      adjustEndInput.value = timeInputValue(anchor + Math.round(raw) * ONE_MIN_MS);
     }
 
-    function setEndTimeByInput() {
+    function confirmAdjustTiming() {
       const desk = adjustingDesk.value;
       if (!canAdjustTime(desk)) return;
       const timestamp = Date.now();
+      const startAt = timestampFromTimeInput(adjustStartInput.value, timestamp);
       const endAt = timestampFromTimeInput(adjustEndInput.value, timestamp);
-      setDeskEndTime(desk, endAt);
+      setDeskTiming(desk, startAt, endAt);
     }
 
     function nudgeEndTime(minutes) {
-      const desk = adjustingDesk.value;
-      if (!canAdjustTime(desk)) return;
-      const currentEnd = desk.endTime || Date.now();
+      const currentEnd = timestampFromTimeInput(adjustEndInput.value, Date.now());
       const nextEnd = currentEnd + minutes * ONE_MIN_MS;
       adjustEndInput.value = timeInputValue(nextEnd);
       const anchor = Date.now();
       adjustRemainingInput.value = String(Math.max(0, Math.ceil((nextEnd - anchor) / ONE_MIN_MS)));
-      setDeskEndTime(desk, nextEnd, { close: false });
     }
 
     function isPausable(desk) {
@@ -1286,6 +1311,18 @@ createApp({
           ]),
           h("div", { class: "adjust-form" }, [
             h("label", [
+              h("span", "调整开始时间"),
+              h("input", {
+                class: "time-input",
+                type: "time",
+                value: adjustStartInput.value,
+                onInput: (event) => (adjustStartInput.value = event.target.value),
+              }),
+            ]),
+            h("p", { class: "adjust-form-note" }, "用于补录或修正开台时间，会影响实际用时记录。"),
+          ]),
+          h("div", { class: "adjust-form" }, [
+            h("label", [
               h("span", "设置剩余分钟"),
               h("input", {
                 class: "time-input",
@@ -1297,7 +1334,7 @@ createApp({
                 onInput: (event) => (adjustRemainingInput.value = event.target.value),
               }),
             ]),
-            h("button", { type: "button", class: "adjust-submit", onClick: setRemainingMinutes }, "按剩余时间保存"),
+            h("button", { type: "button", class: "adjust-submit", onClick: applyRemainingToDraftEnd }, "换算结束时间"),
           ]),
           h("div", { class: "adjust-form" }, [
             h("label", [
@@ -1306,13 +1343,19 @@ createApp({
                 class: "time-input",
                 type: "time",
                 value: adjustEndInput.value,
-                onInput: (event) => (adjustEndInput.value = event.target.value),
+                onInput: (event) => {
+                  adjustEndInput.value = event.target.value;
+                  updateDraftRemainingFromEnd();
+                },
               }),
             ]),
-            h("button", { type: "button", class: "adjust-submit", onClick: setEndTimeByInput }, "按结束时间保存"),
+            h("p", { class: "adjust-form-note" }, "例如 16:45 改 16:40，修改这里后点确认调整。"),
           ]),
           h("p", { class: "start-time-tip" }, "这里用于手动修正时间，不计入加时费；需要收费加时仍使用 +30 / +60。"),
-          h("button", { type: "button", class: "sheet-cancel", onClick: closeAdjustModal }, "取消"),
+          h("div", { class: "confirm-actions" }, [
+            h("button", { type: "button", class: "confirm-cancel", onClick: closeAdjustModal }, "取消"),
+            h("button", { type: "button", class: "confirm-submit", onClick: confirmAdjustTiming }, "确认调整"),
+          ]),
         ]),
       ]);
     }
