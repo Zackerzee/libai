@@ -22,9 +22,11 @@ local-printer/windows/
 ```text
 1. 打开精臣 B3S-P 并用 USB 插到 Windows 电脑
 2. 双击 windows/one-click-install-start.bat
-3. 等它自动安装依赖、识别 COM 口并启动打印桥
+3. 等它自动安装依赖、识别 Windows 打印机队列 / COM 口并启动打印桥
 4. 打开 https://www.libms.net/mentor-timer 开台测试
 ```
+
+新版会优先使用 Windows 系统里的 `NIIMBOT B3S_P` 打印机队列；如果没识别到，再尝试串口协议。
 
 如果一键脚本失败，再使用 windows/README-Windows.md 里的手动排查步骤。
 

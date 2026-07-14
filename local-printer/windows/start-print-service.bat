@@ -30,6 +30,8 @@ if not defined LIBMS_NIIMBOT_PORT set "LIBMS_NIIMBOT_PORT=COM3"
 if not defined LIBMS_PRINT_PORT set "LIBMS_PRINT_PORT=17888"
 if not defined LIBMS_PYTHON_BIN set "LIBMS_PYTHON_BIN=python"
 if not defined LIBMS_LABEL_FONT set "LIBMS_LABEL_FONT=C:\Windows\Fonts\msyh.ttc"
+if not defined LIBMS_PRINT_METHOD set "LIBMS_PRINT_METHOD=auto"
+if not defined LIBMS_WINDOWS_PRINTER_NAME set "LIBMS_WINDOWS_PRINTER_NAME="
 
 where node >nul 2>nul
 if errorlevel 1 (
@@ -86,6 +88,8 @@ if not exist "%ROOT_DIR%\node_modules\@mmote\niimbluelib" (
 echo.
 echo 打印桥即将启动：
 echo - 服务地址：http://127.0.0.1:%LIBMS_PRINT_PORT%
+echo - 打印模式：%LIBMS_PRINT_METHOD%
+if defined LIBMS_WINDOWS_PRINTER_NAME echo - Windows 打印机：%LIBMS_WINDOWS_PRINTER_NAME%
 echo - 标签机串口：%LIBMS_NIIMBOT_PORT%
 echo - 标签字体：%LIBMS_LABEL_FONT%
 echo.

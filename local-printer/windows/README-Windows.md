@@ -23,9 +23,11 @@ one-click-install-start.bat
 2. 检查并尝试安装 Python；
 3. 安装 Pillow 图片依赖；
 4. 安装 Node 打印依赖；
-5. 自动识别 COM 串口；
-6. 生成 `printer.env`；
-7. 启动本机打印桥。
+5. 自动识别 Windows 里的 NIIMBOT/B3S 打印机队列；
+6. 找到打印机队列时安装 pywin32 并优先走系统打印；
+7. 同时自动识别 COM 串口作为备用；
+8. 生成 `printer.env`；
+9. 启动本机打印桥。
 
 窗口不要关闭。看到 `LIBMS NIIMBOT print bridge listening` 后，再打开网页计时器开台。
 
@@ -39,7 +41,17 @@ Windows 电脑需要安装：
 2. Python 3；
 3. 精臣 B3S-P / USB 串口驱动。
 
-## 2. 查看串口号
+## 2. 查看打印模式
+
+一键脚本会优先使用 Windows 系统打印机队列。也就是“设置 -> 蓝牙和设备 -> 打印机和扫描仪”里看到的：
+
+```text
+NIIMBOT B3S_P
+```
+
+如果没有识别到这个打印机队列，才会尝试走 COM 串口协议。
+
+## 3. 查看串口号
 
 双击：
 
@@ -49,7 +61,7 @@ check-com-ports.bat
 
 记下类似 `COM3`、`COM4` 的端口号。
 
-## 3. 配置串口
+## 4. 配置串口 / 打印机
 
 复制：
 
@@ -83,7 +95,16 @@ LIBMS_NIIMBOT_PORT=COM10
 LIBMS_LABEL_FONT=C:\Windows\Fonts\msyh.ttc
 ```
 
-## 4. 启动打印桥
+如果你要强制使用 Windows 打印机队列，可以在 `printer.env` 里写：
+
+```text
+LIBMS_PRINT_METHOD=windows-printer
+LIBMS_WINDOWS_PRINTER_NAME=NIIMBOT B3S_P
+```
+
+打印机名称必须和 Windows 系统里显示的名称完全一致。
+
+## 5. 启动打印桥
 
 双击：
 
@@ -99,7 +120,7 @@ start-print-service.bat
 - 标签机串口：COM3
 ```
 
-## 5. 测试打印
+## 6. 测试打印
 
 保持 `start-print-service.bat` 窗口运行，再双击：
 
@@ -109,7 +130,7 @@ test-print.bat
 
 如果测试标签能打印，打开网页计时器开台也会自动打印。
 
-## 6. 设置开机自启
+## 7. 设置开机自启
 
 确认测试打印成功后，可以双击：
 
@@ -137,7 +158,7 @@ http://127.0.0.1:17888/health
 
 能看到 `{"ok":true...}` 才表示本机打印桥正常。
 
-健康检查里会显示 `rawSerialPort`、`serialPort`、`pythonBin`，用于确认实际使用的串口和 Python。
+健康检查里会显示 `printMethod`、`windowsPrinterName`、`rawSerialPort`、`serialPort`、`pythonBin`，用于确认实际使用的打印模式、打印机、串口和 Python。
 
 ### 找不到 COM 口
 

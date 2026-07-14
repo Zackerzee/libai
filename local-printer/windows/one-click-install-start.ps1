@@ -123,6 +123,22 @@ function Ensure-Pillow($pythonExe) {
   Write-Ok "Pillow 安装完成"
 }
 
+function Ensure-PyWin32($pythonExe) {
+  Write-Step "检查 Windows 打印依赖 pywin32"
+  & $pythonExe -c "import win32print, win32ui" 2>$null
+  if ($LASTEXITCODE -eq 0) {
+    Write-Ok "pywin32 已可用"
+    return
+  }
+
+  Write-Step "正在安装 pywin32"
+  & $pythonExe -m pip install --upgrade pywin32
+  if ($LASTEXITCODE -ne 0) {
+    throw "pywin32 安装失败。请检查网络或 Python/pip 配置。"
+  }
+  Write-Ok "pywin32 安装完成"
+}
+
 function Ensure-NodeDependencies {
   Write-Step "检查 Node 打印依赖"
   $depPath = Join-Path $rootDir "node_modules\@mmote\niimbluelib"
@@ -173,6 +189,75 @@ function Get-SerialPortCandidates {
   return $items | Sort-Object Score -Descending
 }
 
+function Get-WindowsPrinterCandidates {
+  $items = @()
+
+  try {
+    $printers = Get-Printer -ErrorAction SilentlyContinue
+    foreach ($printer in $printers) {
+      if (-not $printer.Name) { continue }
+      $name = [string]$printer.Name
+      $score = 0
+      if ($name -match "NIIMBOT|B3S|B3S_P|B3S-P|精臣") { $score += 100 }
+      if ($printer.Type -match "Local") { $score += 5 }
+      if ($printer.PrinterStatus -match "Normal|Idle") { $score += 5 }
+      $items += [pscustomobject]@{ Name = $name; Score = $score }
+    }
+  } catch {
+    try {
+      $printers = Get-CimInstance Win32_Printer -ErrorAction SilentlyContinue
+      foreach ($printer in $printers) {
+        if (-not $printer.Name) { continue }
+        $name = [string]$printer.Name
+        $score = 0
+        if ($name -match "NIIMBOT|B3S|B3S_P|B3S-P|精臣") { $score += 100 }
+        $items += [pscustomobject]@{ Name = $name; Score = $score }
+      }
+    } catch {}
+  }
+
+  return $items | Sort-Object Score -Descending
+}
+
+function Resolve-WindowsPrinterName {
+  Write-Step "识别 Windows 打印机队列"
+  $existing = Read-EnvValue "LIBMS_WINDOWS_PRINTER_NAME"
+  $candidates = @(Get-WindowsPrinterCandidates)
+
+  if ($candidates.Count -gt 0) {
+    Write-Host "检测到打印机：" -ForegroundColor Gray
+    foreach ($item in $candidates) {
+      Write-Host ("- {0}" -f $item.Name) -ForegroundColor Gray
+    }
+  }
+
+  if ($existing) {
+    foreach ($item in $candidates) {
+      if ($item.Name -eq $existing) {
+        Write-Ok "继续使用已配置打印机：$existing"
+        return $existing
+      }
+    }
+  }
+
+  foreach ($item in $candidates) {
+    if ($item.Score -ge 100) {
+      Write-Ok "自动选择 Windows 打印机：$($item.Name)"
+      return $item.Name
+    }
+  }
+
+  Write-Warn "没有识别到 NIIMBOT/B3S 打印机队列，将尝试使用串口协议。"
+  return ""
+}
+
+function Resolve-PrintMethod($windowsPrinterName) {
+  $existing = Read-EnvValue "LIBMS_PRINT_METHOD"
+  if ($existing) { return $existing }
+  if ($windowsPrinterName) { return "windows-printer" }
+  return "auto"
+}
+
 function Resolve-PrinterPort {
   Write-Step "识别标签机串口"
   $existing = Read-EnvValue "LIBMS_NIIMBOT_PORT"
@@ -217,30 +302,38 @@ function Resolve-LabelFont {
   return "C:\Windows\Fonts\msyh.ttc"
 }
 
-function Write-PrinterEnv($port, $pythonExe, $fontPath) {
+function Write-PrinterEnv($port, $pythonExe, $fontPath, $printMethod, $windowsPrinterName) {
   Write-Step "写入本机配置"
   $content = @(
     "# 自动生成。需要手动修改时，可直接编辑本文件。",
     "LIBMS_NIIMBOT_PORT=$port",
     "LIBMS_PRINT_PORT=17888",
     "LIBMS_PYTHON_BIN=$pythonExe",
-    "LIBMS_LABEL_FONT=$fontPath"
+    "LIBMS_LABEL_FONT=$fontPath",
+    "LIBMS_PRINT_METHOD=$printMethod",
+    "LIBMS_WINDOWS_PRINTER_NAME=$windowsPrinterName"
   ) -join "`r`n"
 
-  Set-Content -Path $envFile -Value $content -Encoding ASCII
+  Set-Content -Path $envFile -Value $content -Encoding UTF8
   Write-Ok "配置已写入：$envFile"
 }
 
-function Start-Bridge($port, $pythonExe, $fontPath) {
+function Start-Bridge($port, $pythonExe, $fontPath, $printMethod, $windowsPrinterName) {
   Write-Step "启动本机打印桥"
   $env:LIBMS_NIIMBOT_PORT = $port
   $env:LIBMS_PRINT_PORT = "17888"
   $env:LIBMS_PYTHON_BIN = $pythonExe
   $env:LIBMS_LABEL_FONT = $fontPath
+  $env:LIBMS_PRINT_METHOD = $printMethod
+  $env:LIBMS_WINDOWS_PRINTER_NAME = $windowsPrinterName
 
   Write-Host ""
   Write-Host "打印桥已准备启动：" -ForegroundColor Green
   Write-Host "- 服务地址：http://127.0.0.1:17888"
+  Write-Host "- 打印模式：$printMethod"
+  if ($windowsPrinterName) {
+    Write-Host "- Windows 打印机：$windowsPrinterName"
+  }
   Write-Host "- 标签机串口：$port"
   Write-Host "- Python：$pythonExe"
   Write-Host "- 字体：$fontPath"
@@ -264,10 +357,15 @@ try {
   $pythonExe = Ensure-Python
   Ensure-Pillow $pythonExe
   Ensure-NodeDependencies
+  $windowsPrinterName = Resolve-WindowsPrinterName
+  if ($windowsPrinterName) {
+    Ensure-PyWin32 $pythonExe
+  }
+  $printMethod = Resolve-PrintMethod $windowsPrinterName
   $port = Resolve-PrinterPort
   $fontPath = Resolve-LabelFont
-  Write-PrinterEnv $port $pythonExe $fontPath
-  Start-Bridge $port $pythonExe $fontPath
+  Write-PrinterEnv $port $pythonExe $fontPath $printMethod $windowsPrinterName
+  Start-Bridge $port $pythonExe $fontPath $printMethod $windowsPrinterName
 } catch {
   Write-Host ""
   Write-Host "安装或启动失败：" -ForegroundColor Red

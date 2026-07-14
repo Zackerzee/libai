@@ -8,7 +8,12 @@ Write-Host "正在检查本机打印桥..." -ForegroundColor Cyan
 
 try {
   $health = Invoke-RestMethod -Uri $healthUrl -Method Get -TimeoutSec 5
-  Write-Host ("打印桥正常：{0} / {1}" -f $health.printer, $health.serialPort) -ForegroundColor Green
+  Write-Host ("打印桥正常：{0}" -f $health.printer) -ForegroundColor Green
+  Write-Host ("打印模式：{0}" -f $health.printMethod) -ForegroundColor Green
+  if ($health.windowsPrinterName) {
+    Write-Host ("Windows 打印机：{0}" -f $health.windowsPrinterName) -ForegroundColor Green
+  }
+  Write-Host ("串口：{0}" -f $health.serialPort) -ForegroundColor Green
 } catch {
   Write-Host "无法连接打印桥。请先运行 start-print-service.bat，并保持窗口不要关闭。" -ForegroundColor Red
   Write-Host $_.Exception.Message

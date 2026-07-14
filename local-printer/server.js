@@ -12,6 +12,8 @@ const PORT = Number(process.env.LIBMS_PRINT_PORT || 17888);
 const PRINT_DENSITY = Number(process.env.LIBMS_NIIMBOT_DENSITY || 2);
 const PYTHON_BIN = process.env.LIBMS_PYTHON_BIN || "python3";
 const RAW_SERIAL_PORT = process.env.LIBMS_NIIMBOT_PORT || "/dev/cu.usbmodem1301";
+const PRINT_METHOD = String(process.env.LIBMS_PRINT_METHOD || "auto").trim().toLowerCase();
+const WINDOWS_PRINTER_NAME = String(process.env.LIBMS_WINDOWS_PRINTER_NAME || "").trim();
 const ALLOWED_ORIGINS = new Set([
   "https://www.libms.net",
   "https://libms.net",
@@ -70,10 +72,14 @@ function normalizePayload(payload) {
   };
 }
 
-function renderLabel(payload) {
-  const result = spawnSync(PYTHON_BIN, [join(__dirname, "render-label.py")], {
+function runRenderScript(payload, args = []) {
+  const result = spawnSync(PYTHON_BIN, [join(__dirname, "render-label.py"), ...args], {
     input: JSON.stringify(payload),
     encoding: "utf8",
+    env: {
+      ...process.env,
+      LIBMS_WINDOWS_PRINTER_NAME: WINDOWS_PRINTER_NAME,
+    },
     maxBuffer: 1024 * 1024,
   });
 
@@ -82,7 +88,11 @@ function renderLabel(payload) {
     throw new Error(result.stderr || `render-label.py exited with ${result.status}`);
   }
 
-  const image = JSON.parse(result.stdout);
+  return JSON.parse(result.stdout);
+}
+
+function renderLabel(payload) {
+  const image = runRenderScript(payload);
   image.rowsData = image.rowsData.map((row) => ({
     dataType: row.dataType,
     rowNumber: row.rowNumber,
@@ -93,7 +103,11 @@ function renderLabel(payload) {
   return image;
 }
 
-async function printLabel(payload) {
+function printWindowsQueueLabel(payload) {
+  return runRenderScript(payload, ["--windows-print"]);
+}
+
+async function printSerialLabel(payload) {
   const client = new NiimbotNodeSerialClient();
   client.setPort(SERIAL_PORT);
   client.setPacketInterval(10);
@@ -124,6 +138,31 @@ async function printLabel(payload) {
   }
 }
 
+async function printLabel(payload) {
+  const errors = [];
+  const preferWindowsQueue =
+    PRINT_METHOD === "windows-printer" ||
+    (PRINT_METHOD === "auto" && process.platform === "win32" && WINDOWS_PRINTER_NAME);
+
+  if (preferWindowsQueue) {
+    try {
+      return printWindowsQueueLabel(payload);
+    } catch (error) {
+      if (PRINT_METHOD === "windows-printer") throw error;
+      errors.push(`windows-printer: ${error instanceof Error ? error.message : String(error)}`);
+      console.warn("[print-label] Windows printer queue failed, trying serial:", error);
+    }
+  }
+
+  try {
+    await printSerialLabel(payload);
+    return { ok: true, printer: "serial" };
+  } catch (error) {
+    errors.push(`serial: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(errors.join(" | "));
+  }
+}
+
 function enqueuePrint(payload) {
   const job = printQueue.then(() => printLabel(payload));
   printQueue = job.catch(() => {});
@@ -142,6 +181,8 @@ async function handleRequest(request) {
       ok: true,
       printer: "NIIMBOT B3S-P",
       platform: process.platform,
+      printMethod: PRINT_METHOD,
+      windowsPrinterName: WINDOWS_PRINTER_NAME,
       rawSerialPort: RAW_SERIAL_PORT,
       serialPort: SERIAL_PORT,
       pythonBin: PYTHON_BIN,
@@ -202,6 +243,8 @@ if (process.argv.includes("--test")) {
   });
   httpServer.listen(PORT, HOST, () => {
     console.log(`LIBMS NIIMBOT print bridge listening on http://${HOST}:${PORT}`);
+    console.log(`Print method: ${PRINT_METHOD}`);
+    if (WINDOWS_PRINTER_NAME) console.log(`Windows printer: ${WINDOWS_PRINTER_NAME}`);
     console.log(`Serial port: ${SERIAL_PORT}`);
   });
 }
