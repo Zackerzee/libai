@@ -210,6 +210,12 @@ img {
   background: linear-gradient(135deg, #fff4c2, #ffe28a);
 }
 
+.windows-bridge-entry {
+  border-color: rgba(16, 185, 129, 0.36);
+  background: linear-gradient(135deg, #dcfce7, #d9f7ef);
+  color: #065f46;
+}
+
 .nfc-entry {
   border-color: rgba(230, 0, 35, 0.34);
   background: linear-gradient(135deg, #fff2f4, #ffe4e8);
@@ -236,6 +242,12 @@ img {
   font-weight: 850;
   text-decoration: none;
   box-shadow: 0 10px 22px rgba(245, 197, 66, 0.2);
+}
+
+.windows-bridge-hero-link {
+  border-color: rgba(16, 185, 129, 0.42);
+  background: linear-gradient(135deg, #dcfce7, #d9f7ef);
+  color: #065f46;
 }
 
 .mode-tabs button:hover:not(:disabled),
@@ -1831,7 +1843,7 @@ input:focus-visible {
 
 @media (max-width: 700px) {
   .app-shell {
-    padding-bottom: 64px;
+    padding-bottom: 116px;
   }
 
   .topbar-inner {
@@ -4311,7 +4323,12 @@ button:active:not(:disabled),
     gap: 6px;
   }
 
-  .mobile-tabbar button {
+  .mobile-bridge-row {
+    grid-template-columns: 1fr;
+  }
+
+  .mobile-tabbar button,
+  .mobile-tabbar a {
     min-width: 0;
     min-height: 38px;
     padding: 0 6px;
@@ -4323,6 +4340,10 @@ button:active:not(:disabled),
     font-weight: 900;
     line-height: 1.1;
     white-space: nowrap;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .mobile-tabbar button + button {
@@ -4332,6 +4353,11 @@ button:active:not(:disabled),
   .mobile-tabbar .mobile-download-row button,
   #mobile-download-button {
     background: var(--primary);
+    color: #ffffff;
+  }
+
+  .mobile-tabbar .mobile-bridge-row a {
+    background: linear-gradient(135deg, #10b981, #0f766e);
     color: #ffffff;
   }
 
@@ -5518,6 +5544,11 @@ body.is-focus-mode .bead-cell.is-focus-target.is-completed {
   .mobile-tabbar #mobile-start-assembly-button,
   .mobile-tabbar .mobile-download-row button {
     background: var(--primary) !important;
+    color: #ffffff !important;
+  }
+
+  .mobile-tabbar .mobile-bridge-row a {
+    background: linear-gradient(135deg, #10b981, #0f766e) !important;
     color: #ffffff !important;
   }
 
