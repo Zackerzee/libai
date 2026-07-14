@@ -16,7 +16,7 @@
 推荐直接双击解压目录根部的：
 
 ```text
-START-HERE-Windows-One-Click.cmd
+1-START-WINDOWS.cmd
 ```
 
 也可以进入 `windows` 文件夹后双击：

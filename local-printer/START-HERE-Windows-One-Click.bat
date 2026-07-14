@@ -4,8 +4,14 @@ set "ROOT_DIR=%~dp0"
 set "RUNNER=%ROOT_DIR%START-HERE-Windows-One-Click.cmd"
 
 if not exist "%RUNNER%" (
-  echo ERROR: START-HERE-Windows-One-Click.cmd not found.
-  echo Please extract the zip first, then run this file from the extracted folder.
+  echo.
+  echo [错误] 当前不是完整解压后的文件夹。
+  echo.
+  echo 你现在很可能还在 zip 压缩包预览里。
+  echo 请先点击文件管理器右上角“全部解压”，
+  echo 然后进入解压出来的 local-printer 文件夹，
+  echo 再双击 START-HERE-Windows-One-Click.cmd。
+  echo.
   pause
   exit /b 1
 )

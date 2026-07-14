@@ -13,10 +13,13 @@ echo ========================================
 echo.
 
 if not exist "%PS_SCRIPT%" (
-  echo ERROR: one-click-install-start.ps1 not found.
   echo.
-  echo Do not run this file inside the zip preview.
-  echo Please right click the zip file, choose Extract All, then run it again.
+  echo [错误] 没有找到 one-click-install-start.ps1。
+  echo.
+  echo 你现在很可能还在 zip 压缩包预览里。
+  echo 请先点击文件管理器右上角“全部解压”，
+  echo 然后进入解压出来的 local-printer 文件夹，
+  echo 再双击 1-START-WINDOWS.cmd。
   echo.
   pause
   exit /b 1

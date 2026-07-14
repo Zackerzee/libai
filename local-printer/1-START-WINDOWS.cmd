@@ -1,7 +1,7 @@
 @echo off
 setlocal
-set "SCRIPT_DIR=%~dp0"
-set "RUNNER=%SCRIPT_DIR%one-click-install-start.cmd"
+set "ROOT_DIR=%~dp0"
+set "RUNNER=%ROOT_DIR%windows\one-click-install-start.cmd"
 
 if not exist "%RUNNER%" (
   echo.
