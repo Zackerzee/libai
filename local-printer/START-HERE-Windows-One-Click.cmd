@@ -1,10 +1,10 @@
 @echo off
 setlocal
 set "ROOT_DIR=%~dp0"
-set "RUNNER=%ROOT_DIR%START-HERE-Windows-One-Click.cmd"
+set "RUNNER=%ROOT_DIR%windows\one-click-install-start.cmd"
 
 if not exist "%RUNNER%" (
-  echo ERROR: START-HERE-Windows-One-Click.cmd not found.
+  echo ERROR: windows\one-click-install-start.cmd not found.
   echo Please extract the zip first, then run this file from the extracted folder.
   pause
   exit /b 1

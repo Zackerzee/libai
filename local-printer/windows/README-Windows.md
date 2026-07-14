@@ -16,13 +16,13 @@
 推荐直接双击解压目录根部的：
 
 ```text
-START-HERE-Windows-One-Click.bat
+START-HERE-Windows-One-Click.cmd
 ```
 
 也可以进入 `windows` 文件夹后双击：
 
 ```text
-one-click-install-start.bat
+one-click-install-start.cmd
 ```
 
 它会自动完成：
