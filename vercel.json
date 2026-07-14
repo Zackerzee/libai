@@ -3,6 +3,11 @@
   "outputDirectory": "public",
   "cleanUrls": true,
   "trailingSlash": false,
+  "functions": {
+    "api/download-windows-bridge.js": {
+      "includeFiles": "downloads/libms-niimbot-windows-bridge.zip"
+    }
+  },
   "rewrites": [
     {
       "source": "/nfc",

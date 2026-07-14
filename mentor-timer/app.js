@@ -958,7 +958,7 @@ createApp({
             "a",
             {
               class: "download-bridge-link",
-              href: "/downloads/libms-niimbot-windows-bridge.zip",
+              href: "/api/download-windows-bridge",
               target: "_blank",
               rel: "noopener",
             },

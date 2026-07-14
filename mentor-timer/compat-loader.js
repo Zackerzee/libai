@@ -1,5 +1,5 @@
 (function () {
-  var VERSION = "20260714-windows-download-v1";
+  var VERSION = "20260714-windows-download-v2";
   var started = false;
 
   function hasForceCompat() {
