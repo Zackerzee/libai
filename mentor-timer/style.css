@@ -1705,10 +1705,10 @@ body {
 
 .floor-plan-grid {
   display: grid;
-  grid-template-columns: minmax(520px, 1.1fr) minmax(430px, 0.9fr);
+  grid-template-columns: minmax(430px, 0.9fr) minmax(520px, 1.1fr);
   grid-template-areas:
-    "left right"
-    "front front";
+    "front front"
+    "left right";
   gap: 18px;
   align-items: start;
 }
@@ -1802,6 +1802,11 @@ body {
   margin-inline: 0;
 }
 
+.seat-map.horizontal .seat-row-bottom {
+  grid-auto-columns: 122px;
+  margin-inline: 0;
+}
+
 .seat-row-bottom {
   margin-top: 8px;
 }
@@ -1815,7 +1820,7 @@ body {
 
 .seat-map.horizontal .table-middle {
   grid-template-columns: 1fr;
-  margin-top: 8px;
+  margin-top: 0;
 }
 
 .seat-col {
@@ -2278,8 +2283,8 @@ body {
     grid-template-columns: 1fr;
     grid-template-areas:
       "front"
-      "right"
-      "left";
+      "left"
+      "right";
   }
 }
 
@@ -2323,6 +2328,10 @@ body {
   }
 
   .seat-map.horizontal .seat-row-top {
+    grid-auto-columns: 116px;
+  }
+
+  .seat-map.horizontal .seat-row-bottom {
     grid-auto-columns: 116px;
   }
 
