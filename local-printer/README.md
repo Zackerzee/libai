@@ -9,7 +9,7 @@
   -> NIIMBOT B3S-P
 ```
 
-## Windows 快速使用
+## Windows 一键安装所有
 
 Windows 版脚本在：
 
@@ -20,14 +20,13 @@ local-printer/windows/
 使用顺序：
 
 ```text
-1. 安装 Node.js 18+、Python 3、精臣/USB 串口驱动
-2. 双击 windows/check-com-ports.bat 查看 COM 口
-3. 复制 windows/printer.env.example 为 windows/printer.env
-4. 修改 LIBMS_NIIMBOT_PORT=COM3 之类的真实端口
-5. 双击 windows/start-print-service.bat 启动打印桥
-6. 双击 windows/test-print.bat 测试打印
-7. 成功后可双击 windows/install-autostart.bat 设置开机自启
+1. 打开精臣 B3S-P 并用 USB 插到 Windows 电脑
+2. 双击 windows/one-click-install-start.bat
+3. 等它自动安装依赖、识别 COM 口并启动打印桥
+4. 打开 https://www.libms.net/mentor-timer 开台测试
 ```
+
+如果一键脚本失败，再使用 windows/README-Windows.md 里的手动排查步骤。
 
 详细说明见：
 

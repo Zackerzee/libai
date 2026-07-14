@@ -9,7 +9,29 @@
   -> 精臣 B3S-P 标签机
 ```
 
-## 1. 准备环境
+## 一键安装所有
+
+先把精臣 B3S-P 开机并用 USB 插到 Windows 电脑。解压后，直接双击：
+
+```text
+one-click-install-start.bat
+```
+
+它会自动完成：
+
+1. 检查并尝试安装 Node.js；
+2. 检查并尝试安装 Python；
+3. 安装 Pillow 图片依赖；
+4. 安装 Node 打印依赖；
+5. 自动识别 COM 串口；
+6. 生成 `printer.env`；
+7. 启动本机打印桥。
+
+窗口不要关闭。看到 `LIBMS NIIMBOT print bridge listening` 后，再打开网页计时器开台。
+
+正常情况下只需要这一步。下面的手动步骤只用于一键脚本失败时排查。
+
+## 1. 手动准备环境
 
 Windows 电脑需要安装：
 

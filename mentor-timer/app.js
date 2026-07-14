@@ -962,7 +962,7 @@ createApp({
               target: "_blank",
               rel: "noopener",
             },
-            "下载 Windows 打印桥"
+            "一键安装 Windows 打印桥"
           ),
           h("div", { class: "clock-card", "aria-live": "polite" }, [
             h("span", "当前时间"),
