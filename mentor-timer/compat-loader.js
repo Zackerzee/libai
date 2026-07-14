@@ -1,5 +1,5 @@
 (function () {
-  var VERSION = "20260709-start-agg-v7";
+  var VERSION = "20260714-print-compat-v2";
   var started = false;
 
   function hasForceCompat() {

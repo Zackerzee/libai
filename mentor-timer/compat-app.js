@@ -4,6 +4,7 @@
   var ONE_MIN_MS = 60 * 1000;
   var TEN_MIN_MS = 10 * ONE_MIN_MS;
   var THIRTY_MIN_MS = 30 * ONE_MIN_MS;
+  var PRINT_BRIDGE_URL = "http://127.0.0.1:17888/print-label";
 
   var booted = false;
   var intervalId = 0;
@@ -402,6 +403,33 @@
     return true;
   }
 
+  function requestPrintBridge(payload) {
+    if (!window.fetch) return;
+
+    window
+      .fetch(PRINT_BRIDGE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        mode: "cors",
+      })
+      .then(function (response) {
+        if (!response.ok) throw new Error("print bridge " + response.status);
+        return response.json ? response.json().catch(function () { return {}; }) : {};
+      })
+      .then(function (data) {
+        if (data && data.ok === false) throw new Error(data.error || "print failed");
+        if (window.console && console.info) {
+          console.info("[LIBMS Timer Compat] 开台标签已发送到本机打印桥", payload);
+        }
+      })
+      .catch(function (error) {
+        if (window.console && console.warn) {
+          console.warn("[LIBMS Timer Compat] 本机打印桥未完成打印，开台不受影响：", error);
+        }
+      });
+  }
+
   function prepareDesk(deskId, sessionType) {
     var desk = findDesk(deskId);
     var timestamp = nowMs();
@@ -413,6 +441,14 @@
     }
     openingDeskId = "";
     persistDesks();
+    requestPrintBridge({
+      deskId: desk.id,
+      session: sessionByType(desk.sessionType).label,
+      mode: desk.mode,
+      startLabel: timeOnly(desk.startTime),
+      endLabel: desk.mode === "countdown" ? timeOnly(desk.endTime) : "",
+      note: desk.mode === "countdown" ? "请按时提醒顾客" : "不限时 / 正计时",
+    });
     render();
   }
 

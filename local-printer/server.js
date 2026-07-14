@@ -11,6 +11,7 @@ const HOST = process.env.LIBMS_PRINT_HOST || "127.0.0.1";
 const PORT = Number(process.env.LIBMS_PRINT_PORT || 17888);
 const SERIAL_PORT = process.env.LIBMS_NIIMBOT_PORT || "/dev/cu.usbmodem1301";
 const PRINT_DENSITY = Number(process.env.LIBMS_NIIMBOT_DENSITY || 2);
+const PYTHON_BIN = process.env.LIBMS_PYTHON_BIN || "python3";
 const ALLOWED_ORIGINS = new Set([
   "https://www.libms.net",
   "https://libms.net",
@@ -58,7 +59,7 @@ function normalizePayload(payload) {
 }
 
 function renderLabel(payload) {
-  const result = spawnSync("python3", [join(__dirname, "render-label.py")], {
+  const result = spawnSync(PYTHON_BIN, [join(__dirname, "render-label.py")], {
     input: JSON.stringify(payload),
     encoding: "utf8",
     maxBuffer: 1024 * 1024,
