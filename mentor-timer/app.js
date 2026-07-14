@@ -953,9 +953,20 @@ createApp({
           h("h1", { class: "brand-title" }, "✨ 时里白造物创意手作体验空间 ✨"),
           h("p", { class: "brand-subtitle" }, "拼豆计时管理控制台 · 准备中 / 倒计时 / 不限时 / 结账归档"),
         ]),
-        h("div", { class: "clock-card", "aria-live": "polite" }, [
-          h("span", "当前时间"),
-          h("strong", fullDateTime(now.value)),
+        h("div", { class: "header-side" }, [
+          h(
+            "a",
+            {
+              class: "download-bridge-link",
+              href: "/downloads/libms-niimbot-windows-bridge.zip",
+              download: "libms-niimbot-windows-bridge.zip",
+            },
+            "下载 Windows 打印桥"
+          ),
+          h("div", { class: "clock-card", "aria-live": "polite" }, [
+            h("span", "当前时间"),
+            h("strong", fullDateTime(now.value)),
+          ]),
         ]),
       ]);
     }

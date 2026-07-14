@@ -763,9 +763,12 @@
       '<h1 class="brand-title">✨ 时里白造物创意手作体验空间 ✨</h1>' +
       '<p class="brand-subtitle">拼豆计时管理控制台 · 兼容模式</p>' +
       "</div>" +
+      '<div class="header-side">' +
+      '<a class="download-bridge-link" href="/downloads/libms-niimbot-windows-bridge.zip" download="libms-niimbot-windows-bridge.zip">下载 Windows 打印桥</a>' +
       '<div class="clock-card"><span>当前时间</span><strong>' +
       fullDateTime(now) +
       "</strong></div>" +
+      "</div>" +
       "</header>"
     );
   }
