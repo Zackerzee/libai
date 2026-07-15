@@ -14,7 +14,7 @@ function Write-Ok($message) {
 }
 
 function Write-Warn($message) {
-  Write-Host "?????? $message" -ForegroundColor Yellow
+  Write-Host "WARN $message" -ForegroundColor Yellow
 }
 
 function Test-Cmd($name) {
@@ -26,7 +26,6 @@ function Refresh-Path {
   $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
   $extra = @(
     "C:\Program Files\nodejs",
-    "$env:LOCALAPPDATA\Programs\Python\Python314",
     "$env:LOCALAPPDATA\Programs\Python\Python313",
     "$env:LOCALAPPDATA\Programs\Python\Python312",
     "$env:LOCALAPPDATA\Programs\Python\Python311",
@@ -37,122 +36,154 @@ function Refresh-Path {
 
 function Install-WithWinget($id, $name) {
   if (-not (Test-Cmd "winget")) {
-    throw "???????????? winget????????????????????? $name????????????????????? $name ????????????????????????"
+    throw "winget is not available. Please install $name manually, then run this script again."
   }
 
-  Write-Step "?????????????????? $name"
+  Write-Step "Installing $name"
   winget install --id $id --exact --silent --accept-package-agreements --accept-source-agreements
   if ($LASTEXITCODE -ne 0) {
-    throw "$name ????????????????????????????????????????????????????????????????????????????????????????????????????????????"
+    throw "$name install failed. Try running this window as Administrator, or install it manually."
   }
   Refresh-Path
 }
 
-function Get-PythonExe {
-  $commands = @("python", "py")
-  foreach ($cmd in $commands) {
-    if (-not (Test-Cmd $cmd)) { continue }
-
-    try {
-      if ($cmd -eq "py") {
-        $exe = & py -3 -c "import sys; print(sys.executable)" 2>$null
-      } else {
-        $exe = & python -c "import sys; print(sys.executable)" 2>$null
-      }
-
-      if ($LASTEXITCODE -eq 0 -and $exe -and (Test-Path $exe.Trim())) {
-        return $exe.Trim()
-      }
-    } catch {
-      continue
-    }
-  }
-  return ""
-}
-
-function Invoke-Python($pythonExe, [string[]]$args) {
-  & $pythonExe @args
-  return $LASTEXITCODE
+function Get-NodeMajor {
+  if (-not (Test-Cmd "node")) { return 0 }
+  try {
+    $version = (& node --version 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $version) { return 0 }
+    if ($version -match "v?(\d+)\.") { return [int]$Matches[1] }
+  } catch {}
+  return 0
 }
 
 function Ensure-Node {
-  Write-Step "?????? Node.js"
-  if ((Test-Cmd "node") -and (Test-Cmd "npm")) {
-    Write-Ok "???????????? Node.js???$(node --version)"
+  Write-Step "Checking Node.js"
+  $major = Get-NodeMajor
+  if ($major -ge 18 -and (Test-Cmd "npm")) {
+    Write-Ok "Node.js is ready: $(node --version)"
     return
+  }
+
+  if ($major -gt 0) {
+    Write-Warn "Detected Node.js $(node --version), but Node.js 18 or newer is required."
+  } else {
+    Write-Warn "Node.js was not detected."
   }
 
   Install-WithWinget "OpenJS.NodeJS.LTS" "Node.js LTS"
-
-  if (-not ((Test-Cmd "node") -and (Test-Cmd "npm"))) {
-    throw "Node.js ??????????????????????????????????????????????????????????????? Node.js LTS???"
+  $major = Get-NodeMajor
+  if ($major -lt 18 -or -not (Test-Cmd "npm")) {
+    throw "Node.js 18+ is still not available. Please install Node.js LTS from https://nodejs.org/ and reopen this script."
   }
-  Write-Ok "Node.js ???????????????$(node --version)"
+  Write-Ok "Node.js is ready: $(node --version)"
+}
+
+function Get-PythonInfo($exe, $args) {
+  try {
+    $code = "import sys; print(sys.executable); print('%s.%s.%s' % sys.version_info[:3])"
+    $output = & $exe @args -c $code 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $output -or $output.Count -lt 2) { return $null }
+    $version = [Version]$output[1].Trim()
+    return [pscustomobject]@{
+      Command = $exe
+      Args = $args
+      Exe = $output[0].Trim()
+      Version = $version
+    }
+  } catch {
+    return $null
+  }
+}
+
+function Test-PythonSupported($info) {
+  if (-not $info) { return $false }
+  if ($info.Version.Major -ne 3) { return $false }
+  if ($info.Version.Minor -lt 9) { return $false }
+  if ($info.Version.Minor -gt 13) { return $false }
+  return $true
+}
+
+function Get-PythonExe {
+  $candidates = @()
+
+  if (Test-Cmd "py") {
+    $candidates += ,@("py", @("-3.12"))
+    $candidates += ,@("py", @("-3.13"))
+    $candidates += ,@("py", @("-3.11"))
+    $candidates += ,@("py", @("-3"))
+  }
+  if (Test-Cmd "python") {
+    $candidates += ,@("python", @())
+  }
+
+  foreach ($candidate in $candidates) {
+    $info = Get-PythonInfo $candidate[0] $candidate[1]
+    if (Test-PythonSupported $info) {
+      Write-Ok ("Python is ready: {0} ({1})" -f $info.Exe, $info.Version)
+      return $info.Exe
+    }
+    if ($info) {
+      Write-Warn ("Ignoring unsupported Python: {0} ({1}). Supported: 3.9 to 3.13." -f $info.Exe, $info.Version)
+    }
+  }
+
+  return ""
 }
 
 function Ensure-Python {
-  Write-Step "?????? Python"
+  Write-Step "Checking Python"
   $pythonExe = Get-PythonExe
-  if ($pythonExe) {
-    Write-Ok "???????????? Python???$pythonExe"
-    return $pythonExe
-  }
+  if ($pythonExe) { return $pythonExe }
 
-  Install-WithWinget "Python.Python.3.12" "Python 3"
+  Write-Warn "No supported Python found. Python 3.14 is not supported by this printer bridge yet."
+  Install-WithWinget "Python.Python.3.12" "Python 3.12"
+
   $pythonExe = Get-PythonExe
   if (-not $pythonExe) {
-    throw "Python ??????????????????????????????????????????????????????????????? Python 3???"
+    throw "Python 3.12/3.13 is still not available. Install Python 3.12 from python.org, check Add Python to PATH, then retry."
   }
-  Write-Ok "Python ???????????????$pythonExe"
   return $pythonExe
 }
 
-function Ensure-Pillow($pythonExe) {
-  Write-Step "?????? Python ???????????? Pillow"
-  & $pythonExe -c "import PIL" 2>$null
+function Ensure-PipPackage($pythonExe, $importName, $packageName) {
+  Write-Step "Checking Python package: $packageName"
+  & $pythonExe -c "import $importName" 2>$null
   if ($LASTEXITCODE -eq 0) {
-    Write-Ok "Pillow ?????????"
+    Write-Ok "$packageName is ready"
     return
   }
 
-  Write-Step "???????????? Pillow"
-  & $pythonExe -m pip install --upgrade pillow
+  Write-Step "Installing Python package: $packageName"
+  & $pythonExe -m pip install --upgrade $packageName
   if ($LASTEXITCODE -ne 0) {
-    throw "Pillow ????????????????????????????????? Python/pip ?????????"
+    throw "$packageName install failed. Check network, Python, and pip."
   }
-  Write-Ok "Pillow ????????????"
+  Write-Ok "$packageName installed"
+}
+
+function Ensure-Pillow($pythonExe) {
+  Ensure-PipPackage $pythonExe "PIL" "pillow"
 }
 
 function Ensure-PyWin32($pythonExe) {
-  Write-Step "?????? Windows ???????????? pywin32"
-  & $pythonExe -c "import win32print, win32ui" 2>$null
-  if ($LASTEXITCODE -eq 0) {
-    Write-Ok "pywin32 ?????????"
-    return
-  }
-
-  Write-Step "???????????? pywin32"
-  & $pythonExe -m pip install --upgrade pywin32
-  if ($LASTEXITCODE -ne 0) {
-    throw "pywin32 ????????????????????????????????? Python/pip ?????????"
-  }
-  Write-Ok "pywin32 ????????????"
+  Ensure-PipPackage $pythonExe "win32print, win32ui" "pywin32"
 }
 
 function Ensure-NodeDependencies {
-  Write-Step "?????? Node ????????????"
+  Write-Step "Checking Node dependencies"
   $depPath = Join-Path $rootDir "node_modules\@mmote\niimbluelib"
   if (Test-Path $depPath) {
-    Write-Ok "Node ?????????????????????"
+    Write-Ok "Node dependencies already exist"
     return
   }
 
   Set-Location $rootDir
   npm install
   if ($LASTEXITCODE -ne 0) {
-    throw "npm install ???????????????????????????Node.js ??? npm ?????????"
+    throw "npm install failed. Check network, Node.js, and npm."
   }
-  Write-Ok "Node ????????????????????????"
+  Write-Ok "Node dependencies installed"
 }
 
 function Read-EnvValue($key) {
@@ -172,8 +203,8 @@ function Get-SerialPortCandidates {
       $name = [string]$port.Name
       $score = 10
       if ($name -match "NIIMBOT|B3S|B3S_P|B3S-P") { $score += 100 }
-      if ($name -match "USB|Serial|??????|CH340|CP210|Prolific") { $score += 30 }
-      if ($name -match "Bluetooth|??????") { $score -= 20 }
+      if ($name -match "USB|Serial|CH340|CP210|Prolific") { $score += 30 }
+      if ($name -match "Bluetooth") { $score -= 20 }
       $items += [pscustomobject]@{ Port = $port.DeviceID; Name = $name; Score = $score }
     }
   } catch {}
@@ -182,7 +213,7 @@ function Get-SerialPortCandidates {
     $names = [System.IO.Ports.SerialPort]::GetPortNames()
     foreach ($name in $names) {
       if ($items.Port -contains $name) { continue }
-      $items += [pscustomobject]@{ Port = $name; Name = "???????????? $name"; Score = 1 }
+      $items += [pscustomobject]@{ Port = $name; Name = "System serial port $name"; Score = 1 }
     }
   } catch {}
 
@@ -198,7 +229,7 @@ function Get-WindowsPrinterCandidates {
       if (-not $printer.Name) { continue }
       $name = [string]$printer.Name
       $score = 0
-      if ($name -match "NIIMBOT|B3S|B3S_P|B3S-P|??????") { $score += 100 }
+      if ($name -match "NIIMBOT|B3S|B3S_P|B3S-P") { $score += 100 }
       if ($printer.Type -match "Local") { $score += 5 }
       if ($printer.PrinterStatus -match "Normal|Idle") { $score += 5 }
       $items += [pscustomobject]@{ Name = $name; Score = $score }
@@ -210,7 +241,7 @@ function Get-WindowsPrinterCandidates {
         if (-not $printer.Name) { continue }
         $name = [string]$printer.Name
         $score = 0
-        if ($name -match "NIIMBOT|B3S|B3S_P|B3S-P|??????") { $score += 100 }
+        if ($name -match "NIIMBOT|B3S|B3S_P|B3S-P") { $score += 100 }
         $items += [pscustomobject]@{ Name = $name; Score = $score }
       }
     } catch {}
@@ -220,12 +251,12 @@ function Get-WindowsPrinterCandidates {
 }
 
 function Resolve-WindowsPrinterName {
-  Write-Step "?????? Windows ???????????????"
+  Write-Step "Detecting Windows printer queue"
   $existing = Read-EnvValue "LIBMS_WINDOWS_PRINTER_NAME"
   $candidates = @(Get-WindowsPrinterCandidates)
 
   if ($candidates.Count -gt 0) {
-    Write-Host "?????????????????????" -ForegroundColor Gray
+    Write-Host "Detected printers:" -ForegroundColor Gray
     foreach ($item in $candidates) {
       Write-Host ("- {0}" -f $item.Name) -ForegroundColor Gray
     }
@@ -234,7 +265,7 @@ function Resolve-WindowsPrinterName {
   if ($existing) {
     foreach ($item in $candidates) {
       if ($item.Name -eq $existing) {
-        Write-Ok "?????????????????????????????????$existing"
+        Write-Ok "Using configured printer: $existing"
         return $existing
       }
     }
@@ -242,12 +273,12 @@ function Resolve-WindowsPrinterName {
 
   foreach ($item in $candidates) {
     if ($item.Score -ge 100) {
-      Write-Ok "???????????? Windows ????????????$($item.Name)"
+      Write-Ok "Using Windows printer: $($item.Name)"
       return $item.Name
     }
   }
 
-  Write-Warn "??????????????? NIIMBOT/B3S ????????????????????????????????????????????????"
+  Write-Warn "No NIIMBOT/B3S Windows printer queue detected. Serial mode will be used as fallback."
   return ""
 }
 
@@ -259,29 +290,29 @@ function Resolve-PrintMethod($windowsPrinterName) {
 }
 
 function Resolve-PrinterPort {
-  Write-Step "?????????????????????"
+  Write-Step "Detecting serial port"
   $existing = Read-EnvValue "LIBMS_NIIMBOT_PORT"
   $candidates = @(Get-SerialPortCandidates)
 
   if ($candidates.Count -gt 0) {
-    Write-Host "??????????????????" -ForegroundColor Gray
+    Write-Host "Detected serial ports:" -ForegroundColor Gray
     foreach ($item in $candidates) {
       Write-Host ("- {0}  {1}" -f $item.Port, $item.Name) -ForegroundColor Gray
     }
   }
 
   if ($existing -and ($candidates.Port -contains $existing)) {
-    Write-Ok "??????????????????????????????$existing"
+    Write-Ok "Using configured serial port: $existing"
     return $existing
   }
 
   if ($candidates.Count -gt 0) {
     $selected = $candidates[0].Port
-    Write-Ok "?????????????????????$selected"
+    Write-Ok "Using serial port: $selected"
     return $selected
   }
 
-  Write-Warn "????????????????????? COM ???????????? COM3???????????????????????????????????????????????????USB ??????????????????"
+  Write-Warn "No COM port detected. COM3 will be used as fallback."
   return "COM3"
 }
 
@@ -303,9 +334,9 @@ function Resolve-LabelFont {
 }
 
 function Write-PrinterEnv($port, $pythonExe, $fontPath, $printMethod, $windowsPrinterName) {
-  Write-Step "??????????????????"
+  Write-Step "Writing local config"
   $content = @(
-    "# ??????????????????????????????????????????????????????????????????",
+    "# Auto generated. You may edit this file manually.",
     "LIBMS_NIIMBOT_PORT=$port",
     "LIBMS_PRINT_PORT=17888",
     "LIBMS_PYTHON_BIN=$pythonExe",
@@ -314,12 +345,12 @@ function Write-PrinterEnv($port, $pythonExe, $fontPath, $printMethod, $windowsPr
     "LIBMS_WINDOWS_PRINTER_NAME=$windowsPrinterName"
   ) -join "`r`n"
 
-  Set-Content -Path $envFile -Value $content -Encoding UTF8
-  Write-Ok "??????????????????$envFile"
+  Set-Content -Path $envFile -Value $content -Encoding ASCII
+  Write-Ok "Config written: $envFile"
 }
 
 function Start-Bridge($port, $pythonExe, $fontPath, $printMethod, $windowsPrinterName) {
-  Write-Step "?????????????????????"
+  Write-Step "Starting local print bridge"
   $env:LIBMS_NIIMBOT_PORT = $port
   $env:LIBMS_PRINT_PORT = "17888"
   $env:LIBMS_PYTHON_BIN = $pythonExe
@@ -328,18 +359,18 @@ function Start-Bridge($port, $pythonExe, $fontPath, $printMethod, $windowsPrinte
   $env:LIBMS_WINDOWS_PRINTER_NAME = $windowsPrinterName
 
   Write-Host ""
-  Write-Host "???????????????????????????" -ForegroundColor Green
-  Write-Host "- ???????????????http://127.0.0.1:17888"
-  Write-Host "- ???????????????$printMethod"
+  Write-Host "Print bridge is ready:" -ForegroundColor Green
+  Write-Host "- URL: http://127.0.0.1:17888"
+  Write-Host "- Method: $printMethod"
   if ($windowsPrinterName) {
-    Write-Host "- Windows ????????????$windowsPrinterName"
+    Write-Host "- Windows printer: $windowsPrinterName"
   }
-  Write-Host "- ??????????????????$port"
-  Write-Host "- Python???$pythonExe"
-  Write-Host "- ?????????$fontPath"
+  Write-Host "- Serial port: $port"
+  Write-Host "- Python: $pythonExe"
+  Write-Host "- Font: $fontPath"
   Write-Host ""
-  Write-Host "???????????????????????????????????????????????????????????????" -ForegroundColor Yellow
-  Write-Host "???????????????http://127.0.0.1:17888/health"
+  Write-Host "Keep this window open. The website will print labels through this bridge." -ForegroundColor Yellow
+  Write-Host "Health check: http://127.0.0.1:17888/health"
   Write-Host ""
 
   Set-Location $rootDir
@@ -349,7 +380,7 @@ function Start-Bridge($port, $pythonExe, $fontPath, $printMethod, $windowsPrinte
 try {
   Write-Host ""
   Write-Host "========================================"
-  Write-Host " ??????????????? Windows ???????????????"
+  Write-Host " LIBMS Windows Print Bridge Installer"
   Write-Host "========================================"
 
   Refresh-Path
@@ -368,9 +399,9 @@ try {
   Start-Bridge $port $pythonExe $fontPath $printMethod $windowsPrinterName
 } catch {
   Write-Host ""
-  Write-Host "????????????????????????" -ForegroundColor Red
+  Write-Host "Install or startup failed:" -ForegroundColor Red
   Write-Host $_.Exception.Message -ForegroundColor Red
   Write-Host ""
-  Write-Host "???????????????????????????????????????????????? Node.js LTS???Python 3 ?????????????????????????????????????????????" -ForegroundColor Yellow
+  Write-Host "Send windows\install-log.txt to Codex if you need diagnosis." -ForegroundColor Yellow
   exit 1
 }
