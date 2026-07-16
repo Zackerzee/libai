@@ -926,6 +926,19 @@ h1 {
 .preset-copy strong {
   font-size: 15px;
   font-weight: 950;
+  line-height: 1.22;
+}
+
+.preset-label-main,
+.preset-label-sub {
+  display: block;
+}
+
+.preset-label-sub {
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 850;
 }
 
 .preset-copy small,

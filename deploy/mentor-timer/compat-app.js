@@ -31,7 +31,7 @@
     { type: "morning", icon: "🌅", label: "早鸟场（工作日）", desc: "工作日可开，到当天 14:00", mode: "countdown", fixedHour: 14, weekdayOnly: true, baseFee: 0 },
     { type: "afternoon", icon: "☀️", label: "午后休闲（工作日）", desc: "工作日可开，到当天 19:00", mode: "countdown", fixedHour: 19, weekdayOnly: true, baseFee: 0 },
     { type: "night", icon: "🌙", label: "星光夜场（工作日）", desc: "工作日可开，到当天 21:00", mode: "countdown", fixedHour: 21, weekdayOnly: true, baseFee: 0 },
-    { type: "day", icon: "🎫", label: "全天（不限时不限量不限板）", desc: "正计时记录，最终结束时间 21:00", mode: "countup", fixedHour: 21, baseFee: 0 },
+    { type: "day", icon: "🎫", label: "全天畅玩（不限时不限量不限板）", desc: "正计时记录，最终结束时间 21:00", mode: "countup", fixedHour: 21, baseFee: 0 },
     { type: "1h", icon: "⏱", label: "限时 1 小时（52×52 小板熨烫一次）", desc: "开始后倒计时 60 分钟", mode: "countdown", durationMin: 60, baseFee: 0 },
     { type: "2h", icon: "⏱", label: "限时 2 小时（52×52 小板熨烫一次）", desc: "开始后倒计时 120 分钟", mode: "countdown", durationMin: 120, baseFee: 0 },
     { type: "infinit", icon: "♾️", label: "智能板不限时畅玩（不限时不限板不限量）", desc: "正计时记录，最终结束时间 21:00", mode: "countup", fixedHour: 21, baseFee: 0 },
@@ -55,6 +55,12 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function splitPresetLabel(label) {
+    var match = String(label || "").match(/^(.+?)([（(][^）)]*[）)])$/);
+    if (!match) return { title: label || "", sub: "" };
+    return { title: match[1].replace(/^\s+|\s+$/g, ""), sub: match[2].replace(/^\s+|\s+$/g, "") };
   }
 
   function dateKey(timestamp) {
@@ -1071,6 +1077,7 @@
       '<div class="preset-list">';
     for (i = 0; i < sessionPresets.length; i += 1) {
       preset = sessionPresets[i];
+      var labelParts = splitPresetLabel(preset.label);
       html +=
         '<button type="button" class="preset-button ' +
         (canPrepare(preset.type) ? "" : "disabled") +
@@ -1083,11 +1090,14 @@
         '><span class="preset-icon">' +
         preset.icon +
         '</span><span class="preset-copy"><strong>' +
-        preset.label +
+        '<span class="preset-label-main">' +
+        escapeHtml(labelParts.title) +
+        "</span>" +
+        (labelParts.sub ? '<span class="preset-label-sub">' + escapeHtml(labelParts.sub) + "</span>" : "") +
         "</strong><small>" +
-        preset.desc +
+        escapeHtml(preset.desc) +
         "</small></span><em>" +
-        endHint(preset.type) +
+        escapeHtml(endHint(preset.type)) +
         "</em></button>";
     }
     html += '</div><button type="button" class="sheet-cancel" data-action="close-open">取消</button></section></div>';
