@@ -268,10 +268,9 @@ function Resolve-WindowsPrinterName {
 }
 
 function Resolve-PrintMethod($windowsPrinterName) {
-  $existing = Read-EnvValue "LIBMS_PRINT_METHOD"
-  if ($existing) { return $existing }
-  if ($windowsPrinterName) { return "windows-printer" }
-  return "auto"
+  # 精臣 B3S-P 在门店计时器里默认走 USB/蓝牙串口协议。
+  # 不依赖 Windows 打印机队列，避免 DYMO/系统驱动识别错误导致无法打印。
+  return "serial"
 }
 
 function Resolve-PrinterPort {
@@ -381,11 +380,9 @@ try {
   $pythonInfo = Ensure-Python
   Ensure-Pillow $pythonInfo
   Ensure-NodeDependencies
-  $windowsPrinterName = Resolve-WindowsPrinterName
-  if ($windowsPrinterName) {
-    Ensure-PyWin32 $pythonInfo
-  }
+  $windowsPrinterName = ""
   $printMethod = Resolve-PrintMethod $windowsPrinterName
+  Write-Warn "Using serial mode. Windows printer driver/queue will be ignored."
   $port = Resolve-PrinterPort
   $fontPath = Resolve-LabelFont
   Write-PrinterEnv $port $pythonInfo $fontPath $printMethod $windowsPrinterName

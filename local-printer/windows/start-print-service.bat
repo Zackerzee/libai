@@ -31,8 +31,8 @@ if not defined LIBMS_PRINT_PORT set "LIBMS_PRINT_PORT=17888"
 if not defined LIBMS_PYTHON_BIN set "LIBMS_PYTHON_BIN=python"
 if not defined LIBMS_PYTHON_ARGS set "LIBMS_PYTHON_ARGS="
 if not defined LIBMS_LABEL_FONT set "LIBMS_LABEL_FONT=C:\Windows\Fonts\msyh.ttc"
-if not defined LIBMS_PRINT_METHOD set "LIBMS_PRINT_METHOD=auto"
-if not defined LIBMS_WINDOWS_PRINTER_NAME set "LIBMS_WINDOWS_PRINTER_NAME="
+set "LIBMS_PRINT_METHOD=serial"
+set "LIBMS_WINDOWS_PRINTER_NAME="
 
 where node >nul 2>nul
 if errorlevel 1 (

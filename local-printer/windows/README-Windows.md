@@ -31,9 +31,9 @@ one-click-install-start.cmd
 2. 检查并尝试安装 Python；
 3. 安装 Pillow 图片依赖；
 4. 安装 Node 打印依赖；
-5. 自动识别 Windows 里的 NIIMBOT/B3S 打印机队列；
-6. 找到打印机队列时安装 pywin32 并优先走系统打印；
-7. 同时自动识别 COM 串口作为备用；
+5. 自动识别精臣 B3S-P 的 USB / 蓝牙 COM 串口；
+6. 强制使用串口协议打印；
+7. 忽略 Windows 系统打印机驱动和打印队列；
 8. 生成 `printer.env`；
 9. 启动本机打印桥。
 
@@ -51,13 +51,19 @@ Windows 电脑需要安装：
 
 ## 2. 查看打印模式
 
-一键脚本会优先使用 Windows 系统打印机队列。也就是“设置 -> 蓝牙和设备 -> 打印机和扫描仪”里看到的：
+新版一键脚本默认强制使用串口模式：
 
 ```text
-NIIMBOT B3S_P
+LIBMS_PRINT_METHOD=serial
 ```
 
-如果没有识别到这个打印机队列，才会尝试走 COM 串口协议。
+也就是说：不需要在 Windows “打印机和扫描仪”里把精臣配置成可打印队列。那里如果显示 DYMO、驱动错误、脱机，都不作为网页计时器的判断依据。
+
+网页计时器真正需要的是设备管理器里出现一个 COM 口，例如：
+
+```text
+COM3 USB 串行设备
+```
 
 ## 3. 查看串口号
 
@@ -103,14 +109,13 @@ LIBMS_NIIMBOT_PORT=COM10
 LIBMS_LABEL_FONT=C:\Windows\Fonts\msyh.ttc
 ```
 
-如果你要强制使用 Windows 打印机队列，可以在 `printer.env` 里写：
+打印模式保持：
 
 ```text
-LIBMS_PRINT_METHOD=windows-printer
-LIBMS_WINDOWS_PRINTER_NAME=NIIMBOT B3S_P
+LIBMS_PRINT_METHOD=serial
 ```
 
-打印机名称必须和 Windows 系统里显示的名称完全一致。
+`LIBMS_WINDOWS_PRINTER_NAME` 留空即可。
 
 ## 5. 启动打印桥
 
@@ -168,9 +173,27 @@ http://127.0.0.1:17888/health
 
 健康检查里会显示 `printMethod`、`windowsPrinterName`、`rawSerialPort`、`serialPort`、`pythonBin`，用于确认实际使用的打印模式、打印机、串口和 Python。
 
+正确状态应类似：
+
+```json
+{
+  "ok": true,
+  "printMethod": "serial",
+  "rawSerialPort": "COM3",
+  "serialPort": "COM3"
+}
+```
+
 ### 找不到 COM 口
 
 确认标签机已开机、USB 已连接、驱动已安装。然后重新运行 `check-com-ports.bat`。
+
+如果关闭蓝牙后 COM 口消失，说明当前识别到的可能是蓝牙串口，不是 USB 串口。此时需要：
+
+1. 换一根支持数据传输的 USB 线，不要只用充电线；
+2. 换电脑 USB 口；
+3. 安装精臣/USB 串口驱动；
+4. 再运行 `check-com-ports.bat`，确认出现非 Bluetooth 的 COM 口。
 
 ### 换 USB 口后不打印
 

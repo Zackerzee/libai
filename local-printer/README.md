@@ -23,11 +23,11 @@ local-printer/windows/
 1. 先右键 zip，选择“全部解压”
 2. 打开精臣 B3S-P 并用 USB 插到 Windows 电脑
 3. 双击 1-START-WINDOWS.cmd
-4. 等它自动安装依赖、识别 Windows 打印机队列 / COM 口并启动打印桥
+4. 等它自动安装依赖、识别 USB / 蓝牙 COM 口并启动打印桥
 5. 打开 https://www.libms.net/mentor-timer 开台测试
 ```
 
-新版会优先使用 Windows 系统里的 `NIIMBOT B3S_P` 打印机队列；如果没识别到，再尝试串口协议。`.bat` 文件只作为兼容入口，优先使用 `.cmd`。
+新版强制使用串口协议，不依赖 Windows “打印机和扫描仪”里的系统驱动。即使那里显示 DYMO、驱动错误、脱机，也不影响网页计时器；关键是设备管理器里要有 COM 口。`.bat` 文件只作为兼容入口，优先使用 `.cmd`。
 
 如果一键脚本失败，再使用 windows/README-Windows.md 里的手动排查步骤。
 
