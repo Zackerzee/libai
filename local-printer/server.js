@@ -11,6 +11,10 @@ const HOST = process.env.LIBMS_PRINT_HOST || "127.0.0.1";
 const PORT = Number(process.env.LIBMS_PRINT_PORT || 17888);
 const PRINT_DENSITY = Number(process.env.LIBMS_NIIMBOT_DENSITY || 2);
 const PYTHON_BIN = process.env.LIBMS_PYTHON_BIN || "python3";
+const PYTHON_ARGS = String(process.env.LIBMS_PYTHON_ARGS || "")
+  .trim()
+  .split(/\s+/)
+  .filter(Boolean);
 const RAW_SERIAL_PORT = process.env.LIBMS_NIIMBOT_PORT || "/dev/cu.usbmodem1301";
 const PRINT_METHOD = String(process.env.LIBMS_PRINT_METHOD || "auto").trim().toLowerCase();
 const WINDOWS_PRINTER_NAME = String(process.env.LIBMS_WINDOWS_PRINTER_NAME || "").trim();
@@ -73,7 +77,7 @@ function normalizePayload(payload) {
 }
 
 function runRenderScript(payload, args = []) {
-  const result = spawnSync(PYTHON_BIN, [join(__dirname, "render-label.py"), ...args], {
+  const result = spawnSync(PYTHON_BIN, [...PYTHON_ARGS, join(__dirname, "render-label.py"), ...args], {
     input: JSON.stringify(payload),
     encoding: "utf8",
     env: {
@@ -183,6 +187,7 @@ async function handleRequest(request) {
       platform: process.platform,
       printMethod: PRINT_METHOD,
       windowsPrinterName: WINDOWS_PRINTER_NAME,
+      pythonArgs: PYTHON_ARGS,
       rawSerialPort: RAW_SERIAL_PORT,
       serialPort: SERIAL_PORT,
       pythonBin: PYTHON_BIN,
@@ -245,6 +250,7 @@ if (process.argv.includes("--test")) {
     console.log(`LIBMS NIIMBOT print bridge listening on http://${HOST}:${PORT}`);
     console.log(`Print method: ${PRINT_METHOD}`);
     if (WINDOWS_PRINTER_NAME) console.log(`Windows printer: ${WINDOWS_PRINTER_NAME}`);
+    if (PYTHON_ARGS.length) console.log(`Python args: ${PYTHON_ARGS.join(" ")}`);
     console.log(`Serial port: ${SERIAL_PORT}`);
   });
 }

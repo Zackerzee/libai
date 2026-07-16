@@ -29,6 +29,7 @@ for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%ENV_FILE%") do (
 if not defined LIBMS_NIIMBOT_PORT set "LIBMS_NIIMBOT_PORT=COM3"
 if not defined LIBMS_PRINT_PORT set "LIBMS_PRINT_PORT=17888"
 if not defined LIBMS_PYTHON_BIN set "LIBMS_PYTHON_BIN=python"
+if not defined LIBMS_PYTHON_ARGS set "LIBMS_PYTHON_ARGS="
 if not defined LIBMS_LABEL_FONT set "LIBMS_LABEL_FONT=C:\Windows\Fonts\msyh.ttc"
 if not defined LIBMS_PRINT_METHOD set "LIBMS_PRINT_METHOD=auto"
 if not defined LIBMS_WINDOWS_PRINTER_NAME set "LIBMS_WINDOWS_PRINTER_NAME="
@@ -48,18 +49,18 @@ if errorlevel 1 (
   exit /b 1
 )
 
-"%LIBMS_PYTHON_BIN%" --version >nul 2>nul
+"%LIBMS_PYTHON_BIN%" %LIBMS_PYTHON_ARGS% --version >nul 2>nul
 if errorlevel 1 (
-  echo [错误] 未检测到 Python：%LIBMS_PYTHON_BIN%
+  echo [错误] 未检测到 Python：%LIBMS_PYTHON_BIN% %LIBMS_PYTHON_ARGS%
   echo 请先安装 Python，并确认 printer.env 里的 LIBMS_PYTHON_BIN 配置正确。
   pause
   exit /b 1
 )
 
-"%LIBMS_PYTHON_BIN%" -c "import PIL" >nul 2>nul
+"%LIBMS_PYTHON_BIN%" %LIBMS_PYTHON_ARGS% -c "import PIL" >nul 2>nul
 if errorlevel 1 (
   echo 正在安装 Python 图片依赖 Pillow...
-  "%LIBMS_PYTHON_BIN%" -m pip install pillow
+  "%LIBMS_PYTHON_BIN%" %LIBMS_PYTHON_ARGS% -m pip install pillow
   if errorlevel 1 (
     echo [错误] Pillow 安装失败。请检查网络或 Python/pip 配置。
     pause
@@ -92,6 +93,7 @@ echo - 打印模式：%LIBMS_PRINT_METHOD%
 if defined LIBMS_WINDOWS_PRINTER_NAME echo - Windows 打印机：%LIBMS_WINDOWS_PRINTER_NAME%
 echo - 标签机串口：%LIBMS_NIIMBOT_PORT%
 echo - 标签字体：%LIBMS_LABEL_FONT%
+echo - Python：%LIBMS_PYTHON_BIN% %LIBMS_PYTHON_ARGS%
 echo.
 echo 保持此窗口运行，网页开台后会自动打印标签。
 echo 如需后台自动启动，请运行 install-autostart.bat。

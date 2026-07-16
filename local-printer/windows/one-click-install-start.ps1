@@ -34,19 +34,6 @@ function Refresh-Path {
   $env:Path = "$machinePath;$userPath;$extra;$env:Path"
 }
 
-function Install-WithWinget($id, $name) {
-  if (-not (Test-Cmd "winget")) {
-    throw "winget is not available. Please install $name manually, then run this script again."
-  }
-
-  Write-Step "Installing $name"
-  winget install --id $id --exact --silent --accept-package-agreements --accept-source-agreements
-  if ($LASTEXITCODE -ne 0) {
-    throw "$name install failed. Try running this window as Administrator, or install it manually."
-  }
-  Refresh-Path
-}
-
 function Get-NodeMajor {
   if (-not (Test-Cmd "node")) { return 0 }
   try {
@@ -66,28 +53,23 @@ function Ensure-Node {
   }
 
   if ($major -gt 0) {
-    Write-Warn "Detected Node.js $(node --version), but Node.js 18 or newer is required."
-  } else {
-    Write-Warn "Node.js was not detected."
+    throw "Detected Node.js $(node --version). Please install Node.js LTS 18+ from https://nodejs.org/, then reopen this script."
   }
-
-  Install-WithWinget "OpenJS.NodeJS.LTS" "Node.js LTS"
-  $major = Get-NodeMajor
-  if ($major -lt 18 -or -not (Test-Cmd "npm")) {
-    throw "Node.js 18+ is still not available. Please install Node.js LTS from https://nodejs.org/ and reopen this script."
-  }
-  Write-Ok "Node.js is ready: $(node --version)"
+  throw "Node.js was not detected. Please install Node.js LTS 18+ from https://nodejs.org/, then reopen this script."
 }
 
-function Get-PythonInfo($exe, $args) {
+function Get-PythonInfo($command, [string[]]$prefixArgs) {
   try {
     $code = "import sys; print(sys.executable); print('%s.%s.%s' % sys.version_info[:3])"
-    $output = & $exe @args -c $code 2>$null
+    $args = @()
+    if ($prefixArgs) { $args += $prefixArgs }
+    $args += @("-c", $code)
+    $output = & $command @args 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $output -or $output.Count -lt 2) { return $null }
     $version = [Version]$output[1].Trim()
     return [pscustomobject]@{
-      Command = $exe
-      Args = $args
+      Command = $command
+      Args = $prefixArgs
       Exe = $output[0].Trim()
       Version = $version
     }
@@ -104,9 +86,16 @@ function Test-PythonSupported($info) {
   return $true
 }
 
-function Get-PythonExe {
-  $candidates = @()
+function Invoke-Python($pythonInfo, [string[]]$args) {
+  $allArgs = @()
+  if ($pythonInfo.Args) { $allArgs += $pythonInfo.Args }
+  $allArgs += $args
+  & $pythonInfo.Command @allArgs
+  return $LASTEXITCODE
+}
 
+function Find-Python {
+  $candidates = @()
   if (Test-Cmd "py") {
     $candidates += ,@("py", @("-3.12"))
     $candidates += ,@("py", @("-3.13"))
@@ -120,54 +109,46 @@ function Get-PythonExe {
   foreach ($candidate in $candidates) {
     $info = Get-PythonInfo $candidate[0] $candidate[1]
     if (Test-PythonSupported $info) {
-      Write-Ok ("Python is ready: {0} ({1})" -f $info.Exe, $info.Version)
-      return $info.Exe
+      Write-Ok ("Python is ready: {0} ({1}) via {2} {3}" -f $info.Exe, $info.Version, $info.Command, ($info.Args -join " "))
+      return $info
     }
     if ($info) {
       Write-Warn ("Ignoring unsupported Python: {0} ({1}). Supported: 3.9 to 3.13." -f $info.Exe, $info.Version)
     }
   }
 
-  return ""
+  return $null
 }
 
 function Ensure-Python {
   Write-Step "Checking Python"
-  $pythonExe = Get-PythonExe
-  if ($pythonExe) { return $pythonExe }
-
-  Write-Warn "No supported Python found. Python 3.14 is not supported by this printer bridge yet."
-  Install-WithWinget "Python.Python.3.12" "Python 3.12"
-
-  $pythonExe = Get-PythonExe
-  if (-not $pythonExe) {
-    throw "Python 3.12/3.13 is still not available. Install Python 3.12 from python.org, check Add Python to PATH, then retry."
-  }
-  return $pythonExe
+  $info = Find-Python
+  if ($info) { return $info }
+  throw "No supported Python found. Install Python 3.12 from python.org and check Add Python to PATH. Python 3.14 is not supported yet."
 }
 
-function Ensure-PipPackage($pythonExe, $importName, $packageName) {
+function Ensure-PipPackage($pythonInfo, $importName, $packageName) {
   Write-Step "Checking Python package: $packageName"
-  & $pythonExe -c "import $importName" 2>$null
+  Invoke-Python $pythonInfo @("-c", "import $importName") | Out-Null
   if ($LASTEXITCODE -eq 0) {
     Write-Ok "$packageName is ready"
     return
   }
 
   Write-Step "Installing Python package: $packageName"
-  & $pythonExe -m pip install --upgrade $packageName
+  Invoke-Python $pythonInfo @("-m", "pip", "install", "--upgrade", $packageName) | Out-Null
   if ($LASTEXITCODE -ne 0) {
-    throw "$packageName install failed. Check network, Python, and pip."
+    throw "$packageName install failed. Run manually: py -3.12 -m pip install --upgrade $packageName"
   }
   Write-Ok "$packageName installed"
 }
 
-function Ensure-Pillow($pythonExe) {
-  Ensure-PipPackage $pythonExe "PIL" "pillow"
+function Ensure-Pillow($pythonInfo) {
+  Ensure-PipPackage $pythonInfo "PIL" "pillow"
 }
 
-function Ensure-PyWin32($pythonExe) {
-  Ensure-PipPackage $pythonExe "win32print, win32ui" "pywin32"
+function Ensure-PyWin32($pythonInfo) {
+  Ensure-PipPackage $pythonInfo "win32print, win32ui" "pywin32"
 }
 
 function Ensure-NodeDependencies {
@@ -195,7 +176,6 @@ function Read-EnvValue($key) {
 
 function Get-SerialPortCandidates {
   $items = @()
-
   try {
     $ports = Get-CimInstance Win32_SerialPort -ErrorAction SilentlyContinue
     foreach ($port in $ports) {
@@ -222,7 +202,6 @@ function Get-SerialPortCandidates {
 
 function Get-WindowsPrinterCandidates {
   $items = @()
-
   try {
     $printers = Get-Printer -ErrorAction SilentlyContinue
     foreach ($printer in $printers) {
@@ -246,7 +225,6 @@ function Get-WindowsPrinterCandidates {
       }
     } catch {}
   }
-
   return $items | Sort-Object Score -Descending
 }
 
@@ -333,13 +311,17 @@ function Resolve-LabelFont {
   return "C:\Windows\Fonts\msyh.ttc"
 }
 
-function Write-PrinterEnv($port, $pythonExe, $fontPath, $printMethod, $windowsPrinterName) {
+function Write-PrinterEnv($port, $pythonInfo, $fontPath, $printMethod, $windowsPrinterName) {
   Write-Step "Writing local config"
+  $pythonArgs = ""
+  if ($pythonInfo.Args) { $pythonArgs = ($pythonInfo.Args -join " ") }
+
   $content = @(
     "# Auto generated. You may edit this file manually.",
     "LIBMS_NIIMBOT_PORT=$port",
     "LIBMS_PRINT_PORT=17888",
-    "LIBMS_PYTHON_BIN=$pythonExe",
+    "LIBMS_PYTHON_BIN=$($pythonInfo.Command)",
+    "LIBMS_PYTHON_ARGS=$pythonArgs",
     "LIBMS_LABEL_FONT=$fontPath",
     "LIBMS_PRINT_METHOD=$printMethod",
     "LIBMS_WINDOWS_PRINTER_NAME=$windowsPrinterName"
@@ -349,11 +331,15 @@ function Write-PrinterEnv($port, $pythonExe, $fontPath, $printMethod, $windowsPr
   Write-Ok "Config written: $envFile"
 }
 
-function Start-Bridge($port, $pythonExe, $fontPath, $printMethod, $windowsPrinterName) {
+function Start-Bridge($port, $pythonInfo, $fontPath, $printMethod, $windowsPrinterName) {
   Write-Step "Starting local print bridge"
+  $pythonArgs = ""
+  if ($pythonInfo.Args) { $pythonArgs = ($pythonInfo.Args -join " ") }
+
   $env:LIBMS_NIIMBOT_PORT = $port
   $env:LIBMS_PRINT_PORT = "17888"
-  $env:LIBMS_PYTHON_BIN = $pythonExe
+  $env:LIBMS_PYTHON_BIN = $pythonInfo.Command
+  $env:LIBMS_PYTHON_ARGS = $pythonArgs
   $env:LIBMS_LABEL_FONT = $fontPath
   $env:LIBMS_PRINT_METHOD = $printMethod
   $env:LIBMS_WINDOWS_PRINTER_NAME = $windowsPrinterName
@@ -366,7 +352,7 @@ function Start-Bridge($port, $pythonExe, $fontPath, $printMethod, $windowsPrinte
     Write-Host "- Windows printer: $windowsPrinterName"
   }
   Write-Host "- Serial port: $port"
-  Write-Host "- Python: $pythonExe"
+  Write-Host "- Python: $($pythonInfo.Command) $pythonArgs"
   Write-Host "- Font: $fontPath"
   Write-Host ""
   Write-Host "Keep this window open. The website will print labels through this bridge." -ForegroundColor Yellow
@@ -385,18 +371,18 @@ try {
 
   Refresh-Path
   Ensure-Node
-  $pythonExe = Ensure-Python
-  Ensure-Pillow $pythonExe
+  $pythonInfo = Ensure-Python
+  Ensure-Pillow $pythonInfo
   Ensure-NodeDependencies
   $windowsPrinterName = Resolve-WindowsPrinterName
   if ($windowsPrinterName) {
-    Ensure-PyWin32 $pythonExe
+    Ensure-PyWin32 $pythonInfo
   }
   $printMethod = Resolve-PrintMethod $windowsPrinterName
   $port = Resolve-PrinterPort
   $fontPath = Resolve-LabelFont
-  Write-PrinterEnv $port $pythonExe $fontPath $printMethod $windowsPrinterName
-  Start-Bridge $port $pythonExe $fontPath $printMethod $windowsPrinterName
+  Write-PrinterEnv $port $pythonInfo $fontPath $printMethod $windowsPrinterName
+  Start-Bridge $port $pythonInfo $fontPath $printMethod $windowsPrinterName
 } catch {
   Write-Host ""
   Write-Host "Install or startup failed:" -ForegroundColor Red
