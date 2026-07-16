@@ -1,5 +1,5 @@
 (function () {
-  var VERSION = "20260709-start-agg-v7";
+  var VERSION = "20260716-session-labels-2100";
   var started = false;
 
   function hasForceCompat() {
