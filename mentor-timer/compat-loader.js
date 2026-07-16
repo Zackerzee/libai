@@ -1,5 +1,5 @@
 (function () {
-  var VERSION = "20260714-windows-download-v2";
+  var VERSION = "20260716-open-desk-fix";
   var started = false;
 
   function hasForceCompat() {

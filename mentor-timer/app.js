@@ -415,13 +415,18 @@ createApp({
     }
 
     function ensureBellAudio() {
-      const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextCtor) return null;
-      if (!audioContext) audioContext = new AudioContextCtor();
-      if (audioContext.state === "suspended") {
-        audioContext.resume().catch(() => {});
+      try {
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextCtor) return null;
+        if (!audioContext) audioContext = new AudioContextCtor();
+        if (audioContext.state === "suspended") {
+          audioContext.resume().catch(() => {});
+        }
+        return audioContext;
+      } catch (error) {
+        console.warn("[LIBMS Timer] 响铃音频初始化失败，计时操作继续：", error);
+        return null;
       }
-      return audioContext;
     }
 
     function playTimeoutBell(desk) {
