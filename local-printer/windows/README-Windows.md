@@ -51,10 +51,11 @@ Windows 电脑需要安装：
 
 ## 2. 查看打印模式
 
-新版一键脚本默认强制使用串口模式：
+新版一键脚本默认强制使用串口模式，并支持自动选择串口：
 
 ```text
 LIBMS_PRINT_METHOD=serial
+LIBMS_NIIMBOT_PORT=auto
 ```
 
 也就是说：不需要在 Windows “打印机和扫描仪”里把精臣配置成可打印队列。那里如果显示 DYMO、驱动错误、脱机，都不作为网页计时器的判断依据。
@@ -64,6 +65,8 @@ LIBMS_PRINT_METHOD=serial
 ```text
 COM3 USB 串行设备
 ```
+
+`auto` 模式不是只靠名字猜端口。打印桥会在打印前按顺序尝试 COM 口，只有能拿到精臣打印机信息的端口才会继续打印；蓝牙串口会排到最后。
 
 ## 3. 查看串口号
 
@@ -89,7 +92,13 @@ printer.env.example
 printer.env
 ```
 
-把里面的端口改成真实端口，例如：
+推荐保持自动选择：
+
+```text
+LIBMS_NIIMBOT_PORT=auto
+```
+
+如果自动选择失败，再把里面的端口改成真实 USB 端口，例如：
 
 ```text
 LIBMS_NIIMBOT_PORT=COM3
@@ -192,7 +201,13 @@ Timeout waiting response
 Serial port: COM5
 ```
 
-基本就是选到了蓝牙串口或错误串口。请重新运行 `1-START-WINDOWS.cmd`，新版脚本会优先选择 `USB 串行设备`；如果仍不行，运行 `windows\check-com-ports.bat`，把 `windows\printer.env` 里的 `LIBMS_NIIMBOT_PORT` 改成显示为 `USB 串行设备` 的 COM 口，例如 `COM3`。
+基本就是选到了蓝牙串口或错误串口。新版脚本会在打印前逐个 COM 口握手并自动跳过这个口。请重新下载最新版并保持：
+
+```text
+LIBMS_NIIMBOT_PORT=auto
+```
+
+如果仍不行，运行 `windows\check-com-ports.bat`，把 `windows\printer.env` 里的 `LIBMS_NIIMBOT_PORT` 改成显示为 `USB 串行设备` 的 COM 口，例如 `COM3`。
 
 ### 找不到 COM 口
 

@@ -68,6 +68,11 @@ function scoreWindowsPort(item, preferred) {
 }
 
 function findWindowsSerialPort(preferred) {
+  const ports = findWindowsSerialPorts(preferred);
+  return ports.length ? ports[0] : "";
+}
+
+function findWindowsSerialPorts(preferred) {
   if (process.platform !== "win32") return "";
 
   const script = [
@@ -87,7 +92,11 @@ function findWindowsSerialPort(preferred) {
     timeout: 3000,
   });
 
-  if (result.error || result.status !== 0 || !String(result.stdout || "").trim()) return "";
+  const requested = comName(preferred);
+
+  if (result.error || result.status !== 0 || !String(result.stdout || "").trim()) {
+    return requested && requested !== "AUTO" ? [normalizeSerialPort(requested)] : ["COM3"];
+  }
 
   try {
     const parsed = JSON.parse(String(result.stdout).trim());
@@ -98,23 +107,35 @@ function findWindowsSerialPort(preferred) {
       }))
       .filter((item) => item.Port);
 
-    if (!ports.length) return "";
+    if (!ports.length) return requested && requested !== "AUTO" ? [normalizeSerialPort(requested)] : ["COM3"];
 
     const ranked = ports
       .map((item) => ({ ...item, Score: scoreWindowsPort(item, preferred) }))
       .sort((a, b) => b.Score - a.Score);
 
-    const requested = comName(preferred);
     const requestedItem = ranked.find((item) => comName(item.Port) === requested);
-    const best = ranked[0];
+    const ordered = [];
+    const addPort = (port) => {
+      const normalized = normalizeSerialPort(port);
+      if (normalized && !ordered.includes(normalized)) ordered.push(normalized);
+    };
 
-    if (!requested || requested === "AUTO") return normalizeSerialPort(best.Port);
-    if (!requestedItem) return normalizeSerialPort(best.Port);
-    if (best.Score >= 50 && best.Score > requestedItem.Score) return normalizeSerialPort(best.Port);
+    // High-score ports are USB/NIIMBOT-like ports. Try them first.
+    ranked.filter((item) => item.Score >= 50).forEach((item) => addPort(item.Port));
 
-    return normalizeSerialPort(requestedItem.Port);
+    // Keep a manually configured non-Bluetooth port in the fallback list.
+    if (requested && requested !== "AUTO" && requestedItem && requestedItem.Score >= 0) addPort(requestedItem.Port);
+
+    // Unknown system COM ports are allowed after USB candidates.
+    ranked.filter((item) => item.Score >= 0).forEach((item) => addPort(item.Port));
+
+    // Bluetooth ports are last resort only.
+    ranked.filter((item) => item.Score < 0).forEach((item) => addPort(item.Port));
+
+    if (!ordered.length && requested && requested !== "AUTO") addPort(requested);
+    return ordered.length ? ordered : ["COM3"];
   } catch (_) {
-    return "";
+    return requested && requested !== "AUTO" ? [normalizeSerialPort(requested)] : ["COM3"];
   }
 }
 
@@ -134,6 +155,13 @@ function resolveSerialPort(value) {
   }
 
   return requested;
+}
+
+function currentSerialPorts() {
+  const requested = normalizeSerialPort(RAW_SERIAL_PORT);
+
+  if (process.platform === "win32") return findWindowsSerialPorts(requested);
+  return [currentSerialPort()].filter(Boolean);
 }
 
 function currentSerialPort() {
@@ -211,34 +239,49 @@ function printWindowsQueueLabel(payload) {
 }
 
 async function printSerialLabel(payload) {
-  const client = new NiimbotNodeSerialClient();
-  client.setPort(currentSerialPort());
-  client.setPacketInterval(10);
-
   const image = renderLabel(payload);
+  const ports = currentSerialPorts();
+  const errors = [];
 
-  try {
-    await client.connect();
-    const printTask = client.abstraction.newPrintTask("B1", {
-      labelType: LabelType.WithGaps,
-      density: PRINT_DENSITY,
-      totalPages: 1,
-      pageTimeoutMs: 15000,
-      statusTimeoutMs: 15000,
-      statusPollIntervalMs: 500,
-    });
-    await printTask.printInit();
-    await printTask.printPage(image, 1);
-    await printTask.waitForPageFinished();
-    await printTask.waitForFinished();
-    await printTask.printEnd();
-  } finally {
+  for (const port of ports) {
+    const client = new NiimbotNodeSerialClient();
+    client.setPort(port);
+    client.setPacketInterval(10);
+
     try {
-      if (client.isConnected()) await client.disconnect();
-    } catch (_) {
-      // Ignore disconnect errors. The next request will reconnect.
+      await client.connect();
+      const printerInfo = client.getPrinterInfo();
+      if (printerInfo.modelId === undefined) {
+        throw new Error(`No NIIMBOT response on ${port}`);
+      }
+
+      const printTask = client.abstraction.newPrintTask("B1", {
+        labelType: LabelType.WithGaps,
+        density: PRINT_DENSITY,
+        totalPages: 1,
+        pageTimeoutMs: 15000,
+        statusTimeoutMs: 15000,
+        statusPollIntervalMs: 500,
+      });
+      await printTask.printInit();
+      await printTask.printPage(image, 1);
+      await printTask.waitForPageFinished();
+      await printTask.waitForFinished();
+      await printTask.printEnd();
+      return { ok: true, printer: "serial", serialPort: port };
+    } catch (error) {
+      errors.push(`${port}: ${error instanceof Error ? error.message : String(error)}`);
+      console.warn(`[print-label] ${port} failed, trying next port if available:`, error);
+    } finally {
+      try {
+        if (client.isConnected()) await client.disconnect();
+      } catch (_) {
+        // Ignore disconnect errors. The next request will reconnect.
+      }
     }
   }
+
+  throw new Error(errors.join(" | "));
 }
 
 async function printLabel(payload) {
@@ -258,8 +301,7 @@ async function printLabel(payload) {
   }
 
   try {
-    await printSerialLabel(payload);
-    return { ok: true, printer: "serial" };
+    return await printSerialLabel(payload);
   } catch (error) {
     errors.push(`serial: ${error instanceof Error ? error.message : String(error)}`);
     throw new Error(errors.join(" | "));
@@ -289,6 +331,7 @@ async function handleRequest(request) {
       pythonArgs: PYTHON_ARGS,
       rawSerialPort: RAW_SERIAL_PORT,
       serialPort: currentSerialPort(),
+      serialCandidates: currentSerialPorts(),
       pythonBin: PYTHON_BIN,
       port: PORT,
     });
@@ -303,8 +346,8 @@ async function handleRequest(request) {
     }
 
     try {
-      await enqueuePrint(payload);
-      return jsonResponse(request, 200, { ok: true });
+      const result = await enqueuePrint(payload);
+      return jsonResponse(request, 200, { ok: true, ...result });
     } catch (error) {
       console.error("[print-label] failed:", error);
       return jsonResponse(request, 500, {

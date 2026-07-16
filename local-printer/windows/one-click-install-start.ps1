@@ -328,10 +328,12 @@ function Write-PrinterEnv($port, $pythonInfo, $fontPath, $printMethod, $windowsP
   Write-Step "Writing local config"
   $pythonArgs = ""
   if ($pythonInfo.Args) { $pythonArgs = ($pythonInfo.Args -join " ") }
+  $configPort = $port
+  if ($port -ne "auto") { $configPort = "auto" }
 
   $content = @(
     "# Auto generated. You may edit this file manually.",
-    "LIBMS_NIIMBOT_PORT=$port",
+    "LIBMS_NIIMBOT_PORT=$configPort",
     "LIBMS_PRINT_PORT=17888",
     "LIBMS_PYTHON_BIN=$($pythonInfo.Command)",
     "LIBMS_PYTHON_ARGS=$pythonArgs",
@@ -390,7 +392,9 @@ try {
   $windowsPrinterName = ""
   $printMethod = Resolve-PrintMethod $windowsPrinterName
   Write-Warn "Using serial mode. Windows printer driver/queue will be ignored."
-  $port = Resolve-PrinterPort
+  $detectedPort = Resolve-PrinterPort
+  Write-Warn "Serial auto-probe enabled. Preferred detected port: $detectedPort. The bridge will test COM ports before each print."
+  $port = "auto"
   $fontPath = Resolve-LabelFont
   Write-PrinterEnv $port $pythonInfo $fontPath $printMethod $windowsPrinterName
   Start-Bridge $port $pythonInfo $fontPath $printMethod $windowsPrinterName

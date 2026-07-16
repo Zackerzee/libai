@@ -26,7 +26,7 @@ for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%ENV_FILE%") do (
   if not "%%A"=="" set "%%A=%%B"
 )
 
-if not defined LIBMS_NIIMBOT_PORT set "LIBMS_NIIMBOT_PORT=COM3"
+if not defined LIBMS_NIIMBOT_PORT set "LIBMS_NIIMBOT_PORT=auto"
 if not defined LIBMS_PRINT_PORT set "LIBMS_PRINT_PORT=17888"
 if not defined LIBMS_PYTHON_BIN set "LIBMS_PYTHON_BIN=python"
 if not defined LIBMS_PYTHON_ARGS set "LIBMS_PYTHON_ARGS="
