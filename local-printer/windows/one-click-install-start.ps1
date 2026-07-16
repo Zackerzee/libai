@@ -183,28 +183,50 @@ function Read-EnvValue($key) {
 
 function Get-SerialPortCandidates {
   $items = @()
+  $best = @{}
+
   try {
     $ports = Get-CimInstance Win32_SerialPort -ErrorAction SilentlyContinue
     foreach ($port in $ports) {
       if (-not $port.DeviceID) { continue }
-      $name = [string]$port.Name
-      $score = 0
-      if ($name -match "NIIMBOT|B3S|B3S_P|B3S-P") { $score += 120 }
-      if ($name -match "USB|Serial|串行|CH340|CP210|Prolific") { $score += 80 }
-      if ($name -match "Bluetooth|蓝牙") { $score -= 140 }
-      $items += [pscustomobject]@{ Port = $port.DeviceID; Name = $name; Score = $score }
+      $items += [pscustomobject]@{ Port = $port.DeviceID; Name = [string]$port.Name; Source = "serial" }
+    }
+  } catch {}
+
+  try {
+    $pnpPorts = Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue | Where-Object { $_.Name -match "\((COM\d+)\)" }
+    foreach ($port in $pnpPorts) {
+      $items += [pscustomobject]@{ Port = $matches[1]; Name = [string]$port.Name; Source = "pnp" }
     }
   } catch {}
 
   try {
     $names = [System.IO.Ports.SerialPort]::GetPortNames()
     foreach ($name in $names) {
-      if ($items.Port -contains $name) { continue }
-      $items += [pscustomobject]@{ Port = $name; Name = "System serial port $name"; Score = 1 }
+      $items += [pscustomobject]@{ Port = $name; Name = "System serial port $name"; Source = "dotnet" }
     }
   } catch {}
 
-  return $items | Sort-Object Score -Descending
+  foreach ($item in $items) {
+    if (-not $best.ContainsKey($item.Port) -or $item.Source -eq "pnp" -or ($best[$item.Port].Source -eq "dotnet" -and $item.Source -eq "serial")) {
+      $best[$item.Port] = $item
+    }
+  }
+
+  $result = @()
+  foreach ($item in $best.Values) {
+    $score = 0
+    if ($item.Name -match "NIIMBOT|B3S|B3S_P|B3S-P") { $score += 120 }
+    if ($item.Name -match "USB|Serial|串行|CH340|CP210|Prolific") { $score += 80 }
+    if ($item.Name -match "Bluetooth|蓝牙|BTH") { $score -= 140 }
+    $isBluetooth = $item.Name -match "Bluetooth|蓝牙|BTH"
+    $result += [pscustomobject]@{ Port = $item.Port; Name = $item.Name; Source = $item.Source; Score = $score; Bluetooth = $isBluetooth }
+  }
+
+  $nonBluetooth = @($result | Where-Object { -not $_.Bluetooth } | Sort-Object Score -Descending)
+  $bluetooth = @($result | Where-Object { $_.Bluetooth } | Sort-Object Score -Descending)
+  if ($nonBluetooth.Count -gt 0) { return $nonBluetooth }
+  return $bluetooth
 }
 
 function Get-WindowsPrinterCandidates {
@@ -269,7 +291,7 @@ function Resolve-WindowsPrinterName {
 
 function Resolve-PrintMethod($windowsPrinterName) {
   # 精臣 B3S-P 在门店计时器里默认走 USB/蓝牙串口协议。
-  # 不依赖 Windows 打印机队列，避免 DYMO/系统驱动识别错误导致无法打印。
+  # 如串口协议失败，server.js 会在检测到 Windows 打印机名时走系统队列兜底。
   return "serial"
 }
 
@@ -352,7 +374,7 @@ function Start-Bridge($port, $pythonInfo, $fontPath, $printMethod, $windowsPrint
   $pythonArgs = ""
   if ($pythonInfo.Args) { $pythonArgs = ($pythonInfo.Args -join " ") }
 
-  $env:LIBMS_NIIMBOT_PORT = $port
+  $env:LIBMS_NIIMBOT_PORT = "auto"
   $env:LIBMS_TRY_BLUETOOTH_PORTS = "0"
   $env:LIBMS_PRINT_PORT = "17888"
   $env:LIBMS_PYTHON_BIN = $pythonInfo.Command
@@ -368,7 +390,10 @@ function Start-Bridge($port, $pythonInfo, $fontPath, $printMethod, $windowsPrint
   if ($windowsPrinterName) {
     Write-Host "- Windows printer: $windowsPrinterName"
   }
-  Write-Host "- Serial port: $port"
+  Write-Host "- Serial port: auto"
+  if ($port) {
+    Write-Host "- Detected preferred port: $port"
+  }
   Write-Host "- Try Bluetooth COM: 0"
   Write-Host "- Python: $($pythonInfo.Command) $pythonArgs"
   Write-Host "- Font: $fontPath"
@@ -391,10 +416,15 @@ try {
   Ensure-Node
   $pythonInfo = Ensure-Python
   Ensure-Pillow $pythonInfo
+  Ensure-PyWin32 $pythonInfo
   Ensure-NodeDependencies
-  $windowsPrinterName = ""
+  $windowsPrinterName = Resolve-WindowsPrinterName
   $printMethod = Resolve-PrintMethod $windowsPrinterName
-  Write-Warn "Using serial mode. Windows printer driver/queue will be ignored."
+  if ($windowsPrinterName) {
+    Write-Warn "Using serial mode first. If serial fails, Windows printer queue will be used as fallback: $windowsPrinterName"
+  } else {
+    Write-Warn "Using serial mode. No NIIMBOT Windows printer queue detected."
+  }
   $detectedPort = Resolve-PrinterPort
   Write-Warn "Serial auto-probe enabled. Preferred detected port: $detectedPort. The bridge will test COM ports before each print."
   $port = "auto"

@@ -33,7 +33,7 @@ one-click-install-start.cmd
 4. 安装 Node 打印依赖；
 5. 自动识别精臣 B3S-P 的 USB / 蓝牙 COM 串口；
 6. 强制使用串口协议打印；
-7. 忽略 Windows 系统打印机驱动和打印队列；
+7. 自动识别 NIIMBOT Windows 打印机队列，作为串口失败后的兜底；
 8. 生成 `printer.env`；
 9. 启动本机打印桥。
 
@@ -56,6 +56,7 @@ Windows 电脑需要安装：
 ```text
 LIBMS_PRINT_METHOD=serial
 LIBMS_NIIMBOT_PORT=auto
+LIBMS_TRY_BLUETOOTH_PORTS=0
 ```
 
 也就是说：不需要在 Windows “打印机和扫描仪”里把精臣配置成可打印队列。那里如果显示 DYMO、驱动错误、脱机，都不作为网页计时器的判断依据。
@@ -68,6 +69,13 @@ COM3 USB 串行设备
 
 `auto` 模式不是只靠名字猜端口。打印桥会在打印前按顺序尝试 COM 口，只有能拿到精臣打印机信息的端口才会继续打印；蓝牙串口会排到最后。
 最新版默认不会尝试蓝牙 COM 口，因为 Windows 下蓝牙串口容易出现 `Timeout waiting response` 或 `Operation aborted`，导致打印桥异常退出。
+
+如果串口能发数据但打印机叮铃报错、不出纸，打印桥会在检测到 `LIBMS_WINDOWS_PRINTER_NAME` 时自动再尝试 Windows 打印队列。也就是：
+
+```text
+先试 USB/串口
+失败后自动试 Windows 打印队列
+```
 
 默认配置应保持：
 
@@ -190,7 +198,7 @@ http://127.0.0.1:17888/health
 
 能看到 `{"ok":true...}` 才表示本机打印桥正常。
 
-健康检查里会显示 `printMethod`、`windowsPrinterName`、`rawSerialPort`、`serialPort`、`pythonBin`，用于确认实际使用的打印模式、打印机、串口和 Python。
+健康检查里会显示 `printMethod`、`windowsPrinterName`、`rawSerialPort`、`serialPort`、`serialCandidateDetails`、`pythonBin`，用于确认实际使用的打印模式、打印机、串口和 Python。
 
 正确状态应类似：
 
@@ -199,7 +207,10 @@ http://127.0.0.1:17888/health
   "ok": true,
   "printMethod": "serial",
   "rawSerialPort": "COM3",
-  "serialPort": "COM3"
+  "serialPort": "COM3",
+  "serialCandidateDetails": [
+    {"port":"COM3","name":"USB 串行设备 (COM3)","bluetooth":false,"selected":true}
+  ]
 }
 ```
 

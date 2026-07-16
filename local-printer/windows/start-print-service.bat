@@ -69,6 +69,18 @@ if errorlevel 1 (
   )
 )
 
+if defined LIBMS_WINDOWS_PRINTER_NAME (
+  "%LIBMS_PYTHON_BIN%" %LIBMS_PYTHON_ARGS% -c "import win32print, win32ui" >nul 2>nul
+  if errorlevel 1 (
+    echo 正在安装 Windows 打印队列依赖 pywin32...
+    "%LIBMS_PYTHON_BIN%" %LIBMS_PYTHON_ARGS% -m pip install --upgrade pywin32
+    if errorlevel 1 (
+      echo [提醒] pywin32 安装失败。串口打印仍会尝试，但 Windows 队列兜底不可用。
+      echo.
+    )
+  )
+)
+
 if defined LIBMS_LABEL_FONT (
   if not exist "%LIBMS_LABEL_FONT%" (
     echo [提醒] 未找到字体文件：%LIBMS_LABEL_FONT%

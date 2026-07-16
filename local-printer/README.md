@@ -38,6 +38,8 @@ LIBMS_TRY_BLUETOOTH_PORTS=0
 
 也就是自动选择 USB/非蓝牙 COM 口，默认跳过蓝牙 COM，避免 `Timeout waiting response` 和 `Operation aborted`。
 
+Windows 版还会识别 `NIIMBOT B3S_P` 系统打印队列。串口协议失败时，如果检测到 Windows 打印机名，会自动用系统队列再尝试一次。
+
 如果一键脚本失败，再使用 windows/README-Windows.md 里的手动排查步骤。
 
 详细说明见：

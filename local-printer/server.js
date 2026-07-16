@@ -32,6 +32,7 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 let printQueue = Promise.resolve();
+let lastWindowsSerialDetails = [];
 
 // Windows 串口库在错误 COM 口上偶尔会异步抛出 error 事件。
 // 本机桥是门店工具，坏串口不能让整个打印桥黑窗口退出。
@@ -94,8 +95,13 @@ function findWindowsSerialPorts(preferred) {
   if (process.platform !== "win32") return [];
 
   const script = [
-    "$ports = Get-CimInstance Win32_SerialPort -ErrorAction SilentlyContinue | Select-Object DeviceID,Name;",
-    "if ($ports) { $ports | ConvertTo-Json -Compress }",
+    "$items = @();",
+    "Get-CimInstance Win32_SerialPort -ErrorAction SilentlyContinue | ForEach-Object { if ($_.DeviceID) { $items += [pscustomobject]@{ DeviceID = $_.DeviceID; Name = $_.Name; Source = 'serial' } } };",
+    "Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '\\((COM\\d+)\\)' } | ForEach-Object { $items += [pscustomobject]@{ DeviceID = $matches[1]; Name = $_.Name; Source = 'pnp' } };",
+    "try { [System.IO.Ports.SerialPort]::GetPortNames() | ForEach-Object { $items += [pscustomobject]@{ DeviceID = $_; Name = \"System serial port $_\"; Source = 'dotnet' } } } catch {};",
+    "$best = @{};",
+    "foreach ($item in $items) { if (-not $best.ContainsKey($item.DeviceID) -or $item.Source -eq 'pnp' -or ($best[$item.DeviceID].Source -eq 'dotnet' -and $item.Source -eq 'serial')) { $best[$item.DeviceID] = $item } };",
+    "$best.Values | ConvertTo-Json -Compress",
   ].join(" ");
 
   const result = spawnSync("powershell.exe", [
@@ -113,6 +119,7 @@ function findWindowsSerialPorts(preferred) {
   const requested = comName(preferred);
 
   if (result.error || result.status !== 0 || !String(result.stdout || "").trim()) {
+    lastWindowsSerialDetails = [];
     return requested && requested !== "AUTO" ? [normalizeSerialPort(requested)] : ["COM3"];
   }
 
@@ -122,10 +129,14 @@ function findWindowsSerialPorts(preferred) {
       .map((item) => ({
         Port: String(item.DeviceID || item.Port || "").trim(),
         Name: String(item.Name || "").trim(),
+        Source: String(item.Source || "").trim(),
       }))
       .filter((item) => item.Port);
 
-    if (!ports.length) return requested && requested !== "AUTO" ? [normalizeSerialPort(requested)] : ["COM3"];
+    if (!ports.length) {
+      lastWindowsSerialDetails = [];
+      return requested && requested !== "AUTO" ? [normalizeSerialPort(requested)] : ["COM3"];
+    }
 
     const ranked = ports
       .map((item) => ({ ...item, Score: scoreWindowsPort(item, preferred) }))
@@ -165,8 +176,20 @@ function findWindowsSerialPorts(preferred) {
     }
 
     if (!ordered.length && requested && requested !== "AUTO") addPort(requested);
+    lastWindowsSerialDetails = ranked.map((item) => {
+      const port = normalizeSerialPort(item.Port);
+      return {
+        port,
+        name: item.Name,
+        source: item.Source,
+        score: item.Score,
+        bluetooth: isBluetoothWindowsPort(item),
+        selected: ordered.includes(port),
+      };
+    });
     return ordered.length ? ordered : ["COM3"];
   } catch (_) {
+    lastWindowsSerialDetails = [];
     return requested && requested !== "AUTO" ? [normalizeSerialPort(requested)] : ["COM3"];
   }
 }
@@ -194,6 +217,12 @@ function currentSerialPorts() {
 
   if (process.platform === "win32") return findWindowsSerialPorts(requested);
   return [currentSerialPort()].filter(Boolean);
+}
+
+function currentSerialPortDetails() {
+  if (process.platform !== "win32") return [];
+  findWindowsSerialPorts(normalizeSerialPort(RAW_SERIAL_PORT));
+  return lastWindowsSerialDetails;
 }
 
 function currentSerialPort() {
@@ -339,6 +368,7 @@ async function printLabel(payload) {
   const preferWindowsQueue =
     PRINT_METHOD === "windows-printer" ||
     (PRINT_METHOD === "auto" && process.platform === "win32" && WINDOWS_PRINTER_NAME);
+  const canUseWindowsQueue = process.platform === "win32" && WINDOWS_PRINTER_NAME;
 
   if (preferWindowsQueue) {
     try {
@@ -354,6 +384,14 @@ async function printLabel(payload) {
     return await printSerialLabel(payload);
   } catch (error) {
     errors.push(`serial: ${error instanceof Error ? error.message : String(error)}`);
+    if (canUseWindowsQueue && PRINT_METHOD !== "serial-only") {
+      console.warn("[print-label] Serial failed, trying Windows printer queue:", error);
+      try {
+        return printWindowsQueueLabel(payload);
+      } catch (queueError) {
+        errors.push(`windows-printer: ${queueError instanceof Error ? queueError.message : String(queueError)}`);
+      }
+    }
     throw new Error(errors.join(" | "));
   }
 }
@@ -372,6 +410,8 @@ async function handleRequest(request) {
   }
 
   if (request.method === "GET" && url.pathname === "/health") {
+    const serialCandidates = currentSerialPorts();
+    const serialCandidateDetails = currentSerialPortDetails();
     return jsonResponse(request, 200, {
       ok: true,
       printer: "NIIMBOT B3S-P",
@@ -381,8 +421,9 @@ async function handleRequest(request) {
       tryBluetoothPorts: TRY_BLUETOOTH_PORTS,
       pythonArgs: PYTHON_ARGS,
       rawSerialPort: RAW_SERIAL_PORT,
-      serialPort: currentSerialPort(),
-      serialCandidates: currentSerialPorts(),
+      serialPort: serialCandidates[0] || currentSerialPort(),
+      serialCandidates,
+      serialCandidateDetails,
       pythonBin: PYTHON_BIN,
       port: PORT,
     });
