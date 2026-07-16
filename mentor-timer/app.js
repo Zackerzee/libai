@@ -323,12 +323,14 @@ function countupText(desk, timestamp) {
 }
 
 function requestPrintBridge(payload) {
-  if (!window.fetch) return;
+  if (!window.fetch) {
+    return Promise.reject(new Error("当前浏览器不支持本机打印请求"));
+  }
 
   const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
   const timeoutId = controller ? window.setTimeout(() => controller.abort(), 10000) : 0;
 
-  window
+  return window
     .fetch(PRINT_BRIDGE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -343,9 +345,7 @@ function requestPrintBridge(payload) {
     .then((data) => {
       if (data && data.ok === false) throw new Error(data.error || "print failed");
       console.info("[LIBMS Timer] 开台标签已发送到本机打印桥", payload);
-    })
-    .catch((error) => {
-      console.warn("[LIBMS Timer] 本机打印桥未完成打印，开台不受影响：", error);
+      return data || { ok: true };
     })
     .finally(() => {
       if (timeoutId) window.clearTimeout(timeoutId);
@@ -366,8 +366,8 @@ createApp({
     const openingDesk = ref(null);
     const openStartUseNow = ref(true);
     const openStartInput = ref(timeInputValue(Date.now()));
-    const quickDeskId = ref("01");
-    const quickSessionType = ref("1h");
+    const printStatus = ref("打印桥待命：开桌后会自动发送标签。");
+    const lastPrintPayload = ref(null);
     const isAggregatedOnly = ref(false);
     const showRecords = ref(false);
     const checkoutDraft = ref(null);
@@ -606,6 +606,65 @@ createApp({
       return true;
     }
 
+    function buildPrintPayload(desk) {
+      return {
+        deskId: desk.id,
+        session: sessionByType(desk.sessionType).label,
+        mode: desk.mode,
+        startLabel: timeOnly(desk.startTime),
+        endLabel: desk.mode === "countdown" ? timeOnly(desk.endTime) : "",
+        note: desk.mode === "countdown" ? "请按时提醒顾客" : "不限时 / 正计时",
+      };
+    }
+
+    function formatPrintError(error) {
+      if (error && error.name === "AbortError") return "打印桥连接超时，请确认本机打印桥窗口还在运行。";
+      const message = error && error.message ? error.message : String(error || "未知错误");
+      if (/Failed to fetch|NetworkError|Load failed|ERR_CONNECTION_REFUSED/i.test(message)) {
+        return "连接不到本机打印桥，请在这台电脑打开 http://127.0.0.1:17888/health 检查。";
+      }
+      return message;
+    }
+
+    function sendDeskLabel(desk, reason = "开桌") {
+      const payload = buildPrintPayload(desk);
+      lastPrintPayload.value = payload;
+      printStatus.value = `${reason}：正在发送 ${desk.id} 号桌标签...`;
+
+      requestPrintBridge(payload)
+        .then(() => {
+          printStatus.value = `${desk.id} 号桌标签已发送到本机打印桥。`;
+        })
+        .catch((error) => {
+          const message = formatPrintError(error);
+          printStatus.value = `${desk.id} 号桌标签未打印：${message}`;
+          console.warn("[LIBMS Timer] 标签打印失败，计时已正常开桌：", error);
+        });
+    }
+
+    function reprintLastLabel() {
+      if (!lastPrintPayload.value) {
+        window.alert("还没有可补打的标签。请先开桌，或在使用中的桌位点“补打”。");
+        return;
+      }
+
+      const payload = lastPrintPayload.value;
+      printStatus.value = `正在补打 ${payload.deskId} 号桌标签...`;
+      requestPrintBridge(payload)
+        .then(() => {
+          printStatus.value = `${payload.deskId} 号桌标签已重新发送。`;
+        })
+        .catch((error) => {
+          printStatus.value = `${payload.deskId} 号桌补打失败：${formatPrintError(error)}`;
+        });
+    }
+
+    function reprintDeskLabel(deskId) {
+      const desk = findDesk(deskId);
+      if (!desk || desk.status === "empty") return;
+      sendDeskLabel(desk, "补打");
+    }
+
     function prepareDesk(deskId, sessionType) {
       ensureBellAudio();
       const desk = findDesk(deskId);
@@ -618,30 +677,8 @@ createApp({
       }
 
       persistDesks();
-      requestPrintBridge({
-        deskId: desk.id,
-        session: sessionByType(desk.sessionType).label,
-        mode: desk.mode,
-        startLabel: timeOnly(desk.startTime),
-        endLabel: desk.mode === "countdown" ? timeOnly(desk.endTime) : "",
-        note: desk.mode === "countdown" ? "请按时提醒顾客" : "不限时 / 正计时",
-      });
+      sendDeskLabel(desk, "开桌成功");
       closeOpenModal();
-    }
-
-    function quickOpenDesk() {
-      const desk = findDesk(quickDeskId.value);
-      if (!desk) {
-        window.alert("没有找到该桌号。");
-        return;
-      }
-      if (desk.status !== "empty") {
-        window.alert(`${desk.id} 号桌当前不是空闲状态，请先选择空闲桌。`);
-        return;
-      }
-      openStartUseNow.value = true;
-      openStartInput.value = timeInputValue(Date.now());
-      prepareDesk(desk.id, quickSessionType.value);
     }
 
     function startPreparedDesk(deskId) {
@@ -1012,61 +1049,34 @@ createApp({
       ]);
     }
 
-    function renderQuickOpen() {
-      return h("section", { class: "quick-open-panel" }, [
-        h("div", { class: "quick-open-copy" }, [
-          h("strong", "快速开桌"),
-          h("span", "如果座位图点击不响应，用这里直接开台。"),
+    function renderPrintPanel() {
+      const hasLastPrint = !!lastPrintPayload.value;
+      return h("section", { class: "print-bridge-panel" }, [
+        h("div", { class: "print-bridge-copy" }, [
+          h("strong", "开桌标签打印"),
+          h("span", printStatus.value),
         ]),
-        h("div", { class: "quick-open-controls" }, [
+        h("div", { class: "print-bridge-actions" }, [
           h(
-            "label",
-            [
-              h("span", "桌号"),
-              h(
-                "select",
-                {
-                  value: quickDeskId.value,
-                  onChange: (event) => (quickDeskId.value = event.target.value),
-                },
-                desks.value.map((desk) =>
-                  h(
-                    "option",
-                    {
-                      key: desk.id,
-                      value: desk.id,
-                      disabled: desk.status !== "empty",
-                    },
-                    `${desk.id}${desk.status === "empty" ? "" : "（使用中）"}`
-                  )
-                )
-              ),
-            ]
+            "button",
+            {
+              type: "button",
+              class: "print-bridge-button",
+              disabled: !hasLastPrint,
+              onClick: reprintLastLabel,
+            },
+            "补打上一张标签"
           ),
           h(
-            "label",
-            [
-              h("span", "模式"),
-              h(
-                "select",
-                {
-                  value: quickSessionType.value,
-                  onChange: (event) => (quickSessionType.value = event.target.value),
-                },
-                sessionPresets.map((preset) =>
-                  h(
-                    "option",
-                    {
-                      key: preset.type,
-                      value: preset.type,
-                    },
-                    preset.label
-                  )
-                )
-              ),
-            ]
+            "a",
+            {
+              class: "print-bridge-health",
+              href: "http://127.0.0.1:17888/health",
+              target: "_blank",
+              rel: "noopener",
+            },
+            "检查本机打印桥"
           ),
-          h("button", { type: "button", class: "quick-open-button", onClick: quickOpenDesk }, "立即开桌"),
         ]),
       ]);
     }
@@ -1210,7 +1220,7 @@ createApp({
       if (desk.status === "preparing") {
         return h("div", { class: "seat-actions three" }, [
           h("button", { type: "button", class: "seat-action start", onClick: (event) => stop(event, () => startPreparedDesk(desk.id)) }, "开始"),
-          desk.mode === "countdown" ? h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整") : null,
+          h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
           h("button", { type: "button", class: "seat-action muted", onClick: (event) => stop(event, () => cancelPreparing(desk.id)) }, "取消"),
         ]);
       }
@@ -1218,33 +1228,36 @@ createApp({
       if (desk.isPaused) {
         return h("div", { class: "seat-actions three" }, [
           h("button", { type: "button", class: "seat-action resume", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "▶️"),
-          desk.mode === "countdown" ? h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整") : null,
+          h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
           h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "结束"),
         ]);
       }
 
       if (desk.status === "infinit") {
-        return h("div", { class: "seat-actions two" }, [
+        return h("div", { class: "seat-actions three" }, [
           h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
+          h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
           h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "结束"),
         ]);
       }
 
       if (desk.status === "timeout") {
-        return h("div", { class: "seat-actions five" }, [
+        return h("div", { class: "seat-actions six" }, [
           h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
           h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
           h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整"),
           h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
+          h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
           h("button", { type: "button", class: "seat-action stop danger", onClick: (event) => stop(event, () => askFinish(desk)) }, "结账"),
         ]);
       }
 
-      return h("div", { class: "seat-actions five" }, [
+      return h("div", { class: "seat-actions six" }, [
         h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
         h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
         h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整"),
         h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
+        h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
         h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "🛑"),
       ]);
     }
@@ -1577,31 +1590,9 @@ createApp({
       ]);
     }
 
-    let delegatedOpenHandler = null;
-
     onMounted(() => {
       unlockBellHandler = () => ensureBellAudio();
       window.addEventListener("pointerdown", unlockBellHandler, { once: true, passive: true });
-      delegatedOpenHandler = (event) => {
-        if (openingDesk.value) return;
-        let node = event.target;
-        const root = document.getElementById("app");
-        while (node) {
-          if (node.getAttribute && node.getAttribute("data-open-desk-id")) {
-            const desk = findDesk(node.getAttribute("data-open-desk-id"));
-            if (desk && desk.status === "empty") {
-              event.preventDefault();
-              event.stopPropagation();
-              openDeskModal(desk);
-            }
-            return;
-          }
-          if (node === root || node === document.body) break;
-          node = node.parentNode;
-        }
-      };
-      document.addEventListener("click", delegatedOpenHandler, true);
-      document.addEventListener("pointerup", delegatedOpenHandler, true);
       tick();
       intervalId = window.setInterval(tick, 1000);
     });
@@ -1609,10 +1600,6 @@ createApp({
     onUnmounted(() => {
       if (intervalId) window.clearInterval(intervalId);
       if (unlockBellHandler) window.removeEventListener("pointerdown", unlockBellHandler);
-      if (delegatedOpenHandler) {
-        document.removeEventListener("click", delegatedOpenHandler, true);
-        document.removeEventListener("pointerup", delegatedOpenHandler, true);
-      }
       if (audioContext && typeof audioContext.close === "function") {
         audioContext.close().catch(() => {});
       }
@@ -1622,7 +1609,7 @@ createApp({
       h("div", { class: "app-shell" }, [
         renderHeader(),
         renderStats(),
-        renderQuickOpen(),
+        renderPrintPanel(),
         renderFloorPlan(),
         renderRecords(),
         renderOpenModal(),

@@ -1518,7 +1518,8 @@ h1 {
 }
 
 .compat-action.pause,
-.compat-action.resume {
+.compat-action.resume,
+.compat-action.print {
   background: rgba(59, 130, 246, 0.22);
   color: #bfdbfe;
 }
@@ -2053,7 +2054,7 @@ body {
   margin-top: 2px;
 }
 
-.quick-open-panel {
+.print-bridge-panel {
   display: grid;
   grid-template-columns: minmax(180px, 0.8fr) minmax(260px, 1.2fr);
   gap: 12px;
@@ -2066,64 +2067,62 @@ body {
   box-shadow: 0 14px 36px rgba(134, 103, 61, 0.1);
 }
 
-.quick-open-copy {
+.print-bridge-copy {
   display: grid;
   gap: 4px;
 }
 
-.quick-open-copy strong {
+.print-bridge-copy strong {
   color: #35291e;
   font-size: 18px;
   font-weight: 950;
 }
 
-.quick-open-copy span {
+.print-bridge-copy span {
   color: #7d6e59;
   font-size: 12px;
   font-weight: 800;
 }
 
-.quick-open-controls {
+.print-bridge-actions {
   display: grid;
-  grid-template-columns: minmax(88px, 0.7fr) minmax(150px, 1.1fr) minmax(100px, 0.8fr);
+  grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr);
   gap: 10px;
   align-items: end;
 }
 
-.quick-open-controls label {
-  display: grid;
-  gap: 5px;
-  color: #7d6e59;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.quick-open-controls select {
-  min-height: 42px;
-  width: 100%;
-  border: 1px solid rgba(226, 203, 164, 0.88);
-  border-radius: 15px;
-  padding: 0 12px;
-  background: #fffaf1;
-  color: #35291e;
-  font-size: 15px;
-  font-weight: 900;
-}
-
-.quick-open-button {
+.print-bridge-button,
+.print-bridge-health {
   min-height: 42px;
   border: 0;
   border-radius: 15px;
+  display: grid;
+  place-items: center;
   background: #ef5350;
   color: #ffffff;
   font-size: 15px;
   font-weight: 950;
+  text-decoration: none;
   cursor: pointer;
   touch-action: manipulation;
   box-shadow: 0 12px 24px rgba(239, 83, 80, 0.18);
 }
 
-.quick-open-button:active {
+.print-bridge-health {
+  border: 1px solid rgba(226, 203, 164, 0.88);
+  background: #fffaf1;
+  color: #6f4a1f;
+  box-shadow: none;
+}
+
+.print-bridge-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  box-shadow: none;
+}
+
+.print-bridge-button:active,
+.print-bridge-health:active {
   transform: scale(0.96);
 }
 
@@ -2200,6 +2199,10 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.seat-actions.six {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .seat-action {
   min-height: 30px;
   border-radius: 11px;
@@ -2223,7 +2226,8 @@ body {
 .seat-action.pause,
 .seat-action.resume,
 .seat-action.start,
-.seat-action.adjust {
+.seat-action.adjust,
+.seat-action.print {
   background: #e8f5f7;
   color: #1f758e;
 }
@@ -2510,11 +2514,11 @@ body {
 }
 
 @media (max-width: 720px) {
-  .quick-open-panel {
+  .print-bridge-panel {
     grid-template-columns: 1fr;
   }
 
-  .quick-open-controls {
+  .print-bridge-actions {
     grid-template-columns: 1fr;
   }
 

@@ -15,8 +15,8 @@
   var openingDeskId = "";
   var openStartUseNow = true;
   var openStartInput = "";
-  var quickDeskId = "01";
-  var quickSessionType = "1h";
+  var printStatus = "打印桥待命：开桌后会自动发送标签。";
+  var lastPrintPayload = null;
   var isAggregatedOnly = false;
   var checkoutDraft = null;
   var showRecords = false;
@@ -415,9 +415,11 @@
   }
 
   function requestPrintBridge(payload) {
-    if (!window.fetch) return;
+    if (!window.fetch) {
+      return Promise.reject(new Error("当前浏览器不支持本机打印请求"));
+    }
 
-    window
+    return window
       .fetch(PRINT_BRIDGE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -433,12 +435,73 @@
         if (window.console && console.info) {
           console.info("[LIBMS Timer Compat] 开台标签已发送到本机打印桥", payload);
         }
+        return data || { ok: true };
+      });
+  }
+
+  function buildPrintPayload(desk) {
+    return {
+      deskId: desk.id,
+      session: sessionByType(desk.sessionType).label,
+      mode: desk.mode,
+      startLabel: timeOnly(desk.startTime),
+      endLabel: desk.mode === "countdown" ? timeOnly(desk.endTime) : "",
+      note: desk.mode === "countdown" ? "请按时提醒顾客" : "不限时 / 正计时",
+    };
+  }
+
+  function formatPrintError(error) {
+    var message;
+    if (error && error.name === "AbortError") return "打印桥连接超时，请确认本机打印桥窗口还在运行。";
+    message = error && error.message ? error.message : String(error || "未知错误");
+    if (/Failed to fetch|NetworkError|Load failed|ERR_CONNECTION_REFUSED/i.test(message)) {
+      return "连接不到本机打印桥，请在这台电脑打开 http://127.0.0.1:17888/health 检查。";
+    }
+    return message;
+  }
+
+  function sendDeskLabel(desk, reason) {
+    var payload = buildPrintPayload(desk);
+    lastPrintPayload = payload;
+    printStatus = (reason || "开桌") + "：正在发送 " + desk.id + " 号桌标签...";
+    render();
+    requestPrintBridge(payload)
+      .then(function () {
+        printStatus = desk.id + " 号桌标签已发送到本机打印桥。";
+        render();
       })
       .catch(function (error) {
+        printStatus = desk.id + " 号桌标签未打印：" + formatPrintError(error);
         if (window.console && console.warn) {
-          console.warn("[LIBMS Timer Compat] 本机打印桥未完成打印，开台不受影响：", error);
+          console.warn("[LIBMS Timer Compat] 标签打印失败，计时已正常开桌：", error);
         }
+        render();
       });
+  }
+
+  function reprintLastLabel() {
+    var payload = lastPrintPayload;
+    if (!payload) {
+      window.alert("还没有可补打的标签。请先开桌，或在使用中的桌位点“补打”。");
+      return;
+    }
+    printStatus = "正在补打 " + payload.deskId + " 号桌标签...";
+    render();
+    requestPrintBridge(payload)
+      .then(function () {
+        printStatus = payload.deskId + " 号桌标签已重新发送。";
+        render();
+      })
+      .catch(function (error) {
+        printStatus = payload.deskId + " 号桌补打失败：" + formatPrintError(error);
+        render();
+      });
+  }
+
+  function reprintDeskLabel(deskId) {
+    var desk = findDesk(deskId);
+    if (!desk || desk.status === "empty") return;
+    sendDeskLabel(desk, "补打");
   }
 
   function prepareDesk(deskId, sessionType) {
@@ -452,30 +515,8 @@
     }
     openingDeskId = "";
     persistDesks();
-    requestPrintBridge({
-      deskId: desk.id,
-      session: sessionByType(desk.sessionType).label,
-      mode: desk.mode,
-      startLabel: timeOnly(desk.startTime),
-      endLabel: desk.mode === "countdown" ? timeOnly(desk.endTime) : "",
-      note: desk.mode === "countdown" ? "请按时提醒顾客" : "不限时 / 正计时",
-    });
+    sendDeskLabel(desk, "开桌成功");
     render();
-  }
-
-  function quickOpenDesk() {
-    var desk = findDesk(quickDeskId);
-    if (!desk) {
-      window.alert("没有找到该桌号。");
-      return;
-    }
-    if (desk.status !== "empty") {
-      window.alert(desk.id + " 号桌当前不是空闲状态，请先选择空闲桌。");
-      return;
-    }
-    openStartUseNow = true;
-    openStartInput = timeInputValue(nowMs());
-    prepareDesk(desk.id, quickSessionType);
   }
 
   function startPreparedDesk(deskId) {
@@ -813,32 +854,18 @@
     );
   }
 
-  function renderQuickOpen() {
-    var html = '<section class="quick-open-panel"><div class="quick-open-copy"><strong>快速开桌</strong><span>如果座位图点击不响应，用这里直接开台。</span></div><div class="quick-open-controls">';
-    var i;
-    var desk;
-    var preset;
-    html += '<label><span>桌号</span><select data-action="quick-desk">';
-    for (i = 0; i < desks.length; i += 1) {
-      desk = desks[i];
-      html +=
-        '<option value="' +
-        desk.id +
-        '"' +
-        (desk.id === quickDeskId ? " selected" : "") +
-        (desk.status !== "empty" ? " disabled" : "") +
-        ">" +
-        desk.id +
-        (desk.status === "empty" ? "" : "（使用中）") +
-        "</option>";
-    }
-    html += '</select></label><label><span>模式</span><select data-action="quick-session">';
-    for (i = 0; i < sessionPresets.length; i += 1) {
-      preset = sessionPresets[i];
-      html += '<option value="' + preset.type + '"' + (preset.type === quickSessionType ? " selected" : "") + ">" + escapeHtml(preset.label) + "</option>";
-    }
-    html += '</select></label><button type="button" class="quick-open-button" data-action="quick-open">立即开桌</button></div></section>';
-    return html;
+  function renderPrintPanel() {
+    return (
+      '<section class="print-bridge-panel">' +
+      '<div class="print-bridge-copy"><strong>开桌标签打印</strong><span>' +
+      escapeHtml(printStatus) +
+      '</span></div><div class="print-bridge-actions">' +
+      '<button type="button" class="print-bridge-button" data-action="reprint-last"' +
+      (lastPrintPayload ? "" : " disabled") +
+      ">补打上一张标签</button>" +
+      '<a class="print-bridge-health" href="http://127.0.0.1:17888/health" target="_blank" rel="noopener">检查本机打印桥</a>' +
+      "</div></section>"
+    );
   }
 
   function renderTabs() {
@@ -871,12 +898,15 @@
     if (desk.status === "empty") return "";
     if (desk.status === "preparing") {
       return (
-        '<div class="compat-actions two">' +
+        '<div class="compat-actions three">' +
         '<button type="button" class="compat-action start" data-action="start" data-id="' +
         desk.id +
         '">' +
         (desk.startTime && desk.startTime > now ? "立即开始" : "开始计时") +
         "</button>" +
+        '<button type="button" class="compat-action print" data-action="reprint" data-id="' +
+        desk.id +
+        '">补打</button>' +
         '<button type="button" class="compat-action muted" data-action="cancel-prepare" data-id="' +
         desk.id +
         '">取消</button>' +
@@ -889,9 +919,9 @@
         '<button type="button" class="compat-action resume" data-action="resume" data-id="' +
         desk.id +
         '">▶️ 恢复</button>' +
-        '<button type="button" class="compat-action note" data-action="note" data-id="' +
+        '<button type="button" class="compat-action print" data-action="reprint" data-id="' +
         desk.id +
-        '">备注</button>' +
+        '">补打</button>' +
         '<button type="button" class="compat-action stop" data-action="finish" data-id="' +
         desk.id +
         '">🛑 结束</button>' +
@@ -904,9 +934,9 @@
         '<button type="button" class="compat-action pause" data-action="pause" data-id="' +
         desk.id +
         '">⏸️ 暂停</button>' +
-        '<button type="button" class="compat-action note" data-action="note" data-id="' +
+        '<button type="button" class="compat-action print" data-action="reprint" data-id="' +
         desk.id +
-        '">备注</button>' +
+        '">补打</button>' +
         '<button type="button" class="compat-action stop" data-action="finish" data-id="' +
         desk.id +
         '">🛑 结束</button>' +
@@ -914,7 +944,7 @@
       );
     }
     return (
-      '<div class="compat-actions four">' +
+      '<div class="compat-actions five">' +
       '<button type="button" class="compat-action pause" data-action="pause" data-id="' +
       desk.id +
       '">⏸️</button>' +
@@ -924,6 +954,9 @@
       '<button type="button" class="compat-action plus" data-action="add" data-id="' +
       desk.id +
       '" data-min="60">+60</button>' +
+      '<button type="button" class="compat-action print" data-action="reprint" data-id="' +
+      desk.id +
+      '">补打</button>' +
       '<button type="button" class="compat-action stop" data-action="finish" data-id="' +
       desk.id +
       '">🛑</button>' +
@@ -1138,7 +1171,7 @@
       '<div class="compat-shell">' +
       renderHeader() +
       renderStats() +
-      renderQuickOpen() +
+      renderPrintPanel() +
       renderTabs() +
       renderRegion() +
       renderRecords() +
@@ -1192,8 +1225,6 @@
       render();
     } else if (action === "preset") {
       prepareDesk(id, target.getAttribute("data-session") || "1h");
-    } else if (action === "quick-open") {
-      quickOpenDesk();
     } else if (action === "start") {
       startPreparedDesk(id);
     } else if (action === "cancel-prepare") {
@@ -1207,6 +1238,10 @@
       resumeDesk(id);
     } else if (action === "note") {
       editNote(id);
+    } else if (action === "reprint") {
+      reprintDeskLabel(id);
+    } else if (action === "reprint-last") {
+      reprintLastLabel();
     } else if (action === "finish") {
       askFinish(id);
     } else if (action === "close-finish") {
@@ -1229,10 +1264,6 @@
     if (action === "start-time-input") {
       openStartUseNow = false;
       openStartInput = target.value || timeInputValue(nowMs());
-    } else if (action === "quick-desk") {
-      quickDeskId = target.value || "01";
-    } else if (action === "quick-session") {
-      quickSessionType = target.value || "1h";
     } else {
       return;
     }

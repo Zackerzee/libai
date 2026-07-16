@@ -1,5 +1,5 @@
 (function () {
-  var VERSION = "20260716-quick-open";
+  var VERSION = "20260716-stable-seat-print";
   var started = false;
 
   function hasForceCompat() {
