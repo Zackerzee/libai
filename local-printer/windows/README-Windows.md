@@ -67,6 +67,16 @@ COM3 USB 串行设备
 ```
 
 `auto` 模式不是只靠名字猜端口。打印桥会在打印前按顺序尝试 COM 口，只有能拿到精臣打印机信息的端口才会继续打印；蓝牙串口会排到最后。
+最新版默认不会尝试蓝牙 COM 口，因为 Windows 下蓝牙串口容易出现 `Timeout waiting response` 或 `Operation aborted`，导致打印桥异常退出。
+
+默认配置应保持：
+
+```text
+LIBMS_NIIMBOT_PORT=auto
+LIBMS_TRY_BLUETOOTH_PORTS=0
+```
+
+只有明确要用蓝牙连接时，才把 `LIBMS_TRY_BLUETOOTH_PORTS` 改成 `1`。
 
 ## 3. 查看串口号
 
@@ -199,12 +209,14 @@ http://127.0.0.1:17888/health
 Unable to fetch printer info
 Timeout waiting response
 Serial port: COM5
+Operation aborted
 ```
 
-基本就是选到了蓝牙串口或错误串口。新版脚本会在打印前逐个 COM 口握手并自动跳过这个口。请重新下载最新版并保持：
+基本就是选到了蓝牙串口或错误串口。新版脚本会在打印前逐个 USB/非蓝牙 COM 口握手，并默认跳过蓝牙口。请重新下载最新版并保持：
 
 ```text
 LIBMS_NIIMBOT_PORT=auto
+LIBMS_TRY_BLUETOOTH_PORTS=0
 ```
 
 如果仍不行，运行 `windows\check-com-ports.bat`，把 `windows\printer.env` 里的 `LIBMS_NIIMBOT_PORT` 改成显示为 `USB 串行设备` 的 COM 口，例如 `COM3`。

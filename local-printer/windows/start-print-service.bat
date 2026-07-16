@@ -27,6 +27,7 @@ for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%ENV_FILE%") do (
 )
 
 if not defined LIBMS_NIIMBOT_PORT set "LIBMS_NIIMBOT_PORT=auto"
+if not defined LIBMS_TRY_BLUETOOTH_PORTS set "LIBMS_TRY_BLUETOOTH_PORTS=0"
 if not defined LIBMS_PRINT_PORT set "LIBMS_PRINT_PORT=17888"
 if not defined LIBMS_PYTHON_BIN set "LIBMS_PYTHON_BIN=python"
 if not defined LIBMS_PYTHON_ARGS set "LIBMS_PYTHON_ARGS="
@@ -92,6 +93,7 @@ echo - 服务地址：http://127.0.0.1:%LIBMS_PRINT_PORT%
 echo - 打印模式：%LIBMS_PRINT_METHOD%
 if defined LIBMS_WINDOWS_PRINTER_NAME echo - Windows 打印机：%LIBMS_WINDOWS_PRINTER_NAME%
 echo - 标签机串口：%LIBMS_NIIMBOT_PORT%
+echo - 尝试蓝牙串口：%LIBMS_TRY_BLUETOOTH_PORTS%
 echo - 标签字体：%LIBMS_LABEL_FONT%
 echo - Python：%LIBMS_PYTHON_BIN% %LIBMS_PYTHON_ARGS%
 echo.

@@ -29,6 +29,15 @@ local-printer/windows/
 
 新版强制使用串口协议，不依赖 Windows “打印机和扫描仪”里的系统驱动。即使那里显示 DYMO、驱动错误、脱机，也不影响网页计时器；关键是设备管理器里要有 COM 口。`.bat` 文件只作为兼容入口，优先使用 `.cmd`。
 
+Windows 默认配置：
+
+```text
+LIBMS_NIIMBOT_PORT=auto
+LIBMS_TRY_BLUETOOTH_PORTS=0
+```
+
+也就是自动选择 USB/非蓝牙 COM 口，默认跳过蓝牙 COM，避免 `Timeout waiting response` 和 `Operation aborted`。
+
 如果一键脚本失败，再使用 windows/README-Windows.md 里的手动排查步骤。
 
 详细说明见：

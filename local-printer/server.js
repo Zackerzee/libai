@@ -19,6 +19,9 @@ const PYTHON_ARGS = String(process.env.LIBMS_PYTHON_ARGS || "")
 const RAW_SERIAL_PORT = process.env.LIBMS_NIIMBOT_PORT || "auto";
 const PRINT_METHOD = String(process.env.LIBMS_PRINT_METHOD || "auto").trim().toLowerCase();
 const WINDOWS_PRINTER_NAME = String(process.env.LIBMS_WINDOWS_PRINTER_NAME || "").trim();
+const TRY_BLUETOOTH_PORTS = /^(1|true|yes)$/i.test(
+  String(process.env.LIBMS_TRY_BLUETOOTH_PORTS || "").trim()
+);
 const ALLOWED_ORIGINS = new Set([
   "https://www.libms.net",
   "https://libms.net",
@@ -29,6 +32,16 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 let printQueue = Promise.resolve();
+
+// Windows 串口库在错误 COM 口上偶尔会异步抛出 error 事件。
+// 本机桥是门店工具，坏串口不能让整个打印桥黑窗口退出。
+process.on("uncaughtException", (error) => {
+  console.error("[bridge] uncaught exception kept alive:", error);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[bridge] unhandled rejection kept alive:", reason);
+});
 
 function normalizeSerialPort(value) {
   const port = String(value || "").trim();
@@ -67,13 +80,18 @@ function scoreWindowsPort(item, preferred) {
   return score;
 }
 
+function isBluetoothWindowsPort(item) {
+  const text = `${item?.Name || ""} ${item?.Port || ""}`;
+  return /Bluetooth|蓝牙|BTH/i.test(text);
+}
+
 function findWindowsSerialPort(preferred) {
   const ports = findWindowsSerialPorts(preferred);
   return ports.length ? ports[0] : "";
 }
 
 function findWindowsSerialPorts(preferred) {
-  if (process.platform !== "win32") return "";
+  if (process.platform !== "win32") return [];
 
   const script = [
     "$ports = Get-CimInstance Win32_SerialPort -ErrorAction SilentlyContinue | Select-Object DeviceID,Name;",
@@ -112,6 +130,8 @@ function findWindowsSerialPorts(preferred) {
     const ranked = ports
       .map((item) => ({ ...item, Score: scoreWindowsPort(item, preferred) }))
       .sort((a, b) => b.Score - a.Score);
+    const nonBluetooth = ranked.filter((item) => !isBluetoothWindowsPort(item));
+    const bluetooth = ranked.filter((item) => isBluetoothWindowsPort(item));
 
     const requestedItem = ranked.find((item) => comName(item.Port) === requested);
     const ordered = [];
@@ -121,16 +141,28 @@ function findWindowsSerialPorts(preferred) {
     };
 
     // High-score ports are USB/NIIMBOT-like ports. Try them first.
-    ranked.filter((item) => item.Score >= 50).forEach((item) => addPort(item.Port));
+    nonBluetooth.filter((item) => item.Score >= 50).forEach((item) => addPort(item.Port));
 
     // Keep a manually configured non-Bluetooth port in the fallback list.
-    if (requested && requested !== "AUTO" && requestedItem && requestedItem.Score >= 0) addPort(requestedItem.Port);
+    if (
+      requested &&
+      requested !== "AUTO" &&
+      requestedItem &&
+      requestedItem.Score >= 0 &&
+      !isBluetoothWindowsPort(requestedItem)
+    ) {
+      addPort(requestedItem.Port);
+    }
 
     // Unknown system COM ports are allowed after USB candidates.
-    ranked.filter((item) => item.Score >= 0).forEach((item) => addPort(item.Port));
+    nonBluetooth.filter((item) => item.Score >= 0).forEach((item) => addPort(item.Port));
 
-    // Bluetooth ports are last resort only.
-    ranked.filter((item) => item.Score < 0).forEach((item) => addPort(item.Port));
+    // Bluetooth COM ports are unstable for this printer on Windows.
+    // Default: skip them if any USB/non-Bluetooth COM exists.
+    // Opt in with LIBMS_TRY_BLUETOOTH_PORTS=1, or use them only when no other port exists.
+    if (TRY_BLUETOOTH_PORTS || !nonBluetooth.length) {
+      bluetooth.forEach((item) => addPort(item.Port));
+    }
 
     if (!ordered.length && requested && requested !== "AUTO") addPort(requested);
     return ordered.length ? ordered : ["COM3"];
@@ -247,9 +279,23 @@ async function printSerialLabel(payload) {
     const client = new NiimbotNodeSerialClient();
     client.setPort(port);
     client.setPacketInterval(10);
+    const serialErrors = [];
+    const onSerialError = (error) => {
+      serialErrors.push(error);
+      console.warn(`[print-label] ${port} serial error ignored:`, error);
+    };
+
+    if (typeof client.on === "function") {
+      client.on("error", onSerialError);
+    }
 
     try {
       await client.connect();
+      const device = client.device || client.serialPort || client.port;
+      if (device && typeof device.on === "function") {
+        device.on("error", onSerialError);
+      }
+
       const printerInfo = client.getPrinterInfo();
       if (printerInfo.modelId === undefined) {
         throw new Error(`No NIIMBOT response on ${port}`);
@@ -270,7 +316,11 @@ async function printSerialLabel(payload) {
       await printTask.printEnd();
       return { ok: true, printer: "serial", serialPort: port };
     } catch (error) {
-      errors.push(`${port}: ${error instanceof Error ? error.message : String(error)}`);
+      const message = error instanceof Error ? error.message : String(error);
+      const serialErrorText = serialErrors
+        .map((item) => (item instanceof Error ? item.message : String(item)))
+        .join("; ");
+      errors.push(`${port}: ${serialErrorText ? `${message}; ${serialErrorText}` : message}`);
       console.warn(`[print-label] ${port} failed, trying next port if available:`, error);
     } finally {
       try {
@@ -328,6 +378,7 @@ async function handleRequest(request) {
       platform: process.platform,
       printMethod: PRINT_METHOD,
       windowsPrinterName: WINDOWS_PRINTER_NAME,
+      tryBluetoothPorts: TRY_BLUETOOTH_PORTS,
       pythonArgs: PYTHON_ARGS,
       rawSerialPort: RAW_SERIAL_PORT,
       serialPort: currentSerialPort(),

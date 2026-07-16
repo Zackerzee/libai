@@ -334,6 +334,7 @@ function Write-PrinterEnv($port, $pythonInfo, $fontPath, $printMethod, $windowsP
   $content = @(
     "# Auto generated. You may edit this file manually.",
     "LIBMS_NIIMBOT_PORT=$configPort",
+    "LIBMS_TRY_BLUETOOTH_PORTS=0",
     "LIBMS_PRINT_PORT=17888",
     "LIBMS_PYTHON_BIN=$($pythonInfo.Command)",
     "LIBMS_PYTHON_ARGS=$pythonArgs",
@@ -352,6 +353,7 @@ function Start-Bridge($port, $pythonInfo, $fontPath, $printMethod, $windowsPrint
   if ($pythonInfo.Args) { $pythonArgs = ($pythonInfo.Args -join " ") }
 
   $env:LIBMS_NIIMBOT_PORT = $port
+  $env:LIBMS_TRY_BLUETOOTH_PORTS = "0"
   $env:LIBMS_PRINT_PORT = "17888"
   $env:LIBMS_PYTHON_BIN = $pythonInfo.Command
   $env:LIBMS_PYTHON_ARGS = $pythonArgs
@@ -367,6 +369,7 @@ function Start-Bridge($port, $pythonInfo, $fontPath, $printMethod, $windowsPrint
     Write-Host "- Windows printer: $windowsPrinterName"
   }
   Write-Host "- Serial port: $port"
+  Write-Host "- Try Bluetooth COM: 0"
   Write-Host "- Python: $($pythonInfo.Command) $pythonArgs"
   Write-Host "- Font: $fontPath"
   Write-Host ""
