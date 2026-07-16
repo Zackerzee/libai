@@ -80,10 +80,10 @@ const sessionPresets = [
   { type: "morning", icon: "🌅", label: "早鸟场（工作日）", desc: "工作日可开，到当天 14:00", mode: "countdown", fixedHour: 14, weekdayOnly: true, baseFee: 0 },
   { type: "afternoon", icon: "☀️", label: "午后休闲（工作日）", desc: "工作日可开，到当天 19:00", mode: "countdown", fixedHour: 19, weekdayOnly: true, baseFee: 0 },
   { type: "night", icon: "🌙", label: "星光夜场（工作日）", desc: "工作日可开，到当天 21:00", mode: "countdown", fixedHour: 21, weekdayOnly: true, baseFee: 0 },
-  { type: "day", icon: "🎫", label: "全天不限时", desc: "正计时记录，不设结束时间", mode: "countup", baseFee: 0 },
-  { type: "1h", icon: "⏱", label: "限时 1h", desc: "开始后倒计时 60 分钟", mode: "countdown", durationMin: 60, baseFee: 0 },
-  { type: "2h", icon: "⏱", label: "限时 2h", desc: "开始后倒计时 120 分钟", mode: "countdown", durationMin: 120, baseFee: 0 },
-  { type: "infinit", icon: "♾️", label: "不限时畅玩", desc: "正计时模式，从 00:00:00 开始", mode: "countup", baseFee: 0 },
+  { type: "day", icon: "🎫", label: "全天（不限时不限量不限板）", desc: "正计时记录，最终结束时间 21:00", mode: "countup", fixedHour: 21, baseFee: 0 },
+  { type: "1h", icon: "⏱", label: "限时 1 小时（52×52 小板熨烫一次）", desc: "开始后倒计时 60 分钟", mode: "countdown", durationMin: 60, baseFee: 0 },
+  { type: "2h", icon: "⏱", label: "限时 2 小时（52×52 小板熨烫一次）", desc: "开始后倒计时 120 分钟", mode: "countdown", durationMin: 120, baseFee: 0 },
+  { type: "infinit", icon: "♾️", label: "智能板不限时畅玩（不限时不限板不限量）", desc: "正计时记录，最终结束时间 21:00", mode: "countup", fixedHour: 21, baseFee: 0 },
   { type: "iron52", icon: "🧩", label: "52×52 单板熨烫一次", desc: "单次熨烫服务，正计时记录", mode: "countup", baseFee: 0 },
   { type: "iron78", icon: "🧩", label: "78×78 单板熨烫一次", desc: "单次熨烫服务，正计时记录", mode: "countup", baseFee: 0 },
 ];
@@ -276,7 +276,7 @@ function fixedEndTime(timestamp, hour) {
 
 function computeEndTime(sessionType, startAt) {
   const preset = sessionByType(sessionType);
-  if (preset.mode === "countup") return 0;
+  if (preset.mode === "countup") return preset.fixedHour ? fixedEndTime(startAt, preset.fixedHour) : 0;
   if (preset.durationMin) return startAt + preset.durationMin * ONE_MIN_MS;
   return fixedEndTime(startAt, preset.fixedHour);
 }
@@ -323,12 +323,14 @@ function countupText(desk, timestamp) {
 }
 
 function requestPrintBridge(payload) {
-  if (!window.fetch) return;
+  if (!window.fetch) {
+    return Promise.reject(new Error("当前浏览器不支持本机打印请求"));
+  }
 
   const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
   const timeoutId = controller ? window.setTimeout(() => controller.abort(), 10000) : 0;
 
-  window
+  return window
     .fetch(PRINT_BRIDGE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -343,9 +345,7 @@ function requestPrintBridge(payload) {
     .then((data) => {
       if (data && data.ok === false) throw new Error(data.error || "print failed");
       console.info("[LIBMS Timer] 开台标签已发送到本机打印桥", payload);
-    })
-    .catch((error) => {
-      console.warn("[LIBMS Timer] 本机打印桥未完成打印，开台不受影响：", error);
+      return data || { ok: true };
     })
     .finally(() => {
       if (timeoutId) window.clearTimeout(timeoutId);
@@ -366,6 +366,8 @@ createApp({
     const openingDesk = ref(null);
     const openStartUseNow = ref(true);
     const openStartInput = ref(timeInputValue(Date.now()));
+    const printStatus = ref("打印桥待命：开桌后会自动发送标签。");
+    const lastPrintPayload = ref(null);
     const isAggregatedOnly = ref(false);
     const showRecords = ref(false);
     const checkoutDraft = ref(null);
@@ -415,13 +417,18 @@ createApp({
     }
 
     function ensureBellAudio() {
-      const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextCtor) return null;
-      if (!audioContext) audioContext = new AudioContextCtor();
-      if (audioContext.state === "suspended") {
-        audioContext.resume().catch(() => {});
+      try {
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextCtor) return null;
+        if (!audioContext) audioContext = new AudioContextCtor();
+        if (audioContext.state === "suspended") {
+          audioContext.resume().catch(() => {});
+        }
+        return audioContext;
+      } catch (error) {
+        console.warn("[LIBMS Timer] 响铃音频初始化失败，计时操作继续：", error);
+        return null;
       }
-      return audioContext;
     }
 
     function playTimeoutBell(desk) {
@@ -520,8 +527,8 @@ createApp({
     }
 
     function openDeskModal(desk) {
-      ensureBellAudio();
       if (desk.status !== "empty") return;
+      ensureBellAudio();
       openingDesk.value = desk;
       openStartUseNow.value = true;
       openStartInput.value = timeInputValue(Date.now());
@@ -549,14 +556,20 @@ createApp({
     function canPrepare(sessionType, startAt = resolveOpenStartAt()) {
       const preset = sessionByType(sessionType);
       if (preset.weekdayOnly && isWeekend(startAt)) return false;
-      if (preset.mode === "countup" || preset.durationMin) return true;
+      if (preset.mode === "countup") return preset.fixedHour ? hasValidEndTime(sessionType, startAt) : true;
+      if (preset.durationMin) return true;
       return hasValidEndTime(sessionType, startAt);
     }
 
     function endHint(sessionType, startAt = resolveOpenStartAt()) {
       const preset = sessionByType(sessionType);
       if (preset.weekdayOnly && isWeekend(startAt)) return "周六周日不可开";
-      if (preset.mode === "countup") return "正计时，不设结束时间";
+      if (preset.mode === "countup") {
+        const endAt = computeEndTime(sessionType, startAt);
+        if (!endAt) return "正计时，不设结束时间";
+        if (endAt <= startAt) return "开始时间已超过 21:00";
+        return `${timeOnly(startAt)} → ${timeOnly(endAt)} · 正计时`;
+      }
       const endAt = computeEndTime(sessionType, startAt);
       if (endAt <= startAt) return "开始时间已超过场次";
       return `${timeOnly(startAt)} → ${timeOnly(endAt)}${endAt <= now.value ? " · 已超时" : ""}`;
@@ -578,7 +591,9 @@ createApp({
       markDeskNotTimeout(desk.id);
 
       if (preset.mode === "countup") {
-        desk.endTime = 0;
+        const endAt = computeEndTime(sessionType, startAt);
+        if (endAt && endAt <= startAt) return false;
+        desk.endTime = endAt;
         desk.status = startAt > timestamp ? "preparing" : "infinit";
         return true;
       }
@@ -599,6 +614,65 @@ createApp({
       return true;
     }
 
+    function buildPrintPayload(desk) {
+      return {
+        deskId: desk.id,
+        session: sessionByType(desk.sessionType).label,
+        mode: desk.mode,
+        startLabel: timeOnly(desk.startTime),
+        endLabel: desk.endTime ? timeOnly(desk.endTime) : "",
+        note: desk.mode === "countdown" ? "请按时提醒顾客" : desk.endTime ? "正计时，到 21:00" : "不限时 / 正计时",
+      };
+    }
+
+    function formatPrintError(error) {
+      if (error && error.name === "AbortError") return "打印桥连接超时，请确认本机打印桥窗口还在运行。";
+      const message = error && error.message ? error.message : String(error || "未知错误");
+      if (/Failed to fetch|NetworkError|Load failed|ERR_CONNECTION_REFUSED/i.test(message)) {
+        return "连接不到本机打印桥，请在这台电脑打开 http://127.0.0.1:17888/health 检查。";
+      }
+      return message;
+    }
+
+    function sendDeskLabel(desk, reason = "开桌") {
+      const payload = buildPrintPayload(desk);
+      lastPrintPayload.value = payload;
+      printStatus.value = `${reason}：正在发送 ${desk.id} 号桌标签...`;
+
+      requestPrintBridge(payload)
+        .then(() => {
+          printStatus.value = `${desk.id} 号桌标签已发送到本机打印桥。`;
+        })
+        .catch((error) => {
+          const message = formatPrintError(error);
+          printStatus.value = `${desk.id} 号桌标签未打印：${message}`;
+          console.warn("[LIBMS Timer] 标签打印失败，计时已正常开桌：", error);
+        });
+    }
+
+    function reprintLastLabel() {
+      if (!lastPrintPayload.value) {
+        window.alert("还没有可补打的标签。请先开桌，或在使用中的桌位点“补打”。");
+        return;
+      }
+
+      const payload = lastPrintPayload.value;
+      printStatus.value = `正在补打 ${payload.deskId} 号桌标签...`;
+      requestPrintBridge(payload)
+        .then(() => {
+          printStatus.value = `${payload.deskId} 号桌标签已重新发送。`;
+        })
+        .catch((error) => {
+          printStatus.value = `${payload.deskId} 号桌补打失败：${formatPrintError(error)}`;
+        });
+    }
+
+    function reprintDeskLabel(deskId) {
+      const desk = findDesk(deskId);
+      if (!desk || desk.status === "empty") return;
+      sendDeskLabel(desk, "补打");
+    }
+
     function prepareDesk(deskId, sessionType) {
       ensureBellAudio();
       const desk = findDesk(deskId);
@@ -611,14 +685,7 @@ createApp({
       }
 
       persistDesks();
-      requestPrintBridge({
-        deskId: desk.id,
-        session: sessionByType(desk.sessionType).label,
-        mode: desk.mode,
-        startLabel: timeOnly(desk.startTime),
-        endLabel: desk.mode === "countdown" ? timeOnly(desk.endTime) : "",
-        note: desk.mode === "countdown" ? "请按时提醒顾客" : "不限时 / 正计时",
-      });
+      sendDeskLabel(desk, "开桌成功");
       closeOpenModal();
     }
 
@@ -916,7 +983,7 @@ createApp({
       if (desk.status === "empty") return "点击开桌";
       if (desk.isPaused) return "已暂停 · 时间冻结";
       if (desk.status === "preparing") return desk.startTime && desk.startTime > now.value ? "预设开始时间" : "等待开始计时";
-      if (desk.status === "infinit") return "不限时正计时";
+      if (desk.status === "infinit") return desk.endTime ? `正计时 · 到 ${timeOnly(desk.endTime)}` : "不限时正计时";
       if (desk.status === "timeout") return "超时正计时";
       return "剩余倒计时";
     }
@@ -953,9 +1020,21 @@ createApp({
           h("h1", { class: "brand-title" }, "✨ 时里白造物创意手作体验空间 ✨"),
           h("p", { class: "brand-subtitle" }, "拼豆计时管理控制台 · 准备中 / 倒计时 / 不限时 / 结账归档"),
         ]),
-        h("div", { class: "clock-card", "aria-live": "polite" }, [
-          h("span", "当前时间"),
-          h("strong", fullDateTime(now.value)),
+        h("div", { class: "header-side" }, [
+          h(
+            "a",
+            {
+              class: "download-bridge-link",
+              href: "/api/download-windows-bridge",
+              target: "_blank",
+              rel: "noopener",
+            },
+            "一键安装 Windows 打印桥"
+          ),
+          h("div", { class: "clock-card", "aria-live": "polite" }, [
+            h("span", "当前时间"),
+            h("strong", fullDateTime(now.value)),
+          ]),
         ]),
       ]);
     }
@@ -975,6 +1054,38 @@ createApp({
         }),
         renderStat("已超时", topStats.value.timeout, "rose"),
         renderStat("今日营收", `¥${topStats.value.revenue}`, "amber"),
+      ]);
+    }
+
+    function renderPrintPanel() {
+      const hasLastPrint = !!lastPrintPayload.value;
+      return h("section", { class: "print-bridge-panel" }, [
+        h("div", { class: "print-bridge-copy" }, [
+          h("strong", "开桌标签打印"),
+          h("span", printStatus.value),
+        ]),
+        h("div", { class: "print-bridge-actions" }, [
+          h(
+            "button",
+            {
+              type: "button",
+              class: "print-bridge-button",
+              disabled: !hasLastPrint,
+              onClick: reprintLastLabel,
+            },
+            "补打上一张标签"
+          ),
+          h(
+            "a",
+            {
+              class: "print-bridge-health",
+              href: "http://127.0.0.1:17888/health",
+              target: "_blank",
+              rel: "noopener",
+            },
+            "检查本机打印桥"
+          ),
+        ]),
       ]);
     }
 
@@ -1010,7 +1121,16 @@ createApp({
     function renderEmptyDesk(desk) {
       return h("div", { class: "empty-state" }, [
         h("div", { class: "plus-mark" }, "+"),
-        h("strong", "开桌"),
+        h(
+          "button",
+          {
+            type: "button",
+            class: "open-desk-button",
+            "data-open-desk-id": desk.id,
+            onClick: (event) => stop(event, () => openDeskModal(desk)),
+          },
+          "开桌"
+        ),
         h("span", "点击选择场次"),
       ]);
     }
@@ -1064,6 +1184,7 @@ createApp({
         {
           key: desk.id,
           class: deskClass(desk),
+          "data-open-desk-id": desk.status === "empty" ? desk.id : null,
           onClick: () => openDeskModal(desk),
         },
         [
@@ -1107,7 +1228,7 @@ createApp({
       if (desk.status === "preparing") {
         return h("div", { class: "seat-actions three" }, [
           h("button", { type: "button", class: "seat-action start", onClick: (event) => stop(event, () => startPreparedDesk(desk.id)) }, "开始"),
-          desk.mode === "countdown" ? h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整") : null,
+          h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
           h("button", { type: "button", class: "seat-action muted", onClick: (event) => stop(event, () => cancelPreparing(desk.id)) }, "取消"),
         ]);
       }
@@ -1115,33 +1236,36 @@ createApp({
       if (desk.isPaused) {
         return h("div", { class: "seat-actions three" }, [
           h("button", { type: "button", class: "seat-action resume", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "▶️"),
-          desk.mode === "countdown" ? h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整") : null,
+          h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
           h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "结束"),
         ]);
       }
 
       if (desk.status === "infinit") {
-        return h("div", { class: "seat-actions two" }, [
+        return h("div", { class: "seat-actions three" }, [
           h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
+          h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
           h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "结束"),
         ]);
       }
 
       if (desk.status === "timeout") {
-        return h("div", { class: "seat-actions five" }, [
+        return h("div", { class: "seat-actions six" }, [
           h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
           h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
           h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整"),
           h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
+          h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
           h("button", { type: "button", class: "seat-action stop danger", onClick: (event) => stop(event, () => askFinish(desk)) }, "结账"),
         ]);
       }
 
-      return h("div", { class: "seat-actions five" }, [
+      return h("div", { class: "seat-actions six" }, [
         h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
         h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
         h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整"),
         h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
+        h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
         h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "🛑"),
       ]);
     }
@@ -1152,6 +1276,7 @@ createApp({
         {
           key: desk.id,
           class: `seat-card seat-status-${desk.status} ${desk.isPaused ? "is-paused" : ""}`,
+          "data-open-desk-id": desk.status === "empty" ? desk.id : null,
           onClick: () => openDeskModal(desk),
         },
         [
@@ -1160,7 +1285,19 @@ createApp({
             h("span", { class: "seat-status" }, desk.isPaused ? "暂停" : statusText(desk.status)),
           ]),
           desk.status === "empty"
-            ? h("div", { class: "seat-empty" }, [h("b", "+"), h("span", "开桌")])
+            ? h("div", { class: "seat-empty" }, [
+                h("b", "+"),
+                h(
+                  "button",
+                  {
+                    type: "button",
+                    class: "open-desk-button seat-open-button",
+                    "data-open-desk-id": desk.id,
+                    onClick: (event) => stop(event, () => openDeskModal(desk)),
+                  },
+                  "开桌"
+                ),
+              ])
             : h("div", { class: "seat-body" }, [
                 h("span", { class: "seat-session" }, sessionByType(desk.sessionType).label),
                 h("strong", { class: "seat-time" }, compactTimeText(desk)),
@@ -1480,6 +1617,7 @@ createApp({
       h("div", { class: "app-shell" }, [
         renderHeader(),
         renderStats(),
+        renderPrintPanel(),
         renderFloorPlan(),
         renderRecords(),
         renderOpenModal(),

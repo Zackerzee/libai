@@ -148,7 +148,7 @@ def build_image(payload):
 
     draw.text((18, 138), f"场次：{session}", font=session_font, fill=0)
     time_text = f"开 {start_label}"
-    if mode == "countdown" and end_label and end_label != "--:--":
+    if end_label and end_label != "--:--":
         time_text += f"  到 {end_label}"
     else:
         time_text += "  正计时"

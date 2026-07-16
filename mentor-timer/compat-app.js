@@ -31,10 +31,10 @@
     { type: "morning", icon: "🌅", label: "早鸟场（工作日）", desc: "工作日可开，到当天 14:00", mode: "countdown", fixedHour: 14, weekdayOnly: true, baseFee: 0 },
     { type: "afternoon", icon: "☀️", label: "午后休闲（工作日）", desc: "工作日可开，到当天 19:00", mode: "countdown", fixedHour: 19, weekdayOnly: true, baseFee: 0 },
     { type: "night", icon: "🌙", label: "星光夜场（工作日）", desc: "工作日可开，到当天 21:00", mode: "countdown", fixedHour: 21, weekdayOnly: true, baseFee: 0 },
-    { type: "day", icon: "🎫", label: "全天不限时", desc: "正计时记录，不设结束时间", mode: "countup", baseFee: 0 },
-    { type: "1h", icon: "⏱", label: "限时 1h", desc: "开始后倒计时 60 分钟", mode: "countdown", durationMin: 60, baseFee: 0 },
-    { type: "2h", icon: "⏱", label: "限时 2h", desc: "开始后倒计时 120 分钟", mode: "countdown", durationMin: 120, baseFee: 0 },
-    { type: "infinit", icon: "♾️", label: "不限时畅玩", desc: "正计时模式，从 00:00:00 开始", mode: "countup", baseFee: 0 },
+    { type: "day", icon: "🎫", label: "全天（不限时不限量不限板）", desc: "正计时记录，最终结束时间 21:00", mode: "countup", fixedHour: 21, baseFee: 0 },
+    { type: "1h", icon: "⏱", label: "限时 1 小时（52×52 小板熨烫一次）", desc: "开始后倒计时 60 分钟", mode: "countdown", durationMin: 60, baseFee: 0 },
+    { type: "2h", icon: "⏱", label: "限时 2 小时（52×52 小板熨烫一次）", desc: "开始后倒计时 120 分钟", mode: "countdown", durationMin: 120, baseFee: 0 },
+    { type: "infinit", icon: "♾️", label: "智能板不限时畅玩（不限时不限板不限量）", desc: "正计时记录，最终结束时间 21:00", mode: "countup", fixedHour: 21, baseFee: 0 },
     { type: "iron52", icon: "🧩", label: "52×52 单板熨烫一次", desc: "单次熨烫服务，正计时记录", mode: "countup", baseFee: 0 },
     { type: "iron78", icon: "🧩", label: "78×78 单板熨烫一次", desc: "单次熨烫服务，正计时记录", mode: "countup", baseFee: 0 },
   ];
@@ -197,7 +197,7 @@
 
   function computeEndTime(sessionType, startAt) {
     var preset = sessionByType(sessionType);
-    if (preset.mode === "countup") return 0;
+    if (preset.mode === "countup") return preset.fixedHour ? fixedEndTime(startAt, preset.fixedHour) : 0;
     if (preset.durationMin) return startAt + preset.durationMin * ONE_MIN_MS;
     return fixedEndTime(startAt, preset.fixedHour);
   }
@@ -257,7 +257,7 @@
     if (desk.status === "empty") return "点击开桌";
     if (desk.isPaused) return "已暂停 · 时间冻结";
     if (desk.status === "preparing") return desk.startTime && desk.startTime > now ? "预设开始时间" : "等待开始计时";
-    if (desk.status === "infinit") return "不限时正计时";
+    if (desk.status === "infinit") return desk.endTime ? "正计时 · 到 " + timeOnly(desk.endTime) : "不限时正计时";
     if (desk.status === "timeout") return "超时正计时";
     return "剩余倒计时";
   }
@@ -366,7 +366,8 @@
     var preset = sessionByType(sessionType);
     startAt = startAt || resolveOpenStartAt();
     if (preset.weekdayOnly && isWeekend(startAt)) return false;
-    if (preset.mode === "countup" || preset.durationMin) return true;
+    if (preset.mode === "countup") return preset.fixedHour ? hasValidEndTime(sessionType, startAt) : true;
+    if (preset.durationMin) return true;
     return hasValidEndTime(sessionType, startAt);
   }
 
@@ -375,7 +376,12 @@
     var endAt;
     startAt = startAt || resolveOpenStartAt();
     if (preset.weekdayOnly && isWeekend(startAt)) return "周六周日不可开";
-    if (preset.mode === "countup") return "正计时";
+    if (preset.mode === "countup") {
+      endAt = computeEndTime(sessionType, startAt);
+      if (!endAt) return "正计时";
+      if (endAt <= startAt) return "开始时间已超过 21:00";
+      return timeOnly(startAt) + " → " + timeOnly(endAt) + " · 正计时";
+    }
     endAt = computeEndTime(sessionType, startAt);
     if (endAt <= startAt) return "开始时间已过场次";
     return timeOnly(startAt) + " → " + timeOnly(endAt) + (endAt <= now ? " · 已超时" : "");
@@ -397,7 +403,9 @@
     desk.pausedDuration = 0;
     desk.note = "";
     if (preset.mode === "countup") {
-      desk.endTime = 0;
+      endAt = computeEndTime(sessionType, startAt);
+      if (endAt && endAt <= startAt) return false;
+      desk.endTime = endAt;
       desk.status = startAt > timestamp ? "preparing" : "infinit";
       return true;
     }
@@ -445,8 +453,8 @@
       session: sessionByType(desk.sessionType).label,
       mode: desk.mode,
       startLabel: timeOnly(desk.startTime),
-      endLabel: desk.mode === "countdown" ? timeOnly(desk.endTime) : "",
-      note: desk.mode === "countdown" ? "请按时提醒顾客" : "不限时 / 正计时",
+      endLabel: desk.endTime ? timeOnly(desk.endTime) : "",
+      note: desk.mode === "countdown" ? "请按时提醒顾客" : desk.endTime ? "正计时，到 21:00" : "不限时 / 正计时",
     };
   }
 

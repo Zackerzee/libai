@@ -4,6 +4,7 @@
   var ONE_MIN_MS = 60 * 1000;
   var TEN_MIN_MS = 10 * ONE_MIN_MS;
   var THIRTY_MIN_MS = 30 * ONE_MIN_MS;
+  var PRINT_BRIDGE_URL = "http://127.0.0.1:17888/print-label";
 
   var booted = false;
   var intervalId = 0;
@@ -14,6 +15,8 @@
   var openingDeskId = "";
   var openStartUseNow = true;
   var openStartInput = "";
+  var printStatus = "打印桥待命：开桌后会自动发送标签。";
+  var lastPrintPayload = null;
   var isAggregatedOnly = false;
   var checkoutDraft = null;
   var showRecords = false;
@@ -25,13 +28,15 @@
   ];
 
   var sessionPresets = [
-    { type: "morning", icon: "🌅", label: "早鸟场", desc: "限时倒计时，到当天 14:00", mode: "countdown", fixedHour: 14, baseFee: 0 },
-    { type: "afternoon", icon: "☀️", label: "下午场", desc: "限时倒计时，到当天 19:00", mode: "countdown", fixedHour: 19, baseFee: 0 },
-    { type: "night", icon: "🌙", label: "星光夜场", desc: "限时倒计时，到当天 21:00", mode: "countdown", fixedHour: 21, baseFee: 0 },
-    { type: "day", icon: "🎫", label: "包天场", desc: "限时倒计时，到当天 21:00", mode: "countdown", fixedHour: 21, baseFee: 0 },
-    { type: "1h", icon: "⏱", label: "限时 1h", desc: "开始后倒计时 60 分钟", mode: "countdown", durationMin: 60, baseFee: 0 },
-    { type: "2h", icon: "⏱", label: "限时 2h", desc: "开始后倒计时 120 分钟", mode: "countdown", durationMin: 120, baseFee: 0 },
-    { type: "infinit", icon: "♾️", label: "不限时畅玩", desc: "正计时模式，从 00:00:00 开始", mode: "countup", baseFee: 0 },
+    { type: "morning", icon: "🌅", label: "早鸟场（工作日）", desc: "工作日可开，到当天 14:00", mode: "countdown", fixedHour: 14, weekdayOnly: true, baseFee: 0 },
+    { type: "afternoon", icon: "☀️", label: "午后休闲（工作日）", desc: "工作日可开，到当天 19:00", mode: "countdown", fixedHour: 19, weekdayOnly: true, baseFee: 0 },
+    { type: "night", icon: "🌙", label: "星光夜场（工作日）", desc: "工作日可开，到当天 21:00", mode: "countdown", fixedHour: 21, weekdayOnly: true, baseFee: 0 },
+    { type: "day", icon: "🎫", label: "全天（不限时不限量不限板）", desc: "正计时记录，最终结束时间 21:00", mode: "countup", fixedHour: 21, baseFee: 0 },
+    { type: "1h", icon: "⏱", label: "限时 1 小时（52×52 小板熨烫一次）", desc: "开始后倒计时 60 分钟", mode: "countdown", durationMin: 60, baseFee: 0 },
+    { type: "2h", icon: "⏱", label: "限时 2 小时（52×52 小板熨烫一次）", desc: "开始后倒计时 120 分钟", mode: "countdown", durationMin: 120, baseFee: 0 },
+    { type: "infinit", icon: "♾️", label: "智能板不限时畅玩（不限时不限板不限量）", desc: "正计时记录，最终结束时间 21:00", mode: "countup", fixedHour: 21, baseFee: 0 },
+    { type: "iron52", icon: "🧩", label: "52×52 单板熨烫一次", desc: "单次熨烫服务，正计时记录", mode: "countup", baseFee: 0 },
+    { type: "iron78", icon: "🧩", label: "78×78 单板熨烫一次", desc: "单次熨烫服务，正计时记录", mode: "countup", baseFee: 0 },
   ];
 
   function nowMs() {
@@ -81,6 +86,11 @@
 
   function shiftTimeInputValue(value, minutes, baseTimestamp) {
     return timeInputValue(timestampFromTimeInput(value, baseTimestamp || nowMs()) + minutes * ONE_MIN_MS);
+  }
+
+  function isWeekend(timestamp) {
+    var day = new Date(timestamp).getDay();
+    return day === 0 || day === 6;
   }
 
   function dateTime(timestamp) {
@@ -187,7 +197,7 @@
 
   function computeEndTime(sessionType, startAt) {
     var preset = sessionByType(sessionType);
-    if (preset.mode === "countup") return 0;
+    if (preset.mode === "countup") return preset.fixedHour ? fixedEndTime(startAt, preset.fixedHour) : 0;
     if (preset.durationMin) return startAt + preset.durationMin * ONE_MIN_MS;
     return fixedEndTime(startAt, preset.fixedHour);
   }
@@ -247,7 +257,7 @@
     if (desk.status === "empty") return "点击开桌";
     if (desk.isPaused) return "已暂停 · 时间冻结";
     if (desk.status === "preparing") return desk.startTime && desk.startTime > now ? "预设开始时间" : "等待开始计时";
-    if (desk.status === "infinit") return "不限时正计时";
+    if (desk.status === "infinit") return desk.endTime ? "正计时 · 到 " + timeOnly(desk.endTime) : "不限时正计时";
     if (desk.status === "timeout") return "超时正计时";
     return "剩余倒计时";
   }
@@ -355,7 +365,9 @@
   function canPrepare(sessionType, startAt) {
     var preset = sessionByType(sessionType);
     startAt = startAt || resolveOpenStartAt();
-    if (preset.mode === "countup" || preset.durationMin) return true;
+    if (preset.weekdayOnly && isWeekend(startAt)) return false;
+    if (preset.mode === "countup") return preset.fixedHour ? hasValidEndTime(sessionType, startAt) : true;
+    if (preset.durationMin) return true;
     return hasValidEndTime(sessionType, startAt);
   }
 
@@ -363,7 +375,13 @@
     var preset = sessionByType(sessionType);
     var endAt;
     startAt = startAt || resolveOpenStartAt();
-    if (preset.mode === "countup") return "正计时";
+    if (preset.weekdayOnly && isWeekend(startAt)) return "周六周日不可开";
+    if (preset.mode === "countup") {
+      endAt = computeEndTime(sessionType, startAt);
+      if (!endAt) return "正计时";
+      if (endAt <= startAt) return "开始时间已超过 21:00";
+      return timeOnly(startAt) + " → " + timeOnly(endAt) + " · 正计时";
+    }
     endAt = computeEndTime(sessionType, startAt);
     if (endAt <= startAt) return "开始时间已过场次";
     return timeOnly(startAt) + " → " + timeOnly(endAt) + (endAt <= now ? " · 已超时" : "");
@@ -385,7 +403,9 @@
     desk.pausedDuration = 0;
     desk.note = "";
     if (preset.mode === "countup") {
-      desk.endTime = 0;
+      endAt = computeEndTime(sessionType, startAt);
+      if (endAt && endAt <= startAt) return false;
+      desk.endTime = endAt;
       desk.status = startAt > timestamp ? "preparing" : "infinit";
       return true;
     }
@@ -402,6 +422,96 @@
     return true;
   }
 
+  function requestPrintBridge(payload) {
+    if (!window.fetch) {
+      return Promise.reject(new Error("当前浏览器不支持本机打印请求"));
+    }
+
+    return window
+      .fetch(PRINT_BRIDGE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        mode: "cors",
+      })
+      .then(function (response) {
+        if (!response.ok) throw new Error("print bridge " + response.status);
+        return response.json ? response.json().catch(function () { return {}; }) : {};
+      })
+      .then(function (data) {
+        if (data && data.ok === false) throw new Error(data.error || "print failed");
+        if (window.console && console.info) {
+          console.info("[LIBMS Timer Compat] 开台标签已发送到本机打印桥", payload);
+        }
+        return data || { ok: true };
+      });
+  }
+
+  function buildPrintPayload(desk) {
+    return {
+      deskId: desk.id,
+      session: sessionByType(desk.sessionType).label,
+      mode: desk.mode,
+      startLabel: timeOnly(desk.startTime),
+      endLabel: desk.endTime ? timeOnly(desk.endTime) : "",
+      note: desk.mode === "countdown" ? "请按时提醒顾客" : desk.endTime ? "正计时，到 21:00" : "不限时 / 正计时",
+    };
+  }
+
+  function formatPrintError(error) {
+    var message;
+    if (error && error.name === "AbortError") return "打印桥连接超时，请确认本机打印桥窗口还在运行。";
+    message = error && error.message ? error.message : String(error || "未知错误");
+    if (/Failed to fetch|NetworkError|Load failed|ERR_CONNECTION_REFUSED/i.test(message)) {
+      return "连接不到本机打印桥，请在这台电脑打开 http://127.0.0.1:17888/health 检查。";
+    }
+    return message;
+  }
+
+  function sendDeskLabel(desk, reason) {
+    var payload = buildPrintPayload(desk);
+    lastPrintPayload = payload;
+    printStatus = (reason || "开桌") + "：正在发送 " + desk.id + " 号桌标签...";
+    render();
+    requestPrintBridge(payload)
+      .then(function () {
+        printStatus = desk.id + " 号桌标签已发送到本机打印桥。";
+        render();
+      })
+      .catch(function (error) {
+        printStatus = desk.id + " 号桌标签未打印：" + formatPrintError(error);
+        if (window.console && console.warn) {
+          console.warn("[LIBMS Timer Compat] 标签打印失败，计时已正常开桌：", error);
+        }
+        render();
+      });
+  }
+
+  function reprintLastLabel() {
+    var payload = lastPrintPayload;
+    if (!payload) {
+      window.alert("还没有可补打的标签。请先开桌，或在使用中的桌位点“补打”。");
+      return;
+    }
+    printStatus = "正在补打 " + payload.deskId + " 号桌标签...";
+    render();
+    requestPrintBridge(payload)
+      .then(function () {
+        printStatus = payload.deskId + " 号桌标签已重新发送。";
+        render();
+      })
+      .catch(function (error) {
+        printStatus = payload.deskId + " 号桌补打失败：" + formatPrintError(error);
+        render();
+      });
+  }
+
+  function reprintDeskLabel(deskId) {
+    var desk = findDesk(deskId);
+    if (!desk || desk.status === "empty") return;
+    sendDeskLabel(desk, "补打");
+  }
+
   function prepareDesk(deskId, sessionType) {
     var desk = findDesk(deskId);
     var timestamp = nowMs();
@@ -413,6 +523,7 @@
     }
     openingDeskId = "";
     persistDesks();
+    sendDeskLabel(desk, "开桌成功");
     render();
   }
 
@@ -727,9 +838,12 @@
       '<h1 class="brand-title">✨ 时里白造物创意手作体验空间 ✨</h1>' +
       '<p class="brand-subtitle">拼豆计时管理控制台 · 兼容模式</p>' +
       "</div>" +
+      '<div class="header-side">' +
+      '<a class="download-bridge-link" href="/api/download-windows-bridge" target="_blank" rel="noopener">一键安装 Windows 打印桥</a>' +
       '<div class="clock-card"><span>当前时间</span><strong>' +
       fullDateTime(now) +
       "</strong></div>" +
+      "</div>" +
       "</header>"
     );
   }
@@ -745,6 +859,20 @@
       statCard("已超时", s.timeout, "rose") +
       statCard("今日营收", "¥" + s.revenue, "amber") +
       "</section>"
+    );
+  }
+
+  function renderPrintPanel() {
+    return (
+      '<section class="print-bridge-panel">' +
+      '<div class="print-bridge-copy"><strong>开桌标签打印</strong><span>' +
+      escapeHtml(printStatus) +
+      '</span></div><div class="print-bridge-actions">' +
+      '<button type="button" class="print-bridge-button" data-action="reprint-last"' +
+      (lastPrintPayload ? "" : " disabled") +
+      ">补打上一张标签</button>" +
+      '<a class="print-bridge-health" href="http://127.0.0.1:17888/health" target="_blank" rel="noopener">检查本机打印桥</a>' +
+      "</div></section>"
     );
   }
 
@@ -766,7 +894,11 @@
 
   function renderEmptyDesk(desk) {
     return (
-      '<div class="empty-state"><div class="plus-mark">+</div><strong>开桌</strong><span>点击选择场次</span></div>'
+      '<div class="empty-state" data-action="open" data-id="' +
+      desk.id +
+      '"><div class="plus-mark">+</div><button type="button" class="open-desk-button" data-action="open" data-id="' +
+      desk.id +
+      '">开桌</button><span>点击选择场次</span></div>'
     );
   }
 
@@ -774,12 +906,15 @@
     if (desk.status === "empty") return "";
     if (desk.status === "preparing") {
       return (
-        '<div class="compat-actions two">' +
+        '<div class="compat-actions three">' +
         '<button type="button" class="compat-action start" data-action="start" data-id="' +
         desk.id +
         '">' +
         (desk.startTime && desk.startTime > now ? "立即开始" : "开始计时") +
         "</button>" +
+        '<button type="button" class="compat-action print" data-action="reprint" data-id="' +
+        desk.id +
+        '">补打</button>' +
         '<button type="button" class="compat-action muted" data-action="cancel-prepare" data-id="' +
         desk.id +
         '">取消</button>' +
@@ -792,9 +927,9 @@
         '<button type="button" class="compat-action resume" data-action="resume" data-id="' +
         desk.id +
         '">▶️ 恢复</button>' +
-        '<button type="button" class="compat-action note" data-action="note" data-id="' +
+        '<button type="button" class="compat-action print" data-action="reprint" data-id="' +
         desk.id +
-        '">备注</button>' +
+        '">补打</button>' +
         '<button type="button" class="compat-action stop" data-action="finish" data-id="' +
         desk.id +
         '">🛑 结束</button>' +
@@ -807,9 +942,9 @@
         '<button type="button" class="compat-action pause" data-action="pause" data-id="' +
         desk.id +
         '">⏸️ 暂停</button>' +
-        '<button type="button" class="compat-action note" data-action="note" data-id="' +
+        '<button type="button" class="compat-action print" data-action="reprint" data-id="' +
         desk.id +
-        '">备注</button>' +
+        '">补打</button>' +
         '<button type="button" class="compat-action stop" data-action="finish" data-id="' +
         desk.id +
         '">🛑 结束</button>' +
@@ -817,7 +952,7 @@
       );
     }
     return (
-      '<div class="compat-actions four">' +
+      '<div class="compat-actions five">' +
       '<button type="button" class="compat-action pause" data-action="pause" data-id="' +
       desk.id +
       '">⏸️</button>' +
@@ -827,6 +962,9 @@
       '<button type="button" class="compat-action plus" data-action="add" data-id="' +
       desk.id +
       '" data-min="60">+60</button>' +
+      '<button type="button" class="compat-action print" data-action="reprint" data-id="' +
+      desk.id +
+      '">补打</button>' +
       '<button type="button" class="compat-action stop" data-action="finish" data-id="' +
       desk.id +
       '">🛑</button>' +
@@ -1041,6 +1179,7 @@
       '<div class="compat-shell">' +
       renderHeader() +
       renderStats() +
+      renderPrintPanel() +
       renderTabs() +
       renderRegion() +
       renderRecords() +
@@ -1107,6 +1246,10 @@
       resumeDesk(id);
     } else if (action === "note") {
       editNote(id);
+    } else if (action === "reprint") {
+      reprintDeskLabel(id);
+    } else if (action === "reprint-last") {
+      reprintLastLabel();
     } else if (action === "finish") {
       askFinish(id);
     } else if (action === "close-finish") {
@@ -1125,9 +1268,13 @@
   function handleInput(event) {
     event = event || window.event;
     var target = event.target || event.srcElement;
-    if (!target || !target.getAttribute || target.getAttribute("data-action") !== "start-time-input") return;
-    openStartUseNow = false;
-    openStartInput = target.value || timeInputValue(nowMs());
+    var action = target && target.getAttribute ? target.getAttribute("data-action") : "";
+    if (action === "start-time-input") {
+      openStartUseNow = false;
+      openStartInput = target.value || timeInputValue(nowMs());
+    } else {
+      return;
+    }
     render();
   }
 
@@ -1145,6 +1292,7 @@
       else if (root.attachEvent) root.attachEvent("onclick", handleClick);
       if (root.addEventListener) root.addEventListener("input", handleInput, false);
       else if (root.attachEvent) root.attachEvent("onchange", handleInput);
+      if (root.addEventListener) root.addEventListener("change", handleInput, false);
     }
     tick();
     intervalId = window.setInterval(tick, 1000);
