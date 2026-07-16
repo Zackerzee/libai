@@ -86,11 +86,18 @@ function Test-PythonSupported($info) {
   return $true
 }
 
-function Invoke-Python($pythonInfo, [string[]]$args) {
+function Invoke-Python {
+  param(
+    [Parameter(Mandatory=$true, Position=0)]
+    [object]$PythonInfo,
+    [Parameter(Position=1, ValueFromRemainingArguments=$true)]
+    [string[]]$PythonArgList
+  )
+
   $allArgs = @()
-  if ($pythonInfo.Args) { $allArgs += $pythonInfo.Args }
-  $allArgs += $args
-  & $pythonInfo.Command @allArgs
+  if ($PythonInfo.Args) { $allArgs += @($PythonInfo.Args) }
+  if ($PythonArgList) { $allArgs += @($PythonArgList) }
+  & $PythonInfo.Command @allArgs
   return $LASTEXITCODE
 }
 
@@ -129,14 +136,14 @@ function Ensure-Python {
 
 function Ensure-PipPackage($pythonInfo, $importName, $packageName) {
   Write-Step "Checking Python package: $packageName"
-  Invoke-Python $pythonInfo @("-c", "import $importName") | Out-Null
+  Invoke-Python $pythonInfo "-c" "import $importName" | Out-Null
   if ($LASTEXITCODE -eq 0) {
     Write-Ok "$packageName is ready"
     return
   }
 
   Write-Step "Installing Python package: $packageName"
-  Invoke-Python $pythonInfo @("-m", "pip", "install", "--upgrade", $packageName) | Out-Null
+  Invoke-Python $pythonInfo "-m" "pip" "install" "--upgrade" $packageName | Out-Null
   if ($LASTEXITCODE -ne 0) {
     throw "$packageName install failed. Run manually: py -3.12 -m pip install --upgrade $packageName"
   }
