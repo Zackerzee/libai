@@ -67,7 +67,9 @@ function resolveSerialPort(value) {
   return requested;
 }
 
-const SERIAL_PORT = resolveSerialPort(RAW_SERIAL_PORT);
+function currentSerialPort() {
+  return resolveSerialPort(RAW_SERIAL_PORT);
+}
 
 function corsHeaders(request) {
   const origin = request.headers.get("origin") || "";
@@ -141,7 +143,7 @@ function printWindowsQueueLabel(payload) {
 
 async function printSerialLabel(payload) {
   const client = new NiimbotNodeSerialClient();
-  client.setPort(SERIAL_PORT);
+  client.setPort(currentSerialPort());
   client.setPacketInterval(10);
 
   const image = renderLabel(payload);
@@ -217,7 +219,7 @@ async function handleRequest(request) {
       windowsPrinterName: WINDOWS_PRINTER_NAME,
       pythonArgs: PYTHON_ARGS,
       rawSerialPort: RAW_SERIAL_PORT,
-      serialPort: SERIAL_PORT,
+      serialPort: currentSerialPort(),
       pythonBin: PYTHON_BIN,
       port: PORT,
     });
@@ -279,6 +281,6 @@ if (process.argv.includes("--test")) {
     console.log(`Print method: ${PRINT_METHOD}`);
     if (WINDOWS_PRINTER_NAME) console.log(`Windows printer: ${WINDOWS_PRINTER_NAME}`);
     if (PYTHON_ARGS.length) console.log(`Python args: ${PYTHON_ARGS.join(" ")}`);
-    console.log(`Serial port: ${SERIAL_PORT}`);
+    console.log(`Serial port: ${currentSerialPort()}`);
   });
 }
