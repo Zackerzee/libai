@@ -4,6 +4,8 @@
   var ONE_MIN_MS = 60 * 1000;
   var TEN_MIN_MS = 10 * ONE_MIN_MS;
   var THIRTY_MIN_MS = 30 * ONE_MIN_MS;
+  var LIMITED_START_DELAY_MS = 10 * ONE_MIN_MS;
+  var OVERTIME_GRACE_SECONDS = 10 * 60;
   var PRINT_BRIDGE_URL = "http://127.0.0.1:17888/print-label";
 
   var booted = false;
@@ -195,6 +197,10 @@
     return sessionPresets[4];
   }
 
+  function isLimitedSession(sessionType) {
+    return sessionByType(sessionType).mode === "countdown";
+  }
+
   function fixedEndTime(timestamp, hour) {
     var date = new Date(timestamp);
     date.setHours(hour, 0, 0, 0);
@@ -225,6 +231,28 @@
     var hour = new Date(timestamp).getHours();
     if (hour < 21) return minutes === 30 ? 10 : 20;
     return minutes === 30 ? 30 : 50;
+  }
+
+  function extensionFeeForMinutes(minutes, timestamp) {
+    var remaining = Math.ceil(Math.max(0, minutes) / 30) * 30;
+    var fee = 0;
+    var chunk;
+    while (remaining > 0) {
+      chunk = remaining >= 60 ? 60 : 30;
+      fee += extraFee(chunk, timestamp);
+      remaining -= chunk;
+    }
+    return fee;
+  }
+
+  function timeoutFee(timeoutSeconds, endTime) {
+    var timeoutMinutesFromEnd;
+    if (!endTime || timeoutSeconds <= OVERTIME_GRACE_SECONDS) return { fee: 0, chargedMinutes: 0 };
+    timeoutMinutesFromEnd = Math.ceil(timeoutSeconds / 60);
+    return {
+      fee: extensionFeeForMinutes(timeoutMinutesFromEnd, endTime),
+      chargedMinutes: Math.ceil(timeoutMinutesFromEnd / 30) * 30,
+    };
   }
 
   function statusText(status) {
@@ -364,13 +392,16 @@
     }
   }
 
-  function resolveOpenStartAt() {
-    return openStartUseNow ? nowMs() : timestampFromTimeInput(openStartInput, now);
+  function resolveOpenStartAt(sessionType, anchor) {
+    var baseStartAt;
+    anchor = anchor || nowMs();
+    baseStartAt = openStartUseNow ? anchor : timestampFromTimeInput(openStartInput, anchor);
+    return sessionType && isLimitedSession(sessionType) ? baseStartAt + LIMITED_START_DELAY_MS : baseStartAt;
   }
 
   function canPrepare(sessionType, startAt) {
     var preset = sessionByType(sessionType);
-    startAt = startAt || resolveOpenStartAt();
+    startAt = startAt || resolveOpenStartAt(sessionType);
     if (preset.weekdayOnly && isWeekend(startAt)) return false;
     if (preset.mode === "countup") return preset.fixedHour ? hasValidEndTime(sessionType, startAt) : true;
     if (preset.durationMin) return true;
@@ -380,7 +411,7 @@
   function endHint(sessionType, startAt) {
     var preset = sessionByType(sessionType);
     var endAt;
-    startAt = startAt || resolveOpenStartAt();
+    startAt = startAt || resolveOpenStartAt(sessionType);
     if (preset.weekdayOnly && isWeekend(startAt)) return "周六周日不可开";
     if (preset.mode === "countup") {
       endAt = computeEndTime(sessionType, startAt);
@@ -521,7 +552,7 @@
   function prepareDesk(deskId, sessionType) {
     var desk = findDesk(deskId);
     var timestamp = nowMs();
-    var startAt = openStartUseNow ? timestamp : timestampFromTimeInput(openStartInput, timestamp);
+    var startAt = resolveOpenStartAt(sessionType, timestamp);
     if (!desk || desk.status !== "empty") return;
     if (!canPrepare(sessionType, startAt) || !applyDeskStart(desk, sessionType, startAt, timestamp)) {
       window.alert("开始时间不适合该场次，请调整开始时间或选择其他模式。");
@@ -627,6 +658,7 @@
     var timeoutSeconds = desk.mode === "countdown" && desk.startTime ? Math.max(0, Math.floor((closedAt - desk.endTime) / 1000)) : 0;
     var baseFee = safeNumber(preset.baseFee);
     var extra = safeNumber(desk.extraTimeFee);
+    var timeoutCharge = timeoutFee(timeoutSeconds, desk.endTime);
     return {
       deskId: desk.id,
       sessionType: desk.sessionType,
@@ -640,7 +672,9 @@
       billableMinutes: billableMinutes,
       baseFee: baseFee,
       extraFee: extra,
-      totalFee: baseFee + extra,
+      timeoutFee: timeoutCharge.fee,
+      timeoutChargedMinutes: timeoutCharge.chargedMinutes,
+      totalFee: baseFee + extra + timeoutCharge.fee,
       extraCount: desk.extraTimeCount,
       timeoutSeconds: timeoutSeconds,
       pausedDuration: desk.pausedDuration,
@@ -702,6 +736,8 @@
       baseFee: draft.baseFee,
       extraCount: draft.extraCount,
       extraFee: draft.extraFee,
+      timeoutFee: draft.timeoutFee,
+      timeoutChargedMinutes: draft.timeoutChargedMinutes,
       totalFee: draft.totalFee,
       isTimeout: draft.timeoutSeconds > 0,
       timeoutDuration: draft.timeoutSeconds,
@@ -1037,10 +1073,10 @@
   }
 
   function renderStartTimeControls() {
-    var startAt = resolveOpenStartAt();
+    var startAt = openStartUseNow ? now : timestampFromTimeInput(openStartInput, now);
     return (
-      '<div class="start-time-card"><div class="start-time-head"><strong>开始时间</strong><span>' +
-      (openStartUseNow ? "当前时间（即时开台）" : "指定 " + timeOnly(startAt) + " 开台") +
+      '<div class="start-time-card"><div class="start-time-head"><strong>到店/开单时间</strong><span>' +
+      (openStartUseNow ? "当前时间（限时自动+10）" : "指定 " + timeOnly(startAt) + " 开单") +
       '</span></div><div class="start-mode-row">' +
       '<button type="button" class="start-mode ' +
       (openStartUseNow ? "active" : "") +
@@ -1056,7 +1092,7 @@
       (openStartUseNow ? " disabled" : "") +
       ">" +
       '<button type="button" class="time-nudge" data-action="shift-start" data-min="15">+15</button>' +
-      '</div><p class="start-time-tip">可补录历史时间，也可预设未来开始；结束时间会按所选场次自动重算。</p></div>'
+      '</div><p class="start-time-tip">可补录历史时间，也可预设未来开始；限时/倒计时场次会自动 +10 分钟开始计时。</p></div>'
     );
   }
 
@@ -1122,9 +1158,11 @@
       draft.baseFee +
       "</strong></div><div><span>加时费</span><strong>¥" +
       draft.extraFee +
+      "</strong></div><div><span>超时费</span><strong>¥" +
+      safeNumber(draft.timeoutFee) +
       "</strong></div><div><span>应收合计</span><strong>¥" +
       draft.totalFee +
-      '</strong></div></div><p class="settlement-tip">基础费当前按门店套餐价配置为 0；如需接入固定套餐价，可直接在场次配置里填写。</p>' +
+      '</strong></div></div><p class="settlement-tip">限时场次默认从到店/开单时间后 10 分钟开始计时；超时 10 分钟内不计费，超过 10 分钟后按原结束时间起算超时费。</p>' +
       '<div class="confirm-actions"><button type="button" class="confirm-cancel" data-action="close-finish">继续计时</button>' +
       '<button type="button" class="confirm-submit" data-action="confirm-finish">确认结账</button></div></section></div>'
     );
@@ -1146,7 +1184,7 @@
         html += '<div class="records-empty">今天还没有完结订单。</div>';
       } else {
         html +=
-          '<div class="records-table-wrap"><table class="records-table"><thead><tr><th>桌号</th><th>场次</th><th>准备</th><th>开始</th><th>结束/完结</th><th>实际用时</th><th>基础费</th><th>加时费</th><th>合计</th><th>超时</th></tr></thead><tbody>';
+          '<div class="records-table-wrap"><table class="records-table"><thead><tr><th>桌号</th><th>场次</th><th>准备</th><th>开始</th><th>结束/完结</th><th>实际用时</th><th>基础费</th><th>加时费</th><th>超时费</th><th>合计</th><th>超时</th></tr></thead><tbody>';
         for (i = records.length - 1; i >= 0; i -= 1) {
           record = records[i];
           html +=
@@ -1168,6 +1206,8 @@
             safeNumber(record.baseFee) +
             "</td><td>¥" +
             safeNumber(record.extraFee) +
+            "</td><td>¥" +
+            safeNumber(record.timeoutFee) +
             "</td><td>¥" +
             safeNumber(record.totalFee != null ? record.totalFee : record.extraFee) +
             '</td><td class="' +

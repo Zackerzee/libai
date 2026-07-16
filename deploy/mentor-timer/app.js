@@ -12,6 +12,8 @@ const LEGACY_STAT_KEYS = ["libms_perler_mentor_timer_stats_v2", "libms_perler_me
 const ONE_MIN_MS = 60 * 1000;
 const TEN_MIN_MS = 10 * ONE_MIN_MS;
 const THIRTY_MIN_MS = 30 * ONE_MIN_MS;
+const LIMITED_START_DELAY_MS = 10 * ONE_MIN_MS;
+const OVERTIME_GRACE_SECONDS = 10 * 60;
 const PRINT_BRIDGE_URL = "http://127.0.0.1:17888/print-label";
 
 const validStatuses = new Set(["empty", "preparing", "normal", "ending", "urgent", "timeout", "infinit"]);
@@ -268,10 +270,18 @@ function sessionByType(sessionType) {
   return sessionPresets.find((preset) => preset.type === sessionType) || sessionPresets[4];
 }
 
+function isLimitedSession(sessionType) {
+  return sessionByType(sessionType).mode === "countdown";
+}
+
 function splitPresetLabel(label) {
   const match = String(label || "").match(/^(.+?)([（(][^）)]*[）)])$/);
   if (!match) return { title: label || "", sub: "" };
   return { title: match[1].trim(), sub: match[2].trim() };
+}
+
+function compactSessionLabel(sessionType) {
+  return splitPresetLabel(sessionByType(sessionType).label).title;
 }
 
 function fixedEndTime(timestamp, hour) {
@@ -304,6 +314,26 @@ function extraFee(minutes, timestamp) {
   const hour = new Date(timestamp).getHours();
   if (hour < 21) return minutes === 30 ? 10 : 20;
   return minutes === 30 ? 30 : 50;
+}
+
+function extensionFeeForMinutes(minutes, timestamp) {
+  let remaining = Math.ceil(Math.max(0, minutes) / 30) * 30;
+  let fee = 0;
+  while (remaining > 0) {
+    const chunk = remaining >= 60 ? 60 : 30;
+    fee += extraFee(chunk, timestamp);
+    remaining -= chunk;
+  }
+  return fee;
+}
+
+function timeoutFee(timeoutSeconds, endTime) {
+  if (!endTime || timeoutSeconds <= OVERTIME_GRACE_SECONDS) return { fee: 0, chargedMinutes: 0 };
+  const timeoutMinutesFromEnd = Math.ceil(timeoutSeconds / 60);
+  return {
+    fee: extensionFeeForMinutes(timeoutMinutesFromEnd, endTime),
+    chargedMinutes: Math.ceil(timeoutMinutesFromEnd / 30) * 30,
+  };
 }
 
 function statusText(status) {
@@ -544,8 +574,9 @@ createApp({
       openingDesk.value = null;
     }
 
-    function resolveOpenStartAt() {
-      return openStartUseNow.value ? Date.now() : timestampFromTimeInput(openStartInput.value, now.value);
+    function resolveOpenStartAt(sessionType = "", anchor = Date.now()) {
+      const baseStartAt = openStartUseNow.value ? anchor : timestampFromTimeInput(openStartInput.value, anchor);
+      return sessionType && isLimitedSession(sessionType) ? baseStartAt + LIMITED_START_DELAY_MS : baseStartAt;
     }
 
     function toggleOpenStartMode(useNow) {
@@ -559,7 +590,7 @@ createApp({
       openStartInput.value = shiftTimeInputValue(openStartInput.value, minutes, now.value);
     }
 
-    function canPrepare(sessionType, startAt = resolveOpenStartAt()) {
+    function canPrepare(sessionType, startAt = resolveOpenStartAt(sessionType)) {
       const preset = sessionByType(sessionType);
       if (preset.weekdayOnly && isWeekend(startAt)) return false;
       if (preset.mode === "countup") return preset.fixedHour ? hasValidEndTime(sessionType, startAt) : true;
@@ -567,7 +598,7 @@ createApp({
       return hasValidEndTime(sessionType, startAt);
     }
 
-    function endHint(sessionType, startAt = resolveOpenStartAt()) {
+    function endHint(sessionType, startAt = resolveOpenStartAt(sessionType)) {
       const preset = sessionByType(sessionType);
       if (preset.weekdayOnly && isWeekend(startAt)) return "周六周日不可开";
       if (preset.mode === "countup") {
@@ -683,7 +714,7 @@ createApp({
       ensureBellAudio();
       const desk = findDesk(deskId);
       const timestamp = Date.now();
-      const startAt = openStartUseNow.value ? timestamp : timestampFromTimeInput(openStartInput.value, timestamp);
+      const startAt = resolveOpenStartAt(sessionType, timestamp);
       if (!desk || desk.status !== "empty") return;
       if (!canPrepare(sessionType, startAt) || !applyDeskStart(desk, sessionType, startAt, timestamp)) {
         window.alert("开始时间不适合该场次：工作日场次周六周日不可开，或开始时间已超过场次结束时间。");
@@ -879,6 +910,7 @@ createApp({
       const timeoutSeconds = desk.mode === "countdown" && desk.startTime ? Math.max(0, Math.floor((closedAt - desk.endTime) / 1000)) : 0;
       const baseFee = safeNumber(preset.baseFee);
       const extra = safeNumber(desk.extraTimeFee);
+      const timeoutCharge = timeoutFee(timeoutSeconds, desk.endTime);
 
       return {
         deskId: desk.id,
@@ -893,7 +925,9 @@ createApp({
         billableMinutes,
         baseFee,
         extraFee: extra,
-        totalFee: baseFee + extra,
+        timeoutFee: timeoutCharge.fee,
+        timeoutChargedMinutes: timeoutCharge.chargedMinutes,
+        totalFee: baseFee + extra + timeoutCharge.fee,
         extraCount: desk.extraTimeCount,
         timeoutSeconds,
         pausedDuration: desk.pausedDuration,
@@ -949,6 +983,8 @@ createApp({
         baseFee: draft.baseFee,
         extraCount: draft.extraCount,
         extraFee: draft.extraFee,
+        timeoutFee: draft.timeoutFee,
+        timeoutChargedMinutes: draft.timeoutChargedMinutes,
         totalFee: draft.totalFee,
         isTimeout: draft.timeoutSeconds > 0,
         timeoutDuration: draft.timeoutSeconds,
@@ -1240,17 +1276,23 @@ createApp({
       }
 
       if (desk.isPaused) {
-        return h("div", { class: "seat-actions three" }, [
+        return h("div", { class: "seat-actions six" }, [
           h("button", { type: "button", class: "seat-action resume", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "▶️"),
+          h("button", { type: "button", class: "seat-action note", onClick: (event) => stop(event, () => editNote(desk.id)) }, "备注"),
           h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
+          h("span", { class: "seat-action spacer", "aria-hidden": "true" }, ""),
+          h("span", { class: "seat-action spacer", "aria-hidden": "true" }, ""),
           h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "结束"),
         ]);
       }
 
       if (desk.status === "infinit") {
-        return h("div", { class: "seat-actions three" }, [
+        return h("div", { class: "seat-actions six" }, [
           h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
+          h("button", { type: "button", class: "seat-action note", onClick: (event) => stop(event, () => editNote(desk.id)) }, "备注"),
           h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
+          h("span", { class: "seat-action spacer", "aria-hidden": "true" }, ""),
+          h("span", { class: "seat-action spacer", "aria-hidden": "true" }, ""),
           h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "结束"),
         ]);
       }
@@ -1305,7 +1347,7 @@ createApp({
                 ),
               ])
             : h("div", { class: "seat-body" }, [
-                h("span", { class: "seat-session" }, sessionByType(desk.sessionType).label),
+                h("span", { class: "seat-session" }, compactSessionLabel(desk.sessionType)),
                 h("strong", { class: "seat-time" }, compactTimeText(desk)),
                 h("small", `${timeLabel(desk)} · 开 ${timeOnly(desk.startTime)}`),
                 renderSeatActions(desk),
@@ -1392,11 +1434,11 @@ createApp({
     }
 
     function renderStartTimeControls() {
-      const startAt = resolveOpenStartAt();
+      const startAt = openStartUseNow.value ? now.value : timestampFromTimeInput(openStartInput.value, now.value);
       return h("div", { class: "start-time-card" }, [
         h("div", { class: "start-time-head" }, [
-          h("strong", "开始时间"),
-          h("span", openStartUseNow.value ? "当前时间（即时开台）" : `指定 ${timeOnly(startAt)} 开台`),
+          h("strong", "到店/开单时间"),
+          h("span", openStartUseNow.value ? "当前时间（限时自动+10）" : `指定 ${timeOnly(startAt)} 开单`),
         ]),
         h("div", { class: "start-mode-row" }, [
           h("button", {
@@ -1424,7 +1466,7 @@ createApp({
           }),
           h("button", { type: "button", class: "time-nudge", onClick: () => shiftOpenStart(15) }, "+15"),
         ]),
-        h("p", { class: "start-time-tip" }, "可补录历史时间，也可预设未来开始；结束时间会按所选场次自动重算。"),
+        h("p", { class: "start-time-tip" }, "可补录历史时间，也可预设未来开始；限时/倒计时场次会自动 +10 分钟开始计时。"),
       ]);
     }
 
@@ -1557,9 +1599,10 @@ createApp({
             h("div", [h("span", "实际使用"), h("strong", `${draft.billableMinutes} 分钟`)]),
             h("div", [h("span", "基础费"), h("strong", `¥${draft.baseFee}`)]),
             h("div", [h("span", "加时费"), h("strong", `¥${draft.extraFee}`)]),
+            h("div", [h("span", "超时费"), h("strong", `¥${draft.timeoutFee}`)]),
             h("div", [h("span", "应收合计"), h("strong", `¥${draft.totalFee}`)]),
           ]),
-          h("p", { class: "settlement-tip" }, "基础费当前按门店套餐价配置为 0；如需接入固定套餐价，可直接在场次配置里填写。"),
+          h("p", { class: "settlement-tip" }, "限时场次默认从到店/开单时间后 10 分钟开始计时；超时 10 分钟内不计费，超过 10 分钟后按原结束时间起算超时费。"),
           h("div", { class: "confirm-actions" }, [
             h("button", { type: "button", class: "confirm-cancel", onClick: closeFinishModal }, "继续计时"),
             h("button", { type: "button", class: "confirm-submit", onClick: finishDesk }, "确认结账"),
@@ -1583,7 +1626,7 @@ createApp({
                 ? h("div", { class: "records-empty" }, "今天还没有完结订单。")
                 : h("table", { class: "records-table" }, [
                     h("thead", [
-                      h("tr", ["桌号", "场次", "准备", "开始", "结束/完结", "实际用时", "基础费", "加时费", "合计", "超时"].map((label) => h("th", label))),
+                      h("tr", ["桌号", "场次", "准备", "开始", "结束/完结", "实际用时", "基础费", "加时费", "超时费", "合计", "超时"].map((label) => h("th", label))),
                     ]),
                     h(
                       "tbody",
@@ -1597,6 +1640,7 @@ createApp({
                           h("td", record.actualDuration),
                           h("td", `¥${safeNumber(record.baseFee)}`),
                           h("td", `¥${record.extraFee}`),
+                          h("td", `¥${safeNumber(record.timeoutFee)}`),
                           h("td", `¥${safeNumber(record.totalFee ?? record.extraFee)}`),
                           h("td", { class: record.isTimeout ? "dangerText" : "" }, record.isTimeout ? `${Math.floor(record.timeoutDuration / 60)} 分钟` : "否"),
                         ])

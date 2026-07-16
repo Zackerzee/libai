@@ -1991,7 +1991,8 @@ body {
 .seat-card {
   position: relative;
   display: flex;
-  min-height: 126px;
+  height: 176px;
+  min-height: 176px;
   flex-direction: column;
   justify-content: space-between;
   overflow: hidden;
@@ -2161,6 +2162,10 @@ body {
 
 .seat-body {
   margin-top: 8px;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
 }
 
 .seat-session {
@@ -2169,6 +2174,7 @@ body {
   color: #6f6253;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-height: 14px;
 }
 
 .seat-time {
@@ -2193,7 +2199,7 @@ body {
 .seat-actions {
   display: grid;
   gap: 5px;
-  margin-top: 8px;
+  margin-top: auto;
 }
 
 .seat-actions.two {
@@ -2217,13 +2223,22 @@ body {
 }
 
 .seat-action {
-  min-height: 30px;
+  display: grid;
+  min-height: 28px;
+  place-items: center;
   border-radius: 11px;
+  padding: 0 3px;
   background: #f5eadc;
   color: #6f4a1f;
   font-size: 10px;
   font-weight: 950;
+  line-height: 1;
   touch-action: manipulation;
+}
+
+.seat-action.spacer {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .seat-action:active,

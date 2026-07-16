@@ -1,5 +1,5 @@
 (function () {
-  var VERSION = "20260716-label-break-v2";
+  var VERSION = "20260716-delay10-overtime-ui";
   var started = false;
 
   function hasForceCompat() {
