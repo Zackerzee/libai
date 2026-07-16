@@ -615,6 +615,10 @@ h1 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.desk-actions.five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .action {
   min-height: 36px;
   border-radius: 14px;
@@ -648,6 +652,11 @@ h1 {
 .action.note {
   background: rgba(34, 211, 238, 0.15);
   color: #a5f3fc;
+}
+
+.action.move {
+  background: rgba(59, 130, 246, 0.2);
+  color: #bfdbfe;
 }
 
 .action.start {
@@ -1532,6 +1541,7 @@ h1 {
 
 .compat-action.pause,
 .compat-action.resume,
+.compat-action.move,
 .compat-action.print {
   background: rgba(59, 130, 246, 0.22);
   color: #bfdbfe;
@@ -2255,6 +2265,7 @@ body {
 .seat-action.resume,
 .seat-action.start,
 .seat-action.adjust,
+.seat-action.move,
 .seat-action.print {
   background: #e8f5f7;
   color: #1f758e;
@@ -2488,6 +2499,47 @@ body {
 
 .confirm-submit {
   background: linear-gradient(135deg, #d94d45, #ef7b6d);
+}
+
+.move-target-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.move-target {
+  display: grid;
+  gap: 3px;
+  min-height: 62px;
+  border: 1px solid rgba(226, 203, 164, 0.86);
+  border-radius: 18px;
+  padding: 10px;
+  background: #fffaf1;
+  color: #35291e;
+  text-align: left;
+  touch-action: manipulation;
+}
+
+.move-target strong {
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.move-target span {
+  overflow: hidden;
+  color: #8b7b68;
+  font-size: 11px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.move-target.active {
+  border-color: rgba(31, 117, 142, 0.42);
+  background: #e8f5f7;
+  color: #1f758e;
+  box-shadow: inset 0 0 0 2px rgba(31, 117, 142, 0.12);
 }
 
 .records-table td,

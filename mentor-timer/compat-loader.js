@@ -1,5 +1,5 @@
 (function () {
-  var VERSION = "20260716-delay10-overtime-ui";
+  var VERSION = "20260716-move-desk-v1";
   var started = false;
 
   function hasForceCompat() {

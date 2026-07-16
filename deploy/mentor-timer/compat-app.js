@@ -21,6 +21,8 @@
   var lastPrintPayload = null;
   var isAggregatedOnly = false;
   var checkoutDraft = null;
+  var movingDeskId = "";
+  var moveTargetId = "";
   var showRecords = false;
 
   var regionMeta = [
@@ -484,14 +486,14 @@
       });
   }
 
-  function buildPrintPayload(desk) {
+  function buildPrintPayload(desk, noteOverride) {
     return {
       deskId: desk.id,
       session: sessionByType(desk.sessionType).label,
       mode: desk.mode,
       startLabel: timeOnly(desk.startTime),
       endLabel: desk.endTime ? timeOnly(desk.endTime) : "",
-      note: desk.mode === "countdown" ? "请按时提醒顾客" : desk.endTime ? "正计时，到 21:00" : "不限时 / 正计时",
+      note: noteOverride || (desk.mode === "countdown" ? "请按时提醒顾客" : desk.endTime ? "正计时，到 21:00" : "不限时 / 正计时"),
     };
   }
 
@@ -505,8 +507,8 @@
     return message;
   }
 
-  function sendDeskLabel(desk, reason) {
-    var payload = buildPrintPayload(desk);
+  function sendDeskLabel(desk, reason, noteOverride) {
+    var payload = buildPrintPayload(desk, noteOverride);
     lastPrintPayload = payload;
     printStatus = (reason || "开桌") + "：正在发送 " + desk.id + " 号桌标签...";
     render();
@@ -547,6 +549,65 @@
     var desk = findDesk(deskId);
     if (!desk || desk.status === "empty") return;
     sendDeskLabel(desk, "补打");
+  }
+
+  function openMoveModal(deskId) {
+    var desk = findDesk(deskId);
+    if (!desk || desk.status === "empty") return;
+    movingDeskId = desk.id;
+    moveTargetId = "";
+    render();
+  }
+
+  function closeMoveModal() {
+    movingDeskId = "";
+    moveTargetId = "";
+    render();
+  }
+
+  function moveTargetDesks() {
+    var source = findDesk(movingDeskId);
+    var result = [];
+    var i;
+    if (!source) return result;
+    for (i = 0; i < desks.length; i += 1) {
+      if (desks[i].status === "empty" && desks[i].id !== source.id) result.push(desks[i]);
+    }
+    return result;
+  }
+
+  function confirmMoveDesk() {
+    var source = findDesk(movingDeskId);
+    var target = findDesk(moveTargetId);
+    var movedData = {};
+    var fromId;
+    var toId;
+    var key;
+    var movedNote;
+    if (!source || source.status === "empty") return;
+    if (!target || target.status !== "empty") {
+      window.alert("请选择一个空闲桌位，不能覆盖正在使用的桌位。");
+      return;
+    }
+
+    fromId = source.id;
+    toId = target.id;
+    movedNote = "由 " + fromId + " 换至 " + toId;
+    for (key in source) {
+      if (source.hasOwnProperty(key)) movedData[key] = source[key];
+    }
+    movedData.id = toId;
+    movedData.region = target.region;
+    movedData.note = (movedData.note ? movedData.note + "；" + movedNote : movedNote).slice(0, 80);
+
+    for (key in movedData) {
+      if (movedData.hasOwnProperty(key)) target[key] = movedData[key];
+    }
+    resetDesk(source);
+
+    persistDesks();
+    sendDeskLabel(target, "换桌成功", "换桌标签 · 原" + fromId + " → 新" + toId);
+    closeMoveModal();
   }
 
   function prepareDesk(deskId, sessionType) {
@@ -954,9 +1015,9 @@
         '">' +
         (desk.startTime && desk.startTime > now ? "立即开始" : "开始计时") +
         "</button>" +
-        '<button type="button" class="compat-action print" data-action="reprint" data-id="' +
+        '<button type="button" class="compat-action move" data-action="move" data-id="' +
         desk.id +
-        '">补打</button>' +
+        '">换桌</button>' +
         '<button type="button" class="compat-action muted" data-action="cancel-prepare" data-id="' +
         desk.id +
         '">取消</button>' +
@@ -969,9 +1030,9 @@
         '<button type="button" class="compat-action resume" data-action="resume" data-id="' +
         desk.id +
         '">▶️ 恢复</button>' +
-        '<button type="button" class="compat-action print" data-action="reprint" data-id="' +
+        '<button type="button" class="compat-action move" data-action="move" data-id="' +
         desk.id +
-        '">补打</button>' +
+        '">换桌</button>' +
         '<button type="button" class="compat-action stop" data-action="finish" data-id="' +
         desk.id +
         '">🛑 结束</button>' +
@@ -984,9 +1045,9 @@
         '<button type="button" class="compat-action pause" data-action="pause" data-id="' +
         desk.id +
         '">⏸️ 暂停</button>' +
-        '<button type="button" class="compat-action print" data-action="reprint" data-id="' +
+        '<button type="button" class="compat-action move" data-action="move" data-id="' +
         desk.id +
-        '">补打</button>' +
+        '">换桌</button>' +
         '<button type="button" class="compat-action stop" data-action="finish" data-id="' +
         desk.id +
         '">🛑 结束</button>' +
@@ -1004,9 +1065,9 @@
       '<button type="button" class="compat-action plus" data-action="add" data-id="' +
       desk.id +
       '" data-min="60">+60</button>' +
-      '<button type="button" class="compat-action print" data-action="reprint" data-id="' +
+      '<button type="button" class="compat-action move" data-action="move" data-id="' +
       desk.id +
-      '">补打</button>' +
+      '">换桌</button>' +
       '<button type="button" class="compat-action stop" data-action="finish" data-id="' +
       desk.id +
       '">🛑</button>' +
@@ -1140,6 +1201,52 @@
     return html;
   }
 
+  function renderMoveModal() {
+    var source = findDesk(movingDeskId);
+    var targets = moveTargetDesks();
+    var html;
+    var i;
+    var regionTitle;
+    if (!source) return "";
+    html =
+      '<div class="compat-modal" data-action="close-move"><section class="confirm-box move-box" data-action="noop">' +
+      "<h2>🔁 " +
+      source.id +
+      ' 号桌换桌</h2><p>当前场次：' +
+      escapeHtml(sessionByType(source.sessionType).label) +
+      "。请选择一个空闲桌位，计时数据会完整迁移。</p>";
+
+    if (targets.length) {
+      html += '<div class="move-target-grid">';
+      for (i = 0; i < targets.length; i += 1) {
+        regionTitle = regionMeta[0].title;
+        if (targets[i].region === "table1") regionTitle = regionMeta[1].title;
+        if (targets[i].region === "table2") regionTitle = regionMeta[2].title;
+        html +=
+          '<button type="button" class="move-target ' +
+          (moveTargetId === targets[i].id ? "active" : "") +
+          '" data-action="select-move" data-id="' +
+          targets[i].id +
+          '"><strong>' +
+          targets[i].id +
+          '号桌</strong><span>' +
+          escapeHtml(regionTitle) +
+          "</span></button>";
+      }
+      html += "</div>";
+    } else {
+      html += '<div class="records-empty">当前没有空闲桌位可换。</div>';
+    }
+
+    html +=
+      '<p class="settlement-tip">换桌后原桌位会释放为空闲，新桌位保留原来的开始时间、结束时间、暂停、加时、超时和备注。</p>' +
+      '<div class="confirm-actions"><button type="button" class="confirm-cancel" data-action="close-move">取消</button>' +
+      '<button type="button" class="confirm-submit" data-action="confirm-move"' +
+      (moveTargetId ? "" : " disabled") +
+      ">确认换桌</button></div></section></div>";
+    return html;
+  }
+
   function renderFinishModal() {
     var draft = checkoutDraft;
     if (!draft) return "";
@@ -1184,7 +1291,7 @@
         html += '<div class="records-empty">今天还没有完结订单。</div>';
       } else {
         html +=
-          '<div class="records-table-wrap"><table class="records-table"><thead><tr><th>桌号</th><th>场次</th><th>准备</th><th>开始</th><th>结束/完结</th><th>实际用时</th><th>基础费</th><th>加时费</th><th>超时费</th><th>合计</th><th>超时</th></tr></thead><tbody>';
+          '<div class="records-table-wrap"><table class="records-table"><thead><tr><th>桌号</th><th>场次</th><th>准备</th><th>开始</th><th>结束/完结</th><th>实际用时</th><th>基础费</th><th>加时费</th><th>超时费</th><th>合计</th><th>超时</th><th>备注</th></tr></thead><tbody>';
         for (i = records.length - 1; i >= 0; i -= 1) {
           record = records[i];
           html +=
@@ -1214,6 +1321,8 @@
             (record.isTimeout ? "dangerText" : "") +
             '">' +
             (record.isTimeout ? Math.floor(record.timeoutDuration / 60) + " 分钟" : "否") +
+            "</td><td>" +
+            escapeHtml(record.note || "") +
             "</td></tr>";
         }
         html += "</tbody></table></div>";
@@ -1234,6 +1343,7 @@
       renderRegion() +
       renderRecords() +
       renderOpenModal() +
+      renderMoveModal() +
       renderFinishModal() +
       "</div>";
   }
@@ -1296,6 +1406,15 @@
       resumeDesk(id);
     } else if (action === "note") {
       editNote(id);
+    } else if (action === "move") {
+      openMoveModal(id);
+    } else if (action === "select-move") {
+      moveTargetId = id;
+      render();
+    } else if (action === "close-move") {
+      closeMoveModal();
+    } else if (action === "confirm-move") {
+      confirmMoveDesk();
     } else if (action === "reprint") {
       reprintDeskLabel(id);
     } else if (action === "reprint-last") {
