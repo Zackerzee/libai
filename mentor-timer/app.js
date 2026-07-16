@@ -281,7 +281,18 @@ function splitPresetLabel(label) {
 }
 
 function compactSessionLabel(sessionType) {
-  return splitPresetLabel(sessionByType(sessionType).label).title;
+  const shortNames = {
+    morning: "早鸟场",
+    afternoon: "午后休闲",
+    night: "星光夜场",
+    day: "全天畅玩",
+    "1h": "限时1小时",
+    "2h": "限时2小时",
+    infinit: "智能板不限时",
+    iron52: "52×52熨烫",
+    iron78: "78×78熨烫",
+  };
+  return shortNames[sessionType] || splitPresetLabel(sessionByType(sessionType).label).title;
 }
 
 function fixedEndTime(timestamp, hour) {
@@ -1372,7 +1383,6 @@ createApp({
                   h("strong", { class: "seat-session" }, compactSessionLabel(desk.sessionType)),
                   h("span", timeRangeText(desk)),
                 ]),
-                h("small", { class: "seat-note" }, desk.note || "点击查看详情"),
                 renderSeatActions(desk),
               ],
         ]
@@ -1405,22 +1415,18 @@ createApp({
       }
 
       if (desk.mode !== "countdown") {
-        return h("div", { class: "seat-actions six" }, [
+        return h("div", { class: "seat-actions four" }, [
           h("button", { type: "button", class: "seat-action detail", onClick: (event) => stop(event, () => openDeskDetail(desk)) }, "记录"),
-          h("button", { type: "button", class: "seat-action note", onClick: (event) => stop(event, () => editNote(desk.id)) }, "备注"),
-          h("button", { type: "button", class: "seat-action move", onClick: (event) => stop(event, () => openMoveModal(desk)) }, "换桌"),
           h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
           h("button", { type: "button", class: desk.isPaused ? "seat-action resume" : "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, desk.isPaused ? "恢复" : "暂停"),
           h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "结账"),
         ]);
       }
 
-      return h("div", { class: "seat-actions six" }, [
+      return h("div", { class: "seat-actions four" }, [
         h("button", { type: "button", class: "seat-action plus", disabled: desk.isPaused, onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
         h("button", { type: "button", class: "seat-action plus", disabled: desk.isPaused, onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
         h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整"),
-        h("button", { type: "button", class: desk.isPaused ? "seat-action resume" : "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, desk.isPaused ? "恢复" : "暂停"),
-        h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
         h("button", { type: "button", class: `seat-action stop ${desk.status === "timeout" ? "danger" : ""}`, onClick: (event) => stop(event, () => askFinish(desk)) }, "结账"),
       ]);
     }
@@ -1466,7 +1472,6 @@ createApp({
                   h("strong", { class: "seat-session" }, compactSessionLabel(desk.sessionType)),
                   h("span", timeRangeText(desk)),
                 ]),
-                h("small", { class: "seat-note" }, desk.note || "点击查看详情"),
                 renderSeatActions(desk),
               ]),
         ]

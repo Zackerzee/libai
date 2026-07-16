@@ -508,10 +508,11 @@ h1 {
 }
 
 .desk-id {
-  font-size: 34px;
+  font-size: 24px;
   line-height: 1;
   font-weight: 950;
   letter-spacing: -0.04em;
+  white-space: nowrap;
 }
 
 .status-pill {
@@ -1604,6 +1605,10 @@ h1 {
   margin-top: 12px;
 }
 
+.compat-actions.four {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .compat-actions .compat-action {
   min-width: 0;
 }
@@ -2099,14 +2104,14 @@ body {
 .seat-card {
   position: relative;
   display: flex;
-  height: 220px;
-  min-height: 220px;
+  height: 208px;
+  min-height: 208px;
   flex-direction: column;
   justify-content: space-between;
   overflow: hidden;
   border: 1px solid rgba(214, 198, 173, 0.9);
   border-radius: 24px;
-  padding: 11px;
+  padding: 10px;
   background: #fff;
   color: #35291e;
   box-shadow: 0 12px 26px rgba(123, 91, 47, 0.1);
@@ -2123,43 +2128,45 @@ body {
 
 .seat-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 4px;
 }
 
 .seat-head-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .seat-id {
-  font-size: 22px;
+  min-width: 0;
+  font-size: 19px;
   line-height: 1;
   font-weight: 950;
-  letter-spacing: -0.05em;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
 }
 
 .seat-status {
   border-radius: 999px;
-  padding: 5px 8px;
+  padding: 4px 6px;
   background: rgba(111, 98, 83, 0.08);
   color: #756753;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 950;
   white-space: nowrap;
 }
 
 .seat-close {
   display: grid;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   place-items: center;
   border-radius: 9px;
   background: #d64646;
   color: #fff;
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1;
   font-weight: 950;
   touch-action: manipulation;
@@ -2301,7 +2308,7 @@ body {
   flex: 1;
   flex-direction: column;
   justify-content: space-between;
-  gap: 7px;
+  gap: 6px;
 }
 
 .seat-main-time {
@@ -2326,7 +2333,7 @@ body {
   max-width: 100%;
   color: #15803d;
   font-variant-numeric: tabular-nums;
-  font-size: 31px;
+  font-size: 28px;
   line-height: 0.96;
   font-weight: 980;
   letter-spacing: -0.08em;
@@ -2337,7 +2344,7 @@ body {
 .seat-subline {
   display: grid;
   gap: 2px;
-  min-height: 34px;
+  min-height: 31px;
 }
 
 .seat-session {
@@ -2423,7 +2430,7 @@ body {
 }
 
 .seat-actions.four {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .seat-actions.five {
@@ -2436,7 +2443,7 @@ body {
 
 .seat-action {
   display: grid;
-  min-height: 31px;
+  min-height: 30px;
   place-items: center;
   border-radius: 11px;
   padding: 0 3px;
@@ -3041,18 +3048,18 @@ body {
   }
 
   .seat-card {
-    height: 220px;
-    min-height: 220px;
+    height: 208px;
+    min-height: 208px;
     border-radius: 20px;
     padding: 10px;
   }
 
   .seat-id {
-    font-size: 20px;
+    font-size: 18px;
   }
 
   .seat-time-value {
-    font-size: 29px;
+    font-size: 26px;
   }
 
   .adjust-summary {

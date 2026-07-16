@@ -68,6 +68,21 @@
     return { title: match[1].replace(/^\s+|\s+$/g, ""), sub: match[2].replace(/^\s+|\s+$/g, "") };
   }
 
+  function compactSessionLabel(sessionType) {
+    var shortNames = {
+      morning: "早鸟场",
+      afternoon: "午后休闲",
+      night: "星光夜场",
+      day: "全天畅玩",
+      "1h": "限时1小时",
+      "2h": "限时2小时",
+      infinit: "智能板不限时",
+      iron52: "52×52熨烫",
+      iron78: "78×78熨烫",
+    };
+    return shortNames[sessionType] || splitPresetLabel(sessionByType(sessionType).label).title;
+  }
+
   function dateKey(timestamp) {
     var date = new Date(timestamp);
     return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate());
@@ -1103,16 +1118,10 @@
 
     if (desk.mode !== "countdown") {
       return (
-        '<div class="compat-actions six">' +
+        '<div class="compat-actions four">' +
         '<button type="button" class="compat-action note" data-action="detail" data-id="' +
         desk.id +
         '">记录</button>' +
-        '<button type="button" class="compat-action note" data-action="note" data-id="' +
-        desk.id +
-        '">备注</button>' +
-        '<button type="button" class="compat-action move" data-action="move" data-id="' +
-        desk.id +
-        '">换桌</button>' +
         '<button type="button" class="compat-action print" data-action="reprint" data-id="' +
         desk.id +
         '">补打</button>' +
@@ -1133,7 +1142,7 @@
     }
 
     return (
-      '<div class="compat-actions six">' +
+      '<div class="compat-actions four">' +
       '<button type="button" class="compat-action plus" data-action="add" data-id="' +
       desk.id +
       '" data-min="30"' +
@@ -1146,19 +1155,7 @@
       ">+60</button>" +
       '<button type="button" class="compat-action note" data-action="detail" data-id="' +
       desk.id +
-      '">详情</button>' +
-      '<button type="button" class="compat-action ' +
-      (desk.isPaused ? "resume" : "pause") +
-      '" data-action="' +
-      (desk.isPaused ? "resume" : "pause") +
-      '" data-id="' +
-      desk.id +
-      '">' +
-      (desk.isPaused ? "恢复" : "暂停") +
-      "</button>" +
-      '<button type="button" class="compat-action print" data-action="reprint" data-id="' +
-      desk.id +
-      '">补打</button>' +
+      '">调整</button>' +
       '<button type="button" class="compat-action stop" data-action="finish" data-id="' +
       desk.id +
       '">结账</button>' +
@@ -1198,9 +1195,7 @@
         escapeHtml(compactSessionLabel(preset.type)) +
         "</strong><span>" +
         escapeHtml(timeRangeText(desk)) +
-        '</span></div><small class="seat-note">' +
-        escapeHtml(desk.note || "点击查看详情") +
-        "</small>";
+        "</span></div>";
       html += renderDeskActions(desk);
     }
     return html + "</article>";
