@@ -1,5 +1,5 @@
 (function () {
-  var VERSION = "20260716-seat-card-detail-v1";
+  var VERSION = "20260716-compact-large-card-v1";
   var started = false;
 
   function hasForceCompat() {

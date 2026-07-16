@@ -313,6 +313,33 @@
     return durationClock(diff);
   }
 
+  function cardTimerParts(desk) {
+    var displayAt = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : now;
+    var diff;
+    if (desk.status === "empty") return { label: "", time: "空闲" };
+    if (desk.status === "preparing") {
+      return {
+        label: desk.startTime && desk.startTime > now ? "待开始" : "准备中",
+        time: desk.startTime && desk.startTime > now ? durationClock(desk.startTime - now) : durationClock(now - desk.prepareTime),
+      };
+    }
+    if (desk.status === "infinit") return { label: "正计时", time: durationClock(elapsedMs(desk, displayAt)) };
+    diff = desk.endTime - displayAt;
+    if (diff <= 0) return { label: "已超", time: pad(Math.floor(Math.abs(diff) / ONE_MIN_MS)) + "分" };
+    return { label: "倒计时", time: durationClock(diff) };
+  }
+
+  function seatElapsedText(desk) {
+    var displayAt;
+    if (desk.status === "empty") return "—";
+    if (desk.status === "preparing") {
+      if (desk.startTime && desk.startTime > now) return "待开始";
+      return durationClock(now - desk.prepareTime);
+    }
+    displayAt = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : now;
+    return durationClock(elapsedMs(desk, displayAt));
+  }
+
   function timeRangeText(desk) {
     if (desk.status === "empty") return "";
     if (desk.status === "preparing") {
@@ -1077,6 +1104,9 @@
     if (desk.mode !== "countdown") {
       return (
         '<div class="compat-actions six">' +
+        '<button type="button" class="compat-action note" data-action="detail" data-id="' +
+        desk.id +
+        '">记录</button>' +
         '<button type="button" class="compat-action note" data-action="note" data-id="' +
         desk.id +
         '">备注</button>' +
@@ -1095,9 +1125,6 @@
         '">' +
         (desk.isPaused ? "恢复" : "暂停") +
         "</button>" +
-        '<button type="button" class="compat-action note" data-action="detail" data-id="' +
-        desk.id +
-        '">详情</button>' +
         '<button type="button" class="compat-action stop" data-action="finish" data-id="' +
         desk.id +
         '">结账</button>' +
@@ -1142,6 +1169,7 @@
   function renderDeskCard(desk) {
     var className = "compat-desk-card status-" + desk.status + (desk.isPaused ? " is-paused" : "");
     var preset = sessionByType(desk.sessionType);
+    var timerParts = cardTimerParts(desk);
     var html =
       '<article class="' +
       className +
@@ -1153,21 +1181,26 @@
       '<div class="desk-head"><strong class="desk-id">' +
       desk.id +
       "号桌" +
-      '</strong><span class="status-pill">' +
+      '</strong><div class="seat-head-actions"><span class="status-pill">' +
       (desk.isPaused ? "已暂停" : statusText(desk.status)) +
-      "</span></div>";
+      "</span>" +
+      (desk.status === "empty" ? "" : '<button type="button" class="seat-close" data-action="finish" data-id="' + desk.id + '">×</button>') +
+      "</div></div>";
     if (desk.status === "empty") {
       html += renderEmptyDesk(desk);
     } else {
       html +=
-        '<p class="project-name">' +
+        '<div class="seat-main-time"><span class="seat-time-label">' +
+        escapeHtml(timerParts.label) +
+        '</span><strong class="seat-time-value">' +
+        escapeHtml(timerParts.time) +
+        '</strong></div><div class="seat-subline"><strong class="seat-session">' +
         escapeHtml(compactSessionLabel(preset.type)) +
-        '</p><div class="live-time"><strong>' +
-        mainTimerText(desk) +
-        "</strong><small>" +
+        "</strong><span>" +
         escapeHtml(timeRangeText(desk)) +
-        "</small></div>";
-      if (desk.note) html += '<p class="desk-note">' + escapeHtml(desk.note) + "</p>";
+        '</span></div><small class="seat-note">' +
+        escapeHtml(desk.note || "点击查看详情") +
+        "</small>";
       html += renderDeskActions(desk);
     }
     return html + "</article>";

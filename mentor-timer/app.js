@@ -1106,6 +1106,31 @@ createApp({
       return durationClock(diff);
     }
 
+    function cardTimerParts(desk) {
+      const displayAt = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : now.value;
+      if (desk.status === "empty") return { label: "", time: "空闲" };
+      if (desk.status === "preparing") {
+        return {
+          label: desk.startTime && desk.startTime > now.value ? "待开始" : "准备中",
+          time: desk.startTime && desk.startTime > now.value ? durationClock(desk.startTime - now.value) : durationClock(now.value - desk.prepareTime),
+        };
+      }
+      if (desk.status === "infinit") return { label: "正计时", time: countupText(desk, displayAt) };
+      const diff = desk.endTime - displayAt;
+      if (diff <= 0) return { label: "已超", time: `${pad(Math.floor(Math.abs(diff) / ONE_MIN_MS))}分` };
+      return { label: "倒计时", time: durationClock(diff) };
+    }
+
+    function seatElapsedText(desk) {
+      if (desk.status === "empty") return "—";
+      if (desk.status === "preparing") {
+        if (desk.startTime && desk.startTime > now.value) return "待开始";
+        return durationClock(now.value - desk.prepareTime);
+      }
+      const displayAt = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : now.value;
+      return durationClock(elapsedMs(desk, displayAt));
+    }
+
     function timeRangeText(desk) {
       if (desk.status === "empty") return "";
       if (desk.status === "preparing") {
@@ -1322,13 +1347,14 @@ createApp({
     }
 
     function renderDeskCard(desk) {
+      const timerParts = cardTimerParts(desk);
       return h(
         "article",
         {
           key: desk.id,
           class: deskClass(desk),
           "data-open-desk-id": desk.status === "empty" ? desk.id : null,
-          onClick: () => openDeskModal(desk),
+          onClick: () => (desk.status === "empty" ? openDeskModal(desk) : openDeskDetail(desk)),
         },
         [
           h("div", { class: "desk-head" }, [
@@ -1338,14 +1364,16 @@ createApp({
           desk.status === "empty"
             ? renderEmptyDesk(desk)
             : [
-                h("p", { class: "project-name" }, sessionByType(desk.sessionType).label),
-                renderDeskMeta(desk),
-                h("div", { class: "live-time" }, [
-                  h("small", timeLabel(desk)),
-                  h("strong", primaryTimeText(desk)),
+                h("div", { class: "seat-main-time" }, [
+                  h("span", { class: "seat-time-label" }, timerParts.label),
+                  h("strong", { class: "seat-time-value" }, timerParts.time),
                 ]),
-                desk.note ? h("p", { class: "desk-note" }, desk.note) : null,
-                renderActionButtons(desk),
+                h("div", { class: "seat-subline" }, [
+                  h("strong", { class: "seat-session" }, compactSessionLabel(desk.sessionType)),
+                  h("span", timeRangeText(desk)),
+                ]),
+                h("small", { class: "seat-note" }, desk.note || "点击查看详情"),
+                renderSeatActions(desk),
               ],
         ]
       );
@@ -1378,11 +1406,11 @@ createApp({
 
       if (desk.mode !== "countdown") {
         return h("div", { class: "seat-actions six" }, [
+          h("button", { type: "button", class: "seat-action detail", onClick: (event) => stop(event, () => openDeskDetail(desk)) }, "记录"),
           h("button", { type: "button", class: "seat-action note", onClick: (event) => stop(event, () => editNote(desk.id)) }, "备注"),
           h("button", { type: "button", class: "seat-action move", onClick: (event) => stop(event, () => openMoveModal(desk)) }, "换桌"),
           h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
           h("button", { type: "button", class: desk.isPaused ? "seat-action resume" : "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, desk.isPaused ? "恢复" : "暂停"),
-          h("button", { type: "button", class: "seat-action detail", onClick: (event) => stop(event, () => openDeskDetail(desk)) }, "详情"),
           h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "结账"),
         ]);
       }
@@ -1398,6 +1426,7 @@ createApp({
     }
 
     function renderSeatCard(desk) {
+      const timerParts = cardTimerParts(desk);
       return h(
         "article",
         {
@@ -1409,7 +1438,10 @@ createApp({
         [
           h("div", { class: "seat-head" }, [
             h("strong", { class: "seat-id" }, `${desk.id}号桌`),
-            h("span", { class: "seat-status" }, desk.isPaused ? "暂停" : statusText(desk.status)),
+            h("div", { class: "seat-head-actions" }, [
+              h("span", { class: "seat-status" }, desk.isPaused ? "暂停" : statusText(desk.status)),
+              desk.status === "empty" ? null : h("button", { type: "button", class: "seat-close", onClick: (event) => stop(event, () => askFinish(desk)) }, "×"),
+            ]),
           ]),
           desk.status === "empty"
             ? h("div", { class: "seat-empty" }, [
@@ -1426,11 +1458,15 @@ createApp({
                 ),
               ])
             : h("div", { class: "seat-body" }, [
-                h("strong", { class: "seat-time" }, mainTimerText(desk)),
-                h("div", { class: "seat-info-line" }, [
-                  h("span", { class: "seat-session" }, compactSessionLabel(desk.sessionType)),
-                  h("small", timeRangeText(desk)),
+                h("div", { class: "seat-main-time" }, [
+                  h("span", { class: "seat-time-label" }, timerParts.label),
+                  h("strong", { class: "seat-time-value" }, timerParts.time),
                 ]),
+                h("div", { class: "seat-subline" }, [
+                  h("strong", { class: "seat-session" }, compactSessionLabel(desk.sessionType)),
+                  h("span", timeRangeText(desk)),
+                ]),
+                h("small", { class: "seat-note" }, desk.note || "点击查看详情"),
                 renderSeatActions(desk),
               ]),
         ]
