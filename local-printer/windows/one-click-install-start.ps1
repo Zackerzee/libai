@@ -188,10 +188,10 @@ function Get-SerialPortCandidates {
     foreach ($port in $ports) {
       if (-not $port.DeviceID) { continue }
       $name = [string]$port.Name
-      $score = 10
-      if ($name -match "NIIMBOT|B3S|B3S_P|B3S-P") { $score += 100 }
-      if ($name -match "USB|Serial|CH340|CP210|Prolific") { $score += 30 }
-      if ($name -match "Bluetooth") { $score -= 20 }
+      $score = 0
+      if ($name -match "NIIMBOT|B3S|B3S_P|B3S-P") { $score += 120 }
+      if ($name -match "USB|Serial|串行|CH340|CP210|Prolific") { $score += 80 }
+      if ($name -match "Bluetooth|蓝牙") { $score -= 140 }
       $items += [pscustomobject]@{ Port = $port.DeviceID; Name = $name; Score = $score }
     }
   } catch {}
@@ -285,12 +285,19 @@ function Resolve-PrinterPort {
     }
   }
 
-  if ($existing -and ($candidates.Port -contains $existing)) {
-    Write-Ok "Using configured serial port: $existing"
-    return $existing
-  }
-
   if ($candidates.Count -gt 0) {
+    if ($existing -and ($candidates.Port -contains $existing)) {
+      $existingItem = $candidates | Where-Object { $_.Port -eq $existing } | Select-Object -First 1
+      $best = $candidates[0]
+
+      if ($existingItem.Score -ge 50 -and $existingItem.Score -ge $best.Score) {
+        Write-Ok "Using configured serial port: $existing"
+        return $existing
+      }
+
+      Write-Warn ("Ignoring configured serial port {0} ({1}). It looks like Bluetooth/wrong port; using {2} ({3})." -f $existing, $existingItem.Name, $best.Port, $best.Name)
+    }
+
     $selected = $candidates[0].Port
     Write-Ok "Using serial port: $selected"
     return $selected

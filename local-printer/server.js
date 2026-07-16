@@ -53,8 +53,77 @@ function findMacSerialPort() {
   return candidates.length ? `/dev/${candidates[0]}` : "";
 }
 
+function comName(value) {
+  return String(value || "").replace(/^\\\\\.\\/, "").trim().toUpperCase();
+}
+
+function scoreWindowsPort(item, preferred) {
+  const name = String(item?.Name || "");
+  let score = 0;
+  if (/NIIMBOT|B3S|B3S_P|B3S-P/i.test(name)) score += 120;
+  if (/USB|Serial|串行|CH340|CP210|Prolific/i.test(name)) score += 80;
+  if (/Bluetooth|蓝牙/i.test(name)) score -= 140;
+  if (comName(item?.Port) === comName(preferred) && score >= 0) score += 20;
+  return score;
+}
+
+function findWindowsSerialPort(preferred) {
+  if (process.platform !== "win32") return "";
+
+  const script = [
+    "$ports = Get-CimInstance Win32_SerialPort -ErrorAction SilentlyContinue | Select-Object DeviceID,Name;",
+    "if ($ports) { $ports | ConvertTo-Json -Compress }",
+  ].join(" ");
+
+  const result = spawnSync("powershell.exe", [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-Command",
+    script,
+  ], {
+    encoding: "utf8",
+    windowsHide: true,
+    timeout: 3000,
+  });
+
+  if (result.error || result.status !== 0 || !String(result.stdout || "").trim()) return "";
+
+  try {
+    const parsed = JSON.parse(String(result.stdout).trim());
+    const ports = (Array.isArray(parsed) ? parsed : [parsed])
+      .map((item) => ({
+        Port: String(item.DeviceID || item.Port || "").trim(),
+        Name: String(item.Name || "").trim(),
+      }))
+      .filter((item) => item.Port);
+
+    if (!ports.length) return "";
+
+    const ranked = ports
+      .map((item) => ({ ...item, Score: scoreWindowsPort(item, preferred) }))
+      .sort((a, b) => b.Score - a.Score);
+
+    const requested = comName(preferred);
+    const requestedItem = ranked.find((item) => comName(item.Port) === requested);
+    const best = ranked[0];
+
+    if (!requested || requested === "AUTO") return normalizeSerialPort(best.Port);
+    if (!requestedItem) return normalizeSerialPort(best.Port);
+    if (best.Score >= 50 && best.Score > requestedItem.Score) return normalizeSerialPort(best.Port);
+
+    return normalizeSerialPort(requestedItem.Port);
+  } catch (_) {
+    return "";
+  }
+}
+
 function resolveSerialPort(value) {
   const requested = normalizeSerialPort(value);
+
+  if (process.platform === "win32") {
+    return findWindowsSerialPort(requested) || (requested && requested.toLowerCase() !== "auto" ? requested : "COM3");
+  }
 
   if (!requested || requested.toLowerCase() === "auto") {
     return findMacSerialPort() || requested;

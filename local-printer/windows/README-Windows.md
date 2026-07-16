@@ -184,6 +184,16 @@ http://127.0.0.1:17888/health
 }
 ```
 
+如果黑窗口里出现：
+
+```text
+Unable to fetch printer info
+Timeout waiting response
+Serial port: COM5
+```
+
+基本就是选到了蓝牙串口或错误串口。请重新运行 `1-START-WINDOWS.cmd`，新版脚本会优先选择 `USB 串行设备`；如果仍不行，运行 `windows\check-com-ports.bat`，把 `windows\printer.env` 里的 `LIBMS_NIIMBOT_PORT` 改成显示为 `USB 串行设备` 的 COM 口，例如 `COM3`。
+
 ### 找不到 COM 口
 
 确认标签机已开机、USB 已连接、驱动已安装。然后重新运行 `check-com-ports.bat`。
