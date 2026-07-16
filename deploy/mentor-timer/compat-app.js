@@ -22,6 +22,7 @@
   var isAggregatedOnly = false;
   var checkoutDraft = null;
   var movingDeskId = "";
+  var detailDeskId = "";
   var moveTargetId = "";
   var showRecords = false;
 
@@ -298,6 +299,42 @@
     return "剩余倒计时";
   }
 
+  function mainTimerText(desk) {
+    var displayAt = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : now;
+    var diff;
+    if (desk.status === "empty") return "空闲";
+    if (desk.status === "preparing") {
+      if (desk.startTime && desk.startTime > now) return "待开始 " + durationClock(desk.startTime - now);
+      return "准备中 " + durationClock(now - desk.prepareTime);
+    }
+    if (desk.status === "infinit") return "正计时 " + durationClock(elapsedMs(desk, displayAt));
+    diff = desk.endTime - displayAt;
+    if (diff <= 0) return "已超 " + pad(Math.floor(Math.abs(diff) / ONE_MIN_MS)) + "分";
+    return durationClock(diff);
+  }
+
+  function timeRangeText(desk) {
+    if (desk.status === "empty") return "";
+    if (desk.status === "preparing") {
+      return desk.startTime ? "准备 " + timeOnly(desk.prepareTime) + " · 开 " + timeOnly(desk.startTime) : "准备 " + timeOnly(desk.prepareTime);
+    }
+    if (desk.mode === "countup") {
+      return desk.endTime ? "开 " + timeOnly(desk.startTime) + " · 到 " + timeOnly(desk.endTime) : "开 " + timeOnly(desk.startTime) + " · 正计时";
+    }
+    return "开 " + timeOnly(desk.startTime) + " · 到 " + timeOnly(desk.endTime);
+  }
+
+  function currentDetailMetrics(desk) {
+    var anchor = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : now;
+    var timeoutSeconds = desk.mode === "countdown" && desk.startTime ? Math.max(0, Math.floor((anchor - desk.endTime) / 1000)) : 0;
+    var overtime = timeoutFee(timeoutSeconds, desk.endTime);
+    return {
+      elapsed: desk.startTime ? durationHuman(elapsedMs(desk, anchor)) : "未开始",
+      timeoutText: timeoutSeconds > 0 ? Math.floor(timeoutSeconds / 60) + " 分钟" : "无",
+      timeoutFee: overtime.fee,
+    };
+  }
+
   function normalizeDesk(raw, fallback) {
     var sessionType = raw && typeof raw.sessionType === "string" ? raw.sessionType : fallback.sessionType;
     var mode = raw && (raw.mode === "countup" || sessionType === "infinit") ? "countup" : "countdown";
@@ -549,6 +586,18 @@
     var desk = findDesk(deskId);
     if (!desk || desk.status === "empty") return;
     sendDeskLabel(desk, "补打");
+  }
+
+  function openDetailModal(deskId) {
+    var desk = findDesk(deskId);
+    if (!desk || desk.status === "empty") return;
+    detailDeskId = desk.id;
+    render();
+  }
+
+  function closeDetailModal() {
+    detailDeskId = "";
+    render();
   }
 
   function openMoveModal(deskId) {
@@ -999,9 +1048,9 @@
     return (
       '<div class="empty-state" data-action="open" data-id="' +
       desk.id +
-      '"><div class="plus-mark">+</div><button type="button" class="open-desk-button" data-action="open" data-id="' +
+      '"><div class="plus-mark">空闲</div><button type="button" class="open-desk-button" data-action="open" data-id="' +
       desk.id +
-      '">开桌</button><span>点击选择场次</span></div>'
+      '">开桌</button></div>'
     );
   }
 
@@ -1024,53 +1073,68 @@
         "</div>"
       );
     }
-    if (desk.isPaused) {
+
+    if (desk.mode !== "countdown") {
       return (
-        '<div class="compat-actions three">' +
-        '<button type="button" class="compat-action resume" data-action="resume" data-id="' +
+        '<div class="compat-actions six">' +
+        '<button type="button" class="compat-action note" data-action="note" data-id="' +
         desk.id +
-        '">▶️ 恢复</button>' +
+        '">备注</button>' +
         '<button type="button" class="compat-action move" data-action="move" data-id="' +
         desk.id +
         '">换桌</button>' +
+        '<button type="button" class="compat-action print" data-action="reprint" data-id="' +
+        desk.id +
+        '">补打</button>' +
+        '<button type="button" class="compat-action ' +
+        (desk.isPaused ? "resume" : "pause") +
+        '" data-action="' +
+        (desk.isPaused ? "resume" : "pause") +
+        '" data-id="' +
+        desk.id +
+        '">' +
+        (desk.isPaused ? "恢复" : "暂停") +
+        "</button>" +
+        '<button type="button" class="compat-action note" data-action="detail" data-id="' +
+        desk.id +
+        '">详情</button>' +
         '<button type="button" class="compat-action stop" data-action="finish" data-id="' +
         desk.id +
-        '">🛑 结束</button>' +
+        '">结账</button>' +
         "</div>"
       );
     }
-    if (desk.status === "infinit") {
-      return (
-        '<div class="compat-actions three">' +
-        '<button type="button" class="compat-action pause" data-action="pause" data-id="' +
-        desk.id +
-        '">⏸️ 暂停</button>' +
-        '<button type="button" class="compat-action move" data-action="move" data-id="' +
-        desk.id +
-        '">换桌</button>' +
-        '<button type="button" class="compat-action stop" data-action="finish" data-id="' +
-        desk.id +
-        '">🛑 结束</button>' +
-        "</div>"
-      );
-    }
+
     return (
-      '<div class="compat-actions five">' +
-      '<button type="button" class="compat-action pause" data-action="pause" data-id="' +
-      desk.id +
-      '">⏸️</button>' +
+      '<div class="compat-actions six">' +
       '<button type="button" class="compat-action plus" data-action="add" data-id="' +
       desk.id +
-      '" data-min="30">+30</button>' +
+      '" data-min="30"' +
+      (desk.isPaused ? " disabled" : "") +
+      ">+30</button>" +
       '<button type="button" class="compat-action plus" data-action="add" data-id="' +
       desk.id +
-      '" data-min="60">+60</button>' +
-      '<button type="button" class="compat-action move" data-action="move" data-id="' +
+      '" data-min="60"' +
+      (desk.isPaused ? " disabled" : "") +
+      ">+60</button>" +
+      '<button type="button" class="compat-action note" data-action="detail" data-id="' +
       desk.id +
-      '">换桌</button>' +
+      '">详情</button>' +
+      '<button type="button" class="compat-action ' +
+      (desk.isPaused ? "resume" : "pause") +
+      '" data-action="' +
+      (desk.isPaused ? "resume" : "pause") +
+      '" data-id="' +
+      desk.id +
+      '">' +
+      (desk.isPaused ? "恢复" : "暂停") +
+      "</button>" +
+      '<button type="button" class="compat-action print" data-action="reprint" data-id="' +
+      desk.id +
+      '">补打</button>' +
       '<button type="button" class="compat-action stop" data-action="finish" data-id="' +
       desk.id +
-      '">🛑</button>' +
+      '">结账</button>' +
       "</div>"
     );
   }
@@ -1082,12 +1146,13 @@
       '<article class="' +
       className +
       '" data-action="' +
-      (desk.status === "empty" ? "open" : "") +
+      (desk.status === "empty" ? "open" : "detail") +
       '" data-id="' +
       desk.id +
       '">' +
       '<div class="desk-head"><strong class="desk-id">' +
       desk.id +
+      "号桌" +
       '</strong><span class="status-pill">' +
       (desk.isPaused ? "已暂停" : statusText(desk.status)) +
       "</span></div>";
@@ -1096,16 +1161,12 @@
     } else {
       html +=
         '<p class="project-name">' +
-        escapeHtml(preset.label) +
-        '</p><div class="desk-times"><span>准：' +
-        timeOnly(desk.prepareTime) +
-        "</span><span>开：" +
-        timeOnly(desk.startTime) +
-        '</span></div><div class="live-time"><small>' +
-        timeLabel(desk) +
-        "</small><strong>" +
-        primaryTimeText(desk) +
-        "</strong></div>";
+        escapeHtml(compactSessionLabel(preset.type)) +
+        '</p><div class="live-time"><strong>' +
+        mainTimerText(desk) +
+        "</strong><small>" +
+        escapeHtml(timeRangeText(desk)) +
+        "</small></div>";
       if (desk.note) html += '<p class="desk-note">' + escapeHtml(desk.note) + "</p>";
       html += renderDeskActions(desk);
     }
@@ -1198,6 +1259,64 @@
         "</em></button>";
     }
     html += '</div><button type="button" class="sheet-cancel" data-action="close-open">取消</button></section></div>';
+    return html;
+  }
+
+  function renderDetailModal() {
+    var desk = findDesk(detailDeskId);
+    var metrics;
+    var fields;
+    var html;
+    var i;
+    if (!desk || desk.status === "empty") return "";
+    metrics = currentDetailMetrics(desk);
+    fields = [
+      ["项目", sessionByType(desk.sessionType).label],
+      ["准备", desk.prepareTime ? timeOnly(desk.prepareTime) : "--"],
+      ["开始", desk.startTime ? timeOnly(desk.startTime) : "未开始"],
+      ["预计结束", desk.endTime ? timeOnly(desk.endTime) : "正计时"],
+      ["已用时", metrics.elapsed],
+      ["超时", metrics.timeoutText],
+      ["超时费", "¥" + metrics.timeoutFee],
+      ["加时费", "¥" + safeNumber(desk.extraTimeFee)],
+    ];
+    html =
+      '<div class="compat-modal" data-action="close-detail"><section class="confirm-box detail-box" data-action="noop">' +
+      '<div class="detail-head"><div><span>桌位详情</span><h2>' +
+      desk.id +
+      '号桌</h2></div><button type="button" class="detail-close" data-action="close-detail">关闭</button></div>' +
+      '<div class="detail-timer">' +
+      escapeHtml(mainTimerText(desk)) +
+      '</div><div class="detail-grid">';
+    for (i = 0; i < fields.length; i += 1) {
+      html +=
+        '<div class="detail-cell"><span>' +
+        escapeHtml(fields[i][0]) +
+        "</span><strong>" +
+        escapeHtml(fields[i][1]) +
+        "</strong></div>";
+    }
+    html += "</div>";
+    if (desk.note) html += '<p class="detail-note">备注：' + escapeHtml(desk.note) + "</p>";
+    html +=
+      '<div class="detail-actions">' +
+      '<button type="button" class="detail-button" data-action="reprint" data-id="' +
+      desk.id +
+      '">补打标签</button>' +
+      '<button type="button" class="detail-button" data-action="' +
+      (desk.isPaused ? "resume" : "pause") +
+      '" data-id="' +
+      desk.id +
+      '">' +
+      (desk.isPaused ? "恢复计时" : "暂停") +
+      "</button>" +
+      '<button type="button" class="detail-button" data-action="move-from-detail" data-id="' +
+      desk.id +
+      '">换桌</button>' +
+      '<button type="button" class="detail-button danger" data-action="finish-from-detail" data-id="' +
+      desk.id +
+      '">结账</button>' +
+      "</div></section></div>";
     return html;
   }
 
@@ -1343,6 +1462,7 @@
       renderRegion() +
       renderRecords() +
       renderOpenModal() +
+      renderDetailModal() +
       renderMoveModal() +
       renderFinishModal() +
       "</div>";
@@ -1406,7 +1526,14 @@
       resumeDesk(id);
     } else if (action === "note") {
       editNote(id);
+    } else if (action === "detail") {
+      openDetailModal(id);
+    } else if (action === "close-detail") {
+      closeDetailModal();
     } else if (action === "move") {
+      openMoveModal(id);
+    } else if (action === "move-from-detail") {
+      detailDeskId = "";
       openMoveModal(id);
     } else if (action === "select-move") {
       moveTargetId = id;
@@ -1420,6 +1547,9 @@
     } else if (action === "reprint-last") {
       reprintLastLabel();
     } else if (action === "finish") {
+      askFinish(id);
+    } else if (action === "finish-from-detail") {
+      detailDeskId = "";
       askFinish(id);
     } else if (action === "close-finish") {
       closeFinishModal();

@@ -409,6 +409,7 @@ createApp({
     const checkoutDraft = ref(null);
     const adjustingDesk = ref(null);
     const movingDesk = ref(null);
+    const detailDesk = ref(null);
     const moveTargetId = ref("");
     const adjustStartInput = ref(timeInputValue(Date.now()));
     const adjustRemainingInput = ref("30");
@@ -574,6 +575,16 @@ createApp({
 
     function closeOpenModal() {
       openingDesk.value = null;
+    }
+
+    function openDeskDetail(desk) {
+      if (!desk || desk.status === "empty") return;
+      ensureBellAudio();
+      detailDesk.value = desk;
+    }
+
+    function closeDetailModal() {
+      detailDesk.value = null;
     }
 
     function resolveOpenStartAt(sessionType = "", anchor = Date.now()) {
@@ -1082,6 +1093,41 @@ createApp({
       return "剩余倒计时";
     }
 
+    function mainTimerText(desk) {
+      const displayAt = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : now.value;
+      if (desk.status === "empty") return "空闲";
+      if (desk.status === "preparing") {
+        if (desk.startTime && desk.startTime > now.value) return `待开始 ${durationClock(desk.startTime - now.value)}`;
+        return `准备中 ${durationClock(now.value - desk.prepareTime)}`;
+      }
+      if (desk.status === "infinit") return `正计时 ${countupText(desk, displayAt)}`;
+      const diff = desk.endTime - displayAt;
+      if (diff <= 0) return `已超 ${pad(Math.floor(Math.abs(diff) / ONE_MIN_MS))}分`;
+      return durationClock(diff);
+    }
+
+    function timeRangeText(desk) {
+      if (desk.status === "empty") return "";
+      if (desk.status === "preparing") {
+        return desk.startTime ? `准备 ${timeOnly(desk.prepareTime)} · 开 ${timeOnly(desk.startTime)}` : `准备 ${timeOnly(desk.prepareTime)}`;
+      }
+      if (desk.mode === "countup") {
+        return desk.endTime ? `开 ${timeOnly(desk.startTime)} · 到 ${timeOnly(desk.endTime)}` : `开 ${timeOnly(desk.startTime)} · 正计时`;
+      }
+      return `开 ${timeOnly(desk.startTime)} · 到 ${timeOnly(desk.endTime)}`;
+    }
+
+    function currentDetailMetrics(desk) {
+      const anchor = desk.isPaused && desk.pauseStartTime ? desk.pauseStartTime : now.value;
+      const timeoutSeconds = desk.mode === "countdown" && desk.startTime ? Math.max(0, Math.floor((anchor - desk.endTime) / 1000)) : 0;
+      const overtime = timeoutFee(timeoutSeconds, desk.endTime);
+      return {
+        elapsed: desk.startTime ? durationHuman(elapsedMs(desk, anchor)) : "未开始",
+        timeoutText: timeoutSeconds > 0 ? `${Math.floor(timeoutSeconds / 60)} 分钟` : "无",
+        timeoutFee: overtime.fee,
+      };
+    }
+
     function deskClass(desk) {
       return `desk-card status-${desk.status} ${desk.isPaused ? "is-paused" : ""}`;
     }
@@ -1330,46 +1376,24 @@ createApp({
         ]);
       }
 
-      if (desk.isPaused) {
+      if (desk.mode !== "countdown") {
         return h("div", { class: "seat-actions six" }, [
-          h("button", { type: "button", class: "seat-action resume", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "▶️"),
           h("button", { type: "button", class: "seat-action note", onClick: (event) => stop(event, () => editNote(desk.id)) }, "备注"),
           h("button", { type: "button", class: "seat-action move", onClick: (event) => stop(event, () => openMoveModal(desk)) }, "换桌"),
-          h("span", { class: "seat-action spacer", "aria-hidden": "true" }, ""),
-          h("span", { class: "seat-action spacer", "aria-hidden": "true" }, ""),
-          h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "结束"),
-        ]);
-      }
-
-      if (desk.status === "infinit") {
-        return h("div", { class: "seat-actions six" }, [
-          h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
-          h("button", { type: "button", class: "seat-action note", onClick: (event) => stop(event, () => editNote(desk.id)) }, "备注"),
-          h("button", { type: "button", class: "seat-action move", onClick: (event) => stop(event, () => openMoveModal(desk)) }, "换桌"),
-          h("span", { class: "seat-action spacer", "aria-hidden": "true" }, ""),
-          h("span", { class: "seat-action spacer", "aria-hidden": "true" }, ""),
-          h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "结束"),
-        ]);
-      }
-
-      if (desk.status === "timeout") {
-        return h("div", { class: "seat-actions six" }, [
-          h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
-          h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
-          h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整"),
-          h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
-          h("button", { type: "button", class: "seat-action move", onClick: (event) => stop(event, () => openMoveModal(desk)) }, "换桌"),
-          h("button", { type: "button", class: "seat-action stop danger", onClick: (event) => stop(event, () => askFinish(desk)) }, "结账"),
+          h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
+          h("button", { type: "button", class: desk.isPaused ? "seat-action resume" : "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, desk.isPaused ? "恢复" : "暂停"),
+          h("button", { type: "button", class: "seat-action detail", onClick: (event) => stop(event, () => openDeskDetail(desk)) }, "详情"),
+          h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "结账"),
         ]);
       }
 
       return h("div", { class: "seat-actions six" }, [
-        h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
-        h("button", { type: "button", class: "seat-action plus", onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
+        h("button", { type: "button", class: "seat-action plus", disabled: desk.isPaused, onClick: (event) => stop(event, () => addTime(desk.id, 30)) }, "+30"),
+        h("button", { type: "button", class: "seat-action plus", disabled: desk.isPaused, onClick: (event) => stop(event, () => addTime(desk.id, 60)) }, "+60"),
         h("button", { type: "button", class: "seat-action adjust", onClick: (event) => stop(event, () => openAdjustModal(desk)) }, "调整"),
-        h("button", { type: "button", class: "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, "⏸️"),
-        h("button", { type: "button", class: "seat-action move", onClick: (event) => stop(event, () => openMoveModal(desk)) }, "换桌"),
-        h("button", { type: "button", class: "seat-action stop", onClick: (event) => stop(event, () => askFinish(desk)) }, "🛑"),
+        h("button", { type: "button", class: desk.isPaused ? "seat-action resume" : "seat-action pause", onClick: (event) => stop(event, () => togglePause(desk.id)) }, desk.isPaused ? "恢复" : "暂停"),
+        h("button", { type: "button", class: "seat-action print", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打"),
+        h("button", { type: "button", class: `seat-action stop ${desk.status === "timeout" ? "danger" : ""}`, onClick: (event) => stop(event, () => askFinish(desk)) }, "结账"),
       ]);
     }
 
@@ -1380,16 +1404,16 @@ createApp({
           key: desk.id,
           class: `seat-card seat-status-${desk.status} ${desk.isPaused ? "is-paused" : ""}`,
           "data-open-desk-id": desk.status === "empty" ? desk.id : null,
-          onClick: () => openDeskModal(desk),
+          onClick: () => (desk.status === "empty" ? openDeskModal(desk) : openDeskDetail(desk)),
         },
         [
           h("div", { class: "seat-head" }, [
-            h("strong", { class: "seat-id" }, desk.id),
+            h("strong", { class: "seat-id" }, `${desk.id}号桌`),
             h("span", { class: "seat-status" }, desk.isPaused ? "暂停" : statusText(desk.status)),
           ]),
           desk.status === "empty"
             ? h("div", { class: "seat-empty" }, [
-                h("b", "+"),
+                h("b", "空闲"),
                 h(
                   "button",
                   {
@@ -1402,9 +1426,11 @@ createApp({
                 ),
               ])
             : h("div", { class: "seat-body" }, [
-                h("span", { class: "seat-session" }, compactSessionLabel(desk.sessionType)),
-                h("strong", { class: "seat-time" }, compactTimeText(desk)),
-                h("small", `${timeLabel(desk)} · 开 ${timeOnly(desk.startTime)}`),
+                h("strong", { class: "seat-time" }, mainTimerText(desk)),
+                h("div", { class: "seat-info-line" }, [
+                  h("span", { class: "seat-session" }, compactSessionLabel(desk.sessionType)),
+                  h("small", timeRangeText(desk)),
+                ]),
                 renderSeatActions(desk),
               ]),
         ]
@@ -1564,6 +1590,83 @@ createApp({
             })
           ),
           h("button", { type: "button", class: "sheet-cancel", onClick: closeOpenModal }, "取消"),
+        ]),
+      ]);
+    }
+
+    function renderDetailModal() {
+      const desk = detailDesk.value;
+      if (!desk || desk.status === "empty") return null;
+      const metrics = currentDetailMetrics(desk);
+      const fields = [
+        ["项目", sessionByType(desk.sessionType).label],
+        ["准备", desk.prepareTime ? timeOnly(desk.prepareTime) : "--"],
+        ["开始", desk.startTime ? timeOnly(desk.startTime) : "未开始"],
+        ["预计结束", desk.endTime ? timeOnly(desk.endTime) : "正计时"],
+        ["已用时", metrics.elapsed],
+        ["超时", metrics.timeoutText],
+        ["超时费", `¥${metrics.timeoutFee}`],
+        ["加时费", `¥${safeNumber(desk.extraTimeFee)}`],
+      ];
+
+      return h("div", { class: "modal-backdrop", onClick: (event) => event.target === event.currentTarget && closeDetailModal() }, [
+        h("section", { class: "confirm-box detail-box" }, [
+          h("div", { class: "detail-head" }, [
+            h("div", [
+              h("span", "桌位详情"),
+              h("h2", `${desk.id}号桌`),
+            ]),
+            h("button", { type: "button", class: "detail-close", onClick: closeDetailModal }, "关闭"),
+          ]),
+          h("div", { class: "detail-timer" }, mainTimerText(desk)),
+          h(
+            "div",
+            { class: "detail-grid" },
+            fields.map(([label, value]) =>
+              h("div", { class: "detail-cell", key: label }, [
+                h("span", label),
+                h("strong", value),
+              ])
+            )
+          ),
+          desk.note ? h("p", { class: "detail-note" }, `备注：${desk.note}`) : null,
+          h("div", { class: "detail-actions" }, [
+            h("button", {
+              type: "button",
+              class: "detail-button",
+              disabled: !canAdjustTime(desk),
+              onClick: (event) =>
+                stop(event, () => {
+                  closeDetailModal();
+                  openAdjustModal(desk);
+                }),
+            }, "调整时间"),
+            h("button", { type: "button", class: "detail-button", onClick: (event) => stop(event, () => reprintDeskLabel(desk.id)) }, "补打标签"),
+            h("button", {
+              type: "button",
+              class: "detail-button",
+              disabled: !isPausable(desk) && !desk.isPaused,
+              onClick: (event) => stop(event, () => togglePause(desk.id)),
+            }, desk.isPaused ? "恢复计时" : "暂停"),
+            h("button", {
+              type: "button",
+              class: "detail-button",
+              onClick: (event) =>
+                stop(event, () => {
+                  closeDetailModal();
+                  openMoveModal(desk);
+                }),
+            }, "换桌"),
+            h("button", {
+              type: "button",
+              class: "detail-button danger",
+              onClick: (event) =>
+                stop(event, () => {
+                  closeDetailModal();
+                  askFinish(desk);
+                }),
+            }, "结账"),
+          ]),
         ]),
       ]);
     }
@@ -1771,6 +1874,7 @@ createApp({
         renderFloorPlan(),
         renderRecords(),
         renderOpenModal(),
+        renderDetailModal(),
         renderAdjustModal(),
         renderMoveModal(),
         renderFinishModal(),
