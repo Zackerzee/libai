@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { existsSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -15,7 +16,7 @@ const PYTHON_ARGS = String(process.env.LIBMS_PYTHON_ARGS || "")
   .trim()
   .split(/\s+/)
   .filter(Boolean);
-const RAW_SERIAL_PORT = process.env.LIBMS_NIIMBOT_PORT || "/dev/cu.usbmodem1301";
+const RAW_SERIAL_PORT = process.env.LIBMS_NIIMBOT_PORT || "auto";
 const PRINT_METHOD = String(process.env.LIBMS_PRINT_METHOD || "auto").trim().toLowerCase();
 const WINDOWS_PRINTER_NAME = String(process.env.LIBMS_WINDOWS_PRINTER_NAME || "").trim();
 const ALLOWED_ORIGINS = new Set([
@@ -39,7 +40,34 @@ function normalizeSerialPort(value) {
   return port;
 }
 
-const SERIAL_PORT = normalizeSerialPort(RAW_SERIAL_PORT);
+function findMacSerialPort() {
+  if (process.platform !== "darwin") return "";
+
+  const names = readdirSync("/dev").filter((name) => name.startsWith("cu."));
+  const candidates = [
+    ...names.filter((name) => /^cu\.usbmodem/i.test(name)),
+    ...names.filter((name) => /^cu\.usbserial/i.test(name)),
+    ...names.filter((name) => /^cu\.B3S/i.test(name)),
+  ];
+
+  return candidates.length ? `/dev/${candidates[0]}` : "";
+}
+
+function resolveSerialPort(value) {
+  const requested = normalizeSerialPort(value);
+
+  if (!requested || requested.toLowerCase() === "auto") {
+    return findMacSerialPort() || requested;
+  }
+
+  if (process.platform === "darwin" && requested.startsWith("/dev/") && !existsSync(requested)) {
+    return findMacSerialPort() || requested;
+  }
+
+  return requested;
+}
+
+const SERIAL_PORT = resolveSerialPort(RAW_SERIAL_PORT);
 
 function corsHeaders(request) {
   const origin = request.headers.get("origin") || "";
