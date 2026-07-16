@@ -26,13 +26,15 @@
   ];
 
   var sessionPresets = [
-    { type: "morning", icon: "🌅", label: "早鸟场", desc: "限时倒计时，到当天 14:00", mode: "countdown", fixedHour: 14, baseFee: 0 },
-    { type: "afternoon", icon: "☀️", label: "下午场", desc: "限时倒计时，到当天 19:00", mode: "countdown", fixedHour: 19, baseFee: 0 },
-    { type: "night", icon: "🌙", label: "星光夜场", desc: "限时倒计时，到当天 21:00", mode: "countdown", fixedHour: 21, baseFee: 0 },
-    { type: "day", icon: "🎫", label: "包天场", desc: "限时倒计时，到当天 21:00", mode: "countdown", fixedHour: 21, baseFee: 0 },
+    { type: "morning", icon: "🌅", label: "早鸟场（工作日）", desc: "工作日可开，到当天 14:00", mode: "countdown", fixedHour: 14, weekdayOnly: true, baseFee: 0 },
+    { type: "afternoon", icon: "☀️", label: "午后休闲（工作日）", desc: "工作日可开，到当天 19:00", mode: "countdown", fixedHour: 19, weekdayOnly: true, baseFee: 0 },
+    { type: "night", icon: "🌙", label: "星光夜场（工作日）", desc: "工作日可开，到当天 21:00", mode: "countdown", fixedHour: 21, weekdayOnly: true, baseFee: 0 },
+    { type: "day", icon: "🎫", label: "全天不限时", desc: "正计时记录，不设结束时间", mode: "countup", baseFee: 0 },
     { type: "1h", icon: "⏱", label: "限时 1h", desc: "开始后倒计时 60 分钟", mode: "countdown", durationMin: 60, baseFee: 0 },
     { type: "2h", icon: "⏱", label: "限时 2h", desc: "开始后倒计时 120 分钟", mode: "countdown", durationMin: 120, baseFee: 0 },
     { type: "infinit", icon: "♾️", label: "不限时畅玩", desc: "正计时模式，从 00:00:00 开始", mode: "countup", baseFee: 0 },
+    { type: "iron52", icon: "🧩", label: "52×52 单板熨烫一次", desc: "单次熨烫服务，正计时记录", mode: "countup", baseFee: 0 },
+    { type: "iron78", icon: "🧩", label: "78×78 单板熨烫一次", desc: "单次熨烫服务，正计时记录", mode: "countup", baseFee: 0 },
   ];
 
   function nowMs() {
@@ -82,6 +84,11 @@
 
   function shiftTimeInputValue(value, minutes, baseTimestamp) {
     return timeInputValue(timestampFromTimeInput(value, baseTimestamp || nowMs()) + minutes * ONE_MIN_MS);
+  }
+
+  function isWeekend(timestamp) {
+    var day = new Date(timestamp).getDay();
+    return day === 0 || day === 6;
   }
 
   function dateTime(timestamp) {
@@ -356,6 +363,7 @@
   function canPrepare(sessionType, startAt) {
     var preset = sessionByType(sessionType);
     startAt = startAt || resolveOpenStartAt();
+    if (preset.weekdayOnly && isWeekend(startAt)) return false;
     if (preset.mode === "countup" || preset.durationMin) return true;
     return hasValidEndTime(sessionType, startAt);
   }
@@ -364,6 +372,7 @@
     var preset = sessionByType(sessionType);
     var endAt;
     startAt = startAt || resolveOpenStartAt();
+    if (preset.weekdayOnly && isWeekend(startAt)) return "周六周日不可开";
     if (preset.mode === "countup") return "正计时";
     endAt = computeEndTime(sessionType, startAt);
     if (endAt <= startAt) return "开始时间已过场次";
@@ -805,7 +814,11 @@
 
   function renderEmptyDesk(desk) {
     return (
-      '<div class="empty-state"><div class="plus-mark">+</div><strong>开桌</strong><span>点击选择场次</span></div>'
+      '<div class="empty-state" data-action="open" data-id="' +
+      desk.id +
+      '"><div class="plus-mark">+</div><button type="button" class="open-desk-button" data-action="open" data-id="' +
+      desk.id +
+      '">开桌</button><span>点击选择场次</span></div>'
     );
   }
 

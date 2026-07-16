@@ -525,8 +525,8 @@ createApp({
     }
 
     function openDeskModal(desk) {
-      ensureBellAudio();
       if (desk.status !== "empty") return;
+      ensureBellAudio();
       openingDesk.value = desk;
       openStartUseNow.value = true;
       openStartInput.value = timeInputValue(Date.now());
@@ -1027,7 +1027,16 @@ createApp({
     function renderEmptyDesk(desk) {
       return h("div", { class: "empty-state" }, [
         h("div", { class: "plus-mark" }, "+"),
-        h("strong", "开桌"),
+        h(
+          "button",
+          {
+            type: "button",
+            class: "open-desk-button",
+            "data-open-desk-id": desk.id,
+            onClick: (event) => stop(event, () => openDeskModal(desk)),
+          },
+          "开桌"
+        ),
         h("span", "点击选择场次"),
       ]);
     }
@@ -1081,6 +1090,7 @@ createApp({
         {
           key: desk.id,
           class: deskClass(desk),
+          "data-open-desk-id": desk.status === "empty" ? desk.id : null,
           onClick: () => openDeskModal(desk),
         },
         [
@@ -1169,6 +1179,7 @@ createApp({
         {
           key: desk.id,
           class: `seat-card seat-status-${desk.status} ${desk.isPaused ? "is-paused" : ""}`,
+          "data-open-desk-id": desk.status === "empty" ? desk.id : null,
           onClick: () => openDeskModal(desk),
         },
         [
@@ -1177,7 +1188,19 @@ createApp({
             h("span", { class: "seat-status" }, desk.isPaused ? "暂停" : statusText(desk.status)),
           ]),
           desk.status === "empty"
-            ? h("div", { class: "seat-empty" }, [h("b", "+"), h("span", "开桌")])
+            ? h("div", { class: "seat-empty" }, [
+                h("b", "+"),
+                h(
+                  "button",
+                  {
+                    type: "button",
+                    class: "open-desk-button seat-open-button",
+                    "data-open-desk-id": desk.id,
+                    onClick: (event) => stop(event, () => openDeskModal(desk)),
+                  },
+                  "开桌"
+                ),
+              ])
             : h("div", { class: "seat-body" }, [
                 h("span", { class: "seat-session" }, sessionByType(desk.sessionType).label),
                 h("strong", { class: "seat-time" }, compactTimeText(desk)),
@@ -1478,9 +1501,29 @@ createApp({
       ]);
     }
 
+    let delegatedOpenHandler = null;
+
     onMounted(() => {
       unlockBellHandler = () => ensureBellAudio();
       window.addEventListener("pointerdown", unlockBellHandler, { once: true, passive: true });
+      delegatedOpenHandler = (event) => {
+        let node = event.target;
+        const root = document.getElementById("app");
+        while (node && node !== root) {
+          if (node.getAttribute && node.getAttribute("data-open-desk-id")) {
+            const desk = findDesk(node.getAttribute("data-open-desk-id"));
+            if (desk && desk.status === "empty") {
+              event.preventDefault();
+              event.stopPropagation();
+              openDeskModal(desk);
+            }
+            return;
+          }
+          node = node.parentNode;
+        }
+      };
+      const root = document.getElementById("app");
+      if (root) root.addEventListener("click", delegatedOpenHandler, true);
       tick();
       intervalId = window.setInterval(tick, 1000);
     });
@@ -1488,6 +1531,8 @@ createApp({
     onUnmounted(() => {
       if (intervalId) window.clearInterval(intervalId);
       if (unlockBellHandler) window.removeEventListener("pointerdown", unlockBellHandler);
+      const root = document.getElementById("app");
+      if (root && delegatedOpenHandler) root.removeEventListener("click", delegatedOpenHandler, true);
       if (audioContext && typeof audioContext.close === "function") {
         audioContext.close().catch(() => {});
       }

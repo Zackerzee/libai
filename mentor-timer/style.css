@@ -1533,6 +1533,11 @@ h1 {
   color: #fecdd3;
 }
 
+.compat-desk-card .open-desk-button {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
 .compat-action.start {
   background: rgba(34, 211, 238, 0.28);
 }
@@ -2024,6 +2029,28 @@ body {
   align-content: center;
   gap: 2px;
   color: #a58a66;
+}
+
+.open-desk-button {
+  min-width: 68px;
+  min-height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(239, 83, 80, 0.12);
+  color: #b73f3c;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 950;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.open-desk-button:active {
+  transform: scale(0.96);
+}
+
+.seat-open-button {
+  margin-top: 2px;
 }
 
 .seat-empty b {

@@ -1,5 +1,5 @@
 (function () {
-  var VERSION = "20260716-open-desk-fix";
+  var VERSION = "20260716-open-desk-button2";
   var started = false;
 
   function hasForceCompat() {
