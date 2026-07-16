@@ -6,7 +6,8 @@ import sys
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 
-COLS = 576
+# 40 x 30mm 标签，按常见 203dpi 换算约为 320 x 240 点。
+COLS = 320
 ROWS = 240
 
 FONT_CANDIDATES = [
@@ -49,9 +50,27 @@ def text_fit(draw, text, max_width, size, min_size=18):
     return load_font(min_size)
 
 
+def text_width(draw, text, font):
+    box = draw.textbbox((0, 0), text, font=font)
+    return box[2] - box[0]
+
+
+def draw_centered(draw, y, text, font):
+    width = text_width(draw, text, font)
+    draw.text(((COLS - width) / 2, y), text, font=font, fill=0)
+
+
 def normalize_text(value, fallback=""):
     text = str(value or fallback).strip()
     return text.replace("\n", " ")[:80]
+
+
+def session_type(session):
+    if "熨烫" in session:
+        return "熨烫服务"
+    if "香囊" in session or "香薰" in session or "彩绘" in session:
+        return "手作体验"
+    return "拼豆计时"
 
 
 def encode_rows(image):
@@ -111,28 +130,35 @@ def build_image(payload):
     image = Image.new("1", (COLS, ROWS), 1)
     draw = ImageDraw.Draw(image)
 
-    title_font = load_font(34)
-    desk_font = load_font(96)
-    meta_font = load_font(30)
-    small_font = load_font(24)
-    session_font = text_fit(draw, session, 320, 34)
+    brand = "时里白造物创意手作体验空间"
+    type_text = session_type(session)
+    desk_text = f"{desk_id}号桌"
 
-    draw.rounded_rectangle((12, 10, COLS - 13, ROWS - 11), radius=22, outline=0, width=4)
-    draw.text((32, 26), "时里白造物", font=title_font, fill=0)
-    draw.text((32, 72), f"{desk_id}号桌", font=desk_font, fill=0)
+    brand_font = text_fit(draw, brand, 210, 16, 10)
+    type_font = text_fit(draw, type_text, 78, 16, 10)
+    desk_font = text_fit(draw, desk_text, 282, 78, 52)
+    session_font = text_fit(draw, f"场次：{session}", 284, 23, 15)
 
-    draw.text((305, 38), session, font=session_font, fill=0)
+    draw.rounded_rectangle((6, 6, COLS - 7, ROWS - 7), radius=14, outline=0, width=3)
+    draw.text((14, 15), brand, font=brand_font, fill=0)
+    draw.text((COLS - 14 - text_width(draw, type_text, type_font), 15), type_text, font=type_font, fill=0)
+    draw.line((14, 42, COLS - 14, 42), fill=0, width=1)
+
+    draw_centered(draw, 52, desk_text, desk_font)
+
+    draw.text((18, 138), f"场次：{session}", font=session_font, fill=0)
     time_text = f"开 {start_label}"
     if mode == "countdown" and end_label and end_label != "--:--":
         time_text += f"  到 {end_label}"
     else:
         time_text += "  正计时"
-    draw.text((305, 88), time_text, font=meta_font, fill=0)
+    time_font = text_fit(draw, time_text, 284, 22, 15)
+    draw.text((18, 168), time_text, font=time_font, fill=0)
 
     bottom = note or f"开台标签 · {printed_at}"
-    bottom_font = text_fit(draw, bottom, 500, 26, 18)
-    draw.line((30, 188, COLS - 30, 188), fill=0, width=2)
-    draw.text((32, 198), bottom, font=bottom_font, fill=0)
+    bottom_font = text_fit(draw, bottom, 284, 18, 12)
+    draw.line((14, 198, COLS - 14, 198), fill=0, width=1)
+    draw.text((18, 207), bottom, font=bottom_font, fill=0)
 
     return image
 
