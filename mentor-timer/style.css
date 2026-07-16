@@ -2053,6 +2053,80 @@ body {
   margin-top: 2px;
 }
 
+.quick-open-panel {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(260px, 1.2fr);
+  gap: 12px;
+  align-items: center;
+  margin: 12px 0 16px;
+  border: 1px solid rgba(226, 203, 164, 0.82);
+  border-radius: 24px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 14px 36px rgba(134, 103, 61, 0.1);
+}
+
+.quick-open-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.quick-open-copy strong {
+  color: #35291e;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.quick-open-copy span {
+  color: #7d6e59;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.quick-open-controls {
+  display: grid;
+  grid-template-columns: minmax(88px, 0.7fr) minmax(150px, 1.1fr) minmax(100px, 0.8fr);
+  gap: 10px;
+  align-items: end;
+}
+
+.quick-open-controls label {
+  display: grid;
+  gap: 5px;
+  color: #7d6e59;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.quick-open-controls select {
+  min-height: 42px;
+  width: 100%;
+  border: 1px solid rgba(226, 203, 164, 0.88);
+  border-radius: 15px;
+  padding: 0 12px;
+  background: #fffaf1;
+  color: #35291e;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.quick-open-button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 15px;
+  background: #ef5350;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 950;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 12px 24px rgba(239, 83, 80, 0.18);
+}
+
+.quick-open-button:active {
+  transform: scale(0.96);
+}
+
 .seat-empty b {
   display: grid;
   width: 42px;
@@ -2436,6 +2510,14 @@ body {
 }
 
 @media (max-width: 720px) {
+  .quick-open-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-open-controls {
+    grid-template-columns: 1fr;
+  }
+
   .floor-plan-panel {
     margin-inline: -2px;
     border-radius: 24px;

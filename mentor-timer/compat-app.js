@@ -15,6 +15,8 @@
   var openingDeskId = "";
   var openStartUseNow = true;
   var openStartInput = "";
+  var quickDeskId = "01";
+  var quickSessionType = "1h";
   var isAggregatedOnly = false;
   var checkoutDraft = null;
   var showRecords = false;
@@ -461,6 +463,21 @@
     render();
   }
 
+  function quickOpenDesk() {
+    var desk = findDesk(quickDeskId);
+    if (!desk) {
+      window.alert("没有找到该桌号。");
+      return;
+    }
+    if (desk.status !== "empty") {
+      window.alert(desk.id + " 号桌当前不是空闲状态，请先选择空闲桌。");
+      return;
+    }
+    openStartUseNow = true;
+    openStartInput = timeInputValue(nowMs());
+    prepareDesk(desk.id, quickSessionType);
+  }
+
   function startPreparedDesk(deskId) {
     var desk = findDesk(deskId);
     var timestamp = nowMs();
@@ -796,6 +813,34 @@
     );
   }
 
+  function renderQuickOpen() {
+    var html = '<section class="quick-open-panel"><div class="quick-open-copy"><strong>快速开桌</strong><span>如果座位图点击不响应，用这里直接开台。</span></div><div class="quick-open-controls">';
+    var i;
+    var desk;
+    var preset;
+    html += '<label><span>桌号</span><select data-action="quick-desk">';
+    for (i = 0; i < desks.length; i += 1) {
+      desk = desks[i];
+      html +=
+        '<option value="' +
+        desk.id +
+        '"' +
+        (desk.id === quickDeskId ? " selected" : "") +
+        (desk.status !== "empty" ? " disabled" : "") +
+        ">" +
+        desk.id +
+        (desk.status === "empty" ? "" : "（使用中）") +
+        "</option>";
+    }
+    html += '</select></label><label><span>模式</span><select data-action="quick-session">';
+    for (i = 0; i < sessionPresets.length; i += 1) {
+      preset = sessionPresets[i];
+      html += '<option value="' + preset.type + '"' + (preset.type === quickSessionType ? " selected" : "") + ">" + escapeHtml(preset.label) + "</option>";
+    }
+    html += '</select></label><button type="button" class="quick-open-button" data-action="quick-open">立即开桌</button></div></section>';
+    return html;
+  }
+
   function renderTabs() {
     var html = '<nav class="compat-tabs">';
     var i;
@@ -1093,6 +1138,7 @@
       '<div class="compat-shell">' +
       renderHeader() +
       renderStats() +
+      renderQuickOpen() +
       renderTabs() +
       renderRegion() +
       renderRecords() +
@@ -1146,6 +1192,8 @@
       render();
     } else if (action === "preset") {
       prepareDesk(id, target.getAttribute("data-session") || "1h");
+    } else if (action === "quick-open") {
+      quickOpenDesk();
     } else if (action === "start") {
       startPreparedDesk(id);
     } else if (action === "cancel-prepare") {
@@ -1177,9 +1225,17 @@
   function handleInput(event) {
     event = event || window.event;
     var target = event.target || event.srcElement;
-    if (!target || !target.getAttribute || target.getAttribute("data-action") !== "start-time-input") return;
-    openStartUseNow = false;
-    openStartInput = target.value || timeInputValue(nowMs());
+    var action = target && target.getAttribute ? target.getAttribute("data-action") : "";
+    if (action === "start-time-input") {
+      openStartUseNow = false;
+      openStartInput = target.value || timeInputValue(nowMs());
+    } else if (action === "quick-desk") {
+      quickDeskId = target.value || "01";
+    } else if (action === "quick-session") {
+      quickSessionType = target.value || "1h";
+    } else {
+      return;
+    }
     render();
   }
 
@@ -1197,6 +1253,7 @@
       else if (root.attachEvent) root.attachEvent("onclick", handleClick);
       if (root.addEventListener) root.addEventListener("input", handleInput, false);
       else if (root.attachEvent) root.attachEvent("onchange", handleInput);
+      if (root.addEventListener) root.addEventListener("change", handleInput, false);
     }
     tick();
     intervalId = window.setInterval(tick, 1000);

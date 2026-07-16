@@ -366,6 +366,8 @@ createApp({
     const openingDesk = ref(null);
     const openStartUseNow = ref(true);
     const openStartInput = ref(timeInputValue(Date.now()));
+    const quickDeskId = ref("01");
+    const quickSessionType = ref("1h");
     const isAggregatedOnly = ref(false);
     const showRecords = ref(false);
     const checkoutDraft = ref(null);
@@ -625,6 +627,21 @@ createApp({
         note: desk.mode === "countdown" ? "请按时提醒顾客" : "不限时 / 正计时",
       });
       closeOpenModal();
+    }
+
+    function quickOpenDesk() {
+      const desk = findDesk(quickDeskId.value);
+      if (!desk) {
+        window.alert("没有找到该桌号。");
+        return;
+      }
+      if (desk.status !== "empty") {
+        window.alert(`${desk.id} 号桌当前不是空闲状态，请先选择空闲桌。`);
+        return;
+      }
+      openStartUseNow.value = true;
+      openStartInput.value = timeInputValue(Date.now());
+      prepareDesk(desk.id, quickSessionType.value);
     }
 
     function startPreparedDesk(deskId) {
@@ -992,6 +1009,65 @@ createApp({
         }),
         renderStat("已超时", topStats.value.timeout, "rose"),
         renderStat("今日营收", `¥${topStats.value.revenue}`, "amber"),
+      ]);
+    }
+
+    function renderQuickOpen() {
+      return h("section", { class: "quick-open-panel" }, [
+        h("div", { class: "quick-open-copy" }, [
+          h("strong", "快速开桌"),
+          h("span", "如果座位图点击不响应，用这里直接开台。"),
+        ]),
+        h("div", { class: "quick-open-controls" }, [
+          h(
+            "label",
+            [
+              h("span", "桌号"),
+              h(
+                "select",
+                {
+                  value: quickDeskId.value,
+                  onChange: (event) => (quickDeskId.value = event.target.value),
+                },
+                desks.value.map((desk) =>
+                  h(
+                    "option",
+                    {
+                      key: desk.id,
+                      value: desk.id,
+                      disabled: desk.status !== "empty",
+                    },
+                    `${desk.id}${desk.status === "empty" ? "" : "（使用中）"}`
+                  )
+                )
+              ),
+            ]
+          ),
+          h(
+            "label",
+            [
+              h("span", "模式"),
+              h(
+                "select",
+                {
+                  value: quickSessionType.value,
+                  onChange: (event) => (quickSessionType.value = event.target.value),
+                },
+                sessionPresets.map((preset) =>
+                  h(
+                    "option",
+                    {
+                      key: preset.type,
+                      value: preset.type,
+                    },
+                    preset.label
+                  )
+                )
+              ),
+            ]
+          ),
+          h("button", { type: "button", class: "quick-open-button", onClick: quickOpenDesk }, "立即开桌"),
+        ]),
       ]);
     }
 
@@ -1507,9 +1583,10 @@ createApp({
       unlockBellHandler = () => ensureBellAudio();
       window.addEventListener("pointerdown", unlockBellHandler, { once: true, passive: true });
       delegatedOpenHandler = (event) => {
+        if (openingDesk.value) return;
         let node = event.target;
         const root = document.getElementById("app");
-        while (node && node !== root) {
+        while (node) {
           if (node.getAttribute && node.getAttribute("data-open-desk-id")) {
             const desk = findDesk(node.getAttribute("data-open-desk-id"));
             if (desk && desk.status === "empty") {
@@ -1519,11 +1596,12 @@ createApp({
             }
             return;
           }
+          if (node === root || node === document.body) break;
           node = node.parentNode;
         }
       };
-      const root = document.getElementById("app");
-      if (root) root.addEventListener("click", delegatedOpenHandler, true);
+      document.addEventListener("click", delegatedOpenHandler, true);
+      document.addEventListener("pointerup", delegatedOpenHandler, true);
       tick();
       intervalId = window.setInterval(tick, 1000);
     });
@@ -1531,8 +1609,10 @@ createApp({
     onUnmounted(() => {
       if (intervalId) window.clearInterval(intervalId);
       if (unlockBellHandler) window.removeEventListener("pointerdown", unlockBellHandler);
-      const root = document.getElementById("app");
-      if (root && delegatedOpenHandler) root.removeEventListener("click", delegatedOpenHandler, true);
+      if (delegatedOpenHandler) {
+        document.removeEventListener("click", delegatedOpenHandler, true);
+        document.removeEventListener("pointerup", delegatedOpenHandler, true);
+      }
       if (audioContext && typeof audioContext.close === "function") {
         audioContext.close().catch(() => {});
       }
@@ -1542,6 +1622,7 @@ createApp({
       h("div", { class: "app-shell" }, [
         renderHeader(),
         renderStats(),
+        renderQuickOpen(),
         renderFloorPlan(),
         renderRecords(),
         renderOpenModal(),
