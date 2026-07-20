@@ -6,6 +6,7 @@ const outDir = path.join(root, "public");
 
 const staticEntries = [
   ".nojekyll",
+  "6c4b8a3f1e2d7095.txt",
   "_headers",
   "admin",
   "app.js",
