@@ -4,7 +4,7 @@
   const DEEPSEEK_TIMEOUT_MS = 12000;
   const CACHE_TTL_MS = 8000;
   const MIN_LOCAL_REVIEW_LENGTH = 75;
-  const MAX_LOCAL_REVIEW_LENGTH = 300;
+  const MAX_LOCAL_REVIEW_LENGTH = 250;
   const VISITED_PLATFORM_KEY = "libms_nfc_visited_platforms_v1";
   const LAST_REVIEW_TEXT_KEY = "libms_nfc_last_review_text_v2";
   const RETURN_COPY_PENDING_KEY = "libms_nfc_return_copy_pending_v1";
@@ -16,40 +16,37 @@
   let lastRequestTime = 0;
   let lastPlatformOpenAt = 0;
 
-  const wildLocalReviewTemplates = [
-    "做{project}的时候有点上头，前面还在纠结怎么弄，后面就只想赶紧看看最后效果。手残党本残了属于是，中间一度怀疑自己要翻车，还好最后看着还行，丑萌丑萌的越看越顺眼。",
-    "今天不想走路逛街太久，就跟朋友找了这家店坐下来弄{project}。讲真过程比想象中更消磨时间，坐下之后手机都少刷了好一会儿，整个人难得安静下来弄个小玩意。",
-    "周末过得有点无聊，跑来挑战一下{project}。刚开始做得手忙脚乱的，脑子反而放空了一会儿。这种慢吞吞、完全不用赶时间的感觉还挺解压的，比窝在家里睡觉有意思多了。",
-    "本来只是想随便体验一下{project}，结果坐下来之后还挺投入的哈。前面有点不知道从哪里下手，后面越做越想看看成品长啥样，最后拿到手的时候还挺开心。",
-    "{project}比我想象中更需要耐心一点，刚开始还觉得自己肯定搞不定，做着做着反而安静下来了。虽然中间有点小翻车，但最后成品出来还蛮像那么回事的啦。",
-    "和朋友一起做{project}真的比单纯逛街有意思，边聊天边慢慢弄，时间一下就过去了。做完以后还有个小东西可以带走，感觉今天没有白出门啊。",
+  const referenceLocalReviewTemplates = [
+    "这次体验的是{project}，比较适合想坐下来慢慢做点东西的人。项目上手不算复杂，前面选图案和材料会花一点时间，后面做起来节奏比较稳，最后作品可以带走，整体对新手也算友好。",
+    "{project}比单纯逛商场更有参与感，适合朋友一起坐下来边聊边做。过程不会太赶，材料选择也比较清楚，做完能带走一个自己的小作品，想拍照记录也比较方便。",
+    "如果是第一次做手作，{project}还算比较容易开始。前面需要一点耐心选样式和颜色，做的过程能安静坐一会儿，成品出来以后可以带走，适合想找个地方休息又不想只刷手机的人。",
+    "带孩子或者和家人一起体验{project}会比较合适，步骤不会一下子太复杂，大人也能在旁边一起参与。整个过程主要是慢慢做，完成后有作品可以留作纪念，比只逛街更有内容。",
+    "{project}适合想体验手作但又怕太难的人，现场材料和工具比较直观，按照自己的节奏做就行。最后的作品能带走，也适合拍几张过程照和成品照，发出来会比单纯文字更有参考。",
+    "这次做{project}的感受还不错，比较适合空闲时坐下来体验。项目本身有选择空间，做的时候不会太单调，最后能看到一个完成的小作品，对想了解手作体验的人来说信息比较明确。",
   ];
 
   const envTemplates = [
-    "店里环境挺舒服的，背景音乐也刚好，坐着不知不觉两个多小时就过去了，很适合周末跟闺蜜来泡一下午",
-    "整体氛围蛮松弛的，店员小姐姐人也很nice，中间卡壳了还会过来指导，完全不会有催促感，体验很加分",
-    "店里各种手工小样琳琅满目的，看着就很治愈。而且位置蛮好找的，很适合坐下来安安静静做点喜欢的事",
-    "空调很足，桌面也收拾得挺干净，坐下来以后就不太想继续逛了，慢慢做东西的感觉还挺舒服",
-    "工具和材料摆得比较清楚，新手也不会太慌，反正不懂就问一下，整体体验下来还蛮顺的",
-    "店里不会很吵，适合想放空的时候过来坐坐，做着做着整个人就慢下来了，挺难得的啊",
+    "店里可以坐下来慢慢做，不太适合赶时间的人，适合想停下来做点小东西的时候来。",
+    "位置在商场里，逛累了顺便体验会比较方便，不用特意安排很复杂的行程。",
+    "桌面和工具看起来比较清楚，新手第一次做也不容易一下子不知道从哪里开始。",
+    "整体节奏比较慢，适合朋友聊天、亲子陪伴，或者一个人安静做一会儿。",
+    "如果想拍照记录，过程图和成品图都比较好拍，发布时配图会更有参考。",
   ];
 
   const photoTemplates = [
-    "做完赶紧拉着朋友拍了几张作品照片发朋友圈炫耀一下，感觉有被自己心灵手巧到哈",
-    "拿回家摆在床头柜上当个小摆件还挺可爱的，自己亲手做出来的东西就是自带一层滤镜，怎么看怎么喜欢",
-    "成品带走的时候店家还给包装了一下，拿在手里沉甸甸的很有成就感，赶紧用原相机记录一下今天的手作初体验",
-    "拍照的时候才发现细节还挺多的，虽然不是那种完美作品，但就是有一点自己的小风格在里面",
-    "成品拿在手里越看越顺眼，刚做完就忍不住找角度拍了几张，发给朋友看还被夸了一下哈哈",
-    "带回去之后放在桌上也不突兀，偶尔看到会想起今天坐在店里慢慢做东西的那段时间",
+    "做完以后可以拍一张成品照，别人看评价时能更直观看到项目效果。",
+    "如果是拼豆这类项目，建议拍一下选色或制作过程，能看出实际操作是不是适合自己。",
+    "作品能带走这一点比较实用，适合想留下纪念或者送朋友的人。",
+    "成品照片比只写感受更有说服力，尤其是颜色、大小和完成效果都能看清楚。",
+    "发布时加一两张制作过程图，会比只放最终作品更容易让别人判断体验感。",
   ];
 
   const moodTemplates = [
-    "发出来也算给这次手作留个认真的记录吧，下次有空打算再过来挑战个稍微复杂点的款式",
-    "算是给今天的生活加点小小的仪式感，以后想放空或者找地方发呆的时候，这地方肯定在我的首选清单里了",
-    "这次体验直接入坑了，感觉以后每个周末都要多一个手工DIY的项目了，总体来说强推强推",
-    "虽然中间一度想摆烂，但做完以后真的会有一点小骄傲，属于越看越觉得还不错的那种",
-    "整个过程没什么压力，做完以后心情也变好了点，感觉偶尔认真完成一个小东西还挺治愈的啦",
-    "这次算是给自己找了个不用一直刷手机的理由，慢慢做完以后还挺有满足感的啊",
+    "整体是比较轻松的正向体验，不会只适合特别会做手工的人。",
+    "比较适合想找个室内活动的人，尤其是不想一直走路逛街的时候。",
+    "评价里建议写清楚自己做的项目和适合场景，这样后面看到的人会更容易判断要不要来。",
+    "如果带孩子来，可以重点写孩子能不能坐得住；如果和朋友来，可以写适不适合边做边聊。",
+    "对没做过手作的人来说，难度、耗时和成品效果这些信息会比单纯夸好玩更有用。",
   ];
 
   const $ = (id) => document.getElementById(id);
@@ -152,7 +149,7 @@
 
   function getLocalFallback(project) {
     const safeProject = String(project || "手作").trim() || "手作";
-    return ensureLocalReviewLength(randomItem(wildLocalReviewTemplates).replace(/\{project\}/g, safeProject));
+    return ensureLocalReviewLength(randomItem(referenceLocalReviewTemplates).replace(/\{project\}/g, safeProject));
   }
 
   function getShareableReviewText() {
@@ -169,6 +166,9 @@
     return String(text || "")
       .normalize("NFC")
       .replace(/https?:\/\/[^\s"'<>，。！？、；：）)】\]]+/gi, "")
+      .replace(/(^|\s)[0-9a-z][0-9a-z.+-]*:\/\/[^\s"'<>，。！？、；：）)】\]]+/gi, " ")
+      .replace(/复制所有描述#\*[a-z0-9]{6,}\*#\d?@?.*?(App|应用|后到|打开)?/gi, "")
+      .replace(/#\*[a-z0-9]{6,}\*#\d?@?/gi, "")
       .replace(/\u00a0/g, " ")
       .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, "")
       .replace(/[^\S\r\n]+/g, " ")
@@ -336,14 +336,14 @@
     isGenerating = true;
     elements.aiBtn.disabled = true;
     elements.aiBtn.innerText = "正在生成...";
-    elements.reviewText.innerText = "正在生成真实短评，请稍等...";
-    setStatus("正在生成评价参考，请稍等。");
+    elements.reviewText.innerText = "正在生成高质量评价参考，请稍等...";
+    setStatus("正在生成有参考价值的评价内容，请稍等。");
 
     try {
       const review = await requestDeepSeekReview(payload);
       elements.reviewText.innerText = review;
       saveCache(payload, review);
-      setStatus("已生成评价，可按真实体验稍微修改后发布。");
+      setStatus("已生成评价参考，可按真实体验稍微修改后发布。");
     } catch (error) {
       const fallback = getLocalFallback(payload.project);
       elements.reviewText.innerText = fallback;
@@ -351,7 +351,7 @@
     } finally {
       isGenerating = false;
       elements.aiBtn.disabled = false;
-      elements.aiBtn.innerText = "生成一条真实短评";
+      elements.aiBtn.innerText = "生成高质量评价参考";
     }
   }
 

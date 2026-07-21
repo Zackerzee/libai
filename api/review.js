@@ -99,10 +99,6 @@ const TEMPLATE_AND_MARKETING_WORDS = [
   "12个项目",
   "所有项目",
   "全项目",
-  "江油",
-  "圣名",
-  "广场",
-  "地址",
   "商圈",
   "全江油第一",
   "有成就感",
@@ -124,6 +120,21 @@ const PIN_DOU_BAD_WORDS = [
   "学习熨烫",
   "熨烫过程很有趣",
   "自己把作品熨好",
+];
+
+const NEGATIVE_REVIEW_WORDS = [
+  "差评",
+  "踩雷",
+  "避雷",
+  "不推荐",
+  "后悔",
+  "浪费钱",
+  "不好玩",
+  "太差",
+  "很差",
+  "一般般",
+  "不值",
+  "坑人",
 ];
 
 let recentReviews = [];
@@ -224,6 +235,7 @@ async function fetchTextWithTimeout(url, options, timeoutMs) {
 
 function hasInvalidWords(text, projectName) {
   if (hasAnyWord(text, TEMPLATE_AND_MARKETING_WORDS)) return true;
+  if (hasAnyWord(text, NEGATIVE_REVIEW_WORDS)) return true;
   if (projectName === "拼豆" && hasAnyWord(text, PIN_DOU_BAD_WORDS)) return true;
   if (countPunctuation(text, "！") + countPunctuation(text, "!") > 1) return true;
   return false;
@@ -256,6 +268,39 @@ function countWildDetailGroups(text) {
   return detailGroups.filter((group) => group.some((word) => safeText.includes(word))).length;
 }
 
+function getProjectWords(projectName) {
+  const map = {
+    串珠DIY: ["串珠", "珠子", "手链", "配饰"],
+    拼豆: ["拼豆", "豆子", "图案", "小板", "熨烫"],
+    海岛礼物: ["海岛礼物", "海岛", "摆件", "小物"],
+    韩国刺绣布贴: ["刺绣", "布贴", "韩国刺绣布贴", "贴布"],
+    毛料娃娃: ["毛料娃娃", "毛线", "娃娃"],
+    石膏娃娃DIY: ["石膏", "石膏娃娃", "上色", "彩绘"],
+    蔬果花皂DIY: ["花皂", "蔬果花皂", "香皂", "皂"],
+    数字油画DIY: ["数字油画", "油画", "画布", "涂色"],
+    台灯拼布手作: ["台灯", "拼布", "灯"],
+    夏日甜品冰淇淋: ["冰淇淋", "甜品", "夏日甜品"],
+    香薰蜡烛: ["香薰", "蜡烛", "香味"],
+    中药香囊: ["香囊", "中药香囊", "香包"],
+  };
+  return map[projectName] || [projectName];
+}
+
+function hasReferenceValue(text, projectName) {
+  const safeText = String(text || "");
+  const dimensions = [
+    getProjectWords(projectName),
+    ["适合", "亲子", "孩子", "小朋友", "朋友", "新手", "一个人", "带娃", "家人", "情侣"],
+    ["上手", "步骤", "难度", "不复杂", "简单", "需要耐心", "慢慢", "不赶", "坐下来", "耗时", "时间"],
+    ["颜色", "图案", "材料", "工具", "款式", "选择", "搭配", "尺寸"],
+    ["成品", "作品", "带走", "留念", "摆", "挂", "包装", "熨烫"],
+    ["圣名", "江油", "商场", "二层", "位置", "路过", "逛街", "休息"],
+    ["拍照", "照片", "记录", "发图", "出片"],
+  ];
+  const hitCount = dimensions.filter((group) => group.some((word) => safeText.includes(word))).length;
+  return hitCount >= 3;
+}
+
 function isTooSimilarToRecent(text) {
   const safeText = String(text || "").trim();
   if (!safeText) return true;
@@ -274,7 +319,7 @@ function getInvalidReason(review, projectName, { checkSimilarity = true } = {}) 
   if (length < MIN_REVIEW_LENGTH || length > MAX_REVIEW_LENGTH) return "length";
   if (hasInvalidWords(text, projectName)) return "bad_words";
   if (looksTooFormal(text)) return "formal";
-  if (countWildDetailGroups(text) > 2) return "too_many_detail_groups";
+  if (!hasReferenceValue(text, projectName)) return "low_reference_value";
   if (checkSimilarity && isTooSimilarToRecent(text)) return "similar";
   return "";
 }
@@ -290,20 +335,22 @@ function recordRecentReview(review) {
 
 function buildSystemPrompt() {
   return `
-You are a random customer who just completed a DIY handcraft project. Write one short, highly casual Chinese review based only on the provided project name.
+你是“时里白造物”的门店评价整理助手，不是营销文案助手。
+你的任务是：根据顾客选择的手作项目、平台、语气和真实关键词，生成一条正向、自然、对其他顾客有参考价值的中文评价。
 
-[CRITICAL RULES]
-1. 极致去中心化：绝对不固定句式。95% 的概率完全不提任何地址、商圈、地标、门店名，也绝对不提充卡、会员、打折、余额、钱、12个项目、所有项目等功利或商业词汇。
-2. 盲盒细节抽样：每次生成必须且只能从以下野生细节里随机抓取 1 个，严禁面面俱到：
-   - 细节 A：外面太热/进来避暑、空调很足、放的歌很好听、环境安静适合发呆放空、戒掉手机几小时。
-   - 细节 B：手残党差点搞砸、幸好有图纸不然抓瞎、成品丑萌丑萌的很治愈、自己动手是个体力活。
-   - 细节 C：极度精简，只有一两句话，类似朋友圈晒图配文。
-3. 仿生红线：严禁出现“总之、总而言之、值得一提、不容错过、快来体验吧”等 AI 模板腔。短句为主，多用空格代替逗号，允许标点随意一点。
-4. 门店范围：只能围绕创意手作体验写。可写的项目只有：拼豆、蔬果花皂DIY、香薰蜡烛、海岛礼物、串珠DIY、韩国刺绣布贴、毛料娃娃、石膏娃娃DIY、数字油画DIY、台灯拼布手作、夏日甜品冰淇淋、中药香囊。禁止写美甲、美睫、按摩、理发、摄影、医美、儿童乐园、电玩城、KTV、住宿、培训机构等不属于门店范围的内容。
-5. 事实边界：不要编造价格、优惠、团购、会员、老师专业、一对一指导、全程陪同、老板人超好、排队、课程、生日会、团建等顾客没有提供的信息。
-6. 拼豆规则：拼豆成品可以写店员帮忙处理成品，但禁止写顾客自己熨烫、店员教顾客熨烫、学习熨烫。
-7. 字数必须控制在 75 到 250 个中文字之间，不能少于 75 字。
-8. 只输出评价正文，不要 JSON、Markdown、前缀、括号、解释。
+[高质量评价标准]
+1. 必须是正向评价，但要像真实顾客写的，不要像商家广告。
+2. 评价要对别人有参考意义，至少包含 3 类信息：体验项目、适合人群/消费场景、上手难度或耗时感受、材料/颜色/图案选择、成品是否能带走、拍照记录、位置是否方便。
+3. 每条只选 2 到 4 个重点，不要把所有优点堆满。
+4. 允许口语化，但不要低质碎碎念；不要只写“开心、不错、好玩、下次再来”。
+5. 不要每条都写门店名；可以偶尔写“圣名国际”“江油”，但不要硬塞地址。
+6. 门店范围只能写：拼豆、蔬果花皂DIY、香薰蜡烛、海岛礼物、串珠DIY、韩国刺绣布贴、毛料娃娃、石膏娃娃DIY、数字油画DIY、台灯拼布手作、夏日甜品冰淇淋、中药香囊。禁止写美甲、美睫、按摩、理发、摄影、医美、儿童乐园、电玩城、KTV、住宿、培训机构等不属于门店范围的内容。
+7. 事实边界：不要编造价格、优惠、团购、会员、老师特别专业、一对一指导、全程陪同、老板人超好、排队、课程、生日会、团建等顾客没有提供的信息。
+8. 拼豆规则：拼豆成品可以偶尔写“店员帮忙处理成品/熨烫”，但禁止写顾客自己熨烫、店员教顾客熨烫、学习熨烫。
+9. 禁止平台违规或诱导表达：好评、五星、返现、为了礼品、好评送、好评返、复制粘贴、AI生成、模板。
+10. 禁止夸张营销词：天花板、宝藏、必须冲、闭眼入、绝绝子、YYDS、无敌、封神、强烈推荐、快来体验吧。
+11. 字数必须控制在 75 到 250 个中文字之间。
+12. 只输出评价正文，不要 JSON、Markdown、前缀、括号、解释。
 `.trim();
 }
 
@@ -323,7 +370,9 @@ function buildUserPrompt(context) {
     `体验项目：【${context.projectName}】。`,
     `评价语气：【${context.tone}】。`,
     keywordsText,
-    "请直接输出针对该项目的野生人类评价文本，不要任何前缀、括号、解释和 Markdown 标记。",
+    "请写一条高质量正向评价：要自然，但必须能给其他顾客提供参考，比如适合谁、项目难不难、材料选择、作品效果、是否适合拍照或带走等。",
+    "如果关键词没有提到孩子、朋友、店员、价格、具体时间，就不要主动编造这些信息。",
+    "请直接输出评价正文，不要任何前缀、括号、解释和 Markdown 标记。",
   ].join("");
 }
 
@@ -389,7 +438,7 @@ async function fetchFromDeepSeek({ context }) {
     url: `${baseUrl}/chat/completions`,
     model,
     context,
-    temperature: 1.1,
+    temperature: 0.72,
   });
 }
 
@@ -411,7 +460,7 @@ async function fetchFromTongyiQianwen({ context }) {
     url,
     model,
     context,
-    temperature: 0.65,
+    temperature: 0.72,
   });
 }
 
@@ -432,7 +481,7 @@ async function fetchFromWenxinQianfan({ context }) {
         url,
         model,
         context,
-        temperature: 0.85,
+        temperature: 0.75,
       });
     } catch (error) {
       lastError = error;
@@ -468,7 +517,7 @@ async function fetchFromGemini({ context }) {
           },
         ],
         generationConfig: {
-          temperature: 0.9,
+          temperature: 0.75,
           maxOutputTokens: 420,
         },
       }),
