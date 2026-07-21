@@ -297,9 +297,10 @@ function hasReferenceValue(text, projectName) {
     getProjectWords(projectName),
     ["适合", "亲子", "孩子", "小朋友", "朋友", "新手", "一个人", "带娃", "家人", "情侣"],
     ["上手", "步骤", "难度", "不复杂", "简单", "需要耐心", "慢慢", "不赶", "坐下来", "耗时", "留够时间", "大图", "小图"],
-    ["颜色", "色号", "豆子", "材料", "工具", "图案", "款式", "选择", "搭配", "尺寸", "分区", "桌面", "图纸"],
-    ["成品", "作品", "带走", "留念", "摆", "包装", "熨烫", "处理成品", "打孔", "配件"],
-    ["圣名", "江油", "商场", "二层", "位置", "路过", "逛街", "休息"],
+    ["颜色", "色号", "豆子", "材料", "工具", "图案", "款式", "选择", "搭配", "尺寸", "分区", "桌面", "图纸", "打印图纸", "配色"],
+    ["质量", "无毛刺", "混豆", "高低豆", "圆润", "平整", "镊子", "夹取", "不卡豆", "受热", "溢边"],
+    ["成品", "作品", "带走", "留念", "摆", "包装", "熨烫", "处理成品", "打孔", "配件", "挂件"],
+    ["圣名", "江油", "商场", "二层", "位置", "路过", "逛街", "休息", "座位", "空间", "空调", "安静"],
     ["拍照", "照片", "记录", "发图", "配图", "过程图", "成品图"],
   ];
   const hitCount = dimensions.filter((group) => group.some((word) => safeText.includes(word))).length;
@@ -336,6 +337,58 @@ function hasUnprovidedPackageWords(text, keywords) {
   const packageKeywordPattern = /全天|不限时|不限量|不限板|套餐|大图|大作品|时间充裕|时间长|慢慢拼/;
   if (packageKeywordPattern.test(safeKeywords)) return false;
   return packageWords.some((word) => safeText.includes(word));
+}
+
+function hasUnprovidedPinDouQualityClaims(text, keywords, projectName) {
+  if (projectName !== "拼豆") return false;
+  const safeText = String(text || "");
+  const safeKeywords = String(keywords || "");
+  const preciseClaims = [
+    "无毛刺",
+    "没有毛刺",
+    "无混豆",
+    "没有混豆",
+    "不混豆",
+    "无高低豆",
+    "没有高低豆",
+    "豆子圆润",
+    "豆子平整",
+    "质量好",
+    "质量不错",
+    "品质好",
+    "品质不错",
+    "质感厚实",
+    "不易碎",
+    "不卡豆",
+    "夹取顺滑",
+    "镊子顺手",
+    "受热均匀",
+    "不过度融化",
+    "不溢边",
+    "无孔",
+    "熨烫平整",
+    "烫得快",
+    "烫得好",
+    "低温熨烫",
+    "毛巾烫",
+  ];
+  const keywordGate = /质量|质感|毛刺|混豆|高低豆|圆润|平整|镊子|卡豆|夹取|熨烫|烫|受热|溢边|无孔|工具|豆子/;
+  return preciseClaims.some((word) => safeText.includes(word)) && !keywordGate.test(safeKeywords);
+}
+
+function hasUnprovidedEnvironmentClaims(text, keywords) {
+  const safeText = String(text || "");
+  const safeKeywords = String(keywords || "");
+  const envClaims = ["空调", "安静", "座位很多", "座位多", "空间充足", "空间大", "坐满", "人气旺", "需要等位", "排队"];
+  const keywordGate = /空调|安静|座位|空间|位置|环境|人多|等位|排队|坐满/;
+  return envClaims.some((word) => safeText.includes(word)) && !keywordGate.test(safeKeywords);
+}
+
+function hasUnprovidedPrintGraphClaim(text, keywords) {
+  const safeText = String(text || "");
+  const safeKeywords = String(keywords || "");
+  if (!/(打印图纸|打图纸|图纸打印)/.test(safeText)) return false;
+  return !/(打印图纸|打图纸|图纸打印|图纸)/.test(safeKeywords);
 }
 
 function hasUnprovidedStaffWords(text, keywords, projectName) {
@@ -378,6 +431,9 @@ function getInvalidReason(review, projectName, keywords = "", { checkSimilarity 
   if (hasUnprovidedSpecificDuration(text, keywords)) return "unprovided_duration";
   if (hasUnsupportedUseClaims(text, keywords)) return "unsupported_use_claim";
   if (hasUnprovidedPackageWords(text, keywords)) return "unprovided_package";
+  if (hasUnprovidedPinDouQualityClaims(text, keywords, projectName)) return "unprovided_pindou_quality";
+  if (hasUnprovidedEnvironmentClaims(text, keywords)) return "unprovided_environment";
+  if (hasUnprovidedPrintGraphClaim(text, keywords)) return "unprovided_print_graph";
   if (hasUnprovidedStaffWords(text, keywords, projectName)) return "unprovided_staff";
   if (hasUnprovidedProjectSpecificDetails(text, keywords, projectName)) return "unprovided_project_detail";
   if (looksTooFormal(text)) return "formal";
@@ -425,6 +481,8 @@ function buildSystemPrompt() {
 3. 如果关键词没有写“打孔、钥匙扣、挂件、配件”，不要主动写这些成品用途；可以泛化写“成品可以带走”。
 4. 其他手作项目优先写：材料/样式选择、步骤是否容易理解、过程是否适合坐下来慢慢做、完成作品是否方便拍照记录。
 5. 不要只夸“环境好、服务好”，要给后来的人一个能判断是否适合自己的具体信息。
+6. 可以学习真实顾客评价里的信息密度：豆子色号齐不齐、常用颜色是否够、有没有混豆/毛刺、镊子是否顺手、熨烫是否平整、座位/空调/空间、是否能打印图纸。但这些具体点必须来自顾客关键词，不能自己编。
+7. 如果顾客只写“颜色多”，可以写“颜色选择比较多”；不能升级成“无毛刺、无混豆、受热均匀、不卡豆”这类具体质量承诺。
 `.trim();
 }
 
@@ -447,6 +505,7 @@ function buildUserPrompt(context) {
     "请写一条高质量正向评价：要自然，但必须能给其他顾客提供参考，比如适合谁、项目难不难、耗不耗时间、材料选择、作品效果、是否适合拍照或带走等。",
     "如果是拼豆，请优先围绕色号/豆子/图案/工具/图纸大小/熨烫处理/适合新手或亲子这些真实参考点展开，每次只选其中 2 到 4 个。",
     "如果关键词提到大图、全天、不限时或套餐，才可以写时间更充裕、适合慢慢拼；否则不要主动写这些套餐信息。",
+    "如果关键词提到豆子质量、无毛刺、无混豆、镊子、不卡豆、熨烫平整、打印图纸、座位、空调或空间，才可以写这些具体细节；没有提到就不要主动写。",
     "如果关键词没有提到孩子、朋友、店员、价格、具体时间，就不要主动编造这些信息。",
     "如果关键词没有提供具体分钟数或小时数，不要写半小时、一个多小时、2小时等具体耗时。",
     "如果关键词没有提到周末、假期、下午、晚上等时间，就不要写这些时间；如果关键词没有提到钥匙扣、挂包、送礼，就不要写这些成品用途。",
