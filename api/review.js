@@ -102,6 +102,8 @@ const TEMPLATE_AND_MARKETING_WORDS = [
   "商圈",
   "全江油第一",
   "有成就感",
+  "治愈",
+  "出片",
   "超级多",
   "超多",
   "超好",
@@ -319,6 +321,25 @@ function hasUnsupportedUseClaims(text, keywords) {
   return false;
 }
 
+function hasUnprovidedStaffWords(text, keywords, projectName) {
+  const safeText = String(text || "");
+  const safeKeywords = String(keywords || "");
+  if (!/(店员|工作人员|老板|老师|小姐姐|指导|服务)/.test(safeText)) return false;
+  if (/(店员|工作人员|老板|老师|服务|指导|讲解|帮忙)/.test(safeKeywords)) return false;
+  if (projectName === "拼豆" && /店员.{0,8}(熨烫|处理成品|处理好|帮忙处理)/.test(safeText)) return false;
+  return true;
+}
+
+function hasUnprovidedProjectSpecificDetails(text, keywords, projectName) {
+  const safeText = String(text || "");
+  const safeKeywords = String(keywords || "");
+  if (projectName === "香薰蜡烛") {
+    const scentWords = ["海洋", "玫瑰", "薰衣草", "柑橘", "木质", "果香", "花香", "奶香", "茶香"];
+    if (scentWords.some((word) => safeText.includes(word) && !safeKeywords.includes(word))) return true;
+  }
+  return false;
+}
+
 function isTooSimilarToRecent(text) {
   const safeText = String(text || "").trim();
   if (!safeText) return true;
@@ -338,6 +359,8 @@ function getInvalidReason(review, projectName, keywords = "", { checkSimilarity 
   if (hasInvalidWords(text, projectName)) return "bad_words";
   if (hasUnprovidedTimeWords(text, keywords)) return "unprovided_time";
   if (hasUnsupportedUseClaims(text, keywords)) return "unsupported_use_claim";
+  if (hasUnprovidedStaffWords(text, keywords, projectName)) return "unprovided_staff";
+  if (hasUnprovidedProjectSpecificDetails(text, keywords, projectName)) return "unprovided_project_detail";
   if (looksTooFormal(text)) return "formal";
   if (!hasReferenceValue(text, projectName)) return "low_reference_value";
   if (checkSimilarity && isTooSimilarToRecent(text)) return "similar";
@@ -369,10 +392,12 @@ function buildSystemPrompt() {
 8. 拼豆规则：拼豆成品可以偶尔写“店员帮忙处理成品/熨烫”，但禁止写顾客自己熨烫、店员教顾客熨烫、学习熨烫。
 9. 如果关键词没有提到周末、假期、下班后、放学后、晚上、下午，就不要主动写这些具体时间。
 10. 不要把成品默认写成钥匙扣、挂包、送礼，除非关键词明确提供。
-11. 禁止平台违规或诱导表达：好评、五星、返现、为了礼品、好评送、好评返、复制粘贴、AI生成、模板。
-12. 禁止夸张营销词：天花板、宝藏、必须冲、闭眼入、绝绝子、YYDS、无敌、封神、强烈推荐、快来体验吧、超级多、超多。
-13. 字数必须控制在 75 到 250 个中文字之间。
-14. 只输出评价正文，不要 JSON、Markdown、前缀、括号、解释。
+11. 不要编造具体香型、颜色名、图案名、款式名，例如海洋香型、玫瑰香、薰衣草、某个卡通图案，除非关键词明确提供。
+12. 关键词没有提到店员、工作人员、老板、老师、服务、指导，就不要主动写这些人和服务；拼豆只允许写店员帮忙熨烫成品。
+13. 禁止平台违规或诱导表达：好评、五星、返现、为了礼品、好评送、好评返、复制粘贴、AI生成、模板。
+14. 禁止夸张营销词：天花板、宝藏、必须冲、闭眼入、绝绝子、YYDS、无敌、封神、强烈推荐、快来体验吧、超级多、超多、治愈、出片。
+15. 字数必须控制在 75 到 250 个中文字之间。
+16. 只输出评价正文，不要 JSON、Markdown、前缀、括号、解释。
 `.trim();
 }
 
@@ -395,6 +420,7 @@ function buildUserPrompt(context) {
     "请写一条高质量正向评价：要自然，但必须能给其他顾客提供参考，比如适合谁、项目难不难、材料选择、作品效果、是否适合拍照或带走等。",
     "如果关键词没有提到孩子、朋友、店员、价格、具体时间，就不要主动编造这些信息。",
     "如果关键词没有提到周末、假期、下午、晚上等时间，就不要写这些时间；如果关键词没有提到钥匙扣、挂包、送礼，就不要写这些成品用途。",
+    "不要编造具体香型、颜色名、图案名、款式名；没有关键词时只写“香味选择”“颜色选择”“图案选择”等泛化信息。",
     "请直接输出评价正文，不要任何前缀、括号、解释和 Markdown 标记。",
   ].join("");
 }
