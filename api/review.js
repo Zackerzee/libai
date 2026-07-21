@@ -313,6 +313,14 @@ function hasUnprovidedTimeWords(text, keywords) {
   return timeWords.some((word) => safeText.includes(word) && !safeKeywords.includes(word));
 }
 
+function hasUnprovidedSpecificDuration(text, keywords) {
+  const safeText = String(text || "");
+  const safeKeywords = String(keywords || "");
+  const durationPattern = /半小时|[0-9０-９]+\.?[0-9０-９]*\s*(分钟|小时)|[一二两三四五六七八九十]+个?多?小时|[一二两三四五六七八九十]+十?多?分钟/;
+  if (!durationPattern.test(safeText)) return false;
+  return !durationPattern.test(safeKeywords);
+}
+
 function hasUnsupportedUseClaims(text, keywords) {
   const safeText = String(text || "");
   const safeKeywords = String(keywords || "");
@@ -367,6 +375,7 @@ function getInvalidReason(review, projectName, keywords = "", { checkSimilarity 
   if (length < MIN_REVIEW_LENGTH || length > MAX_REVIEW_LENGTH) return "length";
   if (hasInvalidWords(text, projectName)) return "bad_words";
   if (hasUnprovidedTimeWords(text, keywords)) return "unprovided_time";
+  if (hasUnprovidedSpecificDuration(text, keywords)) return "unprovided_duration";
   if (hasUnsupportedUseClaims(text, keywords)) return "unsupported_use_claim";
   if (hasUnprovidedPackageWords(text, keywords)) return "unprovided_package";
   if (hasUnprovidedStaffWords(text, keywords, projectName)) return "unprovided_staff";
@@ -404,10 +413,11 @@ function buildSystemPrompt() {
 10. 不要把成品默认写成钥匙扣、挂包、送礼，除非关键词明确提供。
 11. 不要编造具体香型、颜色名、图案名、款式名，例如海洋香型、玫瑰香、薰衣草、某个卡通图案，除非关键词明确提供。
 12. 关键词没有提到店员、工作人员、老板、老师、服务、指导，就不要主动写这些人和服务；拼豆只允许写店员帮忙熨烫成品。
-13. 禁止平台违规或诱导表达：好评、五星、返现、为了礼品、好评送、好评返、复制粘贴、AI生成、模板。
-14. 禁止夸张营销词：天花板、宝藏、必须冲、闭眼入、绝绝子、YYDS、无敌、封神、强烈推荐、快来体验吧、超级多、超多、治愈、出片。
-15. 字数必须控制在 75 到 250 个中文字之间。
-16. 只输出评价正文，不要 JSON、Markdown、前缀、括号、解释。
+13. 关键词没有提供具体分钟数或小时数时，不要写“半小时、一个多小时、2小时”等具体耗时；可以写“需要一点时间”“适合慢慢做”。
+14. 禁止平台违规或诱导表达：好评、五星、返现、为了礼品、好评送、好评返、复制粘贴、AI生成、模板。
+15. 禁止夸张营销词：天花板、宝藏、必须冲、闭眼入、绝绝子、YYDS、无敌、封神、强烈推荐、快来体验吧、超级多、超多、治愈、出片。
+16. 字数必须控制在 75 到 250 个中文字之间。
+17. 只输出评价正文，不要 JSON、Markdown、前缀、括号、解释。
 
 [参考信息写法]
 1. 拼豆评价优先写这些真实参考点：色号和豆子是否好找、图案选择、工具/桌面是否清楚、小图是否适合新手、大图是否需要留够时间、成品是否交给店员熨烫处理、是否适合亲子或朋友一起坐下来做。
@@ -438,6 +448,7 @@ function buildUserPrompt(context) {
     "如果是拼豆，请优先围绕色号/豆子/图案/工具/图纸大小/熨烫处理/适合新手或亲子这些真实参考点展开，每次只选其中 2 到 4 个。",
     "如果关键词提到大图、全天、不限时或套餐，才可以写时间更充裕、适合慢慢拼；否则不要主动写这些套餐信息。",
     "如果关键词没有提到孩子、朋友、店员、价格、具体时间，就不要主动编造这些信息。",
+    "如果关键词没有提供具体分钟数或小时数，不要写半小时、一个多小时、2小时等具体耗时。",
     "如果关键词没有提到周末、假期、下午、晚上等时间，就不要写这些时间；如果关键词没有提到钥匙扣、挂包、送礼，就不要写这些成品用途。",
     "不要编造具体香型、颜色名、图案名、款式名；没有关键词时只写“香味选择”“颜色选择”“图案选择”等泛化信息。",
     "请直接输出评价正文，不要任何前缀、括号、解释和 Markdown 标记。",
@@ -463,6 +474,8 @@ function makeReferenceFallback(context) {
         ? "如果想拼大图，建议预留更充裕的时间，选色和对图纸都会花一些工夫。拼豆颜色选择比较多，慢慢完成会更稳，最后成品交给店员熨烫处理，可以带走。适合愿意坐下来认真做一件作品的人。"
         : "拼豆的参考点主要看图案、颜色和耗时，小图比较适合新手，做起来不会太有压力。成品需要交给店员熨烫处理，处理好后可以带走，现场拍一张制作过程和成品图会更直观。",
     ];
+    if (hasLargeWork) return options[3];
+    if (hasChild) return options[2];
     return options[Math.floor(Math.random() * options.length)];
   }
 
