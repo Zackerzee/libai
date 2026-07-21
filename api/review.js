@@ -298,9 +298,9 @@ function hasReferenceValue(text, projectName) {
     ["适合", "亲子", "孩子", "小朋友", "朋友", "新手", "一个人", "带娃", "家人", "情侣"],
     ["上手", "步骤", "难度", "不复杂", "简单", "需要耐心", "慢慢", "不赶", "坐下来", "耗时", "留够时间", "大图", "小图"],
     ["颜色", "色号", "豆子", "材料", "工具", "图案", "款式", "选择", "搭配", "尺寸", "分区", "桌面", "图纸", "打印图纸", "配色"],
-    ["质量", "无毛刺", "混豆", "高低豆", "圆润", "平整", "镊子", "夹取", "不卡豆", "受热", "溢边"],
-    ["成品", "作品", "带走", "留念", "摆", "包装", "熨烫", "处理成品", "打孔", "配件", "挂件"],
-    ["圣名", "江油", "商场", "二层", "位置", "路过", "逛街", "休息", "座位", "空间", "空调", "安静"],
+    ["质量", "无毛刺", "混豆", "高低豆", "圆润", "平整", "镊子", "夹取", "不卡豆", "垫板", "清洁刷", "受热", "溢边"],
+    ["成品", "作品", "带走", "留念", "摆", "包装", "熨烫", "处理成品", "压豆", "控温", "补救", "换板", "打孔", "配件", "挂件"],
+    ["圣名", "江油", "商场", "二层", "位置", "路过", "逛街", "休息", "座位", "空间", "空调", "安静", "灯光", "明亮", "有序"],
     ["拍照", "照片", "记录", "发图", "配图", "过程图", "成品图"],
   ];
   const hitCount = dimensions.filter((group) => group.some((word) => safeText.includes(word))).length;
@@ -310,7 +310,7 @@ function hasReferenceValue(text, projectName) {
 function hasUnprovidedTimeWords(text, keywords) {
   const safeText = String(text || "");
   const safeKeywords = String(keywords || "");
-  const timeWords = ["周末", "假期", "下班后", "放学后", "晚上", "下午"];
+  const timeWords = ["周末", "假期", "下班后", "放学后", "晚上", "下午", "白天", "工作日", "周内"];
   return timeWords.some((word) => safeText.includes(word) && !safeKeywords.includes(word));
 }
 
@@ -327,6 +327,8 @@ function hasUnsupportedUseClaims(text, keywords) {
   const safeKeywords = String(keywords || "");
   if (safeText.includes("钥匙扣") && !safeKeywords.includes("钥匙扣")) return true;
   if (/(挂包|包上|挂在包)/.test(safeText) && !/(挂包|包上|挂在包|包)/.test(safeKeywords)) return true;
+  if (/(小袋子|收纳袋|送袋子|袋子)/.test(safeText) && !/(小袋子|收纳袋|送袋子|袋子|包装)/.test(safeKeywords)) return true;
+  if (/免费/.test(safeText) && !/免费/.test(safeKeywords)) return true;
   return false;
 }
 
@@ -360,6 +362,8 @@ function hasUnprovidedPinDouQualityClaims(text, keywords, projectName) {
     "质感厚实",
     "不易碎",
     "不卡豆",
+    "垫板",
+    "清洁刷",
     "夹取顺滑",
     "镊子顺手",
     "受热均匀",
@@ -371,16 +375,22 @@ function hasUnprovidedPinDouQualityClaims(text, keywords, projectName) {
     "烫得好",
     "低温熨烫",
     "毛巾烫",
+    "压豆",
+    "控温",
+    "不会翻车",
+    "不翻车",
+    "补救",
+    "换板",
   ];
-  const keywordGate = /质量|质感|毛刺|混豆|高低豆|圆润|平整|镊子|卡豆|夹取|熨烫|烫|受热|溢边|无孔|工具|豆子/;
+  const keywordGate = /质量|质感|毛刺|混豆|高低豆|圆润|平整|镊子|垫板|清洁刷|卡豆|夹取|熨烫|烫|压豆|控温|翻车|补救|换板|受热|溢边|无孔|工具|豆子/;
   return preciseClaims.some((word) => safeText.includes(word)) && !keywordGate.test(safeKeywords);
 }
 
 function hasUnprovidedEnvironmentClaims(text, keywords) {
   const safeText = String(text || "");
   const safeKeywords = String(keywords || "");
-  const envClaims = ["空调", "安静", "座位很多", "座位多", "空间充足", "空间大", "坐满", "人气旺", "需要等位", "排队"];
-  const keywordGate = /空调|安静|座位|空间|位置|环境|人多|等位|排队|坐满/;
+  const envClaims = ["空调", "安静", "座位很多", "座位多", "空间充足", "空间大", "宽敞", "灯光", "明亮", "坐满", "人气旺", "需要等位", "排队", "人多", "有序", "不打扰"];
+  const keywordGate = /空调|安静|座位|空间|位置|环境|人多|等位|排队|坐满|宽敞|灯光|明亮|有序|不打扰/;
   return envClaims.some((word) => safeText.includes(word)) && !keywordGate.test(safeKeywords);
 }
 
@@ -483,6 +493,9 @@ function buildSystemPrompt() {
 5. 不要只夸“环境好、服务好”，要给后来的人一个能判断是否适合自己的具体信息。
 6. 可以学习真实顾客评价里的信息密度：豆子色号齐不齐、常用颜色是否够、有没有混豆/毛刺、镊子是否顺手、熨烫是否平整、座位/空调/空间、是否能打印图纸。但这些具体点必须来自顾客关键词，不能自己编。
 7. 如果顾客只写“颜色多”，可以写“颜色选择比较多”；不能升级成“无毛刺、无混豆、受热均匀、不卡豆”这类具体质量承诺。
+8. 如果关键词提到垫板、镊子、清洁刷、压豆、控温、补救、换板，可以写工具齐全或店员处理细节；否则只写“工具比较直观/成品交给店员处理”。
+9. 如果关键词没有提到灯光、明亮、座位、人多、有序、空调，不要主动写这些环境细节。
+10. 如果关键词没有提到免费、袋子、打孔、配件，不要主动写免费打孔、送袋子、送配件。
 `.trim();
 }
 
@@ -505,7 +518,7 @@ function buildUserPrompt(context) {
     "请写一条高质量正向评价：要自然，但必须能给其他顾客提供参考，比如适合谁、项目难不难、耗不耗时间、材料选择、作品效果、是否适合拍照或带走等。",
     "如果是拼豆，请优先围绕色号/豆子/图案/工具/图纸大小/熨烫处理/适合新手或亲子这些真实参考点展开，每次只选其中 2 到 4 个。",
     "如果关键词提到大图、全天、不限时或套餐，才可以写时间更充裕、适合慢慢拼；否则不要主动写这些套餐信息。",
-    "如果关键词提到豆子质量、无毛刺、无混豆、镊子、不卡豆、熨烫平整、打印图纸、座位、空调或空间，才可以写这些具体细节；没有提到就不要主动写。",
+    "如果关键词提到豆子质量、无毛刺、无混豆、镊子、垫板、清洁刷、不卡豆、压豆、控温、补救、换板、熨烫平整、打印图纸、座位、灯光、空调或空间，才可以写这些具体细节；没有提到就不要主动写。",
     "如果关键词没有提到孩子、朋友、店员、价格、具体时间，就不要主动编造这些信息。",
     "如果关键词没有提供具体分钟数或小时数，不要写半小时、一个多小时、2小时等具体耗时。",
     "如果关键词没有提到周末、假期、下午、晚上等时间，就不要写这些时间；如果关键词没有提到钥匙扣、挂包、送礼，就不要写这些成品用途。",

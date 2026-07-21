@@ -9,6 +9,7 @@
   const LAST_REVIEW_TEXT_KEY = "libms_nfc_last_review_text_v2";
   const RETURN_COPY_PENDING_KEY = "libms_nfc_return_copy_pending_v1";
   const REVIEW_OPEN_KEYS = new Set(["dianping-review", "meituan-review", "douyin-review"]);
+  const KEYWORD_CHIP_COUNT = 5;
 
   let isGenerating = false;
   let lastRequestKey = "";
@@ -32,7 +33,54 @@
     "如果想拼大一点的图，最好预留充足时间，选色和对图纸都会更细。拼豆的过程需要耐心，完成后成品可以带走，拍一张制作过程和最后效果，对后面想来的人会比较有参考。",
     "拼豆最有参考的地方还是颜色、图案和成品处理。颜色选择比较多，照着图纸慢慢摆就能开始，新手可以先选简单款。拼好后不用自己熨烫，交给店员处理就行，最后带走作品会更方便。",
     "如果是朋友一起做拼豆，可以各自选图案，边找颜色边聊天。这个项目不太需要手作基础，主要看耐心和图纸，做完拍一下过程和成品，别人看评价时也更容易判断适不适合自己。",
+    "做拼豆时图纸难度和颜色是否好找会比较影响体验，新手可以先选小图。制作过程主要是照图摆豆，成品交给店员处理后能带走，过程图和成品图一起发会更有参考。",
+    "拼豆适合想认真做一个小作品的人，重点可以看颜色选择、图纸清晰度和工具是否顺手。做的时候不用赶，成品最后由店员处理，适合给后面想体验的人一个比较直观的参考。",
   ];
+
+  const commonKeywordChips = [
+    "适合新手",
+    "孩子能坐住",
+    "朋友一起做",
+    "亲子体验",
+    "位置好找",
+    "空调足",
+    "环境安静",
+    "灯光明亮",
+    "座位宽敞",
+    "人多但有序",
+    "工具齐全",
+    "制作过程不赶",
+    "作品可以带走",
+    "适合拍照记录",
+    "下次想试别的项目",
+  ];
+
+  const projectKeywordChips = {
+    拼豆: [
+      "颜色选择多",
+      "色号好找",
+      "豆子分区清楚",
+      "豆子没有混色",
+      "豆子无毛刺",
+      "图纸清楚",
+      "图案选择多",
+      "镊子顺手",
+      "垫板清楚",
+      "清洁刷方便",
+      "可以打印图纸",
+      "小图适合新手",
+      "大图需要耐心",
+      "压豆不翻车",
+      "成品由店员处理",
+      "熨烫比较平整",
+      "做完可以打孔",
+      "成品有包装",
+    ],
+    香薰蜡烛: ["味道可以自己选", "颜色搭配自由", "成品适合摆放", "制作步骤清楚", "适合送朋友"],
+    蔬果花皂DIY: ["造型选择多", "颜色搭配自由", "成品适合拍照", "孩子容易参与", "适合亲子"],
+    石膏娃娃DIY: ["款式选择多", "上色比较自由", "颜料颜色多", "成品适合摆放", "适合慢慢涂"],
+    串珠DIY: ["珠子款式多", "颜色搭配自由", "适合做小饰品", "步骤比较直观", "适合朋友一起做"],
+  };
 
   const envTemplates = [
     "店里可以坐下来慢慢做，不太适合赶时间的人，适合想停下来做点小东西的时候来。",
@@ -66,6 +114,7 @@
     project: $("project"),
     tone: $("tone"),
     keywords: $("keywords"),
+    keywordChips: $("keywordChips"),
     reviewText: $("reviewText"),
     aiBtn: $("aiBtn"),
     copyReviewButton: $("copyReviewButton"),
@@ -288,6 +337,70 @@
     }
 
     return false;
+  }
+
+  function getKeywordPoolForProject(project) {
+    const safeProject = String(project || "").trim();
+    const projectPool = projectKeywordChips[safeProject] || [];
+    return Array.from(new Set([...projectPool, ...commonKeywordChips]));
+  }
+
+  function parseKeywordTokens(value) {
+    return String(value || "")
+      .split(/[，,、；;\n]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  function writeKeywordTokens(tokens) {
+    const unique = Array.from(new Set(tokens.map((item) => item.trim()).filter(Boolean)));
+    let value = unique.join("，");
+    while (textLength(value) > 100 && unique.length > 0) {
+      unique.pop();
+      value = unique.join("，");
+    }
+    elements.keywords.value = value;
+    updateKeywordChipState();
+  }
+
+  function updateKeywordChipState() {
+    if (!elements.keywordChips) return;
+    const selected = new Set(parseKeywordTokens(elements.keywords.value));
+    elements.keywordChips.querySelectorAll("[data-keyword-chip]").forEach((button) => {
+      const isActive = selected.has(button.dataset.keywordChip);
+      button.classList.toggle("active", isActive);
+      button.setAttribute("aria-pressed", isActive ? "true" : "false");
+    });
+  }
+
+  function toggleKeywordChip(keyword) {
+    const tokens = parseKeywordTokens(elements.keywords.value);
+    const index = tokens.indexOf(keyword);
+    if (index >= 0) {
+      tokens.splice(index, 1);
+    } else {
+      tokens.push(keyword);
+    }
+    writeKeywordTokens(tokens);
+  }
+
+  function renderKeywordChips() {
+    if (!elements.keywordChips) return;
+    elements.keywordChips.textContent = "";
+    const keywords = sampleUnique(getKeywordPoolForProject(elements.project.value), KEYWORD_CHIP_COUNT);
+
+    keywords.forEach((keyword) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "keyword-chip";
+      button.dataset.keywordChip = keyword;
+      button.textContent = keyword;
+      button.setAttribute("aria-pressed", "false");
+      button.addEventListener("click", () => toggleKeywordChip(keyword));
+      elements.keywordChips.appendChild(button);
+    });
+
+    updateKeywordChipState();
   }
 
   function getRequestKey(payload) {
@@ -567,6 +680,10 @@
     showReturnCopyPanel();
     setStatus("平台可能已把剪贴板改成短链接。请点“复制评价正文”后再切回平台粘贴。");
   }
+
+  renderKeywordChips();
+  elements.keywords.addEventListener("input", updateKeywordChipState);
+  elements.project.addEventListener("change", renderKeywordChips);
 
   elements.aiBtn.addEventListener("click", generateReview);
   elements.copyReviewButton.addEventListener("click", () => {
