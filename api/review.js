@@ -296,11 +296,11 @@ function hasReferenceValue(text, projectName) {
   const dimensions = [
     getProjectWords(projectName),
     ["适合", "亲子", "孩子", "小朋友", "朋友", "新手", "一个人", "带娃", "家人", "情侣"],
-    ["上手", "步骤", "难度", "不复杂", "简单", "需要耐心", "慢慢", "不赶", "坐下来", "耗时", "时间"],
-    ["颜色", "图案", "材料", "工具", "款式", "选择", "搭配", "尺寸"],
-    ["成品", "作品", "带走", "留念", "摆", "挂", "包装", "熨烫"],
+    ["上手", "步骤", "难度", "不复杂", "简单", "需要耐心", "慢慢", "不赶", "坐下来", "耗时", "留够时间", "大图", "小图"],
+    ["颜色", "色号", "豆子", "材料", "工具", "图案", "款式", "选择", "搭配", "尺寸", "分区", "桌面", "图纸"],
+    ["成品", "作品", "带走", "留念", "摆", "包装", "熨烫", "处理成品", "打孔", "配件"],
     ["圣名", "江油", "商场", "二层", "位置", "路过", "逛街", "休息"],
-    ["拍照", "照片", "记录", "发图", "出片"],
+    ["拍照", "照片", "记录", "发图", "配图", "过程图", "成品图"],
   ];
   const hitCount = dimensions.filter((group) => group.some((word) => safeText.includes(word))).length;
   return hitCount >= 3;
@@ -319,6 +319,15 @@ function hasUnsupportedUseClaims(text, keywords) {
   if (safeText.includes("钥匙扣") && !safeKeywords.includes("钥匙扣")) return true;
   if (/(挂包|包上|挂在包)/.test(safeText) && !/(挂包|包上|挂在包|包)/.test(safeKeywords)) return true;
   return false;
+}
+
+function hasUnprovidedPackageWords(text, keywords) {
+  const safeText = String(text || "");
+  const safeKeywords = String(keywords || "");
+  const packageWords = ["全天", "不限时", "不限量", "不限板", "套餐", "划算", "大图"];
+  const packageKeywordPattern = /全天|不限时|不限量|不限板|套餐|大图|大作品|时间充裕|时间长|慢慢拼/;
+  if (packageKeywordPattern.test(safeKeywords)) return false;
+  return packageWords.some((word) => safeText.includes(word));
 }
 
 function hasUnprovidedStaffWords(text, keywords, projectName) {
@@ -359,6 +368,7 @@ function getInvalidReason(review, projectName, keywords = "", { checkSimilarity 
   if (hasInvalidWords(text, projectName)) return "bad_words";
   if (hasUnprovidedTimeWords(text, keywords)) return "unprovided_time";
   if (hasUnsupportedUseClaims(text, keywords)) return "unsupported_use_claim";
+  if (hasUnprovidedPackageWords(text, keywords)) return "unprovided_package";
   if (hasUnprovidedStaffWords(text, keywords, projectName)) return "unprovided_staff";
   if (hasUnprovidedProjectSpecificDetails(text, keywords, projectName)) return "unprovided_project_detail";
   if (looksTooFormal(text)) return "formal";
@@ -398,6 +408,13 @@ function buildSystemPrompt() {
 14. 禁止夸张营销词：天花板、宝藏、必须冲、闭眼入、绝绝子、YYDS、无敌、封神、强烈推荐、快来体验吧、超级多、超多、治愈、出片。
 15. 字数必须控制在 75 到 250 个中文字之间。
 16. 只输出评价正文，不要 JSON、Markdown、前缀、括号、解释。
+
+[参考信息写法]
+1. 拼豆评价优先写这些真实参考点：色号和豆子是否好找、图案选择、工具/桌面是否清楚、小图是否适合新手、大图是否需要留够时间、成品是否交给店员熨烫处理、是否适合亲子或朋友一起坐下来做。
+2. 如果关键词没有写“全天、不限时、套餐、大图”，不要主动写这些套餐和时间优势。
+3. 如果关键词没有写“打孔、钥匙扣、挂件、配件”，不要主动写这些成品用途；可以泛化写“成品可以带走”。
+4. 其他手作项目优先写：材料/样式选择、步骤是否容易理解、过程是否适合坐下来慢慢做、完成作品是否方便拍照记录。
+5. 不要只夸“环境好、服务好”，要给后来的人一个能判断是否适合自己的具体信息。
 `.trim();
 }
 
@@ -417,7 +434,9 @@ function buildUserPrompt(context) {
     `体验项目：【${context.projectName}】。`,
     `评价语气：【${context.tone}】。`,
     keywordsText,
-    "请写一条高质量正向评价：要自然，但必须能给其他顾客提供参考，比如适合谁、项目难不难、材料选择、作品效果、是否适合拍照或带走等。",
+    "请写一条高质量正向评价：要自然，但必须能给其他顾客提供参考，比如适合谁、项目难不难、耗不耗时间、材料选择、作品效果、是否适合拍照或带走等。",
+    "如果是拼豆，请优先围绕色号/豆子/图案/工具/图纸大小/熨烫处理/适合新手或亲子这些真实参考点展开，每次只选其中 2 到 4 个。",
+    "如果关键词提到大图、全天、不限时或套餐，才可以写时间更充裕、适合慢慢拼；否则不要主动写这些套餐信息。",
     "如果关键词没有提到孩子、朋友、店员、价格、具体时间，就不要主动编造这些信息。",
     "如果关键词没有提到周末、假期、下午、晚上等时间，就不要写这些时间；如果关键词没有提到钥匙扣、挂包、送礼，就不要写这些成品用途。",
     "不要编造具体香型、颜色名、图案名、款式名；没有关键词时只写“香味选择”“颜色选择”“图案选择”等泛化信息。",
@@ -427,15 +446,34 @@ function buildUserPrompt(context) {
 
 function makeReferenceFallback(context) {
   const project = context.projectName || "手作";
-  const hasChild = /孩子|小朋友|亲子|带娃/.test(context.keywords || context.tone || "");
-  const hasFriend = /朋友|闺蜜|同事|一起/.test(context.keywords || context.tone || "");
+  const seedText = `${context.keywords || ""}${context.tone || ""}`;
+  const hasChild = /孩子|小朋友|亲子|带娃/.test(seedText);
+  const hasFriend = /朋友|闺蜜|同事|一起/.test(seedText);
+  const hasLargeWork = /全天|不限时|套餐|大图|大作品|时间充裕|慢慢拼/.test(seedText);
   const audience = hasChild ? "带孩子来体验" : hasFriend ? "朋友一起过来" : "想找个室内活动的时候过来";
 
   if (project === "拼豆") {
-    return `${audience}拼豆比较合适，颜色和图案选择比较多，前面选款会花一点时间。制作过程不算复杂，但需要耐心慢慢拼，做完的成品由店员帮忙熨烫处理，可以带走留作纪念。整体是比较轻松的体验，适合想坐下来做点小东西的人。`;
+    const options = [
+      `${audience}拼豆比较合适，颜色和图案选择比较多，前面选款会花一点时间。制作过程不算复杂，但需要耐心慢慢摆，拼好后交给店员熨烫处理，成品可以带走留作纪念。对新手来说也比较容易判断自己能不能上手。`,
+      `拼豆更适合想坐下来慢慢做的人，选图案和找颜色会占一点时间，小图上手比较快。现场主要照着图纸一步步摆，拼好后由店员处理成品，最后可以带走。评价配上成品图和过程图，会更方便别人看清实际效果。`,
+      hasChild
+        ? "带孩子来做拼豆的话，建议先选难度低一点的图案，孩子更容易坐得住。颜色选择比较多，大人可以在旁边帮忙找色号，做完的成品交给店员熨烫处理后能带走，整体适合作为一次室内亲子手作体验。"
+        : "第一次做拼豆可以先从小图开始，颜色和图案选择比较直观，照着图纸慢慢摆就行。过程需要一点耐心，但不算难，拼好后由店员帮忙处理成品，可以带走留念，适合想体验手作又怕太复杂的人。",
+      hasLargeWork
+        ? "如果想拼大图，建议预留更充裕的时间，选色和对图纸都会花一些工夫。拼豆颜色选择比较多，慢慢完成会更稳，最后成品交给店员熨烫处理，可以带走。适合愿意坐下来认真做一件作品的人。"
+        : "拼豆的参考点主要看图案、颜色和耗时，小图比较适合新手，做起来不会太有压力。成品需要交给店员熨烫处理，处理好后可以带走，现场拍一张制作过程和成品图会更直观。",
+    ];
+    return options[Math.floor(Math.random() * options.length)];
   }
 
-  return `${audience}做${project}比较合适，项目上手不算复杂，材料和样式选择比较直观，可以按照自己的节奏慢慢完成。做完以后有作品可以带走，也适合拍几张过程照和成品照。整体体验比较轻松，对第一次尝试手作的人也比较友好。`;
+  const options = [
+    `${audience}做${project}比较合适，项目上手不算复杂，材料和样式选择比较直观，可以按照自己的节奏慢慢完成。做完以后有作品可以带走，也适合拍几张过程照和成品照，对第一次尝试手作的人比较友好。`,
+    `${project}适合想找个室内活动的人，前面主要是选材料和样式，后面按步骤慢慢做。整体难度不会一下子太高，完成后能看到自己的作品，也方便拍照记录，给没做过手作的人一个比较直观的参考。`,
+    hasFriend
+      ? `朋友一起做${project}会比较合适，过程可以边做边聊，不需要一直赶进度。材料选择比较清楚，步骤也容易跟上，最后有作品可以带走，比只坐着聊天更有参与感。`
+      : `${project}比较适合想安静坐下来做点东西的人，材料和工具都比较直观，按照步骤完成就行。成品能带走，过程图和完成图都可以拍下来，后面别人看评价时也更容易判断项目是否适合自己。`,
+  ];
+  return options[Math.floor(Math.random() * options.length)];
 }
 
 async function getBody(req) {

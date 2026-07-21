@@ -25,6 +25,13 @@
     "这次做{project}的感受还不错，比较适合空闲时坐下来体验。项目本身有选择空间，做的时候不会太单调，最后能看到一个完成的小作品，对想了解手作体验的人来说信息比较明确。",
   ];
 
+  const pinDouLocalReviewTemplates = [
+    "拼豆比较适合想坐下来慢慢做的人，颜色和图案选择比较多，小图对新手更友好。照着图纸一点点摆就行，拼好后交给店员熨烫处理，成品可以带走，配上过程图和成品图会更直观。",
+    "第一次做拼豆可以先选小一点的图案，找颜色会花一点时间，但步骤不复杂。现场主要看图纸慢慢摆，做完以后由店员处理成品，最后能带走留念，适合想体验手作又怕太难的人。",
+    "带孩子体验拼豆的话，建议先选难度低一点的图案，孩子更容易坐得住。颜色选择比较多，大人可以帮忙找色号，拼好后交给店员熨烫处理，整体适合作为一次室内亲子手作。",
+    "如果想拼大一点的图，最好预留充足时间，选色和对图纸都会更细。拼豆的过程需要耐心，完成后成品可以带走，拍一张制作过程和最后效果，对后面想来的人会比较有参考。",
+  ];
+
   const envTemplates = [
     "店里可以坐下来慢慢做，不太适合赶时间的人，适合想停下来做点小东西的时候来。",
     "位置在商场里，逛累了顺便体验会比较方便，不用特意安排很复杂的行程。",
@@ -44,9 +51,9 @@
   const moodTemplates = [
     "整体是比较轻松的正向体验，不会只适合特别会做手工的人。",
     "比较适合想找个室内活动的人，尤其是不想一直走路逛街的时候。",
-    "评价里建议写清楚自己做的项目和适合场景，这样后面看到的人会更容易判断要不要来。",
-    "如果带孩子来，可以重点写孩子能不能坐得住；如果和朋友来，可以写适不适合边做边聊。",
-    "对没做过手作的人来说，难度、耗时和成品效果这些信息会比单纯夸好玩更有用。",
+    "对没做过手作的人来说，难度和耗时都比较容易接受，不会一上来就觉得压力很大。",
+    "如果是和朋友一起来，边做边聊会更自然，比单纯找地方坐着更有参与感。",
+    "完成后的作品能看见自己的选择和动手过程，作为一次体验记录也比较合适。",
   ];
 
   const $ = (id) => document.getElementById(id);
@@ -149,7 +156,8 @@
 
   function getLocalFallback(project) {
     const safeProject = String(project || "手作").trim() || "手作";
-    return ensureLocalReviewLength(randomItem(referenceLocalReviewTemplates).replace(/\{project\}/g, safeProject));
+    const templates = safeProject === "拼豆" ? pinDouLocalReviewTemplates : referenceLocalReviewTemplates;
+    return ensureLocalReviewLength(randomItem(templates).replace(/\{project\}/g, safeProject));
   }
 
   function getShareableReviewText() {
