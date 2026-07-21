@@ -115,6 +115,9 @@
     tone: $("tone"),
     keywords: $("keywords"),
     keywordChips: $("keywordChips"),
+    selectedKeywordChips: $("selectedKeywordChips"),
+    refreshKeywordChipsButton: $("refreshKeywordChipsButton"),
+    clearKeywordsButton: $("clearKeywordsButton"),
     reviewText: $("reviewText"),
     aiBtn: $("aiBtn"),
     copyReviewButton: $("copyReviewButton"),
@@ -360,7 +363,7 @@
       value = unique.join("，");
     }
     elements.keywords.value = value;
-    updateKeywordChipState();
+    syncKeywordUi();
   }
 
   function updateKeywordChipState() {
@@ -371,6 +374,36 @@
       button.classList.toggle("active", isActive);
       button.setAttribute("aria-pressed", isActive ? "true" : "false");
     });
+  }
+
+  function renderSelectedKeywordChips() {
+    if (!elements.selectedKeywordChips) return;
+    const tokens = parseKeywordTokens(elements.keywords.value);
+    elements.selectedKeywordChips.textContent = "";
+    elements.selectedKeywordChips.classList.toggle("has-items", tokens.length > 0);
+
+    tokens.forEach((keyword) => {
+      const chip = document.createElement("span");
+      chip.className = "selected-keyword-chip";
+      chip.textContent = keyword;
+
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "selected-keyword-remove";
+      removeButton.textContent = "×";
+      removeButton.setAttribute("aria-label", `删除关键词：${keyword}`);
+      removeButton.addEventListener("click", () => {
+        writeKeywordTokens(parseKeywordTokens(elements.keywords.value).filter((item) => item !== keyword));
+      });
+
+      chip.appendChild(removeButton);
+      elements.selectedKeywordChips.appendChild(chip);
+    });
+  }
+
+  function syncKeywordUi() {
+    updateKeywordChipState();
+    renderSelectedKeywordChips();
   }
 
   function toggleKeywordChip(keyword) {
@@ -400,7 +433,7 @@
       elements.keywordChips.appendChild(button);
     });
 
-    updateKeywordChipState();
+    syncKeywordUi();
   }
 
   function getRequestKey(payload) {
@@ -682,8 +715,13 @@
   }
 
   renderKeywordChips();
-  elements.keywords.addEventListener("input", updateKeywordChipState);
+  elements.keywords.addEventListener("input", syncKeywordUi);
   elements.project.addEventListener("change", renderKeywordChips);
+  elements.refreshKeywordChipsButton?.addEventListener("click", renderKeywordChips);
+  elements.clearKeywordsButton?.addEventListener("click", () => {
+    writeKeywordTokens([]);
+    elements.keywords.focus({ preventScroll: true });
+  });
 
   elements.aiBtn.addEventListener("click", generateReview);
   elements.copyReviewButton.addEventListener("click", () => {

@@ -519,6 +519,19 @@
         line-height: 1.5;
       }
 
+      .keyword-refresh-button,
+      .keyword-clear-button {
+        flex: 0 0 auto;
+        border: 1px solid #f0d8c8;
+        padding: 7px 10px;
+        background: #ffffff;
+        color: #8a6450;
+        font-size: 12px;
+        font-weight: 900;
+        line-height: 1;
+        box-shadow: none;
+      }
+
       .keyword-chips {
         display: flex;
         flex-wrap: wrap;
@@ -547,6 +560,63 @@
         border-color: #ef615f;
         background: #fff0ef;
         color: #d94747;
+      }
+
+      .keyword-selected-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 10px;
+        color: #867a70;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .keyword-selected-chips {
+        display: none;
+        flex-wrap: wrap;
+        gap: 9px;
+        margin: 8px 0 2px;
+      }
+
+      .keyword-selected-chips.has-items {
+        display: flex;
+      }
+
+      .selected-keyword-chip {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        max-width: 100%;
+        border: 1px solid #ef615f;
+        border-radius: 999px;
+        padding: 9px 26px 9px 12px;
+        background: #fff0ef;
+        color: #d94747;
+        font-size: 13px;
+        font-weight: 900;
+        line-height: 1;
+      }
+
+      .selected-keyword-remove {
+        position: absolute;
+        top: -7px;
+        right: -5px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        border: 1px solid #ffffff;
+        border-radius: 999px;
+        padding: 0;
+        background: #ef615f;
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 950;
+        line-height: 1;
+        box-shadow: 0 4px 10px rgba(217, 71, 71, 0.25);
       }
 
       .form-grid {
@@ -581,7 +651,7 @@
         text-align: center;
       }
     </style>
-    <script src="/nfc/app.js?v=20260721-review-reference-3" defer></script>
+    <script src="/nfc/app.js?v=20260721-review-reference-4" defer></script>
   </head>
   <body>
     <main class="page">
@@ -653,15 +723,20 @@
 
         <div class="keyword-helper">
           <div class="keyword-helper-title">
-            <span>可点选真实关键词，每次打开随机保留 5 个</span>
-            <span>也可以自己补充</span>
+            <span>随机推荐 5 个真实关键词</span>
+            <button id="refreshKeywordChipsButton" class="keyword-refresh-button" type="button">♻️ 换一批</button>
           </div>
           <div id="keywordChips" class="keyword-chips" aria-label="可选真实体验关键词"></div>
+          <div class="keyword-selected-bar">
+            <span>已选关键词，可单个删除</span>
+            <button id="clearKeywordsButton" class="keyword-clear-button" type="button">清空</button>
+          </div>
+          <div id="selectedKeywordChips" class="keyword-selected-chips" aria-label="已选关键词"></div>
           <input
             id="keywords"
             class="input"
             maxlength="100"
-            placeholder="可选：点选上方关键词，或自己写一点真实体验细节"
+            placeholder="可选：也可以自己补充真实体验细节"
           />
         </div>
 
