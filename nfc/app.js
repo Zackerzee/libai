@@ -110,9 +110,7 @@
   const $ = (id) => document.getElementById(id);
 
   const elements = {
-    platform: $("platform"),
     project: $("project"),
-    tone: $("tone"),
     keywords: $("keywords"),
     keywordChips: $("keywordChips"),
     selectedKeywordChips: $("selectedKeywordChips"),
@@ -478,9 +476,9 @@
 
     const finalKeywords = getFinalKeywords(elements.keywords.value);
     const payload = {
-      platform: elements.platform.value || "dianping",
+      platform: "dianping",
       project: elements.project.value || "手作",
-      tone: elements.tone.value || "自然真实",
+      tone: "自然真实",
       keywords: finalKeywords,
     };
 
