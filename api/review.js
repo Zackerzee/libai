@@ -102,6 +102,9 @@ const TEMPLATE_AND_MARKETING_WORDS = [
   "商圈",
   "全江油第一",
   "有成就感",
+  "超级多",
+  "超多",
+  "超好",
   "天花板",
   "宝藏",
   "必须冲",
@@ -301,6 +304,21 @@ function hasReferenceValue(text, projectName) {
   return hitCount >= 3;
 }
 
+function hasUnprovidedTimeWords(text, keywords) {
+  const safeText = String(text || "");
+  const safeKeywords = String(keywords || "");
+  const timeWords = ["周末", "假期", "下班后", "放学后", "晚上", "下午"];
+  return timeWords.some((word) => safeText.includes(word) && !safeKeywords.includes(word));
+}
+
+function hasUnsupportedUseClaims(text, keywords) {
+  const safeText = String(text || "");
+  const safeKeywords = String(keywords || "");
+  if (safeText.includes("钥匙扣") && !safeKeywords.includes("钥匙扣")) return true;
+  if (/(挂包|包上|挂在包)/.test(safeText) && !/(挂包|包上|挂在包|包)/.test(safeKeywords)) return true;
+  return false;
+}
+
 function isTooSimilarToRecent(text) {
   const safeText = String(text || "").trim();
   if (!safeText) return true;
@@ -312,12 +330,14 @@ function isTooSimilarToRecent(text) {
   return recentReviews.some((oldReview) => signature.filter((word) => oldReview.includes(word)).length >= 2);
 }
 
-function getInvalidReason(review, projectName, { checkSimilarity = true } = {}) {
+function getInvalidReason(review, projectName, keywords = "", { checkSimilarity = true } = {}) {
   const text = stripModelNoise(review);
   const length = textLength(text);
   if (!text) return "empty";
   if (length < MIN_REVIEW_LENGTH || length > MAX_REVIEW_LENGTH) return "length";
   if (hasInvalidWords(text, projectName)) return "bad_words";
+  if (hasUnprovidedTimeWords(text, keywords)) return "unprovided_time";
+  if (hasUnsupportedUseClaims(text, keywords)) return "unsupported_use_claim";
   if (looksTooFormal(text)) return "formal";
   if (!hasReferenceValue(text, projectName)) return "low_reference_value";
   if (checkSimilarity && isTooSimilarToRecent(text)) return "similar";
@@ -347,10 +367,12 @@ function buildSystemPrompt() {
 6. 门店范围只能写：拼豆、蔬果花皂DIY、香薰蜡烛、海岛礼物、串珠DIY、韩国刺绣布贴、毛料娃娃、石膏娃娃DIY、数字油画DIY、台灯拼布手作、夏日甜品冰淇淋、中药香囊。禁止写美甲、美睫、按摩、理发、摄影、医美、儿童乐园、电玩城、KTV、住宿、培训机构等不属于门店范围的内容。
 7. 事实边界：不要编造价格、优惠、团购、会员、老师特别专业、一对一指导、全程陪同、老板人超好、排队、课程、生日会、团建等顾客没有提供的信息。
 8. 拼豆规则：拼豆成品可以偶尔写“店员帮忙处理成品/熨烫”，但禁止写顾客自己熨烫、店员教顾客熨烫、学习熨烫。
-9. 禁止平台违规或诱导表达：好评、五星、返现、为了礼品、好评送、好评返、复制粘贴、AI生成、模板。
-10. 禁止夸张营销词：天花板、宝藏、必须冲、闭眼入、绝绝子、YYDS、无敌、封神、强烈推荐、快来体验吧。
-11. 字数必须控制在 75 到 250 个中文字之间。
-12. 只输出评价正文，不要 JSON、Markdown、前缀、括号、解释。
+9. 如果关键词没有提到周末、假期、下班后、放学后、晚上、下午，就不要主动写这些具体时间。
+10. 不要把成品默认写成钥匙扣、挂包、送礼，除非关键词明确提供。
+11. 禁止平台违规或诱导表达：好评、五星、返现、为了礼品、好评送、好评返、复制粘贴、AI生成、模板。
+12. 禁止夸张营销词：天花板、宝藏、必须冲、闭眼入、绝绝子、YYDS、无敌、封神、强烈推荐、快来体验吧、超级多、超多。
+13. 字数必须控制在 75 到 250 个中文字之间。
+14. 只输出评价正文，不要 JSON、Markdown、前缀、括号、解释。
 `.trim();
 }
 
@@ -372,8 +394,22 @@ function buildUserPrompt(context) {
     keywordsText,
     "请写一条高质量正向评价：要自然，但必须能给其他顾客提供参考，比如适合谁、项目难不难、材料选择、作品效果、是否适合拍照或带走等。",
     "如果关键词没有提到孩子、朋友、店员、价格、具体时间，就不要主动编造这些信息。",
+    "如果关键词没有提到周末、假期、下午、晚上等时间，就不要写这些时间；如果关键词没有提到钥匙扣、挂包、送礼，就不要写这些成品用途。",
     "请直接输出评价正文，不要任何前缀、括号、解释和 Markdown 标记。",
   ].join("");
+}
+
+function makeReferenceFallback(context) {
+  const project = context.projectName || "手作";
+  const hasChild = /孩子|小朋友|亲子|带娃/.test(context.keywords || context.tone || "");
+  const hasFriend = /朋友|闺蜜|同事|一起/.test(context.keywords || context.tone || "");
+  const audience = hasChild ? "带孩子来体验" : hasFriend ? "朋友一起过来" : "想找个室内活动的时候过来";
+
+  if (project === "拼豆") {
+    return `${audience}拼豆比较合适，颜色和图案选择比较多，前面选款会花一点时间。制作过程不算复杂，但需要耐心慢慢拼，做完的成品由店员帮忙熨烫处理，可以带走留作纪念。整体是比较轻松的体验，适合想坐下来做点小东西的人。`;
+  }
+
+  return `${audience}做${project}比较合适，项目上手不算复杂，材料和样式选择比较直观，可以按照自己的节奏慢慢完成。做完以后有作品可以带走，也适合拍几张过程照和成品照。整体体验比较轻松，对第一次尝试手作的人也比较友好。`;
 }
 
 async function getBody(req) {
@@ -550,7 +586,7 @@ async function generateReviewWithProviderChain(context) {
   for (const provider of providers) {
     try {
       const review = await provider.fetcher({ context });
-      const invalidReason = getInvalidReason(review, context.projectName);
+      const invalidReason = getInvalidReason(review, context.projectName, context.keywords);
       if (invalidReason) {
         throw new Error(`invalid_${invalidReason}`);
       }
@@ -605,13 +641,15 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error("Review API all providers failed", error);
-    return json(res, 424, {
-      success: false,
-      error: "AI_PROVIDERS_FAILED",
+    const review = makeReferenceFallback(context);
+    recordRecentReview(review);
+    return json(res, 200, {
+      success: true,
+      review,
       photoTips: DEFAULT_PHOTO_TIPS,
       debug: {
         project: projectName,
-        source: "provider_chain_failed",
+        source: "safe_fallback",
       },
     });
   }
