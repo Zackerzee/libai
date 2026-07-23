@@ -134,19 +134,19 @@ img {
 }
 
 .brand {
-  min-width: 236px;
+  min-width: 300px;
   display: inline-flex;
   align-items: center;
   gap: 12px;
 }
 
 .brand img {
-  width: 44px;
-  height: 44px;
+  width: 188px;
+  height: 34px;
   object-fit: contain;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: white;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .brand strong,
@@ -210,11 +210,29 @@ img {
   background: linear-gradient(135deg, #fff4c2, #ffe28a);
 }
 
+.windows-bridge-entry {
+  border-color: rgba(16, 185, 129, 0.36);
+  background: linear-gradient(135deg, #dcfce7, #d9f7ef);
+  color: #065f46;
+}
+
+.nfc-entry {
+  border-color: rgba(230, 0, 35, 0.34);
+  background: linear-gradient(135deg, #fff2f4, #ffe4e8);
+  color: var(--primary);
+}
+
+.hero-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
 .mentor-timer-hero-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-top: 16px;
   min-height: 42px;
   padding: 0 16px;
   border: 1px solid rgba(245, 197, 66, 0.7);
@@ -224,6 +242,12 @@ img {
   font-weight: 850;
   text-decoration: none;
   box-shadow: 0 10px 22px rgba(245, 197, 66, 0.2);
+}
+
+.windows-bridge-hero-link {
+  border-color: rgba(16, 185, 129, 0.42);
+  background: linear-gradient(135deg, #dcfce7, #d9f7ef);
+  color: #065f46;
 }
 
 .mode-tabs button:hover:not(:disabled),
@@ -290,7 +314,7 @@ img {
 .stage-image {
   background:
     radial-gradient(circle at center, rgba(255, 255, 255, 0.74) 0 35%, rgba(246, 246, 243, 0.76) 68%),
-    url("./libai-logo-pixel.svg") center / min(76%, 620px) no-repeat;
+    url("./assets/shilibai-logo.png") center / min(78%, 720px) no-repeat;
   opacity: 0.84;
 }
 
@@ -499,6 +523,12 @@ img {
   color: var(--ink);
   font-size: 14px;
   font-weight: 800;
+}
+
+.nfc-hero-link {
+  border-color: rgba(230, 0, 35, 0.32);
+  background: linear-gradient(135deg, #fff4f6, #ffe5e9);
+  color: var(--primary);
 }
 
 .text-link-button:hover {
@@ -888,13 +918,13 @@ input:focus-visible {
 }
 
 .invite-logo {
-  width: 118px;
-  height: 118px;
+  width: 100%;
+  height: 54px;
   margin-bottom: 14px;
   overflow: hidden;
-  border: 1px solid var(--line-soft);
-  border-radius: 16px;
-  background: #ffffff;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
 }
 
@@ -902,6 +932,7 @@ input:focus-visible {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  object-position: left center;
 }
 
 .invite-kicker {
@@ -1813,7 +1844,7 @@ input:focus-visible {
 
 @media (max-width: 700px) {
   .app-shell {
-    padding-bottom: 64px;
+    padding-bottom: 116px;
   }
 
   .topbar-inner {
@@ -2180,7 +2211,7 @@ canvas,
 .stage-image {
   background:
     linear-gradient(135deg, rgba(0, 0, 0, 0.38), rgba(0, 0, 0, 0.74)),
-    url("./libai-logo-pixel.svg") center / min(68%, 520px) no-repeat,
+    url("./assets/shilibai-logo.png") center / min(68%, 520px) no-repeat,
     var(--pixel-bg-pop);
   opacity: 0.55;
   image-rendering: pixelated;
@@ -2845,7 +2876,7 @@ canvas,
   display: block;
   background:
     radial-gradient(circle at center, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.18) 62%),
-    url("./libai-logo-pixel.svg") center / min(34%, 260px) no-repeat;
+    url("./assets/shilibai-logo.png") center / min(34%, 260px) no-repeat;
   opacity: 0.36;
   backdrop-filter: none;
 }
@@ -3487,7 +3518,7 @@ button:active:not(:disabled),
 .stage-glass {
   background:
     radial-gradient(circle at center, rgba(255, 253, 247, 0.72), rgba(255, 253, 247, 0.14) 60%),
-    url("./libai-logo-pixel.svg") center / min(28%, 220px) no-repeat;
+    url("./assets/shilibai-logo.png") center / min(28%, 220px) no-repeat;
   opacity: 0.28;
 }
 
@@ -4293,7 +4324,12 @@ button:active:not(:disabled),
     gap: 6px;
   }
 
-  .mobile-tabbar button {
+  .mobile-bridge-row {
+    grid-template-columns: 1fr;
+  }
+
+  .mobile-tabbar button,
+  .mobile-tabbar a {
     min-width: 0;
     min-height: 38px;
     padding: 0 6px;
@@ -4305,6 +4341,10 @@ button:active:not(:disabled),
     font-weight: 900;
     line-height: 1.1;
     white-space: nowrap;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .mobile-tabbar button + button {
@@ -4314,6 +4354,11 @@ button:active:not(:disabled),
   .mobile-tabbar .mobile-download-row button,
   #mobile-download-button {
     background: var(--primary);
+    color: #ffffff;
+  }
+
+  .mobile-tabbar .mobile-bridge-row a {
+    background: linear-gradient(135deg, #10b981, #0f766e);
     color: #ffffff;
   }
 
@@ -5503,6 +5548,11 @@ body.is-focus-mode .bead-cell.is-focus-target.is-completed {
     color: #ffffff !important;
   }
 
+  .mobile-tabbar .mobile-bridge-row a {
+    background: linear-gradient(135deg, #10b981, #0f766e) !important;
+    color: #ffffff !important;
+  }
+
   .assembly-modal {
     width: calc(100vw - 12px);
     max-height: calc(100vh - 12px);
@@ -6098,5 +6148,45 @@ body.is-focus-mode .bead-cell.is-focus-target.is-completed {
 
   .smart-optimization-block {
     padding: 10px;
+  }
+}
+
+/* Final brand override: the public site now uses the official Shilibai wide logo. */
+.brand {
+  min-width: min(360px, 48vw);
+}
+
+.brand img {
+  width: clamp(150px, 20vw, 240px);
+  height: clamp(24px, 3vw, 40px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.invite-logo {
+  width: 100%;
+  height: 56px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.invite-logo img {
+  object-position: left center;
+}
+
+@media (max-width: 700px) {
+  .brand {
+    min-width: 0;
+  }
+
+  .brand img {
+    width: clamp(128px, 38vw, 190px);
+    height: 30px;
   }
 }

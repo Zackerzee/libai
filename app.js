@@ -54,7 +54,7 @@ const NSFW_THRESHOLDS = {
   Hentai: 0.55,
   Sexy: 0.88,
 };
-const LOCAL_WATERMARK_TEXT = "本图纸由用户在浏览器本地生成，内容与里白造物无关，请合规使用";
+const LOCAL_WATERMARK_TEXT = "本图纸由用户在浏览器本地生成，请合规使用";
 const MARD_COLOR_SOURCE_URL = "https://www.pixel-beads.com/zh/mard-bead-color-chart";
 const MARD_COLOR_SOURCE_VERSION = "MARD 2026";
 const MARD_EXPECTED_COLOR_COUNT = 291;
@@ -1456,7 +1456,7 @@ async function importLocalProject(event) {
     state.livePreviewTimer = 0;
     const project = JSON.parse(await file.text());
     if (project?.type !== "libai-maker-project" || !project.gridData) {
-      throw new Error("不是有效的里白造物项目文件");
+      throw new Error("不是有效的时里白造物项目文件");
     }
     const grid = deserializeGridFromLibrary(project);
     if (!grid?.length || !grid[0]?.length) throw new Error("项目网格为空");
@@ -1489,7 +1489,7 @@ async function importLocalProject(event) {
     if (els.cropZoomInput) els.cropZoomInput.value = String(settings.cropZoom || 100);
     if (els.cropXInput) els.cropXInput.value = String(settings.cropX || 0);
     if (els.cropYInput) els.cropYInput.value = String(settings.cropY || 0);
-    if (els.schemeNameInput) els.schemeNameInput.value = project.name || "里白造物图纸";
+    if (els.schemeNameInput) els.schemeNameInput.value = project.name || "时里白造物图纸";
     updateCompositionUi();
     updateRatioLockUi();
     refreshChartUrl();
@@ -3438,7 +3438,7 @@ function createChartCanvas(grid, stats, options = {}) {
   const margin = options.margin || 54;
   const headerHeight = options.headerHeight || (options.subtitle ? 196 : 166);
   const showCodes = options.showCodes ?? cell >= 22;
-  const title = options.title || "里白造物拼豆图纸生成器";
+  const title = options.title || "时里白造物拼豆图纸生成器";
   const paletteLabel = options.paletteLabel || getChartPaletteLabel();
   const totalBeads = stats.reduce((sum, item) => sum + item.count, 0);
   const finishedSize = formatFinishedSize(columns, rows);
@@ -3585,7 +3585,7 @@ function createA4PageCanvas(tile, details) {
   context.textBaseline = "alphabetic";
   context.fillStyle = "#111827";
   context.font = `900 42px ${CANVAS_FONT_STACK}`;
-  context.fillText("里白造物拼豆图纸", marginPx + 118, marginPx + 43);
+  context.fillText("时里白造物拼豆图纸", marginPx + 118, marginPx + 43);
   context.fillStyle = "#4b5563";
   context.font = `800 24px ${CANVAS_FONT_STACK}`;
   context.fillText(
@@ -3680,10 +3680,10 @@ function drawChartHeader(context, details) {
   context.textBaseline = "alphabetic";
   context.fillStyle = "#111827";
   context.font = `900 30px ${CANVAS_FONT_STACK}`;
-  context.fillText("里白造物拼豆图纸", textX, 50, textMaxWidth);
+  context.fillText("时里白造物拼豆图纸", textX, 50, textMaxWidth);
   context.fillStyle = "#4b5563";
   context.font = `800 14px ${CANVAS_FONT_STACK}`;
-  context.fillText("LiBai Maker Studio", textX, 73, textMaxWidth);
+  context.fillText("时里白造物", textX, 73, textMaxWidth);
 
   context.fillStyle = "#111827";
   context.font = `900 18px ${CANVAS_FONT_STACK}`;
@@ -3705,7 +3705,7 @@ function drawChartHeader(context, details) {
   context.textAlign = "right";
   context.fillStyle = "rgba(17, 24, 39, 0.52)";
   context.font = `800 14px ${CANVAS_FONT_STACK}`;
-  context.fillText("LiBai Maker Studio", details.width - details.margin, 42);
+  context.fillText("时里白造物", details.width - details.margin, 42);
 
   context.strokeStyle = "rgba(17, 24, 39, 0.16)";
   context.lineWidth = 1;
@@ -3789,7 +3789,7 @@ function drawChartWatermark(context, x, y, width, height) {
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.font = `900 ${Math.max(54, Math.min(170, width / 7))}px ${CANVAS_FONT_STACK}`;
-  context.fillText("LiBai Maker Studio", 0, 0);
+  context.fillText("时里白造物", 0, 0);
   context.restore();
 
   const timestamp = `${getLocalTimestamp()} 客户端本地生成`;
@@ -4386,10 +4386,10 @@ function drawMaterialListHeader(context, details) {
   context.textAlign = "left";
   context.fillStyle = "#111827";
   context.font = `900 42px ${CANVAS_FONT_STACK}`;
-  context.fillText("里白造物拼豆图纸 - 精确材料清单", textX, 108, pageWidth - textX - margin);
+  context.fillText("时里白造物拼豆图纸 - 精确材料清单", textX, 108, pageWidth - textX - margin);
   context.fillStyle = "#4b5563";
   context.font = `800 24px ${CANVAS_FONT_STACK}`;
-  context.fillText("LiBai Maker Studio · A4 Printable PDF", textX, 148, pageWidth - textX - margin);
+  context.fillText("时里白造物 · A4 Printable PDF", textX, 148, pageWidth - textX - margin);
   context.font = `700 20px ${CANVAS_FONT_STACK}`;
   context.fillText(`生成时间：${generatedAt}`, textX, 186, pageWidth - textX - margin);
 

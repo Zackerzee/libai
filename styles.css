@@ -134,19 +134,19 @@ img {
 }
 
 .brand {
-  min-width: 236px;
+  min-width: 300px;
   display: inline-flex;
   align-items: center;
   gap: 12px;
 }
 
 .brand img {
-  width: 44px;
-  height: 44px;
+  width: 188px;
+  height: 34px;
   object-fit: contain;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: white;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .brand strong,
@@ -314,7 +314,7 @@ img {
 .stage-image {
   background:
     radial-gradient(circle at center, rgba(255, 255, 255, 0.74) 0 35%, rgba(246, 246, 243, 0.76) 68%),
-    url("./libai-logo-pixel.svg") center / min(76%, 620px) no-repeat;
+    url("./assets/shilibai-logo.png") center / min(78%, 720px) no-repeat;
   opacity: 0.84;
 }
 
@@ -918,13 +918,13 @@ input:focus-visible {
 }
 
 .invite-logo {
-  width: 118px;
-  height: 118px;
+  width: 100%;
+  height: 54px;
   margin-bottom: 14px;
   overflow: hidden;
-  border: 1px solid var(--line-soft);
-  border-radius: 16px;
-  background: #ffffff;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
 }
 
@@ -932,6 +932,7 @@ input:focus-visible {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  object-position: left center;
 }
 
 .invite-kicker {
@@ -2210,7 +2211,7 @@ canvas,
 .stage-image {
   background:
     linear-gradient(135deg, rgba(0, 0, 0, 0.38), rgba(0, 0, 0, 0.74)),
-    url("./libai-logo-pixel.svg") center / min(68%, 520px) no-repeat,
+    url("./assets/shilibai-logo.png") center / min(68%, 520px) no-repeat,
     var(--pixel-bg-pop);
   opacity: 0.55;
   image-rendering: pixelated;
@@ -2875,7 +2876,7 @@ canvas,
   display: block;
   background:
     radial-gradient(circle at center, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.18) 62%),
-    url("./libai-logo-pixel.svg") center / min(34%, 260px) no-repeat;
+    url("./assets/shilibai-logo.png") center / min(34%, 260px) no-repeat;
   opacity: 0.36;
   backdrop-filter: none;
 }
@@ -3517,7 +3518,7 @@ button:active:not(:disabled),
 .stage-glass {
   background:
     radial-gradient(circle at center, rgba(255, 253, 247, 0.72), rgba(255, 253, 247, 0.14) 60%),
-    url("./libai-logo-pixel.svg") center / min(28%, 220px) no-repeat;
+    url("./assets/shilibai-logo.png") center / min(28%, 220px) no-repeat;
   opacity: 0.28;
 }
 
@@ -6147,5 +6148,45 @@ body.is-focus-mode .bead-cell.is-focus-target.is-completed {
 
   .smart-optimization-block {
     padding: 10px;
+  }
+}
+
+/* Final brand override: the public site now uses the official Shilibai wide logo. */
+.brand {
+  min-width: min(360px, 48vw);
+}
+
+.brand img {
+  width: clamp(150px, 20vw, 240px);
+  height: clamp(24px, 3vw, 40px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.invite-logo {
+  width: 100%;
+  height: 56px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.invite-logo img {
+  object-position: left center;
+}
+
+@media (max-width: 700px) {
+  .brand {
+    min-width: 0;
+  }
+
+  .brand img {
+    width: clamp(128px, 38vw, 190px);
+    height: 30px;
   }
 }
