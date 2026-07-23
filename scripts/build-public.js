@@ -13,6 +13,7 @@ const staticEntries = [
   "assets",
   "denoise-integration.js",
   "downloads",
+  "favicon.png",
   "favicon.svg",
   "images.png",
   "index.html",
