@@ -14,6 +14,7 @@ const staticEntries = [
   "denoise-integration.js",
   "downloads",
   "favicon.png",
+  "favicon-rounded.png",
   "favicon.svg",
   "images.png",
   "index.html",
