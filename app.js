@@ -60,7 +60,8 @@ const MARD_COLOR_SOURCE_VERSION = "MARD 2026";
 const MARD_EXPECTED_COLOR_COUNT = 291;
 const PALETTE_SIZE_OPTIONS = [48, 64, 72, 90, 144, 221, 264, 291];
 const PORTRAIT_COLOR_LIMIT = 30;
-const PORTRAIT_DITHER_STRENGTH = 0.24;
+// 人像样图的格子边界应当干净，扩散过强会在肤色、头发和衣服边缘制造彩色噪点。
+const PORTRAIT_DITHER_STRENGTH = 0.1;
 const PORTRAIT_CLUSTER_SAMPLE_LIMIT = 900;
 const CANVAS_FONT_STACK =
   'DottedPixel, "Maple Mono", "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif';
@@ -2888,7 +2889,8 @@ function sharpenPortraitLuma(values, alpha, width, height, backgroundMask = null
       const luma = getLumaAt(x, y);
       const neighborLuma =
         (getLumaAt(x - 1, y) + getLumaAt(x + 1, y) + getLumaAt(x, y - 1) + getLumaAt(x, y + 1)) / 4;
-      const detail = clamp(luma - neighborLuma, -46, 46) * 0.18;
+      // 只保留轻微轮廓增强，避免把照片纹理放大成孤立色块。
+      const detail = clamp(luma - neighborLuma, -46, 46) * 0.12;
       const offset = pixelIndex * 3;
       output[offset] = clamp(output[offset] + detail, 0, 255);
       output[offset + 1] = clamp(output[offset + 1] + detail, 0, 255);
@@ -3073,7 +3075,36 @@ function ditherPortraitValues(values, alpha, width, height, palette, backgroundM
     }
   }
 
-  return grid;
+  return cleanupPortraitGrid(grid, width, height);
+}
+
+/**
+ * 清理人像量化后的单格噪点。
+ *
+ * 只处理“上下左右至少 3 格完全一致”的孤立色块，并且要求中心色与多数色
+ * 的差异不大。这样可以消除抖动造成的脏点，同时保留眼睛、嘴唇、发丝等真正
+ * 的高对比细节，不做整幅图的模糊或大范围平滑。
+ */
+function cleanupPortraitGrid(grid, width, height) {
+  const output = grid.map((row) => row.slice());
+  const getCell = (x, y) => (x < 0 || y < 0 || x >= width || y >= height ? null : grid[y][x]);
+
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const center = grid[y][x];
+      if (!center) continue;
+      const neighbors = [getCell(x - 1, y), getCell(x + 1, y), getCell(x, y - 1), getCell(x, y + 1)].filter(Boolean);
+      const counts = new Map();
+      neighbors.forEach((color) => counts.set(color.code, (counts.get(color.code) || 0) + 1));
+      const majority = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+      if (!majority || majority[1] < 3 || majority[0] === center.code) continue;
+      const majorityColor = neighbors.find((color) => color.code === majority[0]);
+      if (!majorityColor) continue;
+      if (getColorDistance(center.rgb, majorityColor.rgb) <= 82) output[y][x] = cloneColor(majorityColor);
+    }
+  }
+
+  return output;
 }
 
 function getPaletteLabEntries(palette) {
