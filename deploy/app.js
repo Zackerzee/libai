@@ -571,6 +571,7 @@ const els = {
   cropXInput: document.querySelector("#crop-x-input"),
   cropYInput: document.querySelector("#crop-y-input"),
   compositionResetButton: document.querySelector("#composition-reset-button"),
+  portraitSamplePresetButton: document.querySelector("#portrait-sample-preset-button"),
   mobileGranularityInput: document.querySelector("#mobile-granularity-input"),
   mobileGranularityOutput: document.querySelector("#mobile-granularity-output"),
   similarityInput: document.querySelector("#similarity-input"),
@@ -883,6 +884,7 @@ function bindEvents() {
     });
   });
   els.compositionResetButton?.addEventListener("click", resetComposition);
+  els.portraitSamplePresetButton?.addEventListener("click", applyPortraitSamplePreset);
   els.modeSelect?.addEventListener("change", () => {
     if (els.modeSelect.value === "portrait") {
       applyPortraitModeDefaults();
@@ -1299,6 +1301,25 @@ function applyPortraitModeDefaults() {
   if (els.colorLimitSelect) els.colorLimitSelect.value = String(PORTRAIT_COLOR_LIMIT);
   syncIsolationControl(1);
   syncRangeControls("similarity", 12, 0, 100);
+}
+
+function applyPortraitSamplePreset() {
+  if (els.modeSelect) els.modeSelect.value = "portrait";
+  if (!state.ratioLocked) {
+    // 已经是解锁状态时不需要再次切换按钮语义，只更新尺寸即可。
+  } else {
+    state.ratioLocked = false;
+  }
+  syncRangeControls("granularity", 112, MIN_GRANULARITY, MAX_GRANULARITY);
+  if (els.gridHeightNumber) els.gridHeightNumber.value = "85";
+  if (els.cropModeSelect) els.cropModeSelect.value = "cover";
+  if (els.cropZoomInput) els.cropZoomInput.value = "100";
+  if (els.cropXInput) els.cropXInput.value = "0";
+  if (els.cropYInput) els.cropYInput.value = "0";
+  applyPortraitModeDefaults();
+  updateCompositionUi();
+  updateRatioLockUi();
+  scheduleLivePreview("已切换参考样图比例 112 × 85");
 }
 
 function handleSmartOptimizationClick(event) {
