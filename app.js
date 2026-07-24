@@ -2838,22 +2838,23 @@ function enhancePortraitPixels(pixels, width, height, backgroundMask = null) {
 function enhancePortraitRgb(red, green, blue) {
   const luma = 0.299 * red + 0.587 * green + 0.114 * blue;
   const skinLike = isSkinLikeRgb(red, green, blue);
-  let contrast = 1.1;
-  let saturation = 1.04;
-  let lift = 2;
+  // 人像模式只做轻微校正。大幅拉对比会把肤色、粉色和暗部推向错误的珠子颜色。
+  let contrast = 1.03;
+  let saturation = 1.03;
+  let lift = 0;
 
   if (skinLike) {
-    contrast = 1.05;
-    saturation = 0.96;
-    lift = 5;
+    contrast = 1.02;
+    saturation = 1.02;
+    lift = 1;
   } else if (luma < 70) {
-    contrast = 1.2;
-    saturation = 1.08;
-    lift = -7;
-  } else if (luma > 210) {
     contrast = 1.06;
-    saturation = 0.98;
-    lift = 4;
+    saturation = 1.02;
+    lift = -2;
+  } else if (luma > 210) {
+    contrast = 1.02;
+    saturation = 1.0;
+    lift = 2;
   }
 
   red = (red - 128) * contrast + 128 + lift;
@@ -2914,11 +2915,11 @@ function buildAdaptivePortraitPalette(values, alpha, width, height, palette, bac
     selected.push(color);
   };
 
-  centroids.forEach((centroid) => addColor(nearestPortraitPaletteColor(centroid.rgb, palette)));
+  centroids.forEach((centroid) => addColor(nearestPortraitColorByLab(centroid.rgb, paletteLabs)));
   samples
     .slice()
     .sort((a, b) => b.count - a.count)
-    .forEach((sample) => addColor(nearestPortraitPaletteColor(sample.rgb, palette)));
+    .forEach((sample) => addColor(nearestPortraitColorByLab(sample.rgb, paletteLabs)));
 
   return selected.length ? selected : palette.slice(0, maxColors);
 }
@@ -3096,10 +3097,6 @@ function nearestPaletteColorByLab(rgbValue, paletteLabs) {
   return best;
 }
 
-function nearestPortraitPaletteColor(rgbValue, palette) {
-  return nearestPortraitColorByLab(rgbValue, getPaletteLabEntries(palette));
-}
-
 function nearestPortraitColorByLab(rgbValue, paletteLabs) {
   const sourceLab = rgbToLab(rgbValue[0], rgbValue[1], rgbValue[2]);
   const sourceLuma = 0.299 * rgbValue[0] + 0.587 * rgbValue[1] + 0.114 * rgbValue[2];
@@ -3113,14 +3110,29 @@ function nearestPortraitColorByLab(rgbValue, paletteLabs) {
     const targetChroma = Math.max(...target) - Math.min(...target);
     let distance = labDistanceSquared(sourceLab, entry.lab) + (sourceLuma - targetLuma) ** 2 * 0.18;
 
+    const sourceWarm = rgbValue[0] - rgbValue[2];
+    const targetWarm = target[0] - target[2];
+    const sourceGreenBias = rgbValue[1] - Math.max(rgbValue[0], rgbValue[2]);
+    const targetGreenBias = target[1] - Math.max(target[0], target[2]);
+
+    // 暗部优先保持黑、灰、深棕的连续关系，避免背景和头发被替换成绿色。
+    if (sourceLuma < 72 && sourceGreenBias < 8 && targetGreenBias > 8) {
+      distance += 1800 + (targetGreenBias - sourceGreenBias) ** 2 * 8;
+    }
+    // 暖色人像区域不能跳到冷绿，尤其是肤色、粉发和棕色衣物的边缘。
+    if (sourceWarm > 14 && targetGreenBias > 8) {
+      distance += 1400 + targetGreenBias ** 2 * 5;
+    }
+    if (sourceWarm < -14 && targetGreenBias < -8) {
+      distance += 700 + Math.abs(targetGreenBias - sourceGreenBias) ** 2 * 2;
+    }
+
     // 人像中的黑发、深棕衣服和中性阴影不能被误替换为绿色色块。
     if (sourceChroma < 38 && targetChroma > 48) distance += (targetChroma - sourceChroma) ** 2 * 0.42;
     if (sourceLuma < 92 && target[1] > target[0] + 8 && target[1] > target[2] + 8) {
       distance += (target[1] - Math.max(target[0], target[2]) + 8) ** 2 * 2.8;
     }
 
-    const sourceWarm = rgbValue[0] - rgbValue[2];
-    const targetWarm = target[0] - target[2];
     if (Math.abs(sourceWarm) > 10 && sourceWarm * targetWarm < 0) {
       distance += Math.abs(sourceWarm - targetWarm) ** 2 * 0.55;
     }
