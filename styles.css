@@ -6057,6 +6057,26 @@ body.is-focus-mode .bead-cell.is-focus-target.is-completed {
   line-height: 1.45;
 }
 
+.dimension-preset-button {
+  justify-self: start;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #2563eb;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.dimension-preset-button:hover {
+  background: #dbeafe;
+  transform: translateY(-1px);
+}
+
 .smart-optimization-block {
   display: grid;
   gap: 10px;
