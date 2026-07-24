@@ -59,6 +59,9 @@ const MARD_COLOR_SOURCE_URL = "https://www.pixel-beads.com/zh/mard-bead-color-ch
 const MARD_COLOR_SOURCE_VERSION = "MARD 2026";
 const MARD_EXPECTED_COLOR_COUNT = 291;
 const PALETTE_SIZE_OPTIONS = [48, 64, 72, 90, 144, 221, 264, 291];
+const PORTRAIT_COLOR_LIMIT = 30;
+const PORTRAIT_DITHER_STRENGTH = 0.58;
+const PORTRAIT_CLUSTER_SAMPLE_LIMIT = 900;
 const CANVAS_FONT_STACK =
   'DottedPixel, "Maple Mono", "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif';
 const SUPPORTED_IMAGE_TYPES = new Set([
@@ -880,6 +883,9 @@ function bindEvents() {
   });
   els.compositionResetButton?.addEventListener("click", resetComposition);
   els.modeSelect?.addEventListener("change", () => {
+    if (els.modeSelect.value === "portrait") {
+      applyPortraitModeDefaults();
+    }
     scheduleLivePreview("处理模式已更新");
   });
   els.tileSizeSelect?.addEventListener("change", updateResultUi);
@@ -1278,10 +1284,20 @@ function syncIsolationControl(value = els.isolationInput?.value || 1) {
 }
 
 function getOptimizationOptions() {
+  const isPortraitMode = els.modeSelect?.value === "portrait";
   return {
-    colorLimit: Math.max(0, Number(els.colorLimitSelect?.value || 0)),
-    isolationThreshold: syncIsolationControl(),
+    colorLimit: isPortraitMode
+      ? PORTRAIT_COLOR_LIMIT
+      : Math.max(0, Number(els.colorLimitSelect?.value || 0)),
+    isolationThreshold: isPortraitMode ? 1 : syncIsolationControl(),
+    preserveDetails: isPortraitMode,
   };
+}
+
+function applyPortraitModeDefaults() {
+  if (els.colorLimitSelect) els.colorLimitSelect.value = String(PORTRAIT_COLOR_LIMIT);
+  syncIsolationControl(1);
+  syncRangeControls("similarity", 12, 0, 100);
 }
 
 function handleSmartOptimizationClick(event) {
@@ -1963,7 +1979,7 @@ async function processImage(options = {}) {
     state.width = result.width;
     state.height = result.height;
     state.backgroundDecision = result.backgroundDecision || "";
-    state.optimizationSummary = optimized.summary;
+    state.optimizationSummary = [result.summary, optimized.summary].filter(Boolean).join(" · ");
     state.paletteLabel = getCurrentPaletteLabel();
     state.stats = calculateStats(state.grid);
     state.assemblyHideCellText = false;
@@ -2332,13 +2348,22 @@ function rasterizeImage(image, palette) {
   canvas.height = height;
   context.clearRect(0, 0, width, height);
   context.imageSmoothingEnabled = mode !== "palette";
-  context.imageSmoothingQuality = mode === "smooth" ? "high" : "medium";
+  context.imageSmoothingQuality = mode === "smooth" || mode === "portrait" ? "high" : "medium";
   drawImageWithComposition(context, image, width, height);
 
   const pixels = context.getImageData(0, 0, width, height).data;
   const background = getBackgroundMask(pixels, width, height);
   const backgroundMask = background.mask;
   const grid = Array.from({ length: height }, () => Array(width).fill(null));
+  if (mode === "portrait") {
+    return {
+      width,
+      height,
+      grid: rasterizePortraitPixels(pixels, width, height, palette, backgroundMask),
+      backgroundDecision: background.decision,
+      summary: `${PORTRAIT_COLOR_LIMIT}色人像精细`,
+    };
+  }
   if (mode === "dither") {
     return {
       width,
@@ -2762,6 +2787,323 @@ function ditherPixels(pixels, width, height, palette, threshold, backgroundMask 
   return grid;
 }
 
+function rasterizePortraitPixels(pixels, width, height, palette, backgroundMask = null) {
+  const portrait = enhancePortraitPixels(pixels, width, height, backgroundMask);
+  const portraitPalette = buildAdaptivePortraitPalette(
+    portrait.values,
+    portrait.alpha,
+    width,
+    height,
+    palette,
+    backgroundMask,
+    PORTRAIT_COLOR_LIMIT,
+  );
+  return ditherPortraitValues(
+    portrait.values,
+    portrait.alpha,
+    width,
+    height,
+    portraitPalette,
+    backgroundMask,
+    PORTRAIT_DITHER_STRENGTH,
+  );
+}
+
+function enhancePortraitPixels(pixels, width, height, backgroundMask = null) {
+  const total = width * height;
+  const values = new Float32Array(total * 3);
+  const alpha = new Uint8Array(total);
+
+  for (let pixelIndex = 0; pixelIndex < total; pixelIndex += 1) {
+    const sourceIndex = pixelIndex * 4;
+    alpha[pixelIndex] = pixels[sourceIndex + 3];
+    let red = pixels[sourceIndex];
+    let green = pixels[sourceIndex + 1];
+    let blue = pixels[sourceIndex + 2];
+    if (alpha[pixelIndex] >= 24 && !backgroundMask?.[pixelIndex]) {
+      [red, green, blue] = enhancePortraitRgb(red, green, blue);
+    }
+    const targetIndex = pixelIndex * 3;
+    values[targetIndex] = red;
+    values[targetIndex + 1] = green;
+    values[targetIndex + 2] = blue;
+  }
+
+  return {
+    values: sharpenPortraitLuma(values, alpha, width, height, backgroundMask),
+    alpha,
+  };
+}
+
+function enhancePortraitRgb(red, green, blue) {
+  const luma = 0.299 * red + 0.587 * green + 0.114 * blue;
+  const skinLike = isSkinLikeRgb(red, green, blue);
+  let contrast = 1.1;
+  let saturation = 1.04;
+  let lift = 2;
+
+  if (skinLike) {
+    contrast = 1.05;
+    saturation = 0.96;
+    lift = 5;
+  } else if (luma < 70) {
+    contrast = 1.2;
+    saturation = 1.08;
+    lift = -7;
+  } else if (luma > 210) {
+    contrast = 1.06;
+    saturation = 0.98;
+    lift = 4;
+  }
+
+  red = (red - 128) * contrast + 128 + lift;
+  green = (green - 128) * contrast + 128 + lift;
+  blue = (blue - 128) * contrast + 128 + lift;
+  const gray = 0.299 * red + 0.587 * green + 0.114 * blue;
+  return [
+    clamp(gray + (red - gray) * saturation, 0, 255),
+    clamp(gray + (green - gray) * saturation, 0, 255),
+    clamp(gray + (blue - gray) * saturation, 0, 255),
+  ];
+}
+
+function isSkinLikeRgb(red, green, blue) {
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  return red > 80 && green > 45 && blue > 32 && red >= green && green >= blue && max - min > 12;
+}
+
+function sharpenPortraitLuma(values, alpha, width, height, backgroundMask = null) {
+  const output = new Float32Array(values);
+  const getLumaAt = (x, y) => {
+    const offset = (y * width + x) * 3;
+    return 0.299 * values[offset] + 0.587 * values[offset + 1] + 0.114 * values[offset + 2];
+  };
+
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const pixelIndex = y * width + x;
+      if (alpha[pixelIndex] < 24 || backgroundMask?.[pixelIndex]) continue;
+      const luma = getLumaAt(x, y);
+      const neighborLuma =
+        (getLumaAt(x - 1, y) + getLumaAt(x + 1, y) + getLumaAt(x, y - 1) + getLumaAt(x, y + 1)) / 4;
+      const detail = clamp(luma - neighborLuma, -46, 46) * 0.18;
+      const offset = pixelIndex * 3;
+      output[offset] = clamp(output[offset] + detail, 0, 255);
+      output[offset + 1] = clamp(output[offset + 1] + detail, 0, 255);
+      output[offset + 2] = clamp(output[offset + 2] + detail, 0, 255);
+    }
+  }
+
+  return output;
+}
+
+function buildAdaptivePortraitPalette(values, alpha, width, height, palette, backgroundMask, maxColors) {
+  const samples = getPortraitColorSamples(values, alpha, width, height, backgroundMask);
+  if (!samples.length) return palette.slice(0, maxColors);
+
+  const centroids = getWeightedPortraitCentroids(samples, maxColors);
+  const paletteLabs = getPaletteLabEntries(palette);
+  const selected = [];
+  const seen = new Set();
+  const addColor = (color) => {
+    if (!color || seen.has(color.code) || selected.length >= maxColors) return;
+    seen.add(color.code);
+    selected.push(color);
+  };
+
+  centroids.forEach((centroid) => addColor(nearestPaletteColorByLab(centroid.rgb, paletteLabs)));
+  samples
+    .slice()
+    .sort((a, b) => b.count - a.count)
+    .forEach((sample) => addColor(nearestPaletteColorByLab(sample.rgb, paletteLabs)));
+
+  return selected.length ? selected : palette.slice(0, maxColors);
+}
+
+function getPortraitColorSamples(values, alpha, width, height, backgroundMask = null) {
+  const buckets = new Map();
+  const total = width * height;
+  for (let pixelIndex = 0; pixelIndex < total; pixelIndex += 1) {
+    if (alpha[pixelIndex] < 24 || backgroundMask?.[pixelIndex]) continue;
+    const offset = pixelIndex * 3;
+    const red = clamp(Math.round(values[offset]), 0, 255);
+    const green = clamp(Math.round(values[offset + 1]), 0, 255);
+    const blue = clamp(Math.round(values[offset + 2]), 0, 255);
+    const key = `${red >> 3}-${green >> 3}-${blue >> 3}`;
+    const bucket = buckets.get(key) || { red: 0, green: 0, blue: 0, count: 0 };
+    bucket.red += red;
+    bucket.green += green;
+    bucket.blue += blue;
+    bucket.count += 1;
+    buckets.set(key, bucket);
+  }
+
+  return [...buckets.values()]
+    .map((bucket) => {
+      const rgbValue = [
+        bucket.red / bucket.count,
+        bucket.green / bucket.count,
+        bucket.blue / bucket.count,
+      ];
+      return {
+        rgb: rgbValue,
+        lab: rgbToLab(rgbValue[0], rgbValue[1], rgbValue[2]),
+        count: bucket.count,
+      };
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, PORTRAIT_CLUSTER_SAMPLE_LIMIT);
+}
+
+function getWeightedPortraitCentroids(samples, maxColors) {
+  const targetCount = Math.min(maxColors, samples.length);
+  const centroids = [clonePortraitCentroid(samples[0])];
+
+  while (centroids.length < targetCount) {
+    let bestSample = samples[centroids.length] || samples[0];
+    let bestScore = -Infinity;
+    for (const sample of samples) {
+      const minDistance = Math.min(...centroids.map((centroid) => labDistanceSquared(sample.lab, centroid.lab)));
+      const score = minDistance * Math.log2(sample.count + 2);
+      if (score > bestScore) {
+        bestScore = score;
+        bestSample = sample;
+      }
+    }
+    centroids.push(clonePortraitCentroid(bestSample));
+  }
+
+  for (let iteration = 0; iteration < 8; iteration += 1) {
+    const groups = centroids.map(() => ({ red: 0, green: 0, blue: 0, weight: 0 }));
+    for (const sample of samples) {
+      let bestIndex = 0;
+      let bestDistance = Infinity;
+      centroids.forEach((centroid, index) => {
+        const distance = labDistanceSquared(sample.lab, centroid.lab);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestIndex = index;
+        }
+      });
+      const group = groups[bestIndex];
+      group.red += sample.rgb[0] * sample.count;
+      group.green += sample.rgb[1] * sample.count;
+      group.blue += sample.rgb[2] * sample.count;
+      group.weight += sample.count;
+    }
+
+    groups.forEach((group, index) => {
+      if (!group.weight) return;
+      const rgbValue = [group.red / group.weight, group.green / group.weight, group.blue / group.weight];
+      centroids[index] = {
+        rgb: rgbValue,
+        lab: rgbToLab(rgbValue[0], rgbValue[1], rgbValue[2]),
+      };
+    });
+  }
+
+  return centroids;
+}
+
+function clonePortraitCentroid(sample) {
+  return {
+    rgb: [...sample.rgb],
+    lab: [...sample.lab],
+  };
+}
+
+function ditherPortraitValues(values, alpha, width, height, palette, backgroundMask, diffusionStrength) {
+  const work = new Float32Array(values);
+  const grid = Array.from({ length: height }, () => Array(width).fill(null));
+  const addError = (x, y, er, eg, eb, factor) => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return;
+    const pixelIndex = y * width + x;
+    if (alpha[pixelIndex] < 24 || backgroundMask?.[pixelIndex]) return;
+    const offset = pixelIndex * 3;
+    work[offset] += er * factor * diffusionStrength;
+    work[offset + 1] += eg * factor * diffusionStrength;
+    work[offset + 2] += eb * factor * diffusionStrength;
+  };
+
+  for (let y = 0; y < height; y += 1) {
+    const leftToRight = y % 2 === 0;
+    for (let step = 0; step < width; step += 1) {
+      const x = leftToRight ? step : width - 1 - step;
+      const pixelIndex = y * width + x;
+      if (alpha[pixelIndex] < 24 || backgroundMask?.[pixelIndex]) continue;
+      const offset = pixelIndex * 3;
+      const red = clamp(work[offset], 0, 255);
+      const green = clamp(work[offset + 1], 0, 255);
+      const blue = clamp(work[offset + 2], 0, 255);
+      const color = nearestColor(red, green, blue, palette);
+      grid[y][x] = cloneColor(color);
+      const er = red - color.rgb[0];
+      const eg = green - color.rgb[1];
+      const eb = blue - color.rgb[2];
+      if (leftToRight) {
+        addError(x + 1, y, er, eg, eb, 7 / 16);
+        addError(x - 1, y + 1, er, eg, eb, 3 / 16);
+        addError(x, y + 1, er, eg, eb, 5 / 16);
+        addError(x + 1, y + 1, er, eg, eb, 1 / 16);
+      } else {
+        addError(x - 1, y, er, eg, eb, 7 / 16);
+        addError(x + 1, y + 1, er, eg, eb, 3 / 16);
+        addError(x, y + 1, er, eg, eb, 5 / 16);
+        addError(x - 1, y + 1, er, eg, eb, 1 / 16);
+      }
+    }
+  }
+
+  return grid;
+}
+
+function getPaletteLabEntries(palette) {
+  return palette.map((color) => ({
+    color,
+    lab: rgbToLab(color.rgb[0], color.rgb[1], color.rgb[2]),
+  }));
+}
+
+function nearestPaletteColorByLab(rgbValue, paletteLabs) {
+  const lab = rgbToLab(rgbValue[0], rgbValue[1], rgbValue[2]);
+  let best = paletteLabs[0]?.color;
+  let bestDistance = Infinity;
+  for (const entry of paletteLabs) {
+    const distance = labDistanceSquared(lab, entry.lab);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = entry.color;
+    }
+  }
+  return best;
+}
+
+function rgbToLab(red, green, blue) {
+  const toLinear = (value) => {
+    const channel = clamp(value, 0, 255) / 255;
+    return channel > 0.04045 ? ((channel + 0.055) / 1.055) ** 2.4 : channel / 12.92;
+  };
+  const r = toLinear(red);
+  const g = toLinear(green);
+  const b = toLinear(blue);
+  const x = (r * 0.4124564 + g * 0.3575761 + b * 0.1804375) / 0.95047;
+  const y = (r * 0.2126729 + g * 0.7151522 + b * 0.072175) / 1;
+  const z = (r * 0.0193339 + g * 0.119192 + b * 0.9503041) / 1.08883;
+  const pivot = (value) => (value > 0.008856 ? Math.cbrt(value) : 7.787 * value + 16 / 116);
+  const fx = pivot(x);
+  const fy = pivot(y);
+  const fz = pivot(z);
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+
+function labDistanceSquared(a, b) {
+  const dl = a[0] - b[0];
+  const da = a[1] - b[1];
+  const db = a[2] - b[2];
+  return dl * dl * 1.18 + da * da + db * db;
+}
+
 function getFixedBoardSize() {
   const value = els.boardSelect.value;
   if (value === "custom") return null;
@@ -2824,6 +3166,7 @@ function calculateStats(grid) {
 function optimizeGrid(grid, options = {}) {
   const colorLimit = Math.max(0, Number(options.colorLimit || 0));
   const isolationThreshold = Math.max(1, Number(options.isolationThreshold || 1));
+  const preserveDetails = Boolean(options.preserveDetails);
   if (!grid.length || (colorLimit <= 0 && isolationThreshold <= 1)) {
     return { grid, summary: "", changedCount: 0 };
   }
@@ -2840,9 +3183,11 @@ function optimizeGrid(grid, options = {}) {
     clusterApplied = true;
   }
 
-  const filtered = applyMajorityColorFilter(output);
-  output = filtered.grid;
-  changedCount += filtered.changedCount;
+  if (!preserveDetails) {
+    const filtered = applyMajorityColorFilter(output);
+    output = filtered.grid;
+    changedCount += filtered.changedCount;
+  }
 
   if (isolationThreshold > 1) {
     const cleaned = removeIsolatedColorComponents(output, isolationThreshold);
@@ -3151,10 +3496,8 @@ function removeIsolatedColorComponents(grid, minSize) {
 }
 
 function applySmartPreset() {
-  if (els.colorLimitSelect) els.colorLimitSelect.value = "24";
-  syncIsolationControl(3);
-  if (els.modeSelect) els.modeSelect.value = "smooth";
-  syncRangeControls("similarity", 36, 0, 100);
+  if (els.modeSelect) els.modeSelect.value = "portrait";
+  applyPortraitModeDefaults();
   if (state.sourceDataUrl) {
     processImage();
     return;
