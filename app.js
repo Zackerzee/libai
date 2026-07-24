@@ -60,7 +60,7 @@ const MARD_COLOR_SOURCE_VERSION = "MARD 2026";
 const MARD_EXPECTED_COLOR_COUNT = 291;
 const PALETTE_SIZE_OPTIONS = [48, 64, 72, 90, 144, 221, 264, 291];
 const PORTRAIT_COLOR_LIMIT = 30;
-const PORTRAIT_DITHER_STRENGTH = 0.58;
+const PORTRAIT_DITHER_STRENGTH = 0.24;
 const PORTRAIT_CLUSTER_SAMPLE_LIMIT = 900;
 const CANVAS_FONT_STACK =
   'DottedPixel, "Maple Mono", "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif';
@@ -2914,11 +2914,11 @@ function buildAdaptivePortraitPalette(values, alpha, width, height, palette, bac
     selected.push(color);
   };
 
-  centroids.forEach((centroid) => addColor(nearestPaletteColorByLab(centroid.rgb, paletteLabs)));
+  centroids.forEach((centroid) => addColor(nearestPortraitPaletteColor(centroid.rgb, palette)));
   samples
     .slice()
     .sort((a, b) => b.count - a.count)
-    .forEach((sample) => addColor(nearestPaletteColorByLab(sample.rgb, paletteLabs)));
+    .forEach((sample) => addColor(nearestPortraitPaletteColor(sample.rgb, palette)));
 
   return selected.length ? selected : palette.slice(0, maxColors);
 }
@@ -3032,6 +3032,7 @@ function clonePortraitCentroid(sample) {
 function ditherPortraitValues(values, alpha, width, height, palette, backgroundMask, diffusionStrength) {
   const work = new Float32Array(values);
   const grid = Array.from({ length: height }, () => Array(width).fill(null));
+  const paletteLabs = getPaletteLabEntries(palette);
   const addError = (x, y, er, eg, eb, factor) => {
     if (x < 0 || y < 0 || x >= width || y >= height) return;
     const pixelIndex = y * width + x;
@@ -3052,7 +3053,7 @@ function ditherPortraitValues(values, alpha, width, height, palette, backgroundM
       const red = clamp(work[offset], 0, 255);
       const green = clamp(work[offset + 1], 0, 255);
       const blue = clamp(work[offset + 2], 0, 255);
-      const color = nearestColor(red, green, blue, palette);
+      const color = nearestPortraitColorByLab([red, green, blue], paletteLabs);
       grid[y][x] = cloneColor(color);
       const er = red - color.rgb[0];
       const eg = green - color.rgb[1];
@@ -3092,6 +3093,44 @@ function nearestPaletteColorByLab(rgbValue, paletteLabs) {
       best = entry.color;
     }
   }
+  return best;
+}
+
+function nearestPortraitPaletteColor(rgbValue, palette) {
+  return nearestPortraitColorByLab(rgbValue, getPaletteLabEntries(palette));
+}
+
+function nearestPortraitColorByLab(rgbValue, paletteLabs) {
+  const sourceLab = rgbToLab(rgbValue[0], rgbValue[1], rgbValue[2]);
+  const sourceLuma = 0.299 * rgbValue[0] + 0.587 * rgbValue[1] + 0.114 * rgbValue[2];
+  const sourceChroma = Math.max(...rgbValue) - Math.min(...rgbValue);
+  let best = paletteLabs[0]?.color;
+  let bestDistance = Infinity;
+
+  for (const entry of paletteLabs) {
+    const target = entry.color.rgb;
+    const targetLuma = 0.299 * target[0] + 0.587 * target[1] + 0.114 * target[2];
+    const targetChroma = Math.max(...target) - Math.min(...target);
+    let distance = labDistanceSquared(sourceLab, entry.lab) + (sourceLuma - targetLuma) ** 2 * 0.18;
+
+    // 人像中的黑发、深棕衣服和中性阴影不能被误替换为绿色色块。
+    if (sourceChroma < 38 && targetChroma > 48) distance += (targetChroma - sourceChroma) ** 2 * 0.42;
+    if (sourceLuma < 92 && target[1] > target[0] + 8 && target[1] > target[2] + 8) {
+      distance += (target[1] - Math.max(target[0], target[2]) + 8) ** 2 * 2.8;
+    }
+
+    const sourceWarm = rgbValue[0] - rgbValue[2];
+    const targetWarm = target[0] - target[2];
+    if (Math.abs(sourceWarm) > 10 && sourceWarm * targetWarm < 0) {
+      distance += Math.abs(sourceWarm - targetWarm) ** 2 * 0.55;
+    }
+
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = entry.color;
+    }
+  }
+
   return best;
 }
 
