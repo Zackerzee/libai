@@ -2361,7 +2361,7 @@ function rasterizeImage(image, palette) {
       height,
       grid: rasterizePortraitPixels(pixels, width, height, palette, backgroundMask),
       backgroundDecision: background.decision,
-      summary: `${PORTRAIT_COLOR_LIMIT}色人像精细`,
+      summary: `不超过${PORTRAIT_COLOR_LIMIT}色 · 人像精细`,
     };
   }
   if (mode === "dither") {
@@ -2902,12 +2902,14 @@ function buildAdaptivePortraitPalette(values, alpha, width, height, palette, bac
   const samples = getPortraitColorSamples(values, alpha, width, height, backgroundMask);
   if (!samples.length) return palette.slice(0, maxColors);
 
-  const centroids = getWeightedPortraitCentroids(samples, maxColors);
+  // 30 色是上限，不是固定目标。照片越简单，自动使用的颜色越少。
+  const targetColorCount = getAdaptivePortraitColorTarget(samples, maxColors);
+  const centroids = getWeightedPortraitCentroids(samples, targetColorCount);
   const paletteLabs = getPaletteLabEntries(palette);
   const selected = [];
   const seen = new Set();
   const addColor = (color) => {
-    if (!color || seen.has(color.code) || selected.length >= maxColors) return;
+    if (!color || seen.has(color.code) || selected.length >= targetColorCount) return;
     seen.add(color.code);
     selected.push(color);
   };
@@ -2919,6 +2921,20 @@ function buildAdaptivePortraitPalette(values, alpha, width, height, palette, bac
     .forEach((sample) => addColor(nearestPaletteColorByLab(sample.rgb, paletteLabs)));
 
   return selected.length ? selected : palette.slice(0, maxColors);
+}
+
+function getAdaptivePortraitColorTarget(samples, maxColors) {
+  const safeMax = Math.max(1, Math.floor(maxColors));
+  if (samples.length <= safeMax) return samples.length;
+
+  const total = samples.reduce((sum, sample) => sum + sample.count, 0);
+  if (!total) return safeMax;
+
+  // 只把占比足够的颜色视为“有实际画面贡献”的颜色，避免噪声把色数推到上限。
+  const meaningfulCount = samples.filter((sample) => sample.count / total >= 0.003).length;
+  const diversity = clamp(meaningfulCount / 60, 0, 1);
+  const target = Math.round(20 + diversity * (safeMax - 20));
+  return clamp(target, Math.min(20, safeMax), safeMax);
 }
 
 function getPortraitColorSamples(values, alpha, width, height, backgroundMask = null) {

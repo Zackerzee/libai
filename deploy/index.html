@@ -253,7 +253,7 @@
                     <select id="color-limit-select">
                       <option value="0" selected>不限制</option>
                       <option value="24">24 色</option>
-                      <option value="30">30 色人像推荐</option>
+                      <option value="30">不超过 30 色（人像推荐）</option>
                       <option value="48">48 色</option>
                       <option value="72">72 色</option>
                     </select>
@@ -276,7 +276,7 @@
                   <span>处理模式</span>
                   <select id="mode-select">
                     <option value="dominant" selected>卡通 (主色)</option>
-                    <option value="portrait">人像精细 (30色)</option>
+                    <option value="portrait">人像精细（≤30色）</option>
                     <option value="average">真实 (平均)</option>
                     <option value="dither">抖动 (误差扩散)</option>
                     <option value="smooth">平滑 (强化合并)</option>
@@ -871,6 +871,6 @@
       </div>
     </dialog>
 
-    <script src="./app.js?v=20260724-portrait-30color-1" defer></script>
+    <script src="./app.js?v=20260724-portrait-30max-2" defer></script>
   </body>
 </html>
