@@ -2790,6 +2790,7 @@ function ditherPixels(pixels, width, height, palette, threshold, backgroundMask 
 
 function rasterizePortraitPixels(pixels, width, height, palette, backgroundMask = null) {
   const portrait = enhancePortraitPixels(pixels, width, height, backgroundMask);
+  const samples = getPortraitColorSamples(portrait.values, portrait.alpha, width, height, backgroundMask);
   const portraitPalette = buildAdaptivePortraitPalette(
     portrait.values,
     portrait.alpha,
@@ -2798,6 +2799,7 @@ function rasterizePortraitPixels(pixels, width, height, palette, backgroundMask 
     palette,
     backgroundMask,
     PORTRAIT_COLOR_LIMIT,
+    samples,
   );
   return ditherPortraitValues(
     portrait.values,
@@ -2807,6 +2809,7 @@ function rasterizePortraitPixels(pixels, width, height, palette, backgroundMask 
     portraitPalette,
     backgroundMask,
     PORTRAIT_DITHER_STRENGTH,
+    samples,
   );
 }
 
@@ -2901,14 +2904,14 @@ function sharpenPortraitLuma(values, alpha, width, height, backgroundMask = null
   return output;
 }
 
-function buildAdaptivePortraitPalette(values, alpha, width, height, palette, backgroundMask, maxColors) {
-  const samples = getPortraitColorSamples(values, alpha, width, height, backgroundMask);
-  if (!samples.length) return palette.slice(0, maxColors);
+function buildAdaptivePortraitPalette(values, alpha, width, height, palette, backgroundMask, maxColors, samples = null) {
+  const colorSamples = samples || getPortraitColorSamples(values, alpha, width, height, backgroundMask);
+  if (!colorSamples.length) return palette.slice(0, maxColors);
 
   // 30 色是上限，不是固定目标。照片越简单，自动使用的颜色越少。
-  const targetColorCount = getAdaptivePortraitColorTarget(samples, maxColors);
-  const centroids = getWeightedPortraitCentroids(samples, targetColorCount);
-  const paletteLabs = getPaletteLabEntries(palette);
+  const targetColorCount = getAdaptivePortraitColorTarget(colorSamples, maxColors);
+  const centroids = getWeightedPortraitCentroids(colorSamples, targetColorCount);
+  const paletteLabs = getPortraitPaletteCandidates(getPaletteLabEntries(palette), colorSamples);
   const selected = [];
   const seen = new Set();
   const addColor = (color) => {
@@ -2918,12 +2921,32 @@ function buildAdaptivePortraitPalette(values, alpha, width, height, palette, bac
   };
 
   centroids.forEach((centroid) => addColor(nearestPortraitColorByLab(centroid.rgb, paletteLabs)));
-  samples
+  colorSamples
     .slice()
     .sort((a, b) => b.count - a.count)
     .forEach((sample) => addColor(nearestPortraitColorByLab(sample.rgb, paletteLabs)));
 
   return selected.length ? selected : palette.slice(0, maxColors);
+}
+
+function getPortraitPaletteCandidates(paletteLabs, samples) {
+  const total = samples.reduce((sum, sample) => sum + sample.count, 0);
+  if (!total) return paletteLabs;
+
+  const greenCount = samples.reduce((sum, sample) => {
+    const [red, green, blue] = sample.rgb;
+    const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
+    return sum + (green > red + 12 && green > blue + 8 && chroma > 18 ? sample.count : 0);
+  }, 0);
+
+  // 人像色板默认不引入绿色。只有源图中绿色确实占有明显面积时才保留绿色珠子，
+  // 防止 MARD 中相邻的橄榄色把肤色、粉发或暗棕色映射偏。
+  if (greenCount / total >= 0.03) return paletteLabs;
+  const filtered = paletteLabs.filter((entry) => {
+    const [red, green, blue] = entry.color.rgb;
+    return !(green > red + 10 && green > blue + 7 && green - Math.max(red, blue) > 10);
+  });
+  return filtered.length >= 8 ? filtered : paletteLabs;
 }
 
 function getAdaptivePortraitColorTarget(samples, maxColors) {
@@ -3032,10 +3055,13 @@ function clonePortraitCentroid(sample) {
   };
 }
 
-function ditherPortraitValues(values, alpha, width, height, palette, backgroundMask, diffusionStrength) {
+function ditherPortraitValues(values, alpha, width, height, palette, backgroundMask, diffusionStrength, samples = null) {
   const work = new Float32Array(values);
   const grid = Array.from({ length: height }, () => Array(width).fill(null));
-  const paletteLabs = getPaletteLabEntries(palette);
+  const paletteLabs = getPortraitPaletteCandidates(
+    getPaletteLabEntries(palette),
+    samples || [],
+  );
   const addError = (x, y, er, eg, eb, factor) => {
     if (x < 0 || y < 0 || x >= width || y >= height) return;
     const pixelIndex = y * width + x;
