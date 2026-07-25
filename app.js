@@ -63,6 +63,7 @@ const PORTRAIT_COLOR_LIMIT = 30;
 // 人像样图的格子边界应当干净，扩散过强会在肤色、头发和衣服边缘制造彩色噪点。
 const PORTRAIT_DITHER_STRENGTH = 0.1;
 const PORTRAIT_CLUSTER_SAMPLE_LIMIT = 900;
+const PORTRAIT_ANALYSIS_SCALE = 3;
 const CANVAS_FONT_STACK =
   'DottedPixel, "Maple Mono", "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif';
 const SUPPORTED_IMAGE_TYPES = new Set([
@@ -2363,17 +2364,9 @@ function rasterizeImage(image, palette) {
   const mode = els.modeSelect?.value || "dominant";
   const threshold = getSimilarityThreshold();
 
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) throw new Error("canvas context unavailable");
-  canvas.width = width;
-  canvas.height = height;
-  context.clearRect(0, 0, width, height);
-  context.imageSmoothingEnabled = mode !== "palette";
-  context.imageSmoothingQuality = mode === "smooth" || mode === "portrait" ? "high" : "medium";
-  drawImageWithComposition(context, image, width, height);
-
-  const pixels = context.getImageData(0, 0, width, height).data;
+  const pixels = mode === "portrait"
+    ? renderPortraitAnalysisPixels(image, width, height)
+    : renderRasterPixels(image, width, height, mode);
   const background = getBackgroundMask(pixels, width, height);
   const backgroundMask = background.mask;
   const grid = Array.from({ length: height }, () => Array(width).fill(null));
@@ -2497,6 +2490,96 @@ function analyzeConnectedBackground(pixels, width, height) {
     maskedRatio,
     shouldRemove,
   };
+}
+
+function renderRasterPixels(image, width, height, mode) {
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("canvas context unavailable");
+  canvas.width = width;
+  canvas.height = height;
+  context.clearRect(0, 0, width, height);
+  context.imageSmoothingEnabled = mode !== "palette";
+  context.imageSmoothingQuality = mode === "smooth" ? "high" : "medium";
+  drawImageWithComposition(context, image, width, height);
+  return context.getImageData(0, 0, width, height).data;
+}
+
+/**
+ * 人像模式先在放大的分析网格上完成构图，再按每个豆子格做区域平均。
+ * 这样比直接把原图缩到目标尺寸更能保留眼睛、嘴唇、发丝等局部色块；
+ * 区域平均使用线性光 RGB，减少暗部被 sRGB 平均后发灰的问题。
+ */
+function renderPortraitAnalysisPixels(image, width, height) {
+  const scale = Math.max(
+    1,
+    Math.min(PORTRAIT_ANALYSIS_SCALE, Math.floor(900 / Math.max(width, height)) || 1),
+  );
+  const analysisWidth = width * scale;
+  const analysisHeight = height * scale;
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("canvas context unavailable");
+  canvas.width = analysisWidth;
+  canvas.height = analysisHeight;
+  context.clearRect(0, 0, analysisWidth, analysisHeight);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  drawImageWithComposition(context, image, analysisWidth, analysisHeight);
+  return downsamplePortraitAnalysis(
+    context.getImageData(0, 0, analysisWidth, analysisHeight).data,
+    analysisWidth,
+    analysisHeight,
+    width,
+    height,
+  );
+}
+
+function downsamplePortraitAnalysis(source, sourceWidth, sourceHeight, width, height) {
+  const output = new Uint8ClampedArray(width * height * 4);
+  const toLinear = (value) => {
+    const channel = value / 255;
+    return channel > 0.04045 ? ((channel + 0.055) / 1.055) ** 2.4 : channel / 12.92;
+  };
+  const toSrgb = (value) => {
+    const channel = clamp(value, 0, 1);
+    return channel > 0.0031308 ? 1.055 * channel ** (1 / 2.4) - 0.055 : 12.92 * channel;
+  };
+
+  for (let y = 0; y < height; y += 1) {
+    const y0 = Math.floor((y * sourceHeight) / height);
+    const y1 = Math.max(y0 + 1, Math.floor(((y + 1) * sourceHeight) / height));
+    for (let x = 0; x < width; x += 1) {
+      const x0 = Math.floor((x * sourceWidth) / width);
+      const x1 = Math.max(x0 + 1, Math.floor(((x + 1) * sourceWidth) / width));
+      let red = 0;
+      let green = 0;
+      let blue = 0;
+      let alpha = 0;
+      let weight = 0;
+
+      for (let sy = y0; sy < Math.min(y1, sourceHeight); sy += 1) {
+        for (let sx = x0; sx < Math.min(x1, sourceWidth); sx += 1) {
+          const sourceIndex = (sy * sourceWidth + sx) * 4;
+          const sampleAlpha = source[sourceIndex + 3] / 255;
+          if (sampleAlpha <= 0) continue;
+          red += toLinear(source[sourceIndex]) * sampleAlpha;
+          green += toLinear(source[sourceIndex + 1]) * sampleAlpha;
+          blue += toLinear(source[sourceIndex + 2]) * sampleAlpha;
+          alpha += sampleAlpha;
+          weight += sampleAlpha;
+        }
+      }
+
+      const targetIndex = (y * width + x) * 4;
+      if (!weight) continue;
+      output[targetIndex] = Math.round(toSrgb(red / weight) * 255);
+      output[targetIndex + 1] = Math.round(toSrgb(green / weight) * 255);
+      output[targetIndex + 2] = Math.round(toSrgb(blue / weight) * 255);
+      output[targetIndex + 3] = Math.round((alpha / weight) * 255);
+    }
+  }
+  return output;
 }
 
 function createConnectedBackgroundMask(
@@ -2987,18 +3070,36 @@ function getAdaptivePortraitColorTarget(samples, maxColors) {
 function getPortraitColorSamples(values, alpha, width, height, backgroundMask = null) {
   const buckets = new Map();
   const total = width * height;
+  const getLuma = (pixelIndex) => {
+    const offset = pixelIndex * 3;
+    return 0.299 * values[offset] + 0.587 * values[offset + 1] + 0.114 * values[offset + 2];
+  };
   for (let pixelIndex = 0; pixelIndex < total; pixelIndex += 1) {
     if (alpha[pixelIndex] < 24 || backgroundMask?.[pixelIndex]) continue;
     const offset = pixelIndex * 3;
     const red = clamp(Math.round(values[offset]), 0, 255);
     const green = clamp(Math.round(values[offset + 1]), 0, 255);
     const blue = clamp(Math.round(values[offset + 2]), 0, 255);
+    const x = pixelIndex % width;
+    const y = Math.floor(pixelIndex / width);
+    const centerLuma = getLuma(pixelIndex);
+    let edge = 0;
+    let edgeSamples = 0;
+    for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) {
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      const neighborIndex = ny * width + nx;
+      if (alpha[neighborIndex] < 24 || backgroundMask?.[neighborIndex]) continue;
+      edge += Math.abs(centerLuma - getLuma(neighborIndex));
+      edgeSamples += 1;
+    }
+    // 轻微提高轮廓像素在自适应调色板中的权重，避免五官和发丝被大面积背景色吞掉。
+    const edgeWeight = 1 + clamp(edgeSamples ? edge / edgeSamples / 72 : 0, 0, 1) * 0.55;
     const key = `${red >> 3}-${green >> 3}-${blue >> 3}`;
     const bucket = buckets.get(key) || { red: 0, green: 0, blue: 0, count: 0 };
-    bucket.red += red;
-    bucket.green += green;
-    bucket.blue += blue;
-    bucket.count += 1;
+    bucket.red += red * edgeWeight;
+    bucket.green += green * edgeWeight;
+    bucket.blue += blue * edgeWeight;
+    bucket.count += edgeWeight;
     buckets.set(key, bucket);
   }
 
