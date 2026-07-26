@@ -60,10 +60,13 @@ const MARD_COLOR_SOURCE_VERSION = "MARD 2026";
 const MARD_EXPECTED_COLOR_COUNT = 291;
 const PALETTE_SIZE_OPTIONS = [48, 64, 72, 90, 144, 221, 264, 291];
 const PORTRAIT_COLOR_LIMIT = 30;
-// 人像样图的格子边界应当干净，扩散过强会在肤色、头发和衣服边缘制造彩色噪点。
-const PORTRAIT_DITHER_STRENGTH = 0.1;
+// 参考图采用“区域代表色”而不是抖动点阵。关闭误差扩散后，同一块头发、衣服或
+// 背景会保持连续色面，五官轮廓仍由原始区域平均和 Lab 色差保留。
+const PORTRAIT_DITHER_STRENGTH = 0;
 const PORTRAIT_CLUSTER_SAMPLE_LIMIT = 900;
-const PORTRAIT_ANALYSIS_SCALE = 3;
+// 人像模式先按目标网格的 4 倍做分析，再回收为每颗豆子的代表色，避免先缩到
+// 目标尺寸时把眼睛、嘴唇和发丝等窄结构直接抹掉。
+const PORTRAIT_ANALYSIS_SCALE = 4;
 const CANVAS_FONT_STACK =
   'DottedPixel, "Maple Mono", "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif';
 const SUPPORTED_IMAGE_TYPES = new Set([
