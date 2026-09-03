@@ -25,12 +25,13 @@ const BOARD_SIZES = [
   ["104x104", "104x104 常用大板"],
   ["116x116", "116x116 超巨型板"],
   ["120x120", "120x120 极限板"],
+  ["130x130", "130x130 超大板"],
 ];
 
 const DEFAULT_GRANULARITY = 52;
 const MIN_GRANULARITY = 10;
-const MAX_GRANULARITY = 1000;
-const MAX_DIRECT_PATTERN_GRID = 1000;
+const MAX_GRANULARITY = 500;
+const MAX_DIRECT_PATTERN_GRID = 500;
 const MAX_PIXEL_ART_DETECTION_SIDE = 4096;
 const LIVE_PREVIEW_DELAY = 320;
 const EXPORT_MIN_LONG_SIDE = 8192;
@@ -67,6 +68,15 @@ const PORTRAIT_CLUSTER_SAMPLE_LIMIT = 900;
 // 人像模式先按目标网格的 4 倍做分析，再回收为每颗豆子的代表色，避免先缩到
 // 目标尺寸时把眼睛、嘴唇和发丝等窄结构直接抹掉。
 const PORTRAIT_ANALYSIS_SCALE = 4;
+const IMAGE_PRESETS = {
+  fast: { label: "极速", mode: "palette", similarity: 0, colorLimit: 0, isolation: 1, background: "keep" },
+  cartoon: { label: "卡通画", mode: "dominant", similarity: 28, colorLimit: 24, isolation: 3, background: "auto" },
+  illustration: { label: "插画", mode: "smooth", similarity: 18, colorLimit: 48, isolation: 2, background: "auto" },
+  lineart: { label: "线稿", mode: "dominant", similarity: 42, colorLimit: 24, isolation: 2, background: "remove" },
+  photo: { label: "照片", mode: "portrait", similarity: 12, colorLimit: 30, isolation: 1, background: "auto" },
+  pixel: { label: "像素画", mode: "palette", similarity: 0, colorLimit: 0, isolation: 1, background: "keep" },
+};
+const COLOR_LAB_CACHE = new WeakMap();
 const CANVAS_FONT_STACK =
   'DottedPixel, "Maple Mono", "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif';
 const SUPPORTED_IMAGE_TYPES = new Set([
@@ -405,11 +415,11 @@ const BASE_COLORS = parsePalette(BASE_PALETTE);
 const MARD_FULL_COLORS = [...BASE_COLORS, ...parsePalette(EXTRA_PALETTE)];
 const BRAND_CODE_MAP = parseBrandCodeMap(BRAND_CODE_MAP_TEXT);
 const DEFAULT_BRAND = "mard";
-const DEFAULT_PALETTE_SIZE = 291;
+const DEFAULT_PALETTE_SIZE = 221;
 const BRAND_PROFILES = {
   mard: {
     label: "MARD 2026",
-    options: PALETTE_SIZE_OPTIONS,
+    options: PALETTE_SIZE_OPTIONS.filter((count) => count !== 291),
     sourceUrl: MARD_COLOR_SOURCE_URL,
     sourceVersion: MARD_COLOR_SOURCE_VERSION,
   },
@@ -417,8 +427,21 @@ const BRAND_PROFILES = {
   manman: { label: "漫漫", options: PALETTE_SIZE_OPTIONS, fallbackPrefix: "MM" },
   panpan: { label: "盼盼", options: PALETTE_SIZE_OPTIONS, fallbackPrefix: "PP" },
   mixiaowo: { label: "咪小窝", options: PALETTE_SIZE_OPTIONS, fallbackPrefix: "MX" },
+  artkal: { label: "Artkal C/M", options: [197, 221], fallbackPrefix: "AK" },
+  youken: { label: "优肯 / Artkal", options: [418], fallbackPrefix: "YK" },
+  huangdoudou: { label: "黄豆豆（公开源码口径）", options: [291], fallbackPrefix: "HD" },
 };
 const PALETTES = createPaletteCatalog();
+const VERIFIED_PALETTE_FILES = {
+  mard: [[221, "./assets/palettes/mard-221.json"], [291, "./assets/palettes/mard-291.json"]],
+  coco: [[291, "./assets/palettes/coco-291.json"]],
+  manman: [[278, "./assets/palettes/manman-278.json"]],
+  panpan: [[289, "./assets/palettes/panpan-289.json"]],
+  mixiaowo: [[290, "./assets/palettes/mixiaowo-290.json"]],
+  artkal: [[197, "./assets/palettes/artkal-c-197.json"], [221, "./assets/palettes/artkal-m-221.json"]],
+  youken: [[418, "./assets/palettes/youken-artkal-418.json"]],
+  huangdoudou: [[291, "./assets/palettes/mard-291.json"]],
+};
 
 function createPaletteCatalog() {
   const catalog = {};
@@ -469,6 +492,50 @@ function getPaletteKey(brand, count) {
   return `${brand}-${count}`;
 }
 
+async function loadVerifiedPaletteData() {
+  const tasks = Object.entries(VERIFIED_PALETTE_FILES).flatMap(([brand, entries]) =>
+    entries.map(async ([count, url]) => {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`${brand} ${count} 色卡读取失败`);
+      const data = await response.json();
+      const profile = BRAND_PROFILES[brand];
+      const colors = (data.colors || [])
+        .filter((color) => Array.isArray(color.rgb) && color.rgb.length >= 3 && !color.unidentified)
+        .map((color) => ({
+          code: String(color.code),
+          hex: color.hex?.slice(0, 7) || rgbToHex(color.rgb),
+          rgb: color.rgb.slice(0, 3).map(Number),
+          sourceCode: String(color.code),
+          sourceHex: color.hex?.slice(0, 7) || rgbToHex(color.rgb),
+          sourceUrl: data.sources?.[0]?.url || "",
+          sourceVersion: `${data.title || profile.label} · ${data.generated_at || "已核验"}`,
+          brand: profile.label,
+        }));
+      PALETTES[getPaletteKey(brand, count)] = colors;
+      profile.sourceVersion = `${data.title || profile.label} · ${data.generated_at || "已核验"}`;
+      profile.sourceUrl = data.sources?.[0]?.url || "";
+      return [brand, count];
+    }),
+  );
+  const loaded = await Promise.allSettled(tasks);
+  const countsByBrand = new Map();
+  loaded.forEach((result) => {
+    if (result.status !== "fulfilled") {
+      console.warn(result.reason);
+      return;
+    }
+    const [brand, count] = result.value;
+    const values = countsByBrand.get(brand) || [];
+    values.push(count);
+    countsByBrand.set(brand, values);
+  });
+  countsByBrand.forEach((counts, brand) => {
+    BRAND_PROFILES[brand].options = counts
+      .filter((count) => brand !== "mard" || count !== 291)
+      .sort((a, b) => a - b);
+  });
+}
+
 function validateMardPalette() {
   const codes = new Set(MARD_FULL_COLORS.map((color) => color.code));
   if (MARD_FULL_COLORS.length !== MARD_EXPECTED_COLOR_COUNT || codes.size !== MARD_EXPECTED_COLOR_COUNT) {
@@ -495,6 +562,7 @@ const els = {
   printLayoutSelect: document.querySelector("#print-layout-select"),
   printMarginInput: document.querySelector("#print-margin-input"),
   paletteCount: document.querySelector("#palette-count"),
+  paletteSourceHint: document.querySelector("#palette-source-hint"),
   editorPaletteSelect: document.querySelector("#editor-palette-select"),
   uploadZone: document.querySelector("#upload-zone"),
   fileInput: document.querySelector("#file-input"),
@@ -575,7 +643,7 @@ const els = {
   cropXInput: document.querySelector("#crop-x-input"),
   cropYInput: document.querySelector("#crop-y-input"),
   compositionResetButton: document.querySelector("#composition-reset-button"),
-  portraitSamplePresetButton: document.querySelector("#portrait-sample-preset-button"),
+  dimensionPresetButtons: document.querySelectorAll("[data-dimension-width]"),
   mobileGranularityInput: document.querySelector("#mobile-granularity-input"),
   mobileGranularityOutput: document.querySelector("#mobile-granularity-output"),
   similarityInput: document.querySelector("#similarity-input"),
@@ -588,8 +656,11 @@ const els = {
   smartPresetButton: document.querySelector("#smart-preset-button"),
   applyCleanupButton: document.querySelector("#apply-cleanup-button"),
   modeSelect: document.querySelector("#mode-select"),
+  imagePresetSelect: document.querySelector("#image-preset-select"),
+  imagePresetHint: document.querySelector("#image-preset-hint"),
   backgroundModeSelect: document.querySelector("#background-mode-select"),
   processButton: document.querySelector("#process-button"),
+  localSubjectButton: document.querySelector("#local-subject-button"),
   previewStage: document.querySelector("#preview-stage"),
   previewDownloadButton: document.querySelector("#preview-download-button"),
   emptyResult: document.querySelector("#empty-result"),
@@ -624,6 +695,8 @@ const els = {
   clearColorButton: document.querySelector("#clear-color-button"),
   undoPaintButton: document.querySelector("#undo-paint-button"),
   redoEditorButton: document.querySelector("#redo-editor-button"),
+  editorHistoryList: document.querySelector("#editor-history-list"),
+  editorHistoryCount: document.querySelector("#editor-history-count"),
   applySelectionColorButton: document.querySelector("#apply-selection-color-button"),
   replaceFrom: document.querySelector("#replace-from"),
   replaceTo: document.querySelector("#replace-to"),
@@ -694,6 +767,8 @@ const state = {
   editorLassoPoints: [],
   editorHistory: [],
   editorRedo: [],
+  editorHistoryLabels: [],
+  editorRedoLabels: [],
   editorActionSnapshot: null,
   editorSymmetry: "none",
   editorReferenceImage: null,
@@ -786,8 +861,9 @@ function rgbToHex(rgbValue) {
     .toUpperCase()}`;
 }
 
-function init() {
+async function init() {
   validateMardPalette();
+  await loadVerifiedPaletteData();
   preloadPixelFont();
   if (els.boardSelect) {
     BOARD_SIZES.forEach(([value, label]) => {
@@ -798,11 +874,13 @@ function init() {
   syncRangeControls("granularity", DEFAULT_GRANULARITY, MIN_GRANULARITY, MAX_GRANULARITY);
   syncRangeControls("similarity", 30, 0, 100);
   syncIsolationControl();
+  applyImagePreset("fast", { preview: false });
   updateCompositionUi();
   updateRatioLockUi();
   updatePaletteOptions();
   updateEditorPaletteOptions();
   updatePaletteCount();
+  updatePaletteSourceHint();
   updateVisitCount();
   renderGeneratedGallery();
   renderEditorLibraryOptions();
@@ -874,6 +952,7 @@ function bindEvents() {
   document.addEventListener("click", handleSmartOptimizationClick);
   els.paletteSelect.addEventListener("change", () => {
     updatePaletteCount();
+    updatePaletteSourceHint();
     updateEditorPaletteOptions();
     updateResultUi();
     scheduleLivePreview("色板已更新");
@@ -888,13 +967,20 @@ function bindEvents() {
     });
   });
   els.compositionResetButton?.addEventListener("click", resetComposition);
-  els.portraitSamplePresetButton?.addEventListener("click", applyPortraitSamplePreset);
+  els.dimensionPresetButtons.forEach((button) => {
+    button.addEventListener("click", () => applyDimensionWidthPreset(Number(button.dataset.dimensionWidth)));
+  });
   els.modeSelect?.addEventListener("change", () => {
     if (els.modeSelect.value === "portrait") {
       applyPortraitModeDefaults();
     }
     scheduleLivePreview("处理模式已更新");
   });
+  els.imagePresetSelect?.addEventListener("change", () => applyImagePreset(els.imagePresetSelect.value));
+  els.localSubjectButton?.addEventListener("click", prepareSubjectLocally);
+  [els.modeSelect, els.colorLimitSelect, els.isolationInput, els.similarityInput, els.backgroundModeSelect].forEach(
+    (control) => control?.addEventListener("change", markImagePresetCustomized),
+  );
   els.tileSizeSelect?.addEventListener("change", updateResultUi);
   els.mirrorSelect?.addEventListener("change", updateResultUi);
   els.printLayoutSelect?.addEventListener("change", updateResultUi);
@@ -1141,6 +1227,7 @@ function syncRangeControls(name, value, min, max) {
     if (els.mobileGranularityInput) els.mobileGranularityInput.value = String(next);
     if (els.mobileGranularityOutput) els.mobileGranularityOutput.textContent = String(next);
     if (state.ratioLocked) syncDimensionHeightFromWidth(next);
+    updateDimensionPresetUi(next);
   }
   return next;
 }
@@ -1307,23 +1394,51 @@ function applyPortraitModeDefaults() {
   syncRangeControls("similarity", 12, 0, 100);
 }
 
-function applyPortraitSamplePreset() {
-  if (els.modeSelect) els.modeSelect.value = "portrait";
-  if (!state.ratioLocked) {
-    // 已经是解锁状态时不需要再次切换按钮语义，只更新尺寸即可。
-  } else {
-    state.ratioLocked = false;
+function updateDimensionPresetUi(width = Number(els.granularityNumber?.value || DEFAULT_GRANULARITY)) {
+  els.dimensionPresetButtons.forEach((button) => {
+    const active = Number(button.dataset.dimensionWidth) === Number(width);
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+
+function applyImagePreset(presetKey, options = {}) {
+  const preset = IMAGE_PRESETS[presetKey] || IMAGE_PRESETS.fast;
+  if (els.imagePresetSelect) els.imagePresetSelect.value = presetKey in IMAGE_PRESETS ? presetKey : "fast";
+  if (els.modeSelect) els.modeSelect.value = preset.mode;
+  if (els.colorLimitSelect) els.colorLimitSelect.value = String(preset.colorLimit);
+  if (els.backgroundModeSelect) els.backgroundModeSelect.value = preset.background;
+  syncIsolationControl(preset.isolation);
+  syncRangeControls("similarity", preset.similarity, 0, 100);
+  if (els.imagePresetHint) {
+    els.imagePresetHint.textContent = `已应用“${preset.label}”预设；继续手动调整下面参数不会影响原图。`;
   }
-  syncRangeControls("granularity", 112, MIN_GRANULARITY, MAX_GRANULARITY);
-  if (els.gridHeightNumber) els.gridHeightNumber.value = "85";
-  if (els.cropModeSelect) els.cropModeSelect.value = "cover";
-  if (els.cropZoomInput) els.cropZoomInput.value = "100";
-  if (els.cropXInput) els.cropXInput.value = "0";
-  if (els.cropYInput) els.cropYInput.value = "0";
-  applyPortraitModeDefaults();
-  updateCompositionUi();
-  updateRatioLockUi();
-  scheduleLivePreview("已切换参考样图比例 112 × 85");
+  if (options.preview !== false) scheduleLivePreview(`已应用${preset.label}预设`);
+}
+
+function markImagePresetCustomized() {
+  if (!els.imagePresetHint) return;
+  els.imagePresetHint.textContent = "高级参数已手动调整；重新选择图片类型可恢复整套推荐值。";
+}
+
+function prepareSubjectLocally() {
+  if (!state.sourceDataUrl) {
+    window.alert("请先上传一张包含人物或宠物主体的图片。");
+    return;
+  }
+  applyImagePreset("cartoon", { preview: false });
+  if (els.backgroundModeSelect) els.backgroundModeSelect.value = "remove";
+  if (els.imagePresetHint) {
+    els.imagePresetHint.textContent = "已启用本地主体抠版：清理与画面边缘连通的背景，并保留主体内部浅色区域。";
+  }
+  processImage();
+}
+
+function applyDimensionWidthPreset(width) {
+  if (![52, 78, 104].includes(width)) return;
+  syncRangeControls("granularity", width, MIN_GRANULARITY, MAX_GRANULARITY);
+  updateDimensionPresetUi(width);
+  scheduleLivePreview(`图纸宽度已切换为 ${width} 格`);
 }
 
 function handleSmartOptimizationClick(event) {
@@ -1391,7 +1506,7 @@ function updatePaletteOptions() {
       .sort((a, b) => b - a)
       .map((count) => new Option(`${count} 色`, String(count))),
   );
-  els.paletteSelect.value = String(profile.options.includes(current) ? current : DEFAULT_PALETTE_SIZE);
+  els.paletteSelect.value = String(profile.options.includes(current) ? current : Math.max(...profile.options));
 }
 
 function updateEditorPaletteOptions() {
@@ -1418,6 +1533,7 @@ function selectBrand(brand) {
   updatePaletteOptions();
   updateEditorPaletteOptions();
   updatePaletteCount();
+  updatePaletteSourceHint();
   updateResultUi();
   scheduleLivePreview("品牌色板已更新");
 }
@@ -1554,9 +1670,7 @@ function startManualImport() {
   state.autoProcessAfterLoad = false;
   state.restoreAutoSizePending = false;
   state.backgroundDecision = "";
-  if (els.modeSelect) els.modeSelect.value = "dominant";
-  if (els.backgroundModeSelect) els.backgroundModeSelect.value = "auto";
-  syncRangeControls("similarity", 30, 0, 100);
+  applyImagePreset("fast", { preview: false });
   setStatus("导入图片");
   els.fileInput.value = "";
   els.fileInput.click();
@@ -1736,7 +1850,7 @@ async function importImageFromLink(event) {
 
 function showTutorialHint() {
   setStatus("使用教程");
-  window.alert("流程：上传图片或链接导入 -> 选择横向格数、色板和处理模式 -> 生成图纸 -> 选择 52/78/104 分版 -> 下载 8K 高清图纸。");
+  window.alert("流程：上传图片或链接导入 -> 选择横向格数、色板和图片类型预设 -> 生成图纸 -> 选择 52/78/104/120/130 分版 -> 下载高清图纸。");
 }
 
 function updateVisitCount() {
@@ -2560,15 +2674,31 @@ function downsamplePortraitAnalysis(source, sourceWidth, sourceHeight, width, he
       let blue = 0;
       let alpha = 0;
       let weight = 0;
+      let darkest = null;
+      let darkestLuma = Infinity;
+      let darkSamples = 0;
+      let opaqueSamples = 0;
 
       for (let sy = y0; sy < Math.min(y1, sourceHeight); sy += 1) {
         for (let sx = x0; sx < Math.min(x1, sourceWidth); sx += 1) {
           const sourceIndex = (sy * sourceWidth + sx) * 4;
           const sampleAlpha = source[sourceIndex + 3] / 255;
           if (sampleAlpha <= 0) continue;
-          red += toLinear(source[sourceIndex]) * sampleAlpha;
-          green += toLinear(source[sourceIndex + 1]) * sampleAlpha;
-          blue += toLinear(source[sourceIndex + 2]) * sampleAlpha;
+          const sampleRed = source[sourceIndex];
+          const sampleGreen = source[sourceIndex + 1];
+          const sampleBlue = source[sourceIndex + 2];
+          const sampleLuma = 0.299 * sampleRed + 0.587 * sampleGreen + 0.114 * sampleBlue;
+          if (sampleAlpha >= 0.5) {
+            opaqueSamples += 1;
+            if (sampleLuma <= 72) darkSamples += 1;
+            if (sampleLuma < darkestLuma) {
+              darkestLuma = sampleLuma;
+              darkest = [sampleRed, sampleGreen, sampleBlue];
+            }
+          }
+          red += toLinear(sampleRed) * sampleAlpha;
+          green += toLinear(sampleGreen) * sampleAlpha;
+          blue += toLinear(sampleBlue) * sampleAlpha;
           alpha += sampleAlpha;
           weight += sampleAlpha;
         }
@@ -2576,9 +2706,19 @@ function downsamplePortraitAnalysis(source, sourceWidth, sourceHeight, width, he
 
       const targetIndex = (y * width + x) * 4;
       if (!weight) continue;
-      output[targetIndex] = Math.round(toSrgb(red / weight) * 255);
-      output[targetIndex + 1] = Math.round(toSrgb(green / weight) * 255);
-      output[targetIndex + 2] = Math.round(toSrgb(blue / weight) * 255);
+      const average = [
+        Math.round(toSrgb(red / weight) * 255),
+        Math.round(toSrgb(green / weight) * 255),
+        Math.round(toSrgb(blue / weight) * 255),
+      ];
+      // 细黑描边在区域平均时最容易被肤色或高亮吞掉。深色像素占据足够面积时，
+      // 将代表色向最暗样本偏置，保住眼线、帽檐和人物外轮廓。
+      const darkRatio = opaqueSamples ? darkSamples / opaqueSamples : 0;
+      const preserveDark = darkest && darkestLuma <= 46 && darkRatio >= 0.16;
+      const darkBlend = preserveDark ? clamp(0.58 + darkRatio * 0.32, 0.58, 0.82) : 0;
+      output[targetIndex] = Math.round(average[0] * (1 - darkBlend) + (darkest?.[0] || 0) * darkBlend);
+      output[targetIndex + 1] = Math.round(average[1] * (1 - darkBlend) + (darkest?.[1] || 0) * darkBlend);
+      output[targetIndex + 2] = Math.round(average[2] * (1 - darkBlend) + (darkest?.[2] || 0) * darkBlend);
       output[targetIndex + 3] = Math.round((alpha / weight) * 255);
     }
   }
@@ -3027,6 +3167,16 @@ function buildAdaptivePortraitPalette(values, alpha, width, height, palette, bac
     selected.push(color);
   };
 
+  // 人物和动漫图存在深色内容时，强制为真实黑色预留一个色位。
+  const darkWeight = colorSamples.reduce((sum, sample) => {
+    const luma = 0.299 * sample.rgb[0] + 0.587 * sample.rgb[1] + 0.114 * sample.rgb[2];
+    return sum + (luma <= 58 ? sample.count : 0);
+  }, 0);
+  const totalWeight = colorSamples.reduce((sum, sample) => sum + sample.count, 0);
+  if (totalWeight && darkWeight / totalWeight >= 0.002) {
+    addColor(nearestPortraitColorByLab([0, 0, 0], getPaletteLabEntries(palette)));
+  }
+
   centroids.forEach((centroid) => addColor(nearestPortraitColorByLab(centroid.rgb, paletteLabs)));
   colorSamples
     .slice()
@@ -3187,6 +3337,14 @@ function ditherPortraitValues(values, alpha, width, height, palette, backgroundM
     getPaletteLabEntries(palette),
     samples || [],
   );
+  const darkestEntry = paletteLabs.reduce((best, entry) => {
+    const luma = 0.299 * entry.color.rgb[0] + 0.587 * entry.color.rgb[1] + 0.114 * entry.color.rgb[2];
+    return !best || luma < best.luma ? { entry, luma } : best;
+  }, null)?.entry;
+  const getLumaAt = (pixelIndex) => {
+    const offset = pixelIndex * 3;
+    return 0.299 * work[offset] + 0.587 * work[offset + 1] + 0.114 * work[offset + 2];
+  };
   const addError = (x, y, er, eg, eb, factor) => {
     if (x < 0 || y < 0 || x >= width || y >= height) return;
     const pixelIndex = y * width + x;
@@ -3207,7 +3365,16 @@ function ditherPortraitValues(values, alpha, width, height, palette, backgroundM
       const red = clamp(work[offset], 0, 255);
       const green = clamp(work[offset + 1], 0, 255);
       const blue = clamp(work[offset + 2], 0, 255);
-      const color = nearestPortraitColorByLab([red, green, blue], paletteLabs);
+      const luma = 0.299 * red + 0.587 * green + 0.114 * blue;
+      let localContrast = 0;
+      for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) {
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        localContrast = Math.max(localContrast, Math.abs(luma - getLumaAt(ny * width + nx)));
+      }
+      const preserveAsBlack = darkestEntry && (luma <= 38 || (luma <= 64 && localContrast >= 32));
+      const color = preserveAsBlack
+        ? darkestEntry.color
+        : nearestPortraitColorByLab([red, green, blue], paletteLabs);
       grid[y][x] = cloneColor(color);
       const er = red - color.rgb[0];
       const eg = green - color.rgb[1];
@@ -3251,6 +3418,9 @@ function cleanupPortraitGrid(grid, width, height) {
       if (!majority || majority[1] < 3 || majority[0] === center.code) continue;
       const majorityColor = neighbors.find((color) => color.code === majority[0]);
       if (!majorityColor) continue;
+      const centerLuma = 0.299 * center.rgb[0] + 0.587 * center.rgb[1] + 0.114 * center.rgb[2];
+      const majorityLuma = 0.299 * majorityColor.rgb[0] + 0.587 * majorityColor.rgb[1] + 0.114 * majorityColor.rgb[2];
+      if (centerLuma <= 62 && majorityLuma - centerLuma >= 26) continue;
       if (getColorDistance(center.rgb, majorityColor.rgb) <= 82) output[y][x] = cloneColor(majorityColor);
     }
   }
@@ -3261,8 +3431,26 @@ function cleanupPortraitGrid(grid, width, height) {
 function getPaletteLabEntries(palette) {
   return palette.map((color) => ({
     color,
-    lab: rgbToLab(color.rgb[0], color.rgb[1], color.rgb[2]),
+    lab: getColorLab(color),
   }));
+}
+
+function updatePaletteSourceHint() {
+  if (!els.paletteSourceHint) return;
+  const profile = getSelectedBrandProfile();
+  const count = getCurrentPalette().length;
+  const excluded = Math.max(0, getSelectedPaletteSize() - count);
+  const exclusionText = excluded ? `；已排除 ${excluded} 个无法确认的色号` : "";
+  els.paletteSourceHint.textContent = `${profile.sourceVersion || "公开色卡交叉核验"} · 当前可用 ${count} 色${exclusionText}`;
+}
+
+function getColorLab(color) {
+  if (!color || typeof color !== "object") return [0, 0, 0];
+  const cached = COLOR_LAB_CACHE.get(color);
+  if (cached) return cached;
+  const lab = rgbToLab(color.rgb[0], color.rgb[1], color.rgb[2]);
+  COLOR_LAB_CACHE.set(color, lab);
+  return lab;
 }
 
 function nearestPaletteColorByLab(rgbValue, paletteLabs) {
@@ -3270,7 +3458,7 @@ function nearestPaletteColorByLab(rgbValue, paletteLabs) {
   let best = paletteLabs[0]?.color;
   let bestDistance = Infinity;
   for (const entry of paletteLabs) {
-    const distance = labDistanceSquared(lab, entry.lab);
+    const distance = deltaE2000(lab, entry.lab);
     if (distance < bestDistance) {
       bestDistance = distance;
       best = entry.color;
@@ -3290,7 +3478,7 @@ function nearestPortraitColorByLab(rgbValue, paletteLabs) {
     const target = entry.color.rgb;
     const targetLuma = 0.299 * target[0] + 0.587 * target[1] + 0.114 * target[2];
     const targetChroma = Math.max(...target) - Math.min(...target);
-    let distance = labDistanceSquared(sourceLab, entry.lab) + (sourceLuma - targetLuma) ** 2 * 0.18;
+    let distance = deltaE2000(sourceLab, entry.lab) ** 2 * 4 + (sourceLuma - targetLuma) ** 2 * 0.18;
 
     const sourceWarm = rgbValue[0] - rgbValue[2];
     const targetWarm = target[0] - target[2];
@@ -3353,6 +3541,68 @@ function labDistanceSquared(a, b) {
   return dl * dl * 1.18 + da * da + db * db;
 }
 
+function deltaE2000(lab1, lab2) {
+  const [l1, a1, b1] = lab1;
+  const [l2, a2, b2] = lab2;
+  const c1 = Math.hypot(a1, b1);
+  const c2 = Math.hypot(a2, b2);
+  const cMean = (c1 + c2) / 2;
+  const cMean7 = cMean ** 7;
+  const g = 0.5 * (1 - Math.sqrt(cMean7 / (cMean7 + 25 ** 7)));
+  const a1Prime = (1 + g) * a1;
+  const a2Prime = (1 + g) * a2;
+  const c1Prime = Math.hypot(a1Prime, b1);
+  const c2Prime = Math.hypot(a2Prime, b2);
+  const hue = (a, b) => {
+    if (a === 0 && b === 0) return 0;
+    const degrees = (Math.atan2(b, a) * 180) / Math.PI;
+    return degrees >= 0 ? degrees : degrees + 360;
+  };
+  const h1Prime = hue(a1Prime, b1);
+  const h2Prime = hue(a2Prime, b2);
+  const deltaLPrime = l2 - l1;
+  const deltaCPrime = c2Prime - c1Prime;
+  let deltaHuePrime = 0;
+  if (c1Prime * c2Prime !== 0) {
+    const hueDifference = h2Prime - h1Prime;
+    deltaHuePrime = Math.abs(hueDifference) <= 180
+      ? hueDifference
+      : hueDifference > 180
+        ? hueDifference - 360
+        : hueDifference + 360;
+  }
+  const deltaHPrime = 2 * Math.sqrt(c1Prime * c2Prime) * Math.sin((deltaHuePrime * Math.PI) / 360);
+  const lMeanPrime = (l1 + l2) / 2;
+  const cMeanPrime = (c1Prime + c2Prime) / 2;
+  let hMeanPrime = h1Prime + h2Prime;
+  if (c1Prime * c2Prime === 0) {
+    hMeanPrime = h1Prime + h2Prime;
+  } else if (Math.abs(h1Prime - h2Prime) <= 180) {
+    hMeanPrime = (h1Prime + h2Prime) / 2;
+  } else if (h1Prime + h2Prime < 360) {
+    hMeanPrime = (h1Prime + h2Prime + 360) / 2;
+  } else {
+    hMeanPrime = (h1Prime + h2Prime - 360) / 2;
+  }
+  const radians = (degrees) => (degrees * Math.PI) / 180;
+  const t = 1
+    - 0.17 * Math.cos(radians(hMeanPrime - 30))
+    + 0.24 * Math.cos(radians(2 * hMeanPrime))
+    + 0.32 * Math.cos(radians(3 * hMeanPrime + 6))
+    - 0.2 * Math.cos(radians(4 * hMeanPrime - 63));
+  const deltaTheta = 30 * Math.exp(-(((hMeanPrime - 275) / 25) ** 2));
+  const cMeanPrime7 = cMeanPrime ** 7;
+  const rC = 2 * Math.sqrt(cMeanPrime7 / (cMeanPrime7 + 25 ** 7));
+  const sL = 1 + (0.015 * (lMeanPrime - 50) ** 2) / Math.sqrt(20 + (lMeanPrime - 50) ** 2);
+  const sC = 1 + 0.045 * cMeanPrime;
+  const sH = 1 + 0.015 * cMeanPrime * t;
+  const rT = -Math.sin(radians(2 * deltaTheta)) * rC;
+  const lTerm = deltaLPrime / sL;
+  const cTerm = deltaCPrime / sC;
+  const hTerm = deltaHPrime / sH;
+  return Math.sqrt(lTerm ** 2 + cTerm ** 2 + hTerm ** 2 + rT * cTerm * hTerm);
+}
+
 function getFixedBoardSize() {
   const value = els.boardSelect.value;
   if (value === "custom") return null;
@@ -3366,20 +3616,14 @@ function nearestColor(red, green, blue, palette) {
   const luma = 0.299 * red + 0.587 * green + 0.114 * blue;
   const sourceSpread = Math.max(red, green, blue) - Math.min(red, green, blue);
   const sourceGreenBias = green - Math.max(red, blue);
+  const sourceLab = rgbToLab(red, green, blue);
 
   for (const color of palette) {
     const [cr, cg, cb] = color.rgb;
-    const dr = red - cr;
-    const dg = green - cg;
-    const db = blue - cb;
     const targetLuma = 0.299 * cr + 0.587 * cg + 0.114 * cb;
     const targetSpread = Math.max(cr, cg, cb) - Math.min(cr, cg, cb);
     const targetGreenBias = cg - Math.max(cr, cb);
-    let distance =
-      dr * dr * 0.95 +
-      dg * dg * 1.18 +
-      db * db * 1.05 +
-      (luma - targetLuma) ** 2 * 0.85;
+    let distance = deltaE2000(sourceLab, getColorLab(color)) ** 2 * 4 + (luma - targetLuma) ** 2 * 0.12;
 
     if (sourceSpread < 28 && targetSpread > 45) {
       distance += (targetSpread - sourceSpread) ** 2 * 0.45;
@@ -3490,7 +3734,8 @@ function getWeightedKMeansRepresentatives(stats, maxColors) {
     let bestSample = null;
     let bestScore = -1;
     for (const sample of samples) {
-      const minDistance = Math.min(...centroids.map((centroid) => squaredRgbDistance(sample.rgb, centroid)));
+      const sampleLab = rgbToLab(...sample.rgb);
+      const minDistance = Math.min(...centroids.map((centroid) => deltaE2000(sampleLab, rgbToLab(...centroid)) ** 2));
       const score = minDistance * Math.log2(sample.weight + 1);
       if (score > bestScore) {
         bestScore = score;
@@ -3521,8 +3766,9 @@ function getWeightedKMeansRepresentatives(stats, maxColors) {
   const representatives = [];
   const usedCodes = new Set();
   for (const centroid of centroids) {
+    const centroidLab = rgbToLab(...centroid);
     const nearest = samples
-      .map((sample) => ({ sample, distance: squaredRgbDistance(sample.rgb, centroid) }))
+      .map((sample) => ({ sample, distance: deltaE2000(rgbToLab(...sample.rgb), centroidLab) }))
       .sort((a, b) => a.distance - b.distance || b.sample.weight - a.sample.weight)[0]?.sample.color;
     if (nearest && !usedCodes.has(nearest.code)) {
       usedCodes.add(nearest.code);
@@ -3541,8 +3787,9 @@ function getWeightedKMeansRepresentatives(stats, maxColors) {
 function getNearestCentroidIndex(rgbValue, centroids) {
   let bestIndex = 0;
   let bestDistance = Infinity;
+  const sourceLab = rgbToLab(...rgbValue);
   for (let index = 0; index < centroids.length; index += 1) {
-    const distance = squaredRgbDistance(rgbValue, centroids[index]);
+    const distance = deltaE2000(sourceLab, rgbToLab(...centroids[index]));
     if (distance < bestDistance) {
       bestDistance = distance;
       bestIndex = index;
@@ -5192,7 +5439,7 @@ function getSmartTileSize(grid) {
   const rows = grid.length;
   const columns = grid[0]?.length || 0;
   if (!rows || !columns) return 52;
-  const candidates = [52, 78, 104];
+  const candidates = [52, 78, 104, 120, 130];
   return candidates
     .map((size) => {
       const count = Math.ceil(columns / size) * Math.ceil(rows / size);
@@ -6551,6 +6798,8 @@ function openEditor() {
   state.editorLassoPoints = [];
   state.editorHistory = [];
   state.editorRedo = [];
+  state.editorHistoryLabels = [];
+  state.editorRedoLabels = [];
   state.editorActionSnapshot = null;
   state.editorSymmetry = "none";
   state.editorReferenceImage = null;
@@ -6847,15 +7096,30 @@ function commitEditorPointerAction() {
   state.editorActionSnapshot = null;
   if (!snapshot || gridsEqual(snapshot, state.editorGrid)) return;
   state.editorHistory.push(snapshot);
+  state.editorHistoryLabels.push(getEditorToolActionLabel());
   if (state.editorHistory.length > 50) state.editorHistory.shift();
+  if (state.editorHistoryLabels.length > 50) state.editorHistoryLabels.shift();
   state.editorRedo = [];
+  state.editorRedoLabels = [];
   updateEditorControls();
 }
 
-function recordEditorHistory() {
+function recordEditorHistory(label = "修改图纸") {
   state.editorHistory.push(cloneGrid(state.editorGrid));
+  state.editorHistoryLabels.push(label);
   if (state.editorHistory.length > 50) state.editorHistory.shift();
+  if (state.editorHistoryLabels.length > 50) state.editorHistoryLabels.shift();
   state.editorRedo = [];
+  state.editorRedoLabels = [];
+}
+
+function getEditorToolActionLabel() {
+  return {
+    pencil: "画笔改色",
+    eraser: "剔除豆子",
+    fill: "区域填色",
+    cut: "剪切区域",
+  }[state.editorTool] || "修改图纸";
 }
 
 function gridsEqual(a, b) {
@@ -6871,7 +7135,9 @@ function gridsEqual(a, b) {
 function undoEditor() {
   const previous = state.editorHistory.pop();
   if (!previous) return;
+  const label = state.editorHistoryLabels.pop() || "修改图纸";
   state.editorRedo.push(cloneGrid(state.editorGrid));
+  state.editorRedoLabels.push(label);
   state.editorGrid = cloneGrid(previous);
   clearEditorSelection();
   renderEditorCanvas();
@@ -6882,7 +7148,9 @@ function undoEditor() {
 function redoEditor() {
   const next = state.editorRedo.pop();
   if (!next) return;
+  const label = state.editorRedoLabels.pop() || "修改图纸";
   state.editorHistory.push(cloneGrid(state.editorGrid));
+  state.editorHistoryLabels.push(label);
   state.editorGrid = cloneGrid(next);
   clearEditorSelection();
   renderEditorCanvas();
@@ -6968,7 +7236,7 @@ function isPointInPolygon(x, y, points) {
 
 function applyColorToEditorSelection() {
   if (!state.editorSelectedCells.size) return;
-  recordEditorHistory();
+  recordEditorHistory("选区批量填色");
   state.editorSelectedCells.forEach((key) => {
     const [x, y] = key.split(":").map(Number);
     if (state.editorGrid[y]?.[x] !== undefined) state.editorGrid[y][x] = cloneColor(state.selectedColor);
@@ -7268,6 +7536,7 @@ function updateEditorControls() {
   els.undoPaintButton.disabled = state.editorHistory.length === 0;
   els.undoReplaceButton.disabled = state.editorHistory.length === 0;
   if (els.redoEditorButton) els.redoEditorButton.disabled = state.editorRedo.length === 0;
+  renderEditorHistory();
   if (els.applySelectionColorButton) els.applySelectionColorButton.disabled = state.editorSelectedCells.size === 0;
   els.replaceButton.disabled = !els.replaceFrom.value;
   updateLibraryImportButton();
@@ -7282,7 +7551,7 @@ function updateLibraryImportButton() {
 function applyFloatingPattern() {
   const floating = state.editorFloating;
   if (!floating) return;
-  recordEditorHistory();
+  recordEditorHistory("放置图案");
   const action = [];
   for (let y = 0; y < floating.height; y += 1) {
     for (let x = 0; x < floating.width; x += 1) {
@@ -7333,7 +7602,15 @@ function importSelectedLibraryItem() {
 
 function transformEditorGrid(type) {
   const oldGrid = cloneGrid(state.editorGrid);
-  recordEditorHistory();
+  const transformLabels = {
+    "flip-horizontal": "水平翻转",
+    "flip-vertical": "垂直翻转",
+    "scale-down": "缩小图纸",
+    "scale-up": "放大图纸",
+    "rotate-left": "向左旋转",
+    "rotate-right": "向右旋转",
+  };
+  recordEditorHistory(transformLabels[type] || "变换图纸");
   if (type === "flip-horizontal") {
     state.editorGrid = state.editorGrid.map((row) => row.slice().reverse().map(cloneColor));
   } else if (type === "flip-vertical") {
@@ -7412,7 +7689,7 @@ function trimEditorArtwork() {
   const bounds = getGridContentBounds(state.editorGrid);
   if (!bounds) return;
   const oldGrid = cloneGrid(state.editorGrid);
-  recordEditorHistory();
+  recordEditorHistory("裁剪空白");
   state.editorGrid = state.editorGrid
     .slice(bounds.y0, bounds.y1 + 1)
     .map((row) => row.slice(bounds.x0, bounds.x1 + 1).map(cloneColor));
@@ -7451,7 +7728,7 @@ function fitEditorToScreen() {
 function clearEditorArtwork() {
   if (!window.confirm("确认清空当前画布？")) return;
   const oldGrid = cloneGrid(state.editorGrid);
-  recordEditorHistory();
+  recordEditorHistory("清空作品");
   state.editorGrid = state.editorGrid.map((row) => row.map(() => null));
   state.replaceUndo.push(gridToUndoAction(oldGrid));
   renderEditorCanvas();
@@ -7465,7 +7742,7 @@ function replaceColor() {
   const toCode = els.replaceTo.value;
   const target = toCode ? getEditorPalette().find((color) => color.code === toCode) : null;
   const action = [];
-  recordEditorHistory();
+  recordEditorHistory(toCode ? `批量替换 ${fromCode} → ${toCode}` : `批量剔除 ${fromCode}`);
 
   state.editorGrid.forEach((row, y) => {
     row.forEach((color, x) => {
@@ -7666,6 +7943,22 @@ function isDark(rgbValue) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function renderEditorHistory() {
+  if (els.editorHistoryCount) els.editorHistoryCount.textContent = `${state.editorHistory.length} / 50`;
+  if (!els.editorHistoryList) return;
+  if (!state.editorHistoryLabels.length) {
+    els.editorHistoryList.innerHTML = '<li class="empty-history">还没有修改</li>';
+    return;
+  }
+  els.editorHistoryList.replaceChildren(
+    ...state.editorHistoryLabels.slice().reverse().map((label, reverseIndex) => {
+      const item = document.createElement("li");
+      item.textContent = `${label} · 第 ${state.editorHistoryLabels.length - reverseIndex} 步`;
+      return item;
+    }),
+  );
 }
 
 init();

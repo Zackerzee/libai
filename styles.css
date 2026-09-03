@@ -1671,6 +1671,19 @@ input:focus-visible {
   gap: 9px;
 }
 
+.editor-history-panel {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.editor-history-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.editor-history-head small, .empty-history { color: var(--muted); }
+.editor-history-list { max-height: 132px; margin: 8px 0 0; padding-left: 22px; overflow: auto; font-size: 12px; }
+.editor-history-list li + li { margin-top: 5px; }
+
 .palette-groups {
   display: grid;
   gap: 14px;
@@ -6075,6 +6088,22 @@ body.is-focus-mode .bead-cell.is-focus-target.is-completed {
 .dimension-preset-button:hover {
   background: #dbeafe;
   transform: translateY(-1px);
+}
+
+.dimension-preset-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dimension-preset-button.active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
 }
 
 .smart-optimization-block {

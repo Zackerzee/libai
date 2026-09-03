@@ -10,7 +10,7 @@
     <title>时里白造物拼豆图纸生成器</title>
     <link rel="icon" href="/favicon-rounded.png" type="image/png" />
     <link rel="preload" href="./worker.js" as="worker" />
-    <link rel="stylesheet" href="./styles.css?v=20260723-shilibai-brand-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260903-editor-history-1" />
     <script src="./security-canvas.js?v=20260612-security-1" defer></script>
     <script src="./denoise-integration.js?v=20260612-integration-1" defer></script>
   </head>
@@ -114,7 +114,7 @@
                       <span>图纸宽度</span>
                       <output id="mobile-granularity-output">52</output>
                     </label>
-                    <input id="mobile-granularity-input" type="range" min="10" max="1000" value="52" />
+                    <input id="mobile-granularity-input" type="range" min="10" max="500" value="52" />
                   </div>
                 </div>
 
@@ -172,13 +172,13 @@
                   </label>
                   <p class="field-hint">按手中板子设定横向、纵向格数；解锁后可强制拉伸填满指定底板。</p>
                   <div class="range-row">
-                    <input id="granularity-input" type="range" min="10" max="1000" value="52" />
+                    <input id="granularity-input" type="range" min="10" max="500" value="52" />
                     <output id="granularity-output">52</output>
                   </div>
                   <div class="dimension-setting-container">
                     <label class="input-group-luxury" for="granularity-number">
                       <span>横向格数 (宽)</span>
-                      <input id="granularity-number" type="number" min="10" max="1000" value="52" />
+                      <input id="granularity-number" type="number" min="10" max="500" value="52" />
                     </label>
                     <button
                       id="ratio-lock-button"
@@ -192,13 +192,16 @@
                     </button>
                     <label class="input-group-luxury" for="grid-height-number">
                       <span>纵向格数 (高)</span>
-                      <input id="grid-height-number" type="number" min="10" max="1000" value="52" />
+                      <input id="grid-height-number" type="number" min="10" max="500" value="52" />
                     </label>
                   </div>
                   <p class="ratio-help" id="ratio-help">已锁定比例，上传图片后会按原图比例自动联动。</p>
-                  <button id="portrait-sample-preset-button" class="dimension-preset-button" type="button">
-                    使用参考样图比例：112 × 85
-                  </button>
+                  <div class="dimension-preset-row" aria-label="常用图纸宽度">
+                    <span>快捷宽度</span>
+                    <button class="dimension-preset-button active" type="button" data-dimension-width="52">52 格</button>
+                    <button class="dimension-preset-button" type="button" data-dimension-width="78">78 格</button>
+                    <button class="dimension-preset-button" type="button" data-dimension-width="104">104 格</button>
+                  </div>
                 </div>
 
                 <section class="smart-optimization-block" aria-labelledby="composition-title">
@@ -276,6 +279,19 @@
                 </section>
 
                 <label class="field">
+                  <span>图片类型预设</span>
+                  <select id="image-preset-select">
+                    <option value="fast" selected>极速 · 最少后处理</option>
+                    <option value="cartoon">卡通画 · 大色块与轮廓</option>
+                    <option value="illustration">插画 · 色块与适量层次</option>
+                    <option value="lineart">线稿 · 深色线条优先</option>
+                    <option value="photo">照片 · 人像与渐变优化</option>
+                    <option value="pixel">像素画 · 保留原始像素</option>
+                  </select>
+                </label>
+                <p class="field-hint" id="image-preset-hint">首次上传默认快速出图；选择其他类型会一键调整下面的高级参数。</p>
+
+                <label class="field">
                   <span>处理模式</span>
                   <select id="mode-select">
                     <option value="dominant" selected>卡通 (主色)</option>
@@ -298,6 +314,10 @@
                 <p class="field-hint">透明或四角同色的连通背景会留空，并保护主体里的白色。</p>
 
                 <div class="button-stack">
+                  <button class="outline-button wide" id="local-subject-button" type="button">
+                    本地主体抠版（人物 / 宠物）
+                  </button>
+                  <p class="field-hint">只在浏览器本地识别并清理外围背景，不上传原图；云端Q版转换将作为独立功能接入。</p>
                   <button class="primary-action" id="process-button" type="button" disabled>
                     生成图纸
                   </button>
@@ -307,7 +327,7 @@
               <section class="panel export-panel" aria-label="色板与导出">
                 <div class="panel-head">
                   <h2>色板与导出</h2>
-                  <span class="muted-label">可用色 <b id="palette-count">291</b></span>
+                  <span class="muted-label">可用色 <b id="palette-count">221</b></span>
                 </div>
 
                 <div class="option-line">
@@ -327,14 +347,16 @@
                   <button class="chip" type="button" data-brand="mixiaowo" aria-pressed="false">
                     咪小窝
                   </button>
+                  <button class="chip" type="button" data-brand="artkal" aria-pressed="false">Artkal C/M</button>
+                  <button class="chip" type="button" data-brand="youken" aria-pressed="false">优肯</button>
+                  <button class="chip" type="button" data-brand="huangdoudou" aria-pressed="false">黄豆豆</button>
                 </div>
 
                 <label class="field compact-field">
                   <span>色号：</span>
                   <select id="palette-select">
-                    <option value="291" selected>291 色</option>
                     <option value="264">264 色</option>
-                    <option value="221">221 色</option>
+                    <option value="221" selected>221 色</option>
                     <option value="144">144 色</option>
                     <option value="90">90 色</option>
                     <option value="72">72 色</option>
@@ -342,7 +364,7 @@
                     <option value="48">48 色</option>
                   </select>
                 </label>
-                <p class="field-hint">MARD 使用 2026 修订版 291 色 HEX 色表。</p>
+                <p class="field-hint" id="palette-source-hint">正在加载已核验色卡数据…</p>
 
                 <label class="field compact-field">
                   <span>分版：</span>
@@ -352,6 +374,8 @@
                     <option value="52">52 x 52 小版</option>
                     <option value="78">78 x 78 中版</option>
                     <option value="104">104 x 104 大版</option>
+                    <option value="120">120 x 120 超大版</option>
+                    <option value="130">130 x 130 超大版</option>
                   </select>
                 </label>
 
@@ -596,11 +620,11 @@
           <div class="direct-pattern-fields">
             <label class="field">
               <span>横向格数</span>
-              <input id="direct-pattern-width" type="number" min="1" max="1000" value="48" />
+              <input id="direct-pattern-width" type="number" min="1" max="500" value="48" />
             </label>
             <label class="field">
               <span>纵向格数</span>
-              <input id="direct-pattern-height" type="number" min="1" max="1000" value="48" />
+              <input id="direct-pattern-height" type="number" min="1" max="500" value="48" />
             </label>
           </div>
           <button class="outline-button wide" id="direct-pattern-detect-button" type="button">
@@ -747,9 +771,8 @@
           <label class="field">
             <span>编辑色板</span>
             <select id="editor-palette-select">
-              <option value="291" selected>291 色</option>
               <option value="264">264 色</option>
-              <option value="221">221 色</option>
+              <option value="221" selected>221 色</option>
               <option value="144">144 色</option>
               <option value="90">90 色</option>
               <option value="72">72 色</option>
@@ -767,6 +790,15 @@
           <div class="replace-actions">
             <button class="outline-button" id="undo-paint-button" type="button" disabled>撤销</button>
             <button class="outline-button" id="redo-editor-button" type="button" disabled>重做</button>
+          </div>
+          <div class="editor-history-panel" aria-live="polite">
+            <div class="editor-history-head">
+              <strong>操作记录</strong>
+              <small id="editor-history-count">0 / 50</small>
+            </div>
+            <ol id="editor-history-list" class="editor-history-list">
+              <li class="empty-history">还没有修改</li>
+            </ol>
           </div>
           <button class="outline-button wide" id="apply-selection-color-button" type="button" disabled>
             用当前颜色填充选区
@@ -874,6 +906,6 @@
       </div>
     </dialog>
 
-    <script src="./app.js?v=20260726-portrait-blocks-1" defer></script>
+    <script src="./app.js?v=20260903-outline-preserve-6" defer></script>
   </body>
 </html>
