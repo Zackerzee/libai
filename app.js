@@ -68,6 +68,69 @@ const PORTRAIT_CLUSTER_SAMPLE_LIMIT = 900;
 // 人像模式先按目标网格的 4 倍做分析，再回收为每颗豆子的代表色，避免先缩到
 // 目标尺寸时把眼睛、嘴唇和发丝等窄结构直接抹掉。
 const PORTRAIT_ANALYSIS_SCALE = 4;
+const PORTRAIT_V3 = {
+  smallGridMax: 64,
+  small: {
+    shadowStrength: 0.14, midtoneCompression: 0.24, highlightStrength: 0.22,
+    skinLift: 9, skinSaturation: 0.92, sharpenStrength: 0.17,
+  },
+  large: {
+    shadowStrength: 0.09, midtoneCompression: 0.14, highlightStrength: 0.14,
+    skinLift: 6, skinSaturation: 0.95, sharpenStrength: 0.13,
+  },
+  darkLumaThreshold: 70, brightLumaThreshold: 210,
+  darkPreserveMinRatio: 0.18, brightPreserveMinRatio: 0.34,
+  darkBlendMin: 0.32, darkBlendMax: 0.58,
+  brightBlendMin: 0.14, brightBlendMax: 0.34,
+  skinTargetMaxChroma: 72, skinWrongHuePenalty: 1200, skinOverChromaPenalty: 2.2,
+  monochromeChromaThreshold: 18, monochromeMaxColors: 7,
+  minPaletteDeltaE: 3.8,
+};
+
+function getPortraitV3Profile(width, height) {
+  return Math.max(width, height) <= PORTRAIT_V3.smallGridMax ? PORTRAIT_V3.small : PORTRAIT_V3.large;
+}
+
+function portraitLuma(rgb) {
+  return 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+}
+
+function portraitSmoothstep(low, high, value) {
+  const t = clamp((value - low) / (high - low), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+function getSkinLikelihood(red, green, blue) {
+  // 颜色先验，不是人脸检测；排除中性灰、鲜红嘴唇和高饱和橙色。
+  const luma = portraitLuma([red, green, blue]);
+  const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
+  const warmth = portraitSmoothstep(2, 18, red - blue);
+  const ordering = portraitSmoothstep(-5, 5, red - green) * portraitSmoothstep(-8, 8, green - blue);
+  const light = portraitSmoothstep(60, 90, luma) * (1 - portraitSmoothstep(240, 255, luma));
+  const saturation = 1 - portraitSmoothstep(85, 155, chroma);
+  const redDominance = 1 - portraitSmoothstep(38, 95, red - green);
+  const prior = isSkinLikeRgb(red, green, blue) ? 1 : 0.8;
+  return clamp(warmth * ordering * light * saturation * redDominance * prior, 0, 1);
+}
+
+function remapPortraitLuma(luma, profile) {
+  const x = clamp(luma / 255, 0, 1), low = 0.25, high = 0.72;
+  const shadow = -profile.shadowStrength * 0.10;
+  const highlight = profile.highlightStrength * 0.08;
+  let mapped;
+  if (x < low) {
+    mapped = x + shadow * Math.sin(Math.PI * x / (2 * low));
+  } else if (x <= high) {
+    const t = (x - low) / (high - low);
+    // 连续、单调的中段压缩，不引入硬色阶断层。
+    mapped = x + shadow * (1 - t) + highlight * t
+      - profile.midtoneCompression * (high - low) * Math.sin(2 * Math.PI * t) / (2 * Math.PI);
+  } else {
+    const t = (x - high) / (1 - high);
+    mapped = x + highlight * (1 - t * t);
+  }
+  return clamp(mapped * 255, 0, 255);
+}
 const IMAGE_PRESETS = {
   fast: { label: "极速", mode: "palette", similarity: 0, colorLimit: 0, isolation: 1, background: "keep" },
   cartoon: { label: "卡通画", mode: "dominant", similarity: 28, colorLimit: 24, isolation: 3, background: "auto" },
@@ -2655,71 +2718,67 @@ function renderPortraitAnalysisPixels(image, width, height) {
 function downsamplePortraitAnalysis(source, sourceWidth, sourceHeight, width, height) {
   const output = new Uint8ClampedArray(width * height * 4);
   const toLinear = (value) => {
-    const channel = value / 255;
-    return channel > 0.04045 ? ((channel + 0.055) / 1.055) ** 2.4 : channel / 12.92;
+    const c = value / 255;
+    return c > 0.04045 ? ((c + 0.055) / 1.055) ** 2.4 : c / 12.92;
   };
   const toSrgb = (value) => {
-    const channel = clamp(value, 0, 1);
-    return channel > 0.0031308 ? 1.055 * channel ** (1 / 2.4) - 0.055 : 12.92 * channel;
+    const c = clamp(value, 0, 1);
+    return c > 0.0031308 ? 1.055 * c ** (1 / 2.4) - 0.055 : 12.92 * c;
   };
-
   for (let y = 0; y < height; y += 1) {
-    const y0 = Math.floor((y * sourceHeight) / height);
-    const y1 = Math.max(y0 + 1, Math.floor(((y + 1) * sourceHeight) / height));
+    const y0 = Math.floor(y * sourceHeight / height);
+    const y1 = Math.min(sourceHeight, Math.max(y0 + 1, Math.floor((y + 1) * sourceHeight / height)));
     for (let x = 0; x < width; x += 1) {
-      const x0 = Math.floor((x * sourceWidth) / width);
-      const x1 = Math.max(x0 + 1, Math.floor(((x + 1) * sourceWidth) / width));
-      let red = 0;
-      let green = 0;
-      let blue = 0;
-      let alpha = 0;
-      let weight = 0;
-      let darkest = null;
-      let darkestLuma = Infinity;
-      let darkSamples = 0;
-      let opaqueSamples = 0;
-
-      for (let sy = y0; sy < Math.min(y1, sourceHeight); sy += 1) {
-        for (let sx = x0; sx < Math.min(x1, sourceWidth); sx += 1) {
-          const sourceIndex = (sy * sourceWidth + sx) * 4;
-          const sampleAlpha = source[sourceIndex + 3] / 255;
-          if (sampleAlpha <= 0) continue;
-          const sampleRed = source[sourceIndex];
-          const sampleGreen = source[sourceIndex + 1];
-          const sampleBlue = source[sourceIndex + 2];
-          const sampleLuma = 0.299 * sampleRed + 0.587 * sampleGreen + 0.114 * sampleBlue;
-          if (sampleAlpha >= 0.5) {
-            opaqueSamples += 1;
-            if (sampleLuma <= 72) darkSamples += 1;
-            if (sampleLuma < darkestLuma) {
-              darkestLuma = sampleLuma;
-              darkest = [sampleRed, sampleGreen, sampleBlue];
-            }
-          }
-          red += toLinear(sampleRed) * sampleAlpha;
-          green += toLinear(sampleGreen) * sampleAlpha;
-          blue += toLinear(sampleBlue) * sampleAlpha;
-          alpha += sampleAlpha;
-          weight += sampleAlpha;
+      const x0 = Math.floor(x * sourceWidth / width);
+      const x1 = Math.min(sourceWidth, Math.max(x0 + 1, Math.floor((x + 1) * sourceWidth / width)));
+      const sum = [0, 0, 0], samples = [];
+      let alphaSum = 0, darkCount = 0, brightCount = 0;
+      for (let sy = y0; sy < y1; sy += 1) {
+        for (let sx = x0; sx < x1; sx += 1) {
+          const offset = (sy * sourceWidth + sx) * 4;
+          const alpha = source[offset + 3] / 255;
+          if (!alpha) continue;
+          const rgb = [source[offset], source[offset + 1], source[offset + 2]];
+          for (let c = 0; c < 3; c += 1) sum[c] += toLinear(rgb[c]) * alpha;
+          alphaSum += alpha;
+          if (alpha < 0.5) continue;
+          const luma = portraitLuma(rgb);
+          samples.push({ rgb, luma });
+          if (luma <= PORTRAIT_V3.darkLumaThreshold) darkCount += 1;
+          if (luma >= PORTRAIT_V3.brightLumaThreshold) brightCount += 1;
         }
       }
-
-      const targetIndex = (y * width + x) * 4;
-      if (!weight) continue;
-      const average = [
-        Math.round(toSrgb(red / weight) * 255),
-        Math.round(toSrgb(green / weight) * 255),
-        Math.round(toSrgb(blue / weight) * 255),
-      ];
-      // 细黑描边在区域平均时最容易被肤色或高亮吞掉。深色像素占据足够面积时，
-      // 将代表色向最暗样本偏置，保住眼线、帽檐和人物外轮廓。
-      const darkRatio = opaqueSamples ? darkSamples / opaqueSamples : 0;
-      const preserveDark = darkest && darkestLuma <= 46 && darkRatio >= 0.16;
-      const darkBlend = preserveDark ? clamp(0.58 + darkRatio * 0.32, 0.58, 0.82) : 0;
-      output[targetIndex] = Math.round(average[0] * (1 - darkBlend) + (darkest?.[0] || 0) * darkBlend);
-      output[targetIndex + 1] = Math.round(average[1] * (1 - darkBlend) + (darkest?.[1] || 0) * darkBlend);
-      output[targetIndex + 2] = Math.round(average[2] * (1 - darkBlend) + (darkest?.[2] || 0) * darkBlend);
-      output[targetIndex + 3] = Math.round((alpha / weight) * 255);
+      if (!alphaSum) continue;
+      const average = sum.map((channel) => toSrgb(channel / alphaSum) * 255);
+      samples.sort((a, b) => a.luma - b.luma);
+      let representative = average, blend = 0;
+      if (samples.length) {
+        const percentile = (q) => samples[Math.round((samples.length - 1) * q)].rgb;
+        const p10 = percentile(0.10), p50 = percentile(0.50), p90 = percentile(0.90);
+        const darkRatio = darkCount / samples.length, brightRatio = brightCount / samples.length;
+        let useDark = darkRatio >= PORTRAIT_V3.darkPreserveMinRatio;
+        let useBright = brightRatio >= PORTRAIT_V3.brightPreserveMinRatio;
+        if (useDark && useBright) {
+          useDark = darkRatio >= 0.28;
+          useBright = !useDark && brightRatio >= 0.50;
+        }
+        if (useDark) {
+          representative = p10;
+          const t = clamp((darkRatio - PORTRAIT_V3.darkPreserveMinRatio)
+            / (1 - PORTRAIT_V3.darkPreserveMinRatio), 0, 1);
+          blend = PORTRAIT_V3.darkBlendMin + t * (PORTRAIT_V3.darkBlendMax - PORTRAIT_V3.darkBlendMin);
+        } else if (useBright) {
+          representative = p90;
+          const t = clamp((brightRatio - PORTRAIT_V3.brightPreserveMinRatio)
+            / (1 - PORTRAIT_V3.brightPreserveMinRatio), 0, 1);
+          blend = PORTRAIT_V3.brightBlendMin + t * (PORTRAIT_V3.brightBlendMax - PORTRAIT_V3.brightBlendMin);
+        } else {
+          representative = p50; // blend=0：未达到结构阈值时保持线性平均。
+        }
+      }
+      const target = (y * width + x) * 4;
+      for (let c = 0; c < 3; c += 1) output[target + c] = average[c] * (1 - blend) + representative[c] * blend;
+      output[target + 3] = 255 * alphaSum / ((x1 - x0) * (y1 - y0));
     }
   }
   return output;
@@ -3061,6 +3120,7 @@ function rasterizePortraitPixels(pixels, width, height, palette, backgroundMask 
 }
 
 function enhancePortraitPixels(pixels, width, height, backgroundMask = null) {
+  const profile = getPortraitV3Profile(width, height);
   const total = width * height;
   const values = new Float32Array(total * 3);
   const alpha = new Uint8Array(total);
@@ -3072,7 +3132,7 @@ function enhancePortraitPixels(pixels, width, height, backgroundMask = null) {
     let green = pixels[sourceIndex + 1];
     let blue = pixels[sourceIndex + 2];
     if (alpha[pixelIndex] >= 24 && !backgroundMask?.[pixelIndex]) {
-      [red, green, blue] = enhancePortraitRgb(red, green, blue);
+      [red, green, blue] = enhancePortraitRgb(red, green, blue, profile);
     }
     const targetIndex = pixelIndex * 3;
     values[targetIndex] = red;
@@ -3086,37 +3146,17 @@ function enhancePortraitPixels(pixels, width, height, backgroundMask = null) {
   };
 }
 
-function enhancePortraitRgb(red, green, blue) {
-  const luma = 0.299 * red + 0.587 * green + 0.114 * blue;
-  const skinLike = isSkinLikeRgb(red, green, blue);
-  // 人像模式只做轻微校正。大幅拉对比会把肤色、粉色和暗部推向错误的珠子颜色。
-  let contrast = 1.03;
-  let saturation = 1.03;
-  let lift = 0;
-
-  if (skinLike) {
-    contrast = 1.02;
-    saturation = 1.02;
-    lift = 1;
-  } else if (luma < 70) {
-    contrast = 1.06;
-    saturation = 1.02;
-    lift = -2;
-  } else if (luma > 210) {
-    contrast = 1.02;
-    saturation = 1.0;
-    lift = 2;
-  }
-
-  red = (red - 128) * contrast + 128 + lift;
-  green = (green - 128) * contrast + 128 + lift;
-  blue = (blue - 128) * contrast + 128 + lift;
-  const gray = 0.299 * red + 0.587 * green + 0.114 * blue;
-  return [
-    clamp(gray + (red - gray) * saturation, 0, 255),
-    clamp(gray + (green - gray) * saturation, 0, 255),
-    clamp(gray + (blue - gray) * saturation, 0, 255),
-  ];
+function enhancePortraitRgb(red, green, blue, profile = PORTRAIT_V3.large) {
+  const luma = portraitLuma([red, green, blue]);
+  if (luma <= 0) return [0, 0, 0];
+  const skin = getSkinLikelihood(red, green, blue);
+  const liftWeight = 0.15 + 0.40 * portraitSmoothstep(70, 100, luma)
+    + 0.45 * portraitSmoothstep(130, 165, luma) - 0.55 * portraitSmoothstep(210, 240, luma);
+  const targetLuma = remapPortraitLuma(luma, profile) + skin * profile.skinLift * liftWeight;
+  const scale = targetLuma / luma;
+  const saturation = 1 + skin * (profile.skinSaturation - 1);
+  return [red, green, blue].map((channel) =>
+    clamp(targetLuma + (channel * scale - targetLuma) * saturation, 0, 255));
 }
 
 function isSkinLikeRgb(red, green, blue) {
@@ -3126,6 +3166,7 @@ function isSkinLikeRgb(red, green, blue) {
 }
 
 function sharpenPortraitLuma(values, alpha, width, height, backgroundMask = null) {
+  const profile = getPortraitV3Profile(width, height);
   const output = new Float32Array(values);
   const getLumaAt = (x, y) => {
     const offset = (y * width + x) * 3;
@@ -3137,10 +3178,12 @@ function sharpenPortraitLuma(values, alpha, width, height, backgroundMask = null
       const pixelIndex = y * width + x;
       if (alpha[pixelIndex] < 24 || backgroundMask?.[pixelIndex]) continue;
       const luma = getLumaAt(x, y);
-      const neighborLuma =
-        (getLumaAt(x - 1, y) + getLumaAt(x + 1, y) + getLumaAt(x, y - 1) + getLumaAt(x, y + 1)) / 4;
-      // 只保留轻微轮廓增强，避免把照片纹理放大成孤立色块。
-      const detail = clamp(luma - neighborLuma, -46, 46) * 0.12;
+      const neighbors = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]
+        .filter(([nx, ny]) => alpha[ny * width + nx] >= 24 && !backgroundMask?.[ny * width + nx]);
+      if (!neighbors.length) continue;
+      const neighborLuma = neighbors.reduce((sum, [nx, ny]) => sum + getLumaAt(nx, ny), 0) / neighbors.length;
+      if (Math.abs(luma - neighborLuma) < 5) continue;
+      const detail = clamp(luma - neighborLuma, -42, 42) * profile.sharpenStrength;
       const offset = pixelIndex * 3;
       output[offset] = clamp(output[offset] + detail, 0, 255);
       output[offset + 1] = clamp(output[offset + 1] + detail, 0, 255);
