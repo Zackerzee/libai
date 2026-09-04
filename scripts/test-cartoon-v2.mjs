@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {generateCartoonBeadPattern,segmentColorRegions,extractRegionColor,calculateCartoonGridSize} from '../lib/cartoonEngine.js';
+import {loadColorMath,loadPalette} from './lib/color-math.mjs';
+const ctx=loadColorMath();
+const palette=loadPalette();
+const image={width:32,height:32,data:new Uint8ClampedArray(32*32*4)};
+for(let y=0;y<32;y++)for(let x=0;x<32;x++)image.data.set(x===4||x===27||y===4||y===27?[0,0,0,255]:[255,255,255,255],(y*32+x)*4);
+const before=Buffer.from(image.data);
+const result=generateCartoonBeadPattern(image,{forceCartoon:true,width:32,palette,colorMath:ctx});
+assert(before.equals(Buffer.from(image.data)));
+assert(result.diagnostics.finalColors<=10);
+for(let x=4;x<=27;x++)assert(Math.max(...result.grid[4][x].rgb)<45);
+assert(result.grid.flat().every(c=>!c||palette.some(p=>p.code===c.code&&String(p.rgb)===String(c.rgb))));
+assert.equal(calculateCartoonGridSize(image,'simple',200).width,80);
+assert.throws(()=>generateCartoonBeadPattern(image,{forceCartoon:true,colorMath:ctx,palette,maxColors:0}));
+const seg=segmentColorRegions(image,(a,b)=>Math.abs(a[0]-b[0]));
+assert(seg.regions.length>=3);assert.deepEqual(extractRegionColor(seg.regions[0],image),[255,255,255]);
+console.log('PASS: source immutable, black ring, real palette, budget, dimensions, connected regions');
