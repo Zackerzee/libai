@@ -68,6 +68,7 @@ const PORTRAIT_CLUSTER_SAMPLE_LIMIT = 900;
 // 人像模式先按目标网格的 4 倍做分析，再回收为每颗豆子的代表色，避免先缩到
 // 目标尺寸时把眼睛、嘴唇和发丝等窄结构直接抹掉。
 const PORTRAIT_ANALYSIS_SCALE = 4;
+const PORTRAIT_FAMILY_CACHE = new WeakMap();
 const PORTRAIT_V3 = {
   smallGridMax: 64,
   small: {
@@ -3107,7 +3108,7 @@ function rasterizePortraitPixels(pixels, width, height, palette, backgroundMask 
     PORTRAIT_COLOR_LIMIT,
     samples,
   );
-  return ditherPortraitValues(
+  const grid = ditherPortraitValues(
     portrait.values,
     portrait.alpha,
     width,
@@ -3117,6 +3118,16 @@ function rasterizePortraitPixels(pixels, width, height, palette, backgroundMask 
     PORTRAIT_DITHER_STRENGTH,
     samples,
   );
+  const analysis = analyzePortraitColorMode(samples);
+  const codes = new Set();
+  for (const row of grid) for (const color of row) if (color) codes.add(color.code);
+  console.debug("[portrait-v3]", {
+    width, height, mode: analysis.mode, meanChroma: analysis.meanChroma,
+    targetColorCount: getAdaptivePortraitColorTarget(samples, PORTRAIT_COLOR_LIMIT),
+    finalColorCount: codes.size, familyWeights: analysis.familyWeights,
+    selectedCodes: portraitPalette.map((color) => color.code),
+  });
+  return grid;
 }
 
 function enhancePortraitPixels(pixels, width, height, backgroundMask = null) {
@@ -3218,19 +3229,20 @@ function buildAdaptivePortraitPalette(values, alpha, width, height, palette, bac
   const addClusters = (group, budget, candidates = paletteLabs) => {
     if (!group.length || budget <= 0 || !candidates.length) return;
     getWeightedPortraitCentroids(group, Math.min(budget, group.length)).forEach((centroid) =>
-      addColor(nearestPortraitColorByLab(centroid.rgb, candidates)));
+      addColor(nearestPortraitColorByLab(centroid.rgb, candidates, getPortraitMatchingContext(centroid.rgb))));
   };
   if (share(darkSamples) >= 0.002) addColor(nearestPortraitColorByLab([0, 0, 0], neutralPalette), true);
   if (share(lightSamples) >= 0.005) addColor(nearestPortraitColorByLab([255, 255, 255], neutralPalette), true);
 
   if (analysis.mode === "monochrome") {
+    const neutralChromaLimit = analysis.meanChroma < 3 ? 8 : PORTRAIT_V3.monochromeChromaThreshold;
     const grayPalette = paletteLabs.filter(({ color }) =>
-      Math.max(...color.rgb) - Math.min(...color.rgb) < PORTRAIT_V3.monochromeChromaThreshold);
+      Math.max(...color.rgb) - Math.min(...color.rgb) < neutralChromaLimit);
     const candidates = grayPalette.length ? grayPalette : neutralPalette;
     addClusters(colorSamples, targetColorCount, candidates);
     for (const sample of colorSamples) {
       if (selected.length >= targetColorCount) break;
-      addColor(nearestPortraitColorByLab(sample.rgb, candidates));
+      addColor(nearestPortraitColorByLab(sample.rgb, candidates, getPortraitMatchingContext(sample.rgb)));
     }
   } else {
     if (analysis.familyWeights.skin >= 0.04) {
@@ -3239,16 +3251,36 @@ function buildAdaptivePortraitPalette(values, alpha, width, height, palette, bac
     }
     addClusters(darkSamples, clamp(Math.round(share(darkSamples) * targetColorCount), 2, 6), neutralPalette);
     addClusters(lightSamples, clamp(Math.round(share(lightSamples) * targetColorCount), 2, 5), neutralPalette);
-    const dominant = colorSamples.filter((sample) => getPortraitColorFamily(sample.rgb) === analysis.dominantFamily);
-    const familyPalette = paletteLabs.filter(({ color }) => getPortraitColorFamily(color.rgb) === analysis.dominantFamily);
-    const familyBudget = clamp(Math.round(analysis.familyWeights[analysis.dominantFamily] * targetColorCount), 4, 9);
-    if (analysis.familyWeights[analysis.dominantFamily] >= 0.04) {
-      addClusters(dominant, familyBudget, familyPalette.length ? familyPalette : paletteLabs);
+    const themes = Object.entries(analysis.familyWeights)
+      .filter(([family, weight]) => family !== "neutral" && family !== "skin" && weight >= 0.035)
+      .sort((a, b) => b[1] - a[1]);
+    // 主色按权重分配；每个明显的次要色族至少预留一格预算，不能被全局聚类挤掉。
+    let remainingWeight = themes.reduce((sum, [, weight]) => sum + weight, 0);
+    for (let index = 0; index < themes.length; index += 1) {
+      const [family, weight] = themes[index];
+      const available = targetColorCount - selected.length;
+      const reserved = themes.length - index - 1;
+      const group = colorSamples.filter((sample) => getPortraitColorFamily(sample.rgb) === family);
+      const candidates = paletteLabs.filter(({ color }) => getPortraitColorFamily(color.rgb) === family);
+      const desired = clamp(Math.round(available * weight / remainingWeight), 1, index === 0 ? 9 : 6);
+      const budget = Math.min(desired, Math.max(0, available - reserved));
+      const themePalette = candidates.length ? candidates : paletteLabs;
+      const startCount = selected.length;
+      if (budget >= 2 && group.length) {
+        const ordered = group.slice().sort((a, b) => portraitLuma(a.rgb) - portraitLuma(b.rgb));
+        // 每个主题先保留一个暗端和亮端，再用聚类补中间层，避免只选出几种暗绿/暗蓝。
+        for (const q of [0.1, 0.9]) {
+          const sample = ordered[Math.round((ordered.length - 1) * q)];
+          addColor(nearestPortraitColorByLab(sample.rgb, themePalette, getPortraitMatchingContext(sample.rgb)));
+        }
+      }
+      addClusters(group, Math.max(0, budget - (selected.length - startCount)), themePalette);
+      remainingWeight -= weight;
     }
     addClusters(colorSamples, targetColorCount);
     for (const sample of colorSamples) {
       if (selected.length >= targetColorCount) break;
-      addColor(nearestPortraitColorByLab(sample.rgb, paletteLabs));
+      addColor(nearestPortraitColorByLab(sample.rgb, paletteLabs, getPortraitMatchingContext(sample.rgb)));
     }
   }
   return selected;
@@ -3337,7 +3369,7 @@ function buildSkinPaletteCandidates(samples, paletteLabs, budget) {
     const quantile = budget === 1 ? 0.5 : 0.03 + 0.94 * i / (budget - 1);
     let weight = 0;
     const sample = skinSamples.find((entry) => (weight += entry.count) >= total * quantile) || skinSamples[skinSamples.length - 1];
-    const color = nearestPortraitColorByLab(sample.rgb, candidates);
+    const color = nearestPortraitColorByLab(sample.rgb, candidates, getPortraitMatchingContext(sample.rgb));
     if (color && !selected.some((other) => other.code === color.code
       || deltaE2000(getColorLab(other), getColorLab(color)) < PORTRAIT_V3.minPaletteDeltaE)) selected.push(color);
   }
@@ -3414,6 +3446,7 @@ function getPortraitColorSamples(values, alpha, width, height, backgroundMask = 
       return {
         rgb: rgbValue,
         role: classifyPortraitPixel(rgbValue),
+        family: getPortraitColorFamily(rgbValue),
         lab: rgbToLab(rgbValue[0], rgbValue[1], rgbValue[2]),
         count: bucket.count,
       };
@@ -3423,6 +3456,15 @@ function getPortraitColorSamples(values, alpha, width, height, backgroundMask = 
   const retained = new Set();
   for (const role of ["skin", "neutralDark", "neutralLight"]) {
     ranked.filter((sample) => sample.role === role).slice(0, 60).forEach((sample) => retained.add(sample));
+  }
+  // 同一色族的亮部通常很碎，单按频率截取会只留下暗绿/暗蓝，丢掉霓虹高光。
+  // 在固定900样本上限内按色族和亮度分层保留，不增加总样本预算。
+  for (const family of ["red", "orange", "yellow", "green", "cyan", "blue", "purple"]) {
+    const group = ranked.filter((sample) => sample.family === family);
+    for (let bin = 0; bin < 4; bin += 1) {
+      group.filter((sample) => Math.min(3, Math.floor(portraitLuma(sample.rgb) / 64)) === bin)
+        .slice(0, 8).forEach((sample) => retained.add(sample));
+    }
   }
   for (const sample of ranked) {
     if (retained.size >= PORTRAIT_CLUSTER_SAMPLE_LIMIT) break;
@@ -3495,6 +3537,8 @@ function ditherPortraitValues(values, alpha, width, height, palette, backgroundM
     getPaletteLabEntries(palette),
     samples || [],
   );
+  if (!paletteLabs.length) return grid;
+  const colorCache = new Map();
   const darkestEntry = paletteLabs.reduce((best, entry) => {
     const luma = 0.299 * entry.color.rgb[0] + 0.587 * entry.color.rgb[1] + 0.114 * entry.color.rgb[2];
     return !best || luma < best.luma ? { entry, luma } : best;
@@ -3504,7 +3548,7 @@ function ditherPortraitValues(values, alpha, width, height, palette, backgroundM
     return 0.299 * work[offset] + 0.587 * work[offset + 1] + 0.114 * work[offset + 2];
   };
   const addError = (x, y, er, eg, eb, factor) => {
-    if (x < 0 || y < 0 || x >= width || y >= height) return;
+    if (diffusionStrength <= 0 || x < 0 || y < 0 || x >= width || y >= height) return;
     const pixelIndex = y * width + x;
     if (alpha[pixelIndex] < 24 || backgroundMask?.[pixelIndex]) return;
     const offset = pixelIndex * 3;
@@ -3527,13 +3571,24 @@ function ditherPortraitValues(values, alpha, width, height, palette, backgroundM
       let localContrast = 0;
       for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) {
         if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-        localContrast = Math.max(localContrast, Math.abs(luma - getLumaAt(ny * width + nx)));
+        const neighborIndex = ny * width + nx;
+        if (alpha[neighborIndex] < 24 || backgroundMask?.[neighborIndex]) continue;
+        localContrast = Math.max(localContrast, Math.abs(luma - getLumaAt(neighborIndex)));
       }
-      const preserveAsBlack = darkestEntry && (luma <= 38 || (luma <= 64 && localContrast >= 32));
-      const color = preserveAsBlack
-        ? darkestEntry.color
-        : nearestPortraitColorByLab([red, green, blue], paletteLabs);
+      const rgb = [red, green, blue];
+      const context = getPortraitMatchingContext([values[offset], values[offset + 1], values[offset + 2]]);
+      const chroma = Math.max(...rgb) - Math.min(...rgb);
+      // 不再把所有低亮度蓝/棕色压成黑色，只保留中性近黑和高反差细线。
+      const preserveAsBlack = darkestEntry && context.role === "neutralDark"
+        && ((luma <= 32 && chroma <= 24) || (luma <= 48 && localContrast >= 45));
+      const cacheKey = diffusionStrength <= 0 ? `${red},${green},${blue},${Number(preserveAsBlack)}` : null;
+      let color = cacheKey && colorCache.get(cacheKey);
+      if (!color) {
+        color = preserveAsBlack ? darkestEntry.color : nearestPortraitColorByLab(rgb, paletteLabs, context);
+        if (cacheKey) colorCache.set(cacheKey, color);
+      }
       grid[y][x] = cloneColor(color);
+      if (diffusionStrength <= 0) continue;
       const er = red - color.rgb[0];
       const eg = green - color.rgb[1];
       const eb = blue - color.rgb[2];
@@ -3557,32 +3612,38 @@ function ditherPortraitValues(values, alpha, width, height, palette, backgroundM
 /**
  * 清理人像量化后的单格噪点。
  *
- * 只处理“上下左右至少 3 格完全一致”的孤立色块，并且要求中心色与多数色
- * 的差异不大。这样可以消除抖动造成的脏点，同时保留眼睛、嘴唇、发丝等真正
- * 的高对比细节，不做整幅图的模糊或大范围平滑。
+ * 仅处理8邻域内真正孤立、至少5邻格同色且色差很小的格子。
+ * 遇到透明边界、连接线条或超过45的亮度差时跳过，小图2轮、大图1轮。
  */
 function cleanupPortraitGrid(grid, width, height) {
-  const output = grid.map((row) => row.slice());
-  const getCell = (x, y) => (x < 0 || y < 0 || x >= width || y >= height ? null : grid[y][x]);
-
-  for (let y = 1; y < height - 1; y += 1) {
-    for (let x = 1; x < width - 1; x += 1) {
-      const center = grid[y][x];
-      if (!center) continue;
-      const neighbors = [getCell(x - 1, y), getCell(x + 1, y), getCell(x, y - 1), getCell(x, y + 1)].filter(Boolean);
-      const counts = new Map();
-      neighbors.forEach((color) => counts.set(color.code, (counts.get(color.code) || 0) + 1));
-      const majority = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-      if (!majority || majority[1] < 3 || majority[0] === center.code) continue;
-      const majorityColor = neighbors.find((color) => color.code === majority[0]);
-      if (!majorityColor) continue;
-      const centerLuma = 0.299 * center.rgb[0] + 0.587 * center.rgb[1] + 0.114 * center.rgb[2];
-      const majorityLuma = 0.299 * majorityColor.rgb[0] + 0.587 * majorityColor.rgb[1] + 0.114 * majorityColor.rgb[2];
-      if (centerLuma <= 62 && majorityLuma - centerLuma >= 26) continue;
-      if (getColorDistance(center.rgb, majorityColor.rgb) <= 82) output[y][x] = cloneColor(majorityColor);
+  let output = grid.map((row) => row.slice());
+  const passes = Math.max(width, height) <= PORTRAIT_V3.smallGridMax ? 2 : 1;
+  for (let pass = 0; pass < passes; pass += 1) {
+    const input = output;
+    output = input.map((row) => row.slice());
+    for (let y = 1; y < height - 1; y += 1) {
+      for (let x = 1; x < width - 1; x += 1) {
+        const center = input[y][x];
+        if (!center) continue;
+        const neighbors = [];
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (let dx = -1; dx <= 1; dx += 1) {
+            if (dx || dy) neighbors.push(input[y + dy][x + dx]);
+          }
+        }
+        // 不越过透明/背景边界，也不清除与邻格连成线的结构。
+        if (neighbors.some((color) => !color || color.code === center.code)) continue;
+        const luma = portraitLuma(center.rgb);
+        if (neighbors.some((color) => Math.abs(portraitLuma(color.rgb) - luma) > 45)) continue;
+        const counts = new Map();
+        neighbors.forEach((color) => counts.set(color.code, (counts.get(color.code) || 0) + 1));
+        const majority = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+        if (!majority || majority[1] < 5) continue;
+        const color = neighbors.find((candidate) => candidate.code === majority[0]);
+        if (deltaE2000(getColorLab(center), getColorLab(color)) <= 6) output[y][x] = cloneColor(color);
+      }
     }
   }
-
   return output;
 }
 
@@ -3625,10 +3686,25 @@ function nearestPaletteColorByLab(rgbValue, paletteLabs) {
   return best;
 }
 
-function nearestPortraitColorByLab(rgbValue, paletteLabs) {
+function getPortraitMatchingContext(rgb) {
+  return {
+    role: classifyPortraitPixel(rgb),
+    skinLikelihood: getSkinLikelihood(...rgb),
+    sourceLuma: portraitLuma(rgb),
+  };
+}
+
+function getPortraitCachedFamily(color) {
+  if (!PORTRAIT_FAMILY_CACHE.has(color)) PORTRAIT_FAMILY_CACHE.set(color, getPortraitColorFamily(color.rgb));
+  return PORTRAIT_FAMILY_CACHE.get(color);
+}
+
+function nearestPortraitColorByLab(rgbValue, paletteLabs, context = null) {
   const sourceLab = rgbToLab(rgbValue[0], rgbValue[1], rgbValue[2]);
   const sourceLuma = 0.299 * rgbValue[0] + 0.587 * rgbValue[1] + 0.114 * rgbValue[2];
   const sourceChroma = Math.max(...rgbValue) - Math.min(...rgbValue);
+  const sourceFamily = context && (context.role === "saturatedWarm" || context.role === "saturatedCool")
+    ? getPortraitColorFamily(rgbValue) : null;
   let best = paletteLabs[0]?.color;
   let bestDistance = Infinity;
 
@@ -3663,6 +3739,35 @@ function nearestPortraitColorByLab(rgbValue, paletteLabs) {
 
     if (Math.abs(sourceWarm) > 10 && sourceWarm * targetWarm < 0) {
       distance += Math.abs(sourceWarm - targetWarm) ** 2 * 0.55;
+    }
+
+    // 保留上方全部 ΔE2000、亮度、绿偏与暖冷惩罚，仅在人像上下文中叠加。
+    if (context) {
+      const role = context.role;
+      const skin = role === "skin" ? (context.skinLikelihood || 0) : 0;
+      const contextLuma = context.sourceLuma ?? sourceLuma;
+      if (skin > 0.45) {
+        const excessiveChroma = Math.max(0, targetChroma - PORTRAIT_V3.skinTargetMaxChroma);
+        let skinPenalty = excessiveChroma ** 2 * PORTRAIT_V3.skinOverChromaPenalty;
+        if (targetGreenBias > 6) skinPenalty += PORTRAIT_V3.skinWrongHuePenalty;
+        if (target[2] > target[0] + 12) skinPenalty += 800;
+        if (target[0] - target[1] > 55 && target[2] > target[1] + 15) skinPenalty += 900;
+        if (contextLuma > 175) skinPenalty += Math.max(0, contextLuma - 35 - targetLuma) ** 2 * 1.4;
+        distance += skinPenalty * skin;
+      }
+      if (role === "neutralDark" || role === "neutralLight") {
+        distance += Math.max(0, targetChroma - 20) ** 2 * 1.5;
+        if (role === "neutralDark") distance += Math.max(0, targetLuma - contextLuma - 22) ** 2 * 0.6;
+        else distance += Math.max(0, contextLuma - targetLuma - 28) ** 2 * 0.6;
+      } else if (role === "saturatedWarm" || role === "saturatedCool") {
+        if (sourceFamily !== getPortraitCachedFamily(entry.color)) distance += 100;
+        // 真实绿色主题也要保色：旧版暖冷/暗部惩罚主要面向肤色，不能让它把
+        // 已确认的高饱和绿色全部推成浅灰或暗棕。仅叠加色族偏差代价，不删旧规则。
+        if (sourceFamily === "green" && sourceGreenBias > 18) {
+          distance += (sourceGreenBias - targetGreenBias) ** 2 * 12;
+          distance += Math.max(0, sourceChroma - targetChroma - 25) ** 2 * 2;
+        }
+      }
     }
 
     if (distance < bestDistance) {
