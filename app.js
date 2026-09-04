@@ -3196,37 +3196,62 @@ function sharpenPortraitLuma(values, alpha, width, height, backgroundMask = null
 
 function buildAdaptivePortraitPalette(values, alpha, width, height, palette, backgroundMask, maxColors, samples = null) {
   const colorSamples = samples || getPortraitColorSamples(values, alpha, width, height, backgroundMask);
-  if (!colorSamples.length) return palette.slice(0, maxColors);
-
-  // 30 色是上限，不是固定目标。照片越简单，自动使用的颜色越少。
+  const analysis = analyzePortraitColorMode(colorSamples);
   const targetColorCount = getAdaptivePortraitColorTarget(colorSamples, maxColors);
-  const centroids = getWeightedPortraitCentroids(colorSamples, targetColorCount);
+  if (!colorSamples.length || !palette.length || !targetColorCount) return [];
   const paletteLabs = getPortraitPaletteCandidates(getPaletteLabEntries(palette), colorSamples);
-  const selected = [];
-  const seen = new Set();
-  const addColor = (color) => {
+  const selected = [], seen = new Set();
+  const addColor = (color, anchor = false) => {
     if (!color || seen.has(color.code) || selected.length >= targetColorCount) return;
+    if (!anchor && selected.some((other) =>
+      deltaE2000(getColorLab(other), getColorLab(color)) < PORTRAIT_V3.minPaletteDeltaE)) return;
     seen.add(color.code);
     selected.push(color);
   };
+  const neutralCandidates = paletteLabs.filter(({ color }) =>
+    Math.max(...color.rgb) - Math.min(...color.rgb) <= 26);
+  const neutralPalette = neutralCandidates.length ? neutralCandidates : paletteLabs;
+  const total = colorSamples.reduce((sum, sample) => sum + sample.count, 0);
+  const darkSamples = colorSamples.filter((sample) => classifyPortraitPixel(sample.rgb) === "neutralDark");
+  const lightSamples = colorSamples.filter((sample) => classifyPortraitPixel(sample.rgb) === "neutralLight");
+  const share = (group) => group.reduce((sum, sample) => sum + sample.count, 0) / total;
+  const addClusters = (group, budget, candidates = paletteLabs) => {
+    if (!group.length || budget <= 0 || !candidates.length) return;
+    getWeightedPortraitCentroids(group, Math.min(budget, group.length)).forEach((centroid) =>
+      addColor(nearestPortraitColorByLab(centroid.rgb, candidates)));
+  };
+  if (share(darkSamples) >= 0.002) addColor(nearestPortraitColorByLab([0, 0, 0], neutralPalette), true);
+  if (share(lightSamples) >= 0.005) addColor(nearestPortraitColorByLab([255, 255, 255], neutralPalette), true);
 
-  // 人物和动漫图存在深色内容时，强制为真实黑色预留一个色位。
-  const darkWeight = colorSamples.reduce((sum, sample) => {
-    const luma = 0.299 * sample.rgb[0] + 0.587 * sample.rgb[1] + 0.114 * sample.rgb[2];
-    return sum + (luma <= 58 ? sample.count : 0);
-  }, 0);
-  const totalWeight = colorSamples.reduce((sum, sample) => sum + sample.count, 0);
-  if (totalWeight && darkWeight / totalWeight >= 0.002) {
-    addColor(nearestPortraitColorByLab([0, 0, 0], getPaletteLabEntries(palette)));
+  if (analysis.mode === "monochrome") {
+    const grayPalette = paletteLabs.filter(({ color }) =>
+      Math.max(...color.rgb) - Math.min(...color.rgb) < PORTRAIT_V3.monochromeChromaThreshold);
+    const candidates = grayPalette.length ? grayPalette : neutralPalette;
+    addClusters(colorSamples, targetColorCount, candidates);
+    for (const sample of colorSamples) {
+      if (selected.length >= targetColorCount) break;
+      addColor(nearestPortraitColorByLab(sample.rgb, candidates));
+    }
+  } else {
+    if (analysis.familyWeights.skin >= 0.04) {
+      const budget = clamp(Math.round(5 + analysis.familyWeights.skin * 5), 5, 8);
+      buildSkinPaletteCandidates(colorSamples, paletteLabs, budget).forEach((color) => addColor(color));
+    }
+    addClusters(darkSamples, clamp(Math.round(share(darkSamples) * targetColorCount), 2, 6), neutralPalette);
+    addClusters(lightSamples, clamp(Math.round(share(lightSamples) * targetColorCount), 2, 5), neutralPalette);
+    const dominant = colorSamples.filter((sample) => getPortraitColorFamily(sample.rgb) === analysis.dominantFamily);
+    const familyPalette = paletteLabs.filter(({ color }) => getPortraitColorFamily(color.rgb) === analysis.dominantFamily);
+    const familyBudget = clamp(Math.round(analysis.familyWeights[analysis.dominantFamily] * targetColorCount), 4, 9);
+    if (analysis.familyWeights[analysis.dominantFamily] >= 0.04) {
+      addClusters(dominant, familyBudget, familyPalette.length ? familyPalette : paletteLabs);
+    }
+    addClusters(colorSamples, targetColorCount);
+    for (const sample of colorSamples) {
+      if (selected.length >= targetColorCount) break;
+      addColor(nearestPortraitColorByLab(sample.rgb, paletteLabs));
+    }
   }
-
-  centroids.forEach((centroid) => addColor(nearestPortraitColorByLab(centroid.rgb, paletteLabs)));
-  colorSamples
-    .slice()
-    .sort((a, b) => b.count - a.count)
-    .forEach((sample) => addColor(nearestPortraitColorByLab(sample.rgb, paletteLabs)));
-
-  return selected.length ? selected : palette.slice(0, maxColors);
+  return selected;
 }
 
 function getPortraitPaletteCandidates(paletteLabs, samples) {
@@ -3249,22 +3274,100 @@ function getPortraitPaletteCandidates(paletteLabs, samples) {
   return filtered.length >= 8 ? filtered : paletteLabs;
 }
 
+function classifyPortraitPixel(rgb) {
+  const luma = portraitLuma(rgb), chroma = Math.max(...rgb) - Math.min(...rgb);
+  if (luma < 65 && chroma < 38) return "neutralDark";
+  if (luma > 195 && chroma < 28) return "neutralLight";
+  if (getSkinLikelihood(...rgb) > 0.45) return "skin";
+  if (chroma >= 40) return rgb[0] >= rgb[2] ? "saturatedWarm" : "saturatedCool";
+  return "other";
+}
+
+function getPortraitColorFamily(rgb) {
+  const max = Math.max(...rgb), min = Math.min(...rgb), chroma = max - min;
+  if (chroma < PORTRAIT_V3.monochromeChromaThreshold) return "neutral";
+  if (classifyPortraitPixel(rgb) === "skin") return "skin";
+  let hue = max === rgb[0] ? ((rgb[1] - rgb[2]) / chroma) % 6
+    : max === rgb[1] ? (rgb[2] - rgb[0]) / chroma + 2 : (rgb[0] - rgb[1]) / chroma + 4;
+  hue = (hue * 60 + 360) % 360;
+  if (hue < 15 || hue >= 345) return "red";
+  if (hue < 45) return "orange";
+  if (hue < 75) return "yellow";
+  if (hue < 165) return "green";
+  if (hue < 200) return "cyan";
+  if (hue < 265) return "blue";
+  return "purple";
+}
+
+function analyzePortraitColorMode(samples) {
+  const familyWeights = { neutral: 0, skin: 0, red: 0, orange: 0, yellow: 0, green: 0, cyan: 0, blue: 0, purple: 0 };
+  let total = 0, chromaSum = 0;
+  for (const sample of samples) {
+    const weight = sample.count;
+    familyWeights[getPortraitColorFamily(sample.rgb)] += weight;
+    total += weight;
+    chromaSum += (Math.max(...sample.rgb) - Math.min(...sample.rgb)) * weight;
+  }
+  for (const family of Object.keys(familyWeights)) familyWeights[family] = total ? familyWeights[family] / total : 0;
+  const meanChroma = total ? chromaSum / total : 0;
+  const dominantFamily = Object.entries(familyWeights)
+    .filter(([family]) => family !== "skin" && family !== "neutral")
+    .sort((a, b) => b[1] - a[1])[0];
+  return {
+    mode: meanChroma < PORTRAIT_V3.monochromeChromaThreshold ? "monochrome" : "color",
+    meanChroma,
+    dominantFamily: dominantFamily?.[1] > 0 ? dominantFamily[0] : "neutral",
+    familyWeights,
+  };
+}
+
+function buildSkinPaletteCandidates(samples, paletteLabs, budget) {
+  const skinSamples = samples.filter((sample) => getSkinLikelihood(...sample.rgb) > 0.45)
+    .sort((a, b) => portraitLuma(a.rgb) - portraitLuma(b.rgb));
+  if (!skinSamples.length || budget <= 0) return [];
+  const candidates = paletteLabs.filter(({ color }) => {
+    const [r, g, b] = color.rgb;
+    const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+    return r >= g - 3 && g >= b - 12 && r >= b + 3 && r - g <= 65 && chroma <= 100;
+  });
+  if (!candidates.length) return [];
+  const total = skinSamples.reduce((sum, sample) => sum + sample.count, 0);
+  const selected = [];
+  for (let i = 0; i < budget; i += 1) {
+    const quantile = budget === 1 ? 0.5 : 0.03 + 0.94 * i / (budget - 1);
+    let weight = 0;
+    const sample = skinSamples.find((entry) => (weight += entry.count) >= total * quantile) || skinSamples[skinSamples.length - 1];
+    const color = nearestPortraitColorByLab(sample.rgb, candidates);
+    if (color && !selected.some((other) => other.code === color.code
+      || deltaE2000(getColorLab(other), getColorLab(color)) < PORTRAIT_V3.minPaletteDeltaE)) selected.push(color);
+  }
+  return selected;
+}
+
 function getAdaptivePortraitColorTarget(samples, maxColors) {
-  const safeMax = Math.max(1, Math.floor(maxColors));
+  const safeMax = clamp(Math.floor(Number(maxColors) || 1), 1, PORTRAIT_COLOR_LIMIT);
+  if (!samples.length) return 0;
+  const analysis = analyzePortraitColorMode(samples);
+  if (analysis.mode === "monochrome") {
+    const lumas = samples.map((sample) => portraitLuma(sample.rgb));
+    const range = Math.max(...lumas) - Math.min(...lumas);
+    return Math.min(safeMax, samples.length, PORTRAIT_V3.monochromeMaxColors, Math.max(4, Math.round(range / 40) + 1));
+  }
   if (samples.length <= safeMax) return samples.length;
-
   const total = samples.reduce((sum, sample) => sum + sample.count, 0);
-  if (!total) return safeMax;
-
-  // 只把占比足够的颜色视为“有实际画面贡献”的颜色，避免噪声把色数推到上限。
+  if (!total) return 0;
   const meaningfulCount = samples.filter((sample) => sample.count / total >= 0.003).length;
   const diversity = clamp(meaningfulCount / 60, 0, 1);
-  const target = Math.round(20 + diversity * (safeMax - 20));
-  return clamp(target, Math.min(20, safeMax), safeMax);
+  const themeFamilies = Object.entries(analysis.familyWeights)
+    .filter(([family, weight]) => family !== "neutral" && family !== "skin" && weight >= 0.06).length;
+  // 普通人物约16~26；多主题且有足够样本复杂度时才允许接近30。
+  const target = Math.round(16 + diversity * 10 + (themeFamilies >= 3 ? diversity * 4 : 0));
+  return Math.min(safeMax, target);
 }
 
 function getPortraitColorSamples(values, alpha, width, height, backgroundMask = null) {
   const buckets = new Map();
+  const roleWeights = { skin: 1.35, neutralDark: 1.25, neutralLight: 1.10, saturatedWarm: 1, saturatedCool: 1, other: 0.90 };
   const total = width * height;
   const getLuma = (pixelIndex) => {
     const offset = pixelIndex * 3;
@@ -3290,16 +3393,18 @@ function getPortraitColorSamples(values, alpha, width, height, backgroundMask = 
     }
     // 轻微提高轮廓像素在自适应调色板中的权重，避免五官和发丝被大面积背景色吞掉。
     const edgeWeight = 1 + clamp(edgeSamples ? edge / edgeSamples / 72 : 0, 0, 1) * 0.55;
-    const key = `${red >> 3}-${green >> 3}-${blue >> 3}`;
+    const role = classifyPortraitPixel([red, green, blue]);
+    const weight = edgeWeight * roleWeights[role];
+    const key = `${role}-${red >> 3}-${green >> 3}-${blue >> 3}`;
     const bucket = buckets.get(key) || { red: 0, green: 0, blue: 0, count: 0 };
-    bucket.red += red * edgeWeight;
-    bucket.green += green * edgeWeight;
-    bucket.blue += blue * edgeWeight;
-    bucket.count += edgeWeight;
+    bucket.red += red * weight;
+    bucket.green += green * weight;
+    bucket.blue += blue * weight;
+    bucket.count += weight;
     buckets.set(key, bucket);
   }
 
-  return [...buckets.values()]
+  const ranked = [...buckets.values()]
     .map((bucket) => {
       const rgbValue = [
         bucket.red / bucket.count,
@@ -3308,12 +3413,22 @@ function getPortraitColorSamples(values, alpha, width, height, backgroundMask = 
       ];
       return {
         rgb: rgbValue,
+        role: classifyPortraitPixel(rgbValue),
         lab: rgbToLab(rgbValue[0], rgbValue[1], rgbValue[2]),
         count: bucket.count,
       };
     })
-    .sort((a, b) => b.count - a.count)
-    .slice(0, PORTRAIT_CLUSTER_SAMPLE_LIMIT);
+    .sort((a, b) => b.count - a.count);
+  // 在900样本上限内为少量肤色/黑白结构保留样本，避免被主题背景挤出。
+  const retained = new Set();
+  for (const role of ["skin", "neutralDark", "neutralLight"]) {
+    ranked.filter((sample) => sample.role === role).slice(0, 60).forEach((sample) => retained.add(sample));
+  }
+  for (const sample of ranked) {
+    if (retained.size >= PORTRAIT_CLUSTER_SAMPLE_LIMIT) break;
+    retained.add(sample);
+  }
+  return [...retained].sort((a, b) => b.count - a.count);
 }
 
 function getWeightedPortraitCentroids(samples, maxColors) {
