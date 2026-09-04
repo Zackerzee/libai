@@ -8,6 +8,19 @@ const image={width:32,height:32,data:new Uint8ClampedArray(32*32*4)};
 for(let y=0;y<32;y++)for(let x=0;x<32;x++)image.data.set(x===4||x===27||y===4||y===27?[0,0,0,255]:[255,255,255,255],(y*32+x)*4);
 const before=Buffer.from(image.data);
 const result=generateCartoonBeadPattern(image,{forceCartoon:true,width:32,palette,colorMath:ctx});
+assert.equal(result.diagnostics.maxColors,null,'default is palette-only, no forced budget');
+assert.equal(result.diagnostics.mergedColors,0);
+for(const limit of [1,10,18,24,30,40]){
+ const limited=generateCartoonBeadPattern(image,{forceCartoon:true,width:32,palette,colorMath:ctx,maxColors:limit});
+ assert(limited.diagnostics.finalColors<=limit);
+ if(limit>=2)assert.equal(limited.diagnostics.finalColors,2,'ceiling must not add colors');
+}
+for(const limit of [-1,1.5,NaN,Infinity,palette.length+1])assert.throws(()=>generateCartoonBeadPattern(image,{forceCartoon:true,colorMath:ctx,palette,maxColors:limit}));
+const stripes={width:48,height:8,data:new Uint8ClampedArray(48*8*4)};
+for(let y=0;y<8;y++)for(let x=0;x<48;x++)stripes.data.set([...palette[x%palette.length].rgb,255],(y*48+x)*4);
+const colorful=generateCartoonBeadPattern(stripes,{forceCartoon:true,width:48,autoTrim:false,palette,colorMath:ctx});
+assert(colorful.diagnostics.finalColors>30,'unlimited must retain more than thirty available colors');
+for(const limit of [10,24,40])assert(generateCartoonBeadPattern(stripes,{forceCartoon:true,width:48,autoTrim:false,palette,colorMath:ctx,maxColors:limit}).diagnostics.finalColors<=limit);
 assert(before.equals(Buffer.from(image.data)));
 assert(result.diagnostics.finalColors<=10);
 for(let x=4;x<=27;x++)assert(Math.max(...result.grid[4][x].rgb)<45);

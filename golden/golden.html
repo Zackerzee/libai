@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>金样图回归 · 立柏拼豆</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 20px; font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      background: #f5f6f8; color: #1f2328;
+    }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    .sub { color: #57606a; margin: 0 0 16px; }
+    .bar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    button {
+      border: 1px solid #d0d7de; background: #fff; border-radius: 6px; padding: 6px 14px; cursor: pointer;
+    }
+    button:hover { background: #f3f4f6; }
+    #summary { font-weight: 600; margin-left: auto; }
+    table { width: 100%; border-collapse: collapse; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eef0f2; vertical-align: top; }
+    th { background: #fafbfc; font-weight: 600; white-space: nowrap; }
+    td.code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+    .pass { color: #1a7f37; font-weight: 600; }
+    .fail { color: #cf222e; font-weight: 600; }
+    .skip { color: #9a6700; }
+    .run { color: #57606a; }
+    #app-frame { position: fixed; left: -10000px; top: 0; width: 1280px; height: 1600px; border: 0; }
+    details { margin: 2px 0; }
+    summary { cursor: pointer; color: #57606a; }
+    ul.issues { margin: 4px 0; padding-left: 18px; }
+  </style>
+</head>
+<body>
+  <h1>金样图回归 · 立柏拼豆图纸生成器</h1>
+  <p class="sub">
+    在隐藏 iframe 中加载真实 <code>index.html</code>，直接调用 app.js 的算法管线，
+    与 <code>golden/baseline/*.json</code> 比对统计结果。修改算法后先用
+    <code>?mode=record</code> 生成基线，再用 <code>?mode=check&auto=1</code> 回归。
+  </p>
+  <div class="bar">
+    <button id="run" type="button">运行全部</button>
+    <button id="record" type="button">生成基线 (record)</button>
+    <span id="summary">—</span>
+  </div>
+  <table>
+    <thead>
+      <tr><th>结果</th><th>样例</th><th>模式</th><th>格数</th><th>说明</th></tr>
+    </thead>
+    <tbody id="results"></tbody>
+  </table>
+
+  <iframe id="app-frame" src="../index.html?__golden=1" title="app"></iframe>
+
+  <script src="./golden.js"></script>
+</body>
+</html>

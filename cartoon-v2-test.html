@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cartoon V2 测试 · 立柏拼豆</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font: 14px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f5f6f8; color: #1f2328; }
+  header { padding: 12px 16px; background: #fff; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; z-index: 5; }
+  header .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  header h1 { font-size: 15px; margin: 0 8px 0 0; white-space: nowrap; }
+  .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .controls label { font-size: 13px; color: #444; display: inline-flex; gap: 5px; align-items: center; }
+  .controls input[type=number] { padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 13px; width: 80px; }
+  .controls select { padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 13px; }
+  button { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 13px; }
+  button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+  button.primary:disabled { opacity: .6; cursor: default; }
+  button:disabled { opacity: .6; cursor: default; }
+  .status { font-size: 13px; color: #57606a; }
+  .status.err { color: #cf222e; }
+  .wrap { display: flex; gap: 16px; padding: 16px; align-items: flex-start; flex-wrap: wrap; }
+  .col { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; }
+  .col h3 { margin: 0 0 8px; font-size: 13px; color: #333; }
+  #preview, #outImg { max-width: 100%; image-rendering: pixelated; display: block; }
+  .meta { font-size: 12px; color: #333; margin-top: 8px; white-space: pre-wrap; font-family: ui-monospace, Consolas, monospace; background: #f7f7f8; border-radius: 6px; padding: 8px; }
+  .scroll { max-height: 2000px; overflow: auto; }
+  .drop { border: 2px dashed #cbd5e1; border-radius: 8px; padding: 24px; text-align: center; color: #888; cursor: pointer; background: #fff; margin: 16px; }
+  .drop.over { border-color: #2563eb; background: #eff6ff; }
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <h1>Cartoon Engine V2 · 本地测试</h1>
+    <div class="controls">
+      <label>网格宽 <input type="number" id="width" value="120" min="20" max="600" step="1" /></label>
+      <label>预算
+        <select id="budget">
+          <option value="auto">不限（当前色卡）</option>
+          <option value="10">10（simple）</option>
+          <option value="18">18（normal）</option>
+          <option value="30">30（complex）</option>
+          <option value="custom">自定义最大色数</option>
+        </select>
+      </label>
+      <label>最大色数 <input type="number" id="maxColors" min="1" step="1" value="24" disabled /></label>
+      <label><input type="checkbox" id="trim" checked /> 自动去边</label>
+      <label>显示宽 <input type="number" id="dispW" value="1000" min="50" max="4000" step="10" /></label>
+      <button class="primary" id="go">生成</button>
+      <span class="status" id="status">就绪（纯本地，不依赖 app.js/网络）。选择图片后点"生成"。</span>
+    </div>
+  </div>
+</header>
+
+<div class="drop" id="drop">点击选择 / 拖入一张图片（支持 png / jpg）</div>
+<input type="file" id="file" accept="image/*" hidden />
+
+<div class="wrap">
+  <div class="col">
+    <h3>原图</h3>
+    <div class="scroll"><img id="preview" style="display:none" /></div>
+  </div>
+  <div class="col">
+    <h3>Cartoon V2 输出</h3>
+    <div class="scroll"><img id="outImg" alt="输出（生成后显示）" /></div>
+    <div class="meta" id="meta"></div>
+  </div>
+</div>
+
+<script type="module">
+  // ---------- 自包含颜色数学（与 app.js 一致） ----------
+  function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+  function rgbToLab(red, green, blue) {
+    const toLinear = (value) => {
+      const channel = clamp(value, 0, 255) / 255;
+      return channel > 0.04045 ? ((channel + 0.055) / 1.055) ** 2.4 : channel / 12.92;
+    };
+    const r = toLinear(red), g = toLinear(green), b = toLinear(blue);
+    const x = (r * 0.4124564 + g * 0.3575761 + b * 0.1804375) / 0.95047;
+    const y = (r * 0.2126729 + g * 0.7151522 + b * 0.072175) / 1;
+    const z = (r * 0.0193339 + g * 0.119192 + b * 0.9503041) / 1.08883;
+    const pivot = (value) => (value > 0.008856 ? Math.cbrt(value) : 7.787 * value + 16 / 116);
+    const fx = pivot(x), fy = pivot(y), fz = pivot(z);
+    return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+  }
+  function deltaE2000(lab1, lab2) {
+    const [l1, a1, b1] = lab1; const [l2, a2, b2] = lab2;
+    const c1 = Math.hypot(a1, b1), c2 = Math.hypot(a2, b2);
+    const cMean = (c1 + c2) / 2, cMean7 = cMean ** 7;
+    const g = 0.5 * (1 - Math.sqrt(cMean7 / (cMean7 + 25 ** 7)));
+    const a1p = (1 + g) * a1, a2p = (1 + g) * a2;
+    const c1p = Math.hypot(a1p, b1), c2p = Math.hypot(a2p, b2);
+    const hue = (a, b) => { if (a === 0 && b === 0) return 0; const d = Math.atan2(b, a) * 180 / Math.PI; return d >= 0 ? d : d + 360; };
+    const h1 = hue(a1p, b1), h2 = hue(a2p, b2);
+    const dLp = l2 - l1, dCp = c2p - c1p;
+    let dHue = 0;
+    if (c1p * c2p !== 0) { const diff = h2 - h1; dHue = Math.abs(diff) <= 180 ? diff : diff > 180 ? diff - 360 : diff + 360; }
+    const dHp = 2 * Math.sqrt(c1p * c2p) * Math.sin(dHue * Math.PI / 360);
+    const lM = (l1 + l2) / 2, cM = (c1p + c2p) / 2;
+    let hM;
+    if (c1p * c2p === 0) hM = h1 + h2;
+    else if (Math.abs(h1 - h2) <= 180) hM = (h1 + h2) / 2;
+    else if (h1 + h2 < 360) hM = (h1 + h2 + 360) / 2;
+    else hM = (h1 + h2 - 360) / 2;
+    const rad = (d) => d * Math.PI / 180;
+    const t = 1 - 0.17 * Math.cos(rad(hM - 30)) + 0.24 * Math.cos(rad(2 * hM)) + 0.32 * Math.cos(rad(3 * hM + 6)) - 0.2 * Math.cos(rad(4 * hM - 63));
+    const dTh = 30 * Math.exp(-(((hM - 275) / 25) ** 2));
+    const cM7 = cM ** 7;
+    const rc = 2 * Math.sqrt(cM7 / (cM7 + 25 ** 7));
+    const sL = 1 + (0.015 * (lM - 50) ** 2) / Math.sqrt(20 + (lM - 50) ** 2);
+    const sC = 1 + 0.045 * cM, sH = 1 + 0.015 * cM * t;
+    const rT = -Math.sin(rad(2 * dTh)) * rc;
+    return Math.sqrt((dLp / sL) ** 2 + (dCp / sC) ** 2 + (dHp / sH) ** 2 + rT * (dCp / sC) * (dHp / sH));
+  }
+  const colorMath = { rgbToLab, deltaE2000 };
+
+  // ---------- 元素引用 ----------
+  const $ = (id) => document.getElementById(id);
+  const statusEl = $("status"), drop = $("drop"), fileEl = $("file");
+  const preview = $("preview"), outImg = $("outImg"), metaEl = $("meta"), goBtn = $("go");
+
+  let PAL = null, engine = null, source = null;
+  $("budget").addEventListener("change", () => { $("maxColors").disabled = $("budget").value !== "custom"; });
+  $("maxColors").addEventListener("input", () => { $("maxColors").setCustomValidity(""); });
+
+  function log(msg, err) { statusEl.textContent = msg; statusEl.className = err ? "status err" : "status"; }
+
+  // ---------- 初始化：加载调色板 + 引擎模块 ----------
+  async function init() {
+    try {
+      const res = await fetch("./assets/palettes/mard-221.json");
+      if (!res.ok) throw new Error("palette HTTP " + res.status);
+      const j = await res.json();
+      PAL = (j.colors || []).filter(c => !c.unidentified).map((c) => ({ code: c.code, rgb: c.rgb })).filter((c) => c.rgb && c.code);
+      $("maxColors").max = new Set(PAL.map(c => c.code)).size;
+      engine = await import("./lib/cartoonEngine.js?v=optional-color-limit-1");
+      log("就绪（调色板 " + PAL.length + " 色）。选择图片 → 生成。");
+    } catch (e) {
+      log("初始化失败: " + e.message, true);
+    }
+  }
+  init();
+
+  // ---------- 图片选择 ----------
+  drop.addEventListener("click", () => fileEl.click());
+  ["dragover", "dragenter"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+  fileEl.addEventListener("change", () => { if (fileEl.files[0]) loadFile(fileEl.files[0]); });
+
+  function loadFile(f) {
+    const url = URL.createObjectURL(f);
+    preview.onload = () => { preview.style.display = "block"; };
+    preview.src = url;
+    source = { file: f, url };
+    log("已选 " + f.name + "，点\"生成\"。");
+  }
+
+  // ---------- 生成 ----------
+  goBtn.addEventListener("click", async () => {
+    if (!source) return log("请先选择图片", true);
+    if (!engine || !PAL) return log("引擎未就绪，请稍候", true);
+    log("处理中…");
+    try {
+      const bmp = await createImageBitmap(source.file);
+      const image = await imageBitmapToRGBA(bmp);
+      bmp.close();
+      const w = Math.max(20, Math.min(600, Math.round(Number($("width").value) || 120)));
+      const opts = { colorMath, palette: PAL, forceCartoon: true, width: w, autoTrim: $("trim").checked };
+      const bv = $("budget").value;
+      if (bv !== "auto") {
+        const value = bv === "custom" ? Number($("maxColors").value) : Number(bv);
+        const limit = new Set(PAL.map(c => c.code)).size;
+        if (!Number.isSafeInteger(value) || value < 1 || value > limit) throw new Error("最大色数请输入 1～" + limit + " 的整数");
+        opts.maxColors = value;
+      }
+      const t0 = performance.now();
+      const r = engine.generateCartoonBeadPattern(image, opts);
+      const ms = (performance.now() - t0).toFixed(0);
+      renderOut(r);
+      const d = r.diagnostics;
+      metaEl.textContent =
+        "网格 " + r.width + "×" + r.height + "   复杂度 " + d.complexity +
+        "   预算 " + (d.maxColors ?? "不限（当前色卡）") + "   实际成色 " + d.finalColors +
+        "\n裁切 " + d.crop + "   原色 " + d.originalColors + "   锁黑格 " + d.lockedCells +
+        "   采样 " + d.samplingMode + "   用时 " + ms + "ms";
+      log("完成 " + r.width + "×" + r.height + "，成色 " + d.finalColors + "，用时 " + ms + "ms");
+    } catch (e) {
+      console.error(e);
+      log("生成失败: " + e.message, true);
+    }
+  });
+
+  async function imageBitmapToRGBA(bmp) {
+    const cv = document.createElement("canvas");
+    cv.width = bmp.width; cv.height = bmp.height;
+    const c = cv.getContext("2d", { willReadFrequently: true });
+    c.drawImage(bmp, 0, 0);
+    const d = c.getImageData(0, 0, cv.width, cv.height).data;
+    return { width: cv.width, height: cv.height, data: new Uint8ClampedArray(d) };
+  }
+
+  function renderOut(r) {
+    // 显示宽度默认 1000；输出 canvas 高度随网格比例。
+    const dispW = Math.max(50, Math.min(4000, Math.round(Number($("dispW").value) || 1000)));
+    const ratio = r.height / r.width;
+    const W = Math.max(r.width, Math.min(dispW, 4000));
+    const cell = W / r.width;
+    const H = Math.round(r.height * cell);
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const c = cv.getContext("2d");
+    c.imageSmoothingEnabled = false;
+    c.fillStyle = "#fff"; c.fillRect(0, 0, W, H);
+    for (let y = 0; y < r.height; y++) for (let x = 0; x < r.width; x++) {
+      const cellObj = r.grid[y][x];
+      const [rr, gg, bb] = cellObj ? cellObj.rgb : [255, 255, 255];
+      c.fillStyle = "rgb(" + rr + "," + gg + "," + bb + ")";
+      c.fillRect(Math.floor(x * cell), Math.floor(y * cell), Math.ceil(cell) + 1, Math.ceil(cell) + 1);
+    }
+    outImg.width = W; outImg.height = H;
+    outImg.src = cv.toDataURL("image/png");
+    outImg.style.display = "block";
+  }
+</script>
+</body>
+</html>

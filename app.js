@@ -34,6 +34,8 @@ const MAX_GRANULARITY = 500;
 const MAX_DIRECT_PATTERN_GRID = 500;
 const MAX_PIXEL_ART_DETECTION_SIDE = 4096;
 const LIVE_PREVIEW_DELAY = 320;
+// 单次"生成图纸"超过该毫秒数时，在状态栏提示用户可降低格数/颜色数以提速。
+const SLOW_PROCESS_MS = 2500;
 const EXPORT_MIN_LONG_SIDE = 8192;
 const BEAD_SIZE_CM = 0.26;
 const GALLERY_STORAGE_KEY = "libai-maker-generated-gallery";
@@ -86,6 +88,75 @@ const PORTRAIT_V3 = {
   skinTargetMaxChroma: 72, skinWrongHuePenalty: 1200, skinOverChromaPenalty: 2.2,
   monochromeChromaThreshold: 18, monochromeMaxColors: 7,
   minPaletteDeltaE: 3.8,
+};
+
+// ── 人像 v4（人脸感知）经验参数 ──────────────────────────────────────────
+// 与 PORTRAIT_V3 同一约定：可调档位集中于此并写设计理由。高斯的椭圆/环
+// 几何属于算法公式的一部分，留在使用处配注释，避免拆成难以核对的配置链。
+// 调试通道：URL 带 #debug-portrait 或 ?debug=1 时输出人像算法诊断日志。
+const PORTRAIT_DEBUG = location.hash.includes("debug-portrait")
+  || new URLSearchParams(location.search).has("debug");
+const PORTRAIT_V4 = {
+  // 人脸检测画布：长边上限 800px，且不超过目标网格的 4 倍（4 倍见 PORTRAIT_ANALYSIS_SCALE）。
+  // 检测只是拿 ROI 权重，不需要全分辨率。
+  detectionCanvasMaxSide: 800,
+  detectionCanvasScaleCap: 4,
+  // FaceDetector 是实验 API，一次检测超过 1.8s 视为失败，降级回 v3 人像管线。
+  detectionTimeoutMs: 1800,
+  maxDetectedFaces: 4,
+  // 有效人脸框约束：面积占比太小(噪点/水印)剔除；右下角且较小的框多为嵌图，
+  // 不参与脸部预算分配，避免参考图里的"小头像"抢走主脸权重。
+  minFaceAreaRatio: 0.025,
+  cornerFilter: { xRatio: 0.65, yRatio: 0.65, maxAreaRatio: 0.15 },
+  // 彩色/黑白两种模式的分档：脸部提亮、背景压缩与对比度各自独立。
+  profiles: {
+    color: { faceLift: 46, backgroundCompression: 0.18, contrast: 1.2, skinChromaPreserve: 0.13 },
+    mono: { faceLift: 62, backgroundCompression: 0.38, contrast: 1.38, targetColors: 8 },
+  },
+  face: {
+    // 亮度映射基准点与上下限：提亮围绕 150 展开，clamp 到 0~250 防死白死黑。
+    midtoneCenter: 150, lumaFloor: 0, lumaCeil: 250,
+    // 提亮只作用于中间调 (55~125)，高光 (220~255) 不再上提，避免丢失高光层次。
+    lift: { low: 55, high: 125, cutLow: 220, cutHigh: 255 },
+    // 背景压缩只作用于中高调 (145~220)：暗背景不动，避免头发/阴影沉底。
+    outsideCompress: { low: 145, high: 220 },
+    // 五官细节对提亮的削弱系数：眼睛嘴唇处少提，保住轮廓。
+    featureDamping: 0.2,
+    // 参与脸部调色板/背景归类的权重门槛。
+    ladderMinWeight: 0.6,
+    outsideMinWeight: 0.85,
+  },
+  sampling: {
+    // 采样时脸部像素的权重加成：faceFloor + face*2.5 + feature*1.5，
+    // 让自适应调色板把预算优先给脸而不是大面积背景。
+    faceFloor: 0.45, faceWeight: 2.5, featureWeight: 1.5,
+  },
+  paletteBudget: {
+    // 彩色脸部调色板总预算 / 肤色候选梯 / 脸外背景预算。
+    face: 30, skinLadder: 10, outside: 8,
+  },
+  mono: {
+    // 黑白判定：彩度 < 18 视为灰度；目标 8 级灰阶，采样这些亮度值找最近豆色。
+    maxChroma: 18,
+    graySteps: [0, 35, 70, 110, 150, 190, 225, 255],
+  },
+  cleanup: {
+    // 五官细节像素（权重 > 0.25）不参与孤立清理，避免破坏眼睛/嘴唇的单格结构。
+    featureKeepWeight: 0.25,
+    // 脸部内部 ΔE 容差收紧到 6；脸外放宽到 12(彩色)/16(黑白)，保护大色块连续性。
+    faceTolerance: 6,
+    outsideFaceToleranceColor: 12,
+    outsideFaceToleranceMono: 16,
+    outsideFaceMinWeight: 0.3,
+  },
+  matching: {
+    // 亮部脸区 (luma>150, 非五官)：距离里叠加"选亮不选暗"代价，防止脸被压成黄/棕。
+    lightFace: { minLuma: 150, featureGate: 0.4, lumaSlack: 12, weight: 1.6 },
+    // 肤色且候选豆够亮(>190)、够暖(0~65)：直接奖励，鼓励选中亮肤豆色。
+    skinBonus: { minLikelihood: 0.45, maxTargetLuma: 190, minWarm: 0, maxWarm: 65, bonus: 20 },
+    // 暗部五官 (luma<90)：禁止选中比源更亮的豆子，保住黑发/眉毛/眼线。
+    darkFeature: { maxLuma: 90, gate: 0.25, lumaSlack: 10, weight: 2 },
+  },
 };
 
 function getPortraitV3Profile(width, height) {
@@ -2164,6 +2235,7 @@ async function processImage(options = {}) {
   els.processButton.textContent = options.autoPreview ? "预览中..." : "处理中...";
 
   try {
+    let safetyNotice = "";
     if (!state.sourceSafetyChecked) {
       setStatus("本地审查中");
       const safety = await runLocalContentSafetyCheck(state.sourceDataUrl);
@@ -2173,11 +2245,17 @@ async function processImage(options = {}) {
         return false;
       }
       state.sourceSafetyChecked = true;
+      // 本地审查模型（nsfwjs）加载失败时流程放行，但必须在界面明示"未过审"，
+      // 避免把尽力而为的本地审查包装成"已审查"。
+      if (safety.skipped) safetyNotice = " · 本地审查未执行(模型不可用)";
     }
+    const startedAt = performance.now();
     const image = await loadImage(state.sourceDataUrl);
     applyRestoreSizing(image);
     const palette = getCurrentPalette();
-    const result = rasterizeImage(image, palette);
+    const result = els.modeSelect?.value === "portrait"
+      ? await rasterizeFaceAwarePortraitImage(image, palette)
+      : rasterizeImage(image, palette);
     const optimized = optimizeGrid(result.grid, getOptimizationOptions());
     state.grid = optimized.grid;
     state.width = result.width;
@@ -2190,7 +2268,10 @@ async function processImage(options = {}) {
     refreshChartUrl();
     updateResultUi();
     if (options.saveGallery !== false) saveCurrentToGallery();
-    setStatus(options.autoPreview ? `${getGeneratedStatus()} · 实时预览` : getGeneratedStatus());
+    const elapsedMs = performance.now() - startedAt;
+    const slowTip = elapsedMs > SLOW_PROCESS_MS ? " · 生成偏慢，可调低格数/颜色数" : "";
+    const baseStatus = options.autoPreview ? `${getGeneratedStatus()} · 实时预览` : getGeneratedStatus();
+    setStatus(`${baseStatus}${safetyNotice}${slowTip} · ${(elapsedMs / 1000).toFixed(1)}s`);
     return true;
   } catch (error) {
     console.error(error);
@@ -2537,6 +2618,200 @@ function isNearWhiteRgb(pixel) {
   const green = pixel[1];
   const blue = pixel[2];
   return red >= 248 && green >= 248 && blue >= 248;
+}
+
+function recordPortraitDiagnostic(reason) {
+  // 只记录"人脸检测降级原因"的计数分布，不含图片/人脸/用户信息。
+  // 用途：判断 Safari/Firefox（无 FaceDetector）等降级占比，决定是否需要
+  // 引入轻量人脸检测库兜底。存储 key 与画廊等本地数据同域，量级极小。
+  try {
+    const key = "libai-maker-portrait-diagnostics";
+    const counts = JSON.parse(localStorage.getItem(key) || "{}");
+    const normalized = typeof reason === "string" && reason.length <= 32 ? reason : "detection-failed";
+    counts[normalized] = (counts[normalized] || 0) + 1;
+    localStorage.setItem(key, JSON.stringify(counts));
+  } catch {
+    // 隐私模式或配额满时忽略，埋点绝不能影响主流程。
+  }
+}
+
+async function rasterizeFaceAwarePortraitImage(image, palette) {
+  // Compose before awaiting detection: ROI and pixels must use exactly the same crop.
+  const width = getGranularity(), height = getGridHeight();
+  const pixels = renderPortraitAnalysisPixels(image, width, height);
+  const background = getBackgroundMask(pixels, width, height);
+  let roi = null, reason = "unsupported";
+  if (typeof globalThis.FaceDetector === "function") {
+    try {
+      const canvas = document.createElement("canvas");
+      // 检测画布只需支撑 ROI 权重，长边封顶（默认 800px / 目标网格 4 倍）。
+      const scale = Math.min(PORTRAIT_V4.detectionCanvasScaleCap,
+        PORTRAIT_V4.detectionCanvasMaxSide / Math.max(width, height));
+      canvas.width = Math.max(width, Math.round(width * scale));
+      canvas.height = Math.round(canvas.width * height / width);
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("canvas unavailable");
+      drawImageWithComposition(context, image, canvas.width, canvas.height);
+      const faces = await detectPortraitFaces(canvas);
+      roi = buildPortraitFaceRoi(faces, canvas.width, canvas.height, width, height);
+      reason = roi ? "native-detection" : "no-valid-face";
+    } catch (error) {
+      reason = error?.message || "detection-failed";
+    }
+  }
+  if (PORTRAIT_DEBUG) {
+    console.debug("[portrait-v4-detection]", { reason, fallback: !roi, width, height });
+  }
+  recordPortraitDiagnostic(reason);
+  return {
+    width, height,
+    grid: roi ? rasterizeFaceAwarePortraitPixels(pixels, width, height, palette, background.mask, roi)
+      : rasterizePortraitPixels(pixels, width, height, palette, background.mask),
+    backgroundDecision: background.decision,
+    summary: `不超过${PORTRAIT_COLOR_LIMIT}色 · 人像精细`,
+  };
+}
+
+async function detectPortraitFaces(canvas) {
+  let timer;
+  try {
+    return await Promise.race([
+      new globalThis.FaceDetector({
+        fastMode: false,
+        maxDetectedFaces: PORTRAIT_V4.maxDetectedFaces,
+      }).detect(canvas),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("detection-timeout")), PORTRAIT_V4.detectionTimeoutMs);
+      }),
+    ]);
+  } finally { clearTimeout(timer); }
+}
+
+function buildPortraitFaceRoi(faces, sourceWidth, sourceHeight, width, height) {
+  // 只保留数值合法、在画布内(1% 容差)、且面积足够大的框；
+  // 右下角的小框（常见表情/角标水印）不给脸部预算，规则见 PORTRAIT_V4.cornerFilter。
+  const corner = PORTRAIT_V4.cornerFilter, minArea = PORTRAIT_V4.minFaceAreaRatio;
+  const valid = (faces || []).filter(({ boundingBox: b }) => b &&
+    [b.x, b.y, b.width, b.height].every(Number.isFinite) && b.width > 0 && b.height > 0 &&
+    b.x >= 0 && b.y >= 0 && b.x + b.width <= sourceWidth * 1.01 &&
+    b.y + b.height <= sourceHeight * 1.01 && b.width * b.height > sourceWidth * sourceHeight * minArea &&
+    !(b.x > sourceWidth * corner.xRatio && b.y > sourceHeight * corner.yRatio
+      && b.width * b.height < sourceWidth * sourceHeight * corner.maxAreaRatio))
+    .sort((a, b) => b.boundingBox.width * b.boundingBox.height - a.boundingBox.width * a.boundingBox.height);
+  if (!valid.length) return null;
+  // Largest subject only; inset reference portraits must not acquire a second face budget.
+  const face = valid[0], b = face.boundingBox;
+  const faceWeight = new Float32Array(width * height), featureWeight = new Float32Array(width * height);
+  const backgroundWeight = new Float32Array(width * height);
+  const landmarks = (face.landmarks || []).flatMap((l) =>
+    ["eye", "nose", "mouth"].includes(l.type) ? (l.locations || []).filter(p =>
+      Number.isFinite(p.x) && Number.isFinite(p.y) && p.x >= b.x && p.x <= b.x + b.width &&
+      p.y >= b.y && p.y <= b.y + b.height).map(p => ({ x: (p.x - b.x) / b.width, y: (p.y - b.y) / b.height, type: l.type })) : []);
+  // 检测器没给 landmark 时的兜底五官位置（相对脸框的归一化坐标）。
+  const points = landmarks.length ? landmarks : [
+    { x: .3, y: .4, type: "eye" }, { x: .7, y: .4, type: "eye" },
+    { x: .5, y: .6, type: "nose" }, { x: .5, y: .78, type: "mouth" },
+  ];
+  // 权重几何（以下数值均为相对脸框的归一化坐标，属算法公式的一部分，就地保留）：
+  // - faceWeight：以脸框中心为椭圆核(rx/ry=0.53/0.59)，中心 1，半径到 1.1
+  //   衰减为 0(smoothstep 0.78→1.1)，即"脸部预算"分布；backgroundWeight=1-face。
+  // - featureWeight：在椭圆核上叠"五官环"（r≈0.90 的高斯环）加各 landmark 椭圆
+  //   高斯（眼/鼻 rx=0.16、嘴 rx=0.23；竖轴更扁），眼睛下方另加卧蚕高斯
+  //   (dy=+0.08)，用于保住眼线/眉毛/唇线，不被提亮或清理抹掉。
+  for (let i = 0; i < width * height; i++) {
+    const x = ((i % width + .5) * sourceWidth / width - b.x) / b.width;
+    const y = ((Math.floor(i / width) + .5) * sourceHeight / height - b.y) / b.height;
+    const radius = Math.hypot((x - .5) / .53, (y - .5) / .59);
+    const weight = 1 - portraitSmoothstep(.78, 1.1, radius);
+    faceWeight[i] = weight;
+    backgroundWeight[i] = 1 - weight;
+    let feature = Math.exp(-(((radius - .90) / .09) ** 2)) * .7;
+    for (const p of points) {
+      const rx = p.type === "mouth" ? .23 : .16;
+      const ry = p.type === "eye" ? .10 : .12;
+      feature = Math.max(feature, Math.exp(-(((x - p.x) / rx) ** 2 + ((y - p.y) / ry) ** 2) * 2));
+      if (p.type === "eye") feature = Math.max(feature, Math.exp(-(((x - p.x) / .20) ** 2 + ((y - p.y + .08) / .07) ** 2) * 2));
+    }
+    featureWeight[i] = weight * feature;
+  }
+  return { faceWeight, featureWeight, backgroundWeight, bounds: { x: b.x / sourceWidth, y: b.y / sourceHeight,
+    width: b.width / sourceWidth, height: b.height / sourceHeight }, landmarkSource: landmarks.length ? "detector" : "estimated-from-box" };
+}
+
+function rasterizeFaceAwarePortraitPixels(pixels, width, height, palette, mask, roi) {
+  const original = enhancePortraitPixels(pixels, width, height, mask);
+  const rawSamples = getPortraitColorSamples(original.values, original.alpha, width, height, mask);
+  const mono = analyzePortraitColorMode(rawSamples).mode === "monochrome";
+  const profile = mono ? PORTRAIT_V4.profiles.mono : PORTRAIT_V4.profiles.color;
+  const values = new Float32Array(original.values);
+  const { lift, outsideCompress, midtoneCenter, featureDamping, lumaFloor, lumaCeil } = PORTRAIT_V4.face;
+  for (let i = 0; i < width * height; i++) {
+    if (original.alpha[i] < 24 || mask?.[i]) continue;
+    const o = i * 3, rgb = Array.from(original.values.subarray(o, o + 3)), luma = portraitLuma(rgb);
+    const face = roi.faceWeight[i], feature = roi.featureWeight[i];
+    const skin = mono ? 1 : getSkinLikelihood(...rgb);
+    // 提亮连续、不强制刷白/肤色：暗部五官笔触（feature）自动少提，保住轮廓。
+    const liftAmount = profile.faceLift * portraitSmoothstep(lift.low, lift.high, luma)
+      * (1 - portraitSmoothstep(lift.cutLow, lift.cutHigh, luma));
+    const faceLuma = clamp(midtoneCenter + (luma - midtoneCenter) * profile.contrast
+      + liftAmount * skin * (1 - feature * featureDamping), lumaFloor, lumaCeil);
+    const outsideLuma = luma * (1 - profile.backgroundCompression
+      * (1 - portraitSmoothstep(outsideCompress.low, outsideCompress.high, luma)));
+    const target = outsideLuma * (1 - face) + faceLuma * face;
+    for (let c = 0; c < 3; c++) {
+      values[o + c] = mono ? target : clamp(target + (rgb[c] - luma)
+        * (1 - face * skin * profile.skinChromaPreserve), 0, 255);
+    }
+  }
+  const samples = getPortraitColorSamples(values, original.alpha, width, height, mask, roi);
+  let selected;
+  if (mono) {
+    // 黑白：先从品牌色板里筛低彩度灰度候选，再按固定灰阶取最近豆色，
+    // 保证明暗连续、不混入彩色豆。
+    const candidates = getPaletteLabEntries(palette.filter((color) =>
+      Math.max(...color.rgb) - Math.min(...color.rgb) < PORTRAIT_V4.mono.maxChroma));
+    selected = [];
+    for (const gray of PORTRAIT_V4.mono.graySteps) {
+      const color = nearestPortraitColorByLab([gray, gray, gray], candidates);
+      if (color && !selected.some((c) => c.code === color.code)) selected.push(color);
+    }
+  } else {
+    // 彩色：整体自适应调色板(base) 与"仅脸像素"的肤色候选梯(ladder) 合并去重，
+    // 总量封顶 paletteBudget.face，且肤色梯排前。
+    const base = buildAdaptivePortraitPalette(values, original.alpha, width, height, palette, mask,
+      PORTRAIT_V4.paletteBudget.face, samples);
+    const faceAlpha = Uint8Array.from(original.alpha, (a, i) =>
+      roi.faceWeight[i] > PORTRAIT_V4.face.ladderMinWeight ? a : 0);
+    const faceSamples = getPortraitColorSamples(values, faceAlpha, width, height, mask);
+    const ladder = buildSkinPaletteCandidates(faceSamples, getPaletteLabEntries(palette),
+      PORTRAIT_V4.paletteBudget.skinLadder);
+    selected = [...ladder, ...base].filter((c, i, a) => a.findIndex(d => d.code === c.code) === i)
+      .slice(0, Math.min(PORTRAIT_V4.paletteBudget.face, Math.max(base.length, ladder.length)));
+  }
+  if (!selected.length) return rasterizePortraitPixels(pixels, width, height, palette, mask);
+  const labs = getPaletteLabEntries(selected);
+  const outsideAlpha = Uint8Array.from(original.alpha, (a, i) =>
+    roi.backgroundWeight[i] > PORTRAIT_V4.face.outsideMinWeight ? a : 0);
+  const outsideSamples = getPortraitColorSamples(values, outsideAlpha, width, height, mask);
+  const outsidePalette = mono ? selected : buildAdaptivePortraitPalette(values, outsideAlpha, width, height,
+    selected, mask, PORTRAIT_V4.paletteBudget.outside, outsideSamples);
+  const outsideLabs = outsidePalette.length ? getPaletteLabEntries(outsidePalette) : labs;
+  const grid = Array.from({ length: height }, () => Array(width).fill(null));
+  for (let i = 0; i < width * height; i++) {
+    if (original.alpha[i] < 24 || mask?.[i]) continue;
+    const rgb = Array.from(values.subarray(i * 3, i * 3 + 3));
+    const context = { ...getPortraitMatchingContext(rgb), faceWeight: roi.faceWeight[i], featureWeight: roi.featureWeight[i] };
+    grid[Math.floor(i / width)][i % width] = cloneColor(nearestPortraitColorByLab(rgb,
+      roi.backgroundWeight[i] > .85 ? outsideLabs : labs, context));
+  }
+  const cleaned = cleanupPortraitGrid(grid, width, height, roi, mono);
+  if (PORTRAIT_DEBUG) {
+    console.debug("[portrait-v4]", { width, height, mode: mono ? "monochrome" : "color", bounds: roi.bounds,
+      landmarkSource: roi.landmarkSource, profile, selectedCodes: selected.map((c) => c.code),
+      backgroundCodes: outsidePalette.map((c) => c.code),
+      finalColorCount: new Set(cleaned.flat().filter(Boolean).map((c) => c.code)).size });
+  }
+  return cleaned;
 }
 
 function rasterizeImage(image, palette) {
@@ -3121,12 +3396,14 @@ function rasterizePortraitPixels(pixels, width, height, palette, backgroundMask 
   const analysis = analyzePortraitColorMode(samples);
   const codes = new Set();
   for (const row of grid) for (const color of row) if (color) codes.add(color.code);
-  console.debug("[portrait-v3]", {
-    width, height, mode: analysis.mode, meanChroma: analysis.meanChroma,
-    targetColorCount: getAdaptivePortraitColorTarget(samples, PORTRAIT_COLOR_LIMIT),
-    finalColorCount: codes.size, familyWeights: analysis.familyWeights,
-    selectedCodes: portraitPalette.map((color) => color.code),
-  });
+  if (PORTRAIT_DEBUG) {
+    console.debug("[portrait-v3]", {
+      width, height, mode: analysis.mode, meanChroma: analysis.meanChroma,
+      targetColorCount: getAdaptivePortraitColorTarget(samples, PORTRAIT_COLOR_LIMIT),
+      finalColorCount: codes.size, familyWeights: analysis.familyWeights,
+      selectedCodes: portraitPalette.map((color) => color.code),
+    });
+  }
   return grid;
 }
 
@@ -3397,7 +3674,7 @@ function getAdaptivePortraitColorTarget(samples, maxColors) {
   return Math.min(safeMax, target);
 }
 
-function getPortraitColorSamples(values, alpha, width, height, backgroundMask = null) {
+function getPortraitColorSamples(values, alpha, width, height, backgroundMask = null, roi = null) {
   const buckets = new Map();
   const roleWeights = { skin: 1.35, neutralDark: 1.25, neutralLight: 1.10, saturatedWarm: 1, saturatedCool: 1, other: 0.90 };
   const total = width * height;
@@ -3426,7 +3703,13 @@ function getPortraitColorSamples(values, alpha, width, height, backgroundMask = 
     // 轻微提高轮廓像素在自适应调色板中的权重，避免五官和发丝被大面积背景色吞掉。
     const edgeWeight = 1 + clamp(edgeSamples ? edge / edgeSamples / 72 : 0, 0, 1) * 0.55;
     const role = classifyPortraitPixel([red, green, blue]);
-    const weight = edgeWeight * roleWeights[role];
+    // 人像 v4：脸内像素权重放大（floor + face*2.5 + feature*1.5），让自适应
+    // 调色板把预算优先分给脸而不是大面积背景。参数见 PORTRAIT_V4.sampling。
+    const weight = edgeWeight * roleWeights[role] * (roi
+      ? PORTRAIT_V4.sampling.faceFloor
+        + roi.faceWeight[pixelIndex] * PORTRAIT_V4.sampling.faceWeight
+        + roi.featureWeight[pixelIndex] * PORTRAIT_V4.sampling.featureWeight
+      : 1);
     const key = `${role}-${red >> 3}-${green >> 3}-${blue >> 3}`;
     const bucket = buckets.get(key) || { red: 0, green: 0, blue: 0, count: 0 };
     bucket.red += red * weight;
@@ -3615,7 +3898,7 @@ function ditherPortraitValues(values, alpha, width, height, palette, backgroundM
  * 仅处理8邻域内真正孤立、至少5邻格同色且色差很小的格子。
  * 遇到透明边界、连接线条或超过45的亮度差时跳过，小图2轮、大图1轮。
  */
-function cleanupPortraitGrid(grid, width, height) {
+function cleanupPortraitGrid(grid, width, height, roi = null, mono = false) {
   let output = grid.map((row) => row.slice());
   const passes = Math.max(width, height) <= PORTRAIT_V3.smallGridMax ? 2 : 1;
   for (let pass = 0; pass < passes; pass += 1) {
@@ -3625,6 +3908,8 @@ function cleanupPortraitGrid(grid, width, height) {
       for (let x = 1; x < width - 1; x += 1) {
         const center = input[y][x];
         if (!center) continue;
+        // 五官细节像素不参与孤立清理，避免抹掉眼睛/嘴唇的单格结构。
+        if (roi?.featureWeight[y * width + x] > PORTRAIT_V4.cleanup.featureKeepWeight) continue;
         const neighbors = [];
         for (let dy = -1; dy <= 1; dy += 1) {
           for (let dx = -1; dx <= 1; dx += 1) {
@@ -3640,7 +3925,12 @@ function cleanupPortraitGrid(grid, width, height) {
         const majority = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
         if (!majority || majority[1] < 5) continue;
         const color = neighbors.find((candidate) => candidate.code === majority[0]);
-        if (deltaE2000(getColorLab(center), getColorLab(color)) <= 6) output[y][x] = cloneColor(color);
+        // 脸外像素的容差放宽（彩色 12 / 黑白 16），把大面积色块"焊"得更连续；
+        // 脸部内部仍收紧到 6，避免五官色被邻色吞并。阈值见 PORTRAIT_V4.cleanup。
+        const tolerance = roi && roi.faceWeight[y * width + x] < PORTRAIT_V4.cleanup.outsideFaceMinWeight
+          ? (mono ? PORTRAIT_V4.cleanup.outsideFaceToleranceMono : PORTRAIT_V4.cleanup.outsideFaceToleranceColor)
+          : PORTRAIT_V4.cleanup.faceTolerance;
+        if (deltaE2000(getColorLab(center), getColorLab(color)) <= tolerance) output[y][x] = cloneColor(color);
       }
     }
   }
@@ -3770,6 +4060,24 @@ function nearestPortraitColorByLab(rgbValue, paletteLabs, context = null) {
       }
     }
 
+    // 脸部感知的额外距离项（v4）：规则说明见 PORTRAIT_V4.matching。
+    if (context?.faceWeight > 0) {
+      const face = context.faceWeight, feature = context.featureWeight || 0;
+      const light = PORTRAIT_V4.matching.lightFace;
+      const dark = PORTRAIT_V4.matching.darkFeature;
+      const bonus = PORTRAIT_V4.matching.skinBonus;
+      if (sourceLuma > light.minLuma && feature < light.featureGate) {
+        // 亮部脸区"选亮不选暗"：距离随亮度差上浮，避免脸被压成黄/棕；
+        // 肤色且候选豆够亮够暖时反哺奖励，鼓励选中亮肤豆。
+        distance += face * Math.max(0, sourceLuma - targetLuma - light.lumaSlack) ** 2 * light.weight;
+        if (context.skinLikelihood > bonus.minLikelihood && targetLuma > bonus.maxTargetLuma
+          && targetWarm >= bonus.minWarm && targetWarm < bonus.maxWarm) distance -= face * bonus.bonus;
+      }
+      // 暗部五官禁止选中比源更亮的豆子，保住黑发/眉毛/眼线。
+      if (feature > dark.gate && sourceLuma < dark.maxLuma) {
+        distance += feature * Math.max(0, targetLuma - sourceLuma - dark.lumaSlack) ** 2 * dark.weight;
+      }
+    }
     if (distance < bestDistance) {
       bestDistance = distance;
       best = entry.color;

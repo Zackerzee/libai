@@ -1,0 +1,52 @@
+{
+  "fixtures": [
+    {
+      "id": "smoke-dominant-52-images",
+      "file": "../images.png",
+      "mode": "dominant",
+      "granularity": 52,
+      "skipIfMissing": true,
+      "tolerance": { "colorCountDelta": 2, "codes": 3, "countRatio": 0.2 }
+    },
+    {
+      "id": "smoke-dominant-104-images",
+      "file": "../images.png",
+      "mode": "dominant",
+      "granularity": 104,
+      "skipIfMissing": true,
+      "tolerance": { "colorCountDelta": 2, "codes": 3, "countRatio": 0.2 }
+    },
+    {
+      "id": "portrait-noface-logo-64",
+      "file": "../libai-logo.png",
+      "mode": "portrait",
+      "granularity": 64,
+      "skipIfMissing": true,
+      "tolerance": { "colorCountDelta": 2, "codes": 4, "countRatio": 0.25 }
+    },
+    {
+      "id": "portrait-a-52",
+      "file": "./fixtures/portrait-a.jpg",
+      "mode": "portrait",
+      "granularity": 52,
+      "skipIfMissing": true,
+      "tolerance": { "colorCountDelta": 2, "codes": 4, "countRatio": 0.25 }
+    },
+    {
+      "id": "portrait-b-78",
+      "file": "./fixtures/portrait-b.jpg",
+      "mode": "portrait",
+      "granularity": 78,
+      "skipIfMissing": true,
+      "tolerance": { "colorCountDelta": 2, "codes": 4, "countRatio": 0.25 }
+    },
+    {
+      "id": "photo-dominant-78",
+      "file": "./fixtures/photo-scene.jpg",
+      "mode": "dominant",
+      "granularity": 78,
+      "skipIfMissing": true,
+      "tolerance": { "colorCountDelta": 2, "codes": 3, "countRatio": 0.2 }
+    }
+  ]
+}
