@@ -278,6 +278,34 @@
                   </button>
                 </section>
 
+                <section class="smart-bead-v1-block" aria-labelledby="smart-bead-v1-title">
+                  <div class="smart-optimization-head">
+                    <strong id="smart-bead-v1-title">拼豆优化（规则 V1）</strong>
+                    <label class="toggle-field">
+                      <input id="smart-bead-v1-enabled" type="checkbox" checked />
+                      <span>启用</span>
+                    </label>
+                  </div>
+                  <p class="field-hint">仅使用本地确定性规则，不上传图片；异常时自动回退原生成链路。</p>
+                  <label class="field compact-field">
+                    <span>生成策略</span>
+                    <select id="smart-bead-v1-preset">
+                      <option value="standard" selected>标准</option>
+                      <option value="portrait">人像高还原</option>
+                      <option value="chibi">Q版大色块</option>
+                    </select>
+                  </label>
+                  <div class="smart-bead-v1-grid">
+                    <div class="range-block"><label for="smart-skin-brightening">肤色提亮</label><div class="range-row"><input id="smart-skin-brightening" type="range" min="0" max="100" value="0" /><output id="smart-skin-brightening-output">0</output></div></div>
+                    <div class="range-block"><label for="smart-shadow-compression">阴影压缩</label><div class="range-row"><input id="smart-shadow-compression" type="range" min="0" max="100" value="0" /><output id="smart-shadow-compression-output">0</output></div></div>
+                    <div class="range-block"><label for="smart-outline-strength">轮廓强化</label><div class="range-row"><input id="smart-outline-strength" type="range" min="0" max="100" value="20" /><output id="smart-outline-strength-output">20</output></div></div>
+                    <div class="range-block"><label for="smart-block-cleanup">色块净化</label><div class="range-row"><input id="smart-block-cleanup" type="range" min="0" max="100" value="15" /><output id="smart-block-cleanup-output">15</output></div></div>
+                    <div class="range-block"><label for="smart-highlight-strength">高光强化</label><div class="range-row"><input id="smart-highlight-strength" type="range" min="0" max="100" value="10" /><output id="smart-highlight-strength-output">10</output></div></div>
+                    <div class="range-block"><label for="smart-color-richness">颜色丰富度</label><div class="range-row"><input id="smart-color-richness" type="range" min="0" max="100" value="50" /><output id="smart-color-richness-output">50</output></div></div>
+                    <div class="range-block"><label for="smart-detail-preservation">细节保留</label><div class="range-row"><input id="smart-detail-preservation" type="range" min="0" max="100" value="60" /><output id="smart-detail-preservation-output">60</output></div></div>
+                  </div>
+                </section>
+
                 <label class="field">
                   <span>图片类型预设</span>
                   <select id="image-preset-select">
@@ -906,6 +934,7 @@
       </div>
     </dialog>
 
+    <script src="./smart-bead-v1.js?v=20260905-v1" defer></script>
     <script src="./app.js?v=20260904-portrait-v4-cleanup-1" defer></script>
   </body>
 </html>

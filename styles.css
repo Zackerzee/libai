@@ -6229,6 +6229,35 @@ body.is-focus-mode .bead-cell.is-focus-target.is-completed {
   object-position: left center;
 }
 
+.smart-bead-v1-block {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid rgba(0, 113, 227, 0.16);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(242, 248, 255, 0.96), rgba(255, 255, 255, 0.96));
+}
+
+.smart-bead-v1-block .range-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.smart-bead-v1-block output {
+  min-width: 34px;
+  color: #0071e3;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+@media (max-width: 700px) {
+  .smart-bead-v1-block {
+    padding: 12px;
+    border-radius: 14px;
+  }
+}
+
 @media (max-width: 700px) {
   .brand {
     min-width: 0;

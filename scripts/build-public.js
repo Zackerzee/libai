@@ -35,6 +35,7 @@ const staticEntries = [
   "security-canvas.js",
   "shilibai.html",
   "sitemap.xml",
+  "smart-bead-v1.js",
   "styles.css",
   "worker.js",
   "your-reward-code.png",

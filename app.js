@@ -790,6 +790,22 @@ const els = {
   isolationOutput: document.querySelector("#isolation-output"),
   smartPresetButton: document.querySelector("#smart-preset-button"),
   applyCleanupButton: document.querySelector("#apply-cleanup-button"),
+  smartBeadV1Enabled: document.querySelector("#smart-bead-v1-enabled"),
+  smartBeadV1Preset: document.querySelector("#smart-bead-v1-preset"),
+  smartBeadV1SkinBrightening: document.querySelector("#smart-skin-brightening"),
+  smartBeadV1ShadowCompression: document.querySelector("#smart-shadow-compression"),
+  smartBeadV1OutlineStrength: document.querySelector("#smart-outline-strength"),
+  smartBeadV1BlockCleanup: document.querySelector("#smart-block-cleanup"),
+  smartBeadV1HighlightStrength: document.querySelector("#smart-highlight-strength"),
+  smartBeadV1ColorRichness: document.querySelector("#smart-color-richness"),
+  smartBeadV1DetailPreservation: document.querySelector("#smart-detail-preservation"),
+  smartBeadV1SkinBrighteningOutput: document.querySelector("#smart-skin-brightening-output"),
+  smartBeadV1ShadowCompressionOutput: document.querySelector("#smart-shadow-compression-output"),
+  smartBeadV1OutlineStrengthOutput: document.querySelector("#smart-outline-strength-output"),
+  smartBeadV1BlockCleanupOutput: document.querySelector("#smart-block-cleanup-output"),
+  smartBeadV1HighlightStrengthOutput: document.querySelector("#smart-highlight-strength-output"),
+  smartBeadV1ColorRichnessOutput: document.querySelector("#smart-color-richness-output"),
+  smartBeadV1DetailPreservationOutput: document.querySelector("#smart-detail-preservation-output"),
   modeSelect: document.querySelector("#mode-select"),
   imagePresetSelect: document.querySelector("#image-preset-select"),
   imagePresetHint: document.querySelector("#image-preset-hint"),
@@ -1009,6 +1025,7 @@ async function init() {
   syncRangeControls("granularity", DEFAULT_GRANULARITY, MIN_GRANULARITY, MAX_GRANULARITY);
   syncRangeControls("similarity", 30, 0, 100);
   syncIsolationControl();
+  syncSmartBeadV1Controls();
   applyImagePreset("fast", { preview: false });
   updateCompositionUi();
   updateRatioLockUi();
@@ -1084,6 +1101,26 @@ function bindEvents() {
     syncIsolationControl();
     scheduleLivePreview("孤立色块阈值已更新");
   });
+  els.smartBeadV1Preset?.addEventListener("change", () => {
+    syncSmartBeadV1Controls(true);
+    scheduleLivePreview("拼豆优化策略已更新");
+  });
+  [
+    [els.smartBeadV1SkinBrightening, els.smartBeadV1SkinBrighteningOutput],
+    [els.smartBeadV1ShadowCompression, els.smartBeadV1ShadowCompressionOutput],
+    [els.smartBeadV1OutlineStrength, els.smartBeadV1OutlineStrengthOutput],
+    [els.smartBeadV1BlockCleanup, els.smartBeadV1BlockCleanupOutput],
+    [els.smartBeadV1HighlightStrength, els.smartBeadV1HighlightStrengthOutput],
+    [els.smartBeadV1ColorRichness, els.smartBeadV1ColorRichnessOutput],
+    [els.smartBeadV1DetailPreservation, els.smartBeadV1DetailPreservationOutput],
+  ].forEach(([control, output]) => {
+    control?.addEventListener("input", () => {
+      if (output) output.textContent = control.value;
+      control.dataset.userEdited = "true";
+      scheduleLivePreview("拼豆优化参数已更新");
+    });
+  });
+  els.smartBeadV1Enabled?.addEventListener("change", () => scheduleLivePreview("拼豆优化已更新"));
   document.addEventListener("click", handleSmartOptimizationClick);
   els.paletteSelect.addEventListener("change", () => {
     updatePaletteCount();
@@ -1510,6 +1547,42 @@ function syncIsolationControl(value = els.isolationInput?.value || 1) {
   if (els.isolationInput) els.isolationInput.value = String(next);
   if (els.isolationOutput) els.isolationOutput.textContent = next <= 1 ? "关闭" : `< ${next} 格`;
   return next;
+}
+
+function readSmartBeadV1Options() {
+  return {
+    enabled: els.smartBeadV1Enabled?.checked !== false,
+    preset: els.smartBeadV1Preset?.value || "standard",
+    skinBrightening: Number(els.smartBeadV1SkinBrightening?.value || 0),
+    shadowCompression: Number(els.smartBeadV1ShadowCompression?.value || 0),
+    outlineStrength: Number(els.smartBeadV1OutlineStrength?.value || 0),
+    blockCleanup: Number(els.smartBeadV1BlockCleanup?.value || 0),
+    highlightStrength: Number(els.smartBeadV1HighlightStrength?.value || 0),
+    colorRichness: Number(els.smartBeadV1ColorRichness?.value || 0),
+    detailPreservation: Number(els.smartBeadV1DetailPreservation?.value || 0),
+  };
+}
+
+function syncSmartBeadV1Controls(force = false) {
+  const engine = globalThis.SmartBeadV1;
+  const preset = els.smartBeadV1Preset?.value || "standard";
+  const defaults = engine?.PRESETS?.[preset] || {};
+  const pairs = [
+    ["skinBrightening", els.smartBeadV1SkinBrightening, els.smartBeadV1SkinBrighteningOutput],
+    ["shadowCompression", els.smartBeadV1ShadowCompression, els.smartBeadV1ShadowCompressionOutput],
+    ["outlineStrength", els.smartBeadV1OutlineStrength, els.smartBeadV1OutlineStrengthOutput],
+    ["blockCleanup", els.smartBeadV1BlockCleanup, els.smartBeadV1BlockCleanupOutput],
+    ["highlightStrength", els.smartBeadV1HighlightStrength, els.smartBeadV1HighlightStrengthOutput],
+    ["colorRichness", els.smartBeadV1ColorRichness, els.smartBeadV1ColorRichnessOutput],
+    ["detailPreservation", els.smartBeadV1DetailPreservation, els.smartBeadV1DetailPreservationOutput],
+  ];
+  pairs.forEach(([key, control, output]) => {
+    if (!control) return;
+    if (force || !control.dataset.userEdited) {
+      control.value = String(defaults[key] ?? control.value);
+    }
+    if (output) output.textContent = control.value;
+  });
 }
 
 function getOptimizationOptions() {
@@ -2256,12 +2329,22 @@ async function processImage(options = {}) {
     const result = els.modeSelect?.value === "portrait"
       ? await rasterizeFaceAwarePortraitImage(image, palette)
       : rasterizeImage(image, palette);
-    const optimized = optimizeGrid(result.grid, getOptimizationOptions());
+    const smartEngine = globalThis.SmartBeadV1;
+    const smartOptions = readSmartBeadV1Options();
+    let prepared = result;
+    if (smartEngine && smartOptions.enabled) {
+      try {
+        prepared = smartEngine.applyToResult(result, palette, smartOptions);
+      } catch (error) {
+        console.warn("[smart-bead-v1] fallback to legacy result", error);
+      }
+    }
+    const optimized = optimizeGrid(prepared.grid, getOptimizationOptions());
     state.grid = optimized.grid;
-    state.width = result.width;
-    state.height = result.height;
-    state.backgroundDecision = result.backgroundDecision || "";
-    state.optimizationSummary = [result.summary, optimized.summary].filter(Boolean).join(" · ");
+    state.width = prepared.width;
+    state.height = prepared.height;
+    state.backgroundDecision = prepared.backgroundDecision || "";
+    state.optimizationSummary = [prepared.summary, optimized.summary].filter(Boolean).join(" · ");
     state.paletteLabel = getCurrentPaletteLabel();
     state.stats = calculateStats(state.grid);
     state.assemblyHideCellText = false;
