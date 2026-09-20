@@ -1,0 +1,21 @@
+{
+  "id": "rf-portrait-eye",
+  "category": "PORTRAIT_EYE_DETAIL",
+  "source": "generated-photographic",
+  "nativeSize": 256,
+  "target": {
+    "cols": 104,
+    "rows": 104
+  },
+  "maxColors": 24,
+  "paletteSize": 8,
+  "knownFailure": "人物瞳孔高光（小亮豆）被 CURRENT 合并/丢失。",
+  "protectedRegions": [],
+  "expectedBehavior": {
+    "removeNoise": true,
+    "preserveStructure": true,
+    "preserveHighlight": true
+  },
+  "generatedSeed": 404,
+  "note": "程序生成的照片级原图，用于诱发 CURRENT 真实缺陷。可用真实 PNG 替换 image.png（保留 metadata.json）。"
+}

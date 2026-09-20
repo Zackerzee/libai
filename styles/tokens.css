@@ -1,0 +1,76 @@
+/* =============================================================
+ * animal-island-ui style tokens
+ * 里白造物站点整体改版：套用 animal-island-ui 视觉语言
+ * 来源：https://github.com/guokaigdg/animal-island-ui (CC BY-NC 4.0)
+ * 设计令牌：暖米底 / 棕褐字 / 薄荷青主色 / 12px+ 圆角 / 3D 按钮阴影 / Nunito 字体
+ * 本文件只放变量，不写布局。所有组件经 var() 自动级联。
+ * ============================================================= */
+
+:root {
+  /* ---- animal-island 原始令牌（引用方便，不强制使用） ---- */
+  --animal-font: "Nunito", "Noto Sans SC", -apple-system, "PingFang SC",
+    "Hiragino Sans GB", sans-serif;
+  --animal-primary: #19c8b9;
+  --animal-primary-hover: #3dd4c6;
+  --animal-primary-active: #11a89b;
+  --animal-primary-bg: #e6f9f6;
+  --animal-text: #794f27;
+  --animal-text-body: #725d42;
+  --animal-text-secondary: #9f927d;
+  --animal-text-muted: #8a7b66;
+  --animal-text-disabled: #c4b89e;
+  --animal-bg: #f8f8f0;
+  --animal-bg-content: rgb(247, 243, 223);
+  --animal-bg-disabled: #f0ece2;
+  --animal-border: #c4b89e;
+  --animal-border-hover: #a89878;
+  --animal-radius-sm: 12px;
+  --animal-radius: 18px;
+  --animal-radius-lg: 24px;
+  --animal-radius-pill: 50px;
+  --animal-shadow-btn: #bdaea0;
+  --animal-shadow-input: #d4c9b4;
+  --animal-focus-yellow: #ffcc00;
+  --animal-focus-yellow-d: #e0b800;
+  --animal-success: #6fba2c;
+  --animal-warning: #f5c31c;
+  --animal-error: #e05a5a;
+  --animal-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --animal-duration-fast: 0.15s;
+  --animal-duration: 0.25s;
+  --animal-duration-slow: 0.35s;
+
+  /* ---- 站点级 --ws-* 令牌：映射为 animal-island 值 ---- */
+  --ws-app: #f8f8f0; /* 主背景：米白羊皮纸 */
+  --ws-canvas: #f7f3df; /* 内容区背景 */
+  --ws-surface: #fffdf7; /* 暖白卡片 */
+  --ws-surface-soft: #f3efe2;
+  --ws-border: #c4b89e; /* 暖棕边框 */
+  --ws-border-strong: #a89878;
+  --ws-text: #725d42; /* 正文棕褐（禁纯黑） */
+  --ws-text-strong: #794f27; /* 强调标题棕 */
+  --ws-text-secondary: #9f927d;
+  --ws-text-tertiary: #8a7b66;
+  --ws-accent: #19c8b9; /* 薄荷青主色 */
+  --ws-accent-hover: #3dd4c6;
+  --ws-accent-active: #11a89b;
+  --ws-accent-soft: #e6f9f6;
+  --ws-danger: #e05a5a; /* animal error 红 */
+  --ws-radius-sm: 12px; /* 最小交互圆角 */
+  --ws-radius-md: 18px;
+  --ws-radius-lg: 24px;
+  --ws-radius-pill: 50px;
+  --ws-rail-width: 72px;
+  --ws-inspector-width: 360px;
+  --ws-toolbar-height: 56px;
+  --ws-viewbar-height: 48px;
+
+  /* ---- 跨文件共用的深度 / 动效令牌 ---- */
+  --ai-3d-btn: 0 5px 0 0 #bdaea0; /* 仅主按钮的像素堆叠阴影 */
+  --ai-3d-btn-hover: 0 7px 0 0 #bdaea0;
+  --ai-3d-btn-active: 0 2px 0 0 #bdaea0;
+  --ai-soft-shadow: 0 2px 4px 0 rgba(61, 52, 40, 0.06);
+  --ai-soft-shadow-hover: 0 3px 10px 0 rgba(61, 52, 40, 0.1);
+  --ai-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ai-dur: 0.25s;
+}

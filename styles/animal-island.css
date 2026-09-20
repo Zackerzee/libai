@@ -1,0 +1,534 @@
+/* =============================================================
+ * animal-island-ui style — 覆盖层（最后加载，整体改版用）
+ * 仅做视觉语言换肤：配色 / 圆角 / 深度阴影 / 字体 / 焦点环 / 动效。
+ * 不改 DOM 结构、不改 JS 行为、不改布局尺寸。
+ * 来源：https://github.com/guokaigdg/animal-island-ui (CC BY-NC 4.0)
+ * 视觉硬规则依据：design-rules.md（禁纯黑/冷灰/冷蓝、最小 12px 圆角、
+ *   按钮/输入 50px 胶囊、主按钮 3D 像素堆叠阴影、Card 无阴影、黄/青焦点环）。
+ * ============================================================= */
+
+/* -1. 令牌权威覆盖（最后加载，故优先生效）
+ * styles.css 末尾存在无条件的 Pixel(:2058)/Apple(:2632) 主题 :root 块，
+ * 后者源码顺序靠后、会静默覆盖顶部改写过的 :root。这里用同样的 :root
+ * 选择器（等特异性 + 最靠后）= 让 animal-island 的薄荷青/棕褐/暖底令牌成为
+ * 事实唯一来源。仅改视觉令牌，不改结构/行为/布局。 */
+:root {
+  --page: #f8f8f0;
+  --surface: #fffdf7;
+  --surface-strong: #fffdf7;
+  --surface-card: #f7f3df;
+  --surface-soft: #fbf7ec;
+  --secondary-bg: #f0ead8;
+  --secondary-pressed: #e6ddc6;
+  --ink: #794f27;
+  --body: #725d42;
+  --charcoal: #5a4631;
+  --muted: #9f927d;
+  --muted-soft: #b3a890;
+  --line: #c4b89e;
+  --line-soft: #e0d8c6;
+  --primary: #19c8b9;
+  --primary-hover: #3dd4c6;
+  --primary-pressed: #11a89b;
+  --primary-active: #11a89b;
+  --blue: #19c8b9;
+  --blue-dark: #11a89b;
+  --cyan: #19c8b9;
+  --focus-outer: #ffcc00;
+  --focus-ring-button: #19c8b9;
+  --primary-bg: #e6f9f6;
+  --btn-3d: 0 5px 0 0 #bdaea0;
+  --btn-3d-hover: 0 7px 0 0 #bdaea0;
+  --btn-3d-active: 0 2px 0 0 #bdaea0;
+  --radius-pill: 50px;
+  --radius-lg: 24px;
+  --dur: 0.2s;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --panel-shadow: 0 18px 50px rgba(61, 52, 40, 0.18);
+  --soft-shadow: 0 2px 4px 0 rgba(61, 52, 40, 0.06);
+}
+
+/* 页面底色改为羊皮暖白（覆盖 Apple 蓝调渐变），animal-island 为扁平暖底 */
+html, body { background: var(--page) !important; }
+
+/* 0. 字体兜底：强制全站 Nunito + Noto Sans SC（替换遗留等宽字体） */
+body,
+.app-shell,
+button,
+input,
+select,
+textarea,
+.panel,
+.modal,
+h1, h2, h3, h4, h5, h6,
+.start-title, .start-meta, .section-kicker,
+.smart-tool-card strong, .smart-tool-card small,
+.muted-label, .status-pill, .field-hint,
+.result-metrics, .stats-summary, .stats-list,
+.tool-button, .editor-tool-grid, .chip, .text-link-button,
+.scheme-name-field, .option-line, .gallery-search, .invite-status {
+  font-family: "Nunito", "Noto Sans SC", -apple-system, "PingFang SC",
+    "Hiragino Sans GB", system-ui, sans-serif !important;
+}
+
+/* 1. 按钮 / chip / 文字链 → 50px 胶囊（animal-island 硬规则） */
+.primary-action,
+.outline-button,
+.quick-button,
+.soft-button,
+.text-link-button,
+.mode-tabs button,
+.chip,
+.manual-row button {
+  border-radius: 50px !important;
+}
+
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+select,
+textarea {
+  border-radius: 50px !important;
+}
+
+/* 2. 主按钮：薄荷青 + 3D 像素堆叠阴影（仅主按钮有深度） */
+.primary-action,
+#download-button-top,
+.quick-button {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: var(--btn-3d) !important;
+  font-weight: 800 !important;
+  transition:
+    transform var(--dur) var(--ease),
+    background var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease) !important;
+}
+.primary-action:hover:not(:disabled),
+.quick-button:hover:not(:disabled),
+#download-button-top:hover:not(:disabled) {
+  background: var(--primary-hover) !important;
+  box-shadow: var(--btn-3d-hover) !important;
+  transform: translateY(-2px) !important;
+}
+.primary-action:active:not(:disabled),
+.quick-button:active:not(:disabled) {
+  background: var(--primary-active) !important;
+  box-shadow: var(--btn-3d-active) !important;
+  transform: translateY(3px) !important;
+}
+
+/* 3. 描边按钮：薄荷青描边 + 文字（替代原灰底） */
+.outline-button {
+  background: var(--surface) !important;
+  color: var(--primary) !important;
+  border: 2px solid var(--primary) !important;
+  font-weight: 800 !important;
+}
+.outline-button:hover:not(:disabled) {
+  background: var(--primary-bg) !important;
+  border-color: var(--primary-hover) !important;
+  color: var(--primary-active) !important;
+}
+
+/* 4. 捐赠按钮改为薄荷青（原粉红，与“全套薄荷青”主色冲突） */
+.btn-donate {
+  background: linear-gradient(135deg, var(--primary-hover), var(--primary)) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 20px rgba(25, 200, 185, 0.22) !important;
+}
+.btn-donate:hover {
+  box-shadow: 0 10px 24px rgba(25, 200, 185, 0.3) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* 5. 软按钮 / 文字链按钮：暖底 + 薄荷 hover */
+.soft-button,
+.text-link-button {
+  background: var(--secondary-bg) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--line) !important;
+}
+.soft-button:hover:not(:disabled),
+.text-link-button:hover:not(:disabled) {
+  background: var(--secondary-pressed) !important;
+}
+
+/* 6. chip：激活态薄荷填充 */
+.chip.active {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #ffffff !important;
+}
+
+/* 7. 面板：去阴影，仅暖边框（animal-island: Card 无 box-shadow，仅 hover 上浮） */
+.panel {
+  box-shadow: none !important;
+  border: 1px solid var(--line) !important;
+  background: var(--surface) !important;
+}
+.panel:hover {
+  box-shadow: none !important;
+  transform: translateY(-2px) !important;
+  transition: transform var(--dur) var(--ease) !important;
+}
+
+/* 8. 焦点环：输入黄（--focus-outer）/ 按钮青（--focus-ring-button） */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--focus-outer) !important;
+  outline-offset: 2px !important;
+}
+button:focus-visible,
+.primary-action:focus-visible,
+.outline-button:focus-visible,
+.quick-button:focus-visible,
+.soft-button:focus-visible {
+  outline: 3px solid var(--focus-ring-button) !important;
+  outline-offset: 2px !important;
+}
+
+/* 9. 模态：大圆角 + 柔和投影（animal Modal 理论用 SVG blob，此处用大圆角近似） */
+.modal {
+  border-radius: var(--radius-lg) !important;
+  border: 1px solid var(--line) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 18px 50px rgba(61, 52, 40, 0.18) !important;
+}
+
+/* 10. icon-button / 关闭按钮：薄荷 hover */
+.icon-button:hover:not(:disabled) {
+  background: var(--primary-bg) !important;
+  color: var(--primary) !important;
+  border-color: var(--primary) !important;
+}
+.close-button,
+.close-button:hover {
+  color: var(--primary) !important;
+}
+
+/* 11. 全局文字色兜底（防遗留纯黑 #000） */
+body {
+  color: var(--body);
+}
+h1, h2, h3, h4, h5, h6,
+.panel-head h1, .panel-head h2, .invite-panel h2,
+.start-title, .section-kicker, .result-metrics,
+.stats-summary, .chip, .text-link-button, .soft-button {
+  color: var(--ink);
+}
+.muted-label, .status-pill, .field-hint, .stats-list,
+.smart-tool-card small, .disclaimer {
+  color: var(--muted);
+}
+
+/* =============================================================
+ * 高级导出设置弹窗（借鉴 pixel-bead.rootbit.cn，视觉用薄荷青语言）
+ * 仅视觉覆盖，结构由 index.html 提供。
+ * ============================================================= */
+.export-settings-modal::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+.export-settings-modal {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--body);
+  max-width: 96vw;
+  max-height: 92vh;
+}
+.export-settings-modal[open] .export-settings-card {
+  animation: exportPop 0.28s var(--ease);
+}
+@keyframes exportPop {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.export-settings-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(1100px, 94vw);
+  max-height: 92vh;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 25px 60px -12px rgba(61, 52, 40, 0.25);
+  overflow: hidden;
+}
+/* 左右分栏的真正容器：漏了这条 display:flex 会导致两个 pane 上下堆叠并溢出 */
+.export-settings-body {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.export-settings-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.export-preview-pane {
+  flex: 0 0 46%;
+  background: var(--surface-soft);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.preview-window-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.preview-window-bar span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--line);
+}
+.preview-window-bar span:nth-child(1) { background: #e6a8a0; }
+.preview-window-bar span:nth-child(2) { background: #e6cf9a; }
+.preview-window-bar span:nth-child(3) { background: #a8d8c0; }
+.export-preview-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  padding: 12px;
+}
+#export-preview-canvas {
+  max-width: 100%;
+  max-height: 62vh;
+  height: auto;
+  image-rendering: pixelated;
+  border-radius: 8px;
+  box-shadow: var(--soft-shadow);
+}
+
+.export-settings-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 26px;
+  min-width: 0;
+  min-height: 0;
+}
+.export-settings-header h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.export-settings-header p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.export-format-tabs {
+  display: flex;
+  gap: 8px;
+}
+.export-tab {
+  flex: 1;
+  padding: 10px 0;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  color: var(--body);
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+.export-tab:hover { border-color: var(--primary); color: var(--primary); }
+.export-tab.active {
+  background: var(--surface);
+  color: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 2px 6px rgba(25, 200, 185, 0.18);
+}
+
+.export-settings-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.export-section { display: flex; flex-direction: column; gap: 10px; }
+.export-section-title {
+  margin: 0;
+  padding-bottom: 8px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line-soft);
+}
+.export-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--body); }
+.export-field input {
+  padding: 10px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-family: inherit;
+}
+.export-field input:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(25, 200, 185, 0.18);
+}
+
+.export-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  color: var(--body);
+  cursor: pointer;
+}
+.ai-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--line);
+  position: relative;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease);
+  margin: 0;
+}
+.ai-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform var(--dur) var(--ease);
+}
+.ai-switch:checked { background: var(--primary); }
+.ai-switch:checked::after { transform: translateX(20px); }
+.ai-switch:focus-visible { outline: 3px solid var(--focus-outer); outline-offset: 2px; }
+
+.export-specs-card {
+  display: flex;
+  gap: 10px;
+  background: var(--primary-bg);
+  border: 1px solid rgba(25, 200, 185, 0.25);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.export-spec { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.export-spec span { font-size: 11px; color: var(--muted); }
+.export-spec b { font-size: 15px; font-weight: 800; color: var(--ink); }
+
+.export-submit { width: 100%; margin-top: 4px; }
+
+@media (max-width: 820px) {
+  .export-settings-body { flex-direction: column; overflow: auto; }
+  .export-preview-pane { flex: none; }
+  #export-preview-canvas { max-height: 40vh; }
+}
+
+/* =============================================================
+   星豆绘（xing-doudraw.netlify.app）布局对齐 —— 仅令牌级
+   前提：libms 的 phase2 工作台本就是这套骨架（styles/workspace.css）：
+     .workspace-wrap  100dvh 锁视口 + 三行(topbar / 工作台 / viewbar)
+     .workspace-grid  rail | center | inspector 三栏
+     .ws-canvas-area  画布区三行
+   所以这里只做尺寸对齐，不动骨架。
+   ⚠️ phase2 的缩放是「JS 拖拽平移 + img transform」，不是滚动，
+      .ws-canvas-well 必须保持 overflow:hidden —— 切勿改成 auto。
+   ============================================================= */
+@media (min-width: 1101px) {
+  :root {
+    --ws-rail-width: 68px;
+    --ws-inspector-width: 300px;
+    --ws-toolbar-height: 54px;
+    --ws-viewbar-height: 46px;
+    --ws-radius-sm: 11px;
+  }
+}
+
+/* 画布台卡片化（星豆绘 canvas-stage：radius 15 + 边框 + 浅底 + 软阴影）
+   ⚠️ 必须用 margin 而不是 padding：
+      viewport service 惰性读 well.clientWidth/clientHeight 做适配，
+      padding 包含在 clientWidth 内 → 图像会溢出到内边距里被裁掉；
+      margin 会缩小 border-box → clientWidth 随之变小 → 适配自动重算。
+      且 .ws-canvas-well 上有 ResizeObserver → 尺寸变化会自动重绘。 */
+.ws-canvas-well {
+  margin: 12px;
+  border: 1px solid var(--ws-border);
+  border-radius: 15px;
+  background-color: var(--ws-surface);
+  box-shadow: 0 4px 16px 0 rgba(56, 78, 71, 0.05);
+}
+
+/* 画布台外的底板略深，让白色卡片浮起来 */
+.ws-center {
+  background: var(--ws-app);
+}
+
+/* 提示条跟随底板，避免出现色差横条 */
+.ws-canvas-hint {
+  background: transparent;
+}
+
+@media (max-width: 760px) {
+  .ws-canvas-well {
+    margin: 8px;
+    border-radius: 12px;
+  }
+}
+
+/* 左轨按钮 / 底部控制带按钮半径对齐星豆绘（8 / 11） */
+.ws-rail-button {
+  border-radius: 11px;
+}
+
+.ws-viewbar button {
+  border-radius: 8px;
+}
+
+/* 第三方品牌 chip —— 由 app.js 异步追加（8 个新品牌），与内建 5 个视觉上做区分 */
+.external-brand-chip {
+  font-size: 12px;
+  padding: 6px 12px;
+  border-style: dashed;
+}
+
+.external-brand-chip[aria-pressed="true"] {
+  border-style: solid;
+}

@@ -1,0 +1,21 @@
+{
+  "id": "rf-anime-hl",
+  "category": "ANIME_HIGHLIGHT",
+  "source": "generated-photographic",
+  "nativeSize": 256,
+  "target": {
+    "cols": 104,
+    "rows": 104
+  },
+  "maxColors": 24,
+  "paletteSize": 8,
+  "knownFailure": "动漫眼睛高光与强调色被 CURRENT 抹平。",
+  "protectedRegions": [],
+  "expectedBehavior": {
+    "removeNoise": true,
+    "preserveStructure": true,
+    "preserveHighlight": true
+  },
+  "generatedSeed": 505,
+  "note": "程序生成的照片级原图，用于诱发 CURRENT 真实缺陷。可用真实 PNG 替换 image.png（保留 metadata.json）。"
+}

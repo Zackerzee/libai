@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">里白造物圆形标识</title>
+  <desc id="desc">四色拼豆圆环组成的圆形标识。</desc>
+  <defs>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="22" flood-color="#000000" flood-opacity="0.18" />
+    </filter>
+  </defs>
+
+  <circle cx="512" cy="512" r="492" fill="#ffffff" />
+  <circle cx="512" cy="512" r="468" fill="#fffdf7" stroke="#111111" stroke-width="18" />
+
+  <g filter="url(#softShadow)">
+    <g>
+      <circle cx="332" cy="330" r="178" fill="#ef1d24" />
+      <circle cx="332" cy="330" r="70" fill="#fffdf7" />
+    </g>
+    <g>
+      <circle cx="692" cy="330" r="178" fill="#f5b700" />
+      <circle cx="692" cy="330" r="70" fill="#fffdf7" />
+    </g>
+    <g>
+      <circle cx="332" cy="694" r="178" fill="#2cad4f" />
+      <circle cx="332" cy="694" r="70" fill="#fffdf7" />
+    </g>
+    <g>
+      <circle cx="692" cy="694" r="178" fill="#0968ee" />
+      <circle cx="692" cy="694" r="70" fill="#fffdf7" />
+    </g>
+  </g>
+</svg>

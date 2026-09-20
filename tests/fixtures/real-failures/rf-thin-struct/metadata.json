@@ -1,0 +1,20 @@
+{
+  "id": "rf-thin-struct",
+  "category": "THIN_STRUCTURE",
+  "source": "generated-photographic",
+  "nativeSize": 256,
+  "target": {
+    "cols": 104,
+    "rows": 104
+  },
+  "maxColors": 24,
+  "paletteSize": 8,
+  "knownFailure": "发丝/镜框/衣领等细结构被 CURRENT 断裂或并入背景。",
+  "protectedRegions": [],
+  "expectedBehavior": {
+    "removeNoise": true,
+    "preserveStructure": true
+  },
+  "generatedSeed": 606,
+  "note": "程序生成的照片级原图，用于诱发 CURRENT 真实缺陷。可用真实 PNG 替换 image.png（保留 metadata.json）。"
+}

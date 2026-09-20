@@ -1,0 +1,7 @@
+{
+  "name": "libms-pindou-workbench-algorithms",
+  "private": true,
+  "type": "module",
+  "description": "从 beads9/pindou-workbench 提取的「图片 → 拼豆颜色矩阵」纯算法模块。全部纯函数，不依赖 DOM / Canvas / localStorage。",
+  "//": "这个 package.json 只有一个作用：把本目录声明为 ESM 边界。libms-studio 根目录没有 package.json，所以 .js 会被 Node 当 CommonJS 解析；本目录内的 .js 需要按用户指定的文件名保留，因此在这里声明 type:module。浏览器不读这个文件，不影响部署。"
+}

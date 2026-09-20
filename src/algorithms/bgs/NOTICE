@@ -1,0 +1,173 @@
+BGS algorithm module — third-party notices
+==========================================
+
+This directory contains code derived from an Apache-2.0 licensed open-source
+project. The statements below are provided to satisfy the attribution and notice
+obligations of the Apache License, Version 2.0, §4(a)–(d).
+
+
+1. Origin of the code in this directory
+---------------------------------------
+
+  Bead Grid Studio / 豆格工坊
+  https://github.com/zwhy149/bead-grid-studio
+  Version 1.2.0
+  Copyright 2026 Bead Grid Studio contributors
+  Licensed under the Apache License, Version 2.0
+
+  A verbatim copy of that license is in ./LICENSE-APACHE-2.0.txt (SHA-256
+  c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4, identical to the
+  upstream LICENSE file).
+
+  The upstream sources this module was derived from, by file and line range:
+
+    src/app.js           1767–2520   convertPixels() — the conversion core
+    src/app.js           203–289     analyzeLineArtSubject()
+    src/app.js           291–357     analyzeSourceComplexity()
+    src/app.js           1435–1520   renderReferenceRaster()  (Canvas stage — replaced)
+    src/app.js           1816–1894   transparent / connected-background flood fill
+    src/app.js           1897–1920   Otsu adaptive dark threshold
+    src/app.js           1962–2373   smallLineArtRefinement (topology protection)
+    src/app.js           2376–2429   detail contrast + cartoon speckle cleanup
+    src/app.js           1932–2100   palette classification + nearest-colour match
+    src/app.js           2451–2515   anchors, mergeSimilar, maxColors limit
+    src/core/geometry.js whole file  grid / aspect / board-placement geometry
+
+
+2. Modifications made for libms-studio (required by §4(b))
+----------------------------------------------------------
+
+  Project: libms-studio / 里白造物拼豆图纸生成器
+
+  - Extracted the conversion core out of a browser IIFE closure into pure ESM
+    functions with explicit parameters. The upstream code relied on closure state
+    (`state`, `els`, `PALETTE`) and on `convertPixels.toString()` being serialized
+    into a Blob Worker.
+  - Removed every DOM, Canvas, Worker, localStorage, i18n and UI-state dependency.
+    The Canvas rasterization stage was reimplemented as pure typed-array resampling
+    in `raster.mjs`; the host now supplies the initial ImageData.
+  - Lifted all hard-coded numeric thresholds into `config.mjs` as named constants,
+    each recording the upstream value it came from (`BGS_CONFIG_META`).
+  - Replaced the Blob-Worker `toString()` serialization with standard ESM imports.
+  - Removed the upstream 5-bit bucketed nearest-colour LUT and its shared
+    `+32768` array offset; exact-colour matching and CIEDE2000 selection are
+    unchanged, only the cache changed.
+  - Removed the legacy 64-colour palette migration map (no libms equivalent).
+  - Removed silent clamping of user-supplied grid sizes; out-of-range requests are
+    now reported in `diagnostics.geometry.limits` instead of being rewritten.
+  - Repaired a tautological guard in the auto-crop decision
+    (`retainedInkRatio` was identically 1 upstream) so that it actually measures
+    retained ink.
+  - Added Otsu plateau handling to match the correction already applied to libms's
+    own `legend-text-parse.js`.
+  - Added an options-driven public entry point, `convertImageToBeads(imageData,
+    options)`, and a new A/B comparison layer (`ab-test.mjs`, `statistics.mjs`)
+    that did not exist upstream.
+  - Did NOT copy the upstream palette data files (`src/palettes/mard221.js`,
+    `src/palettes/catalog.js`). libms uses its own palette catalogue. See §3.
+
+  Modified files are marked with a header comment naming the upstream location and
+  summarising the deviation.
+
+
+3. Upstream NOTICE file, reproduced as required by §4(d)
+--------------------------------------------------------
+
+The Apache License requires that this notice be carried forward. It is reproduced
+below verbatim from the upstream NOTICE file. Note that its second half concerns
+palette DATA that libms does NOT use; it is reproduced because §4(d) requires the
+notice to travel with the work, not because libms ships that data.
+
+  ---- begin verbatim reproduction of upstream NOTICE ----
+
+  Bead Grid Studio / 豆格工坊
+  Copyright 2026 Bead Grid Studio contributors
+
+  This product includes MARD-compatible color data derived from:
+
+    maxcleme/beadcolors
+    https://github.com/maxcleme/beadcolors
+    pinned data commit 94b99999652866f1a1879d6369fe735f811949e5
+
+  The upstream dataset is distributed under the MIT License:
+
+    Copyright (c) 2020 maxcleme
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+  The third-party license permits use of the data. It does not imply that MARD or
+  any other bead manufacturer is affiliated with or endorses this project.
+
+  The production bundle is built with Vite, which may inject its module preload
+  polyfill into generated JavaScript:
+
+    Vite
+    https://github.com/vitejs/vite
+
+    MIT License
+
+    Copyright (c) 2019-present, VoidZero Inc. and Vite contributors
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+  ---- end verbatim reproduction of upstream NOTICE ----
+
+
+4. Scope of libms-studio's own obligations
+------------------------------------------
+
+  The Apache License is not copyleft. libms-studio's remaining code is not required
+  to be open-sourced, and this derived module may be redistributed under other
+  terms. The obligations in §4(a)–(d) above continue to apply to any such
+  redistribution.
+
+  Three further statements:
+
+  (a) libms-studio does NOT use the names "Bead Grid Studio" or "豆格工坊", nor any
+      logo or mark of that project, and claims no affiliation with or endorsement
+      by it. This is required by §6 of the license and is also recorded in the
+      upstream TRADEMARKS.md. The identifier `bgs` used in directory, module and
+      configuration names is an internal technical shorthand only, chosen by
+      libms-studio; it is never presented to end users as a product or brand name.
+
+  (b) libms-studio does NOT ship the palette data files from the upstream
+      repository. The MARD-compatible colour data described in §3 is therefore not
+      redistributed here, and the MIT terms quoted in §3 do not apply to libms's own
+      palette catalogue. The reproduction in §3 exists solely because §4(d)
+      requires the upstream NOTICE — including the licenses it quotes — to travel
+      with the derived work.
+
+  (c) libms-studio makes no claim that any bead manufacturer is affiliated with or
+      endorses libms-studio.

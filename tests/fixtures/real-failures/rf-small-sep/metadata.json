@@ -1,0 +1,21 @@
+{
+  "id": "rf-small-sep",
+  "category": "SMALL_SEPARATED_COMPONENT",
+  "source": "generated-photographic",
+  "nativeSize": 256,
+  "target": {
+    "cols": 104,
+    "rows": 104
+  },
+  "maxColors": 24,
+  "paletteSize": 8,
+  "knownFailure": "耳环等小分离部件被 CURRENT 删除或并入主体。",
+  "protectedRegions": [],
+  "expectedBehavior": {
+    "removeNoise": true,
+    "preserveStructure": true,
+    "preserveSeparated": true
+  },
+  "generatedSeed": 707,
+  "note": "程序生成的照片级原图，用于诱发 CURRENT 真实缺陷。可用真实 PNG 替换 image.png（保留 metadata.json）。"
+}

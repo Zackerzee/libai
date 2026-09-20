@@ -1,0 +1,36 @@
+PASS  工作台挂载成功（含 A/B 接口）
+PASS  顶部存在「算法」开关
+PASS  算法开关只有 current / bgs 两个取值
+PASS  算法开关默认停在 current
+PASS  桥接层默认 algorithmEngine = current
+PASS  上传合成图并设定 48×48
+PASS  默认生成走既有 V2.5 链路
+PASS  默认生成铺满画布
+PASS  默认路径不带 bgs 报告（未跑就不该有数据）
+PASS  切到 bgs 后桥接层状态同步
+PASS  bgs 生成成功且尺寸一致
+PASS  bgs 生成使用颜色 > 1 且非空
+PASS  报告记录 algorithmEngine = bgs
+PASS  报告带 bgs 统计与诊断
+PASS  纯矩阵全部映射回调色板（unknownCodes = 0）
+PASS  state.grid 每个色号都属于当前色板
+PASS  bgs 运行后清空了 V2.5 的智能报告（避免误读上一轮）
+PASS  A/B 两侧都跑出了指标
+PASS  A/B 无 current 侧错误
+PASS  六项指标齐备（含色差 CIEDE2000 / RMSE）
+PASS  输出矩阵两侧齐全且都是 48×48
+PASS  逐格差异统计覆盖全部格子
+PASS  方块图预览与矩阵同高
+PASS  verdict 恒为 null，且不存在 winner / recommendation 字段
+PASS  A/B 报告带有「不自动判定优劣」说明
+PASS  A/B 的 current 侧与 App 实际生成同色数
+PASS  A/B 的 current 侧与 App 实际生成同豆数
+PASS  current 侧色差在正常量级（RMSE < 120）
+PASS  bgs 侧色差同样在正常量级
+PASS  delta 以原始数值形式给出（不是评分）
+PASS  A/B 使用当前色板
+PASS  切回 current 后重新走 V2.5
+PASS  记分牌跟着最后一次实际运行走（不再停在 bgs）
+PASS  切回后生成结果与首次 current 一致（同参可复现）
+PASS  无本批新引入的 JS 异常 / CSP 拦截
+PASS  无本批新引入的资源 404
