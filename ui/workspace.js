@@ -90,7 +90,7 @@ export function mountWorkspace(bridge) {
 
   const drawer = document.createElement("aside"); drawer.className = "ws-export-drawer"; drawer.id = "ws-export-drawer";
   drawer.setAttribute("aria-label", "导出作品");
-  drawer.innerHTML = `<div class="ws-drawer-head"><strong>导出作品</strong><button type="button" id="ws-export-close" aria-label="关闭导出">×</button></div><p class="ws-note">导出设置与屏幕色号开关相互独立。</p><button type="button" class="ws-export-choice" data-ws-export="preview-png"><strong>成品预览 · PNG</strong><small>默认无色号、无网格</small></button><div class="ws-export-options"><strong>图纸内容</strong><label><input type="checkbox" id="ws-export-grid" checked>网格</label><label><input type="checkbox" id="ws-export-codes" checked>色号</label><label><input type="checkbox" id="ws-export-coords" checked>坐标</label></div><button type="button" class="ws-export-choice" data-ws-export="pattern-png"><strong>拼豆图纸 · PNG</strong><small>使用上方独立的图纸设置</small></button><button type="button" class="ws-export-choice" data-ws-export="pattern-jpg"><strong>拼豆图纸 · JPG</strong><small>含表头与色块 / 色号 / 颗数图例，便于分享打印</small></button><button type="button" class="ws-export-choice" data-ws-export="usage-csv"><strong>用豆清单 · CSV</strong><small>色号、名称、HEX、RGB 与颗数，可用 Excel 打开</small></button><button type="button" class="ws-export-choice" data-ws-export="project-json"><strong>工程存档 · JSON</strong><small>保存画布尺寸、色卡与整幅矩阵，可再次载入继续编辑</small></button><button type="button" class="ws-export-choice" data-ws-export="boards-zip" id="ws-boards-choice"><strong>分板图 · ZIP</strong><small>按现有板规格导出各板 PNG</small></button><div class="ws-export-options"><strong>继续编辑</strong><button type="button" id="ws-project-import">载入工程存档…</button><input type="file" id="ws-project-file" accept="application/json,.json" hidden></div><p class="ws-note" id="ws-export-message"></p>`;
+  drawer.innerHTML = `<div class="ws-drawer-head"><strong>导出作品</strong><button type="button" id="ws-export-close" aria-label="关闭导出">×</button></div><p class="ws-note">导出设置与屏幕色号开关相互独立。</p><button type="button" class="ws-export-choice" data-ws-export="preview-png"><strong>成品预览 · PNG</strong><small>默认无色号、无网格</small></button><div class="ws-export-options"><strong>图纸内容</strong><label><input type="checkbox" id="ws-export-grid" checked>网格</label><label><input type="checkbox" id="ws-export-codes" checked>色号</label><label><input type="checkbox" id="ws-export-coords" checked>坐标</label></div><button type="button" class="ws-export-choice" data-ws-export="pattern-png"><strong>拼豆图纸 · PNG</strong><small>使用上方独立的图纸设置</small></button><button type="button" class="ws-export-choice" data-ws-export="pattern-jpg"><strong>拼豆图纸 · JPG</strong><small>含表头与色块 / 色号 / 颗数图例，便于分享打印</small></button><button type="button" class="ws-export-choice" data-ws-export="usage-csv"><strong>用豆清单 · CSV</strong><small>色号、名称、HEX、RGB 与颗数，可用 Excel 打开</small></button><button type="button" class="ws-export-choice" data-ws-export="project-json"><strong>工程存档 · JSON</strong><small>保存画布尺寸、色卡与整幅矩阵，可再次载入继续编辑</small></button><button type="button" class="ws-export-choice" data-ws-export="boards-zip" id="ws-boards-choice"><strong>分板图 · ZIP</strong><small>按现有板规格导出各板 PNG</small></button><div class="ws-export-options"><strong>继续编辑</strong><button type="button" id="ws-project-import">载入工程存档 / Pixler…</button><input type="file" id="ws-project-file" accept="application/json,.json,.pixler" hidden></div><p class="ws-note" id="ws-export-message"></p>`;
   wrap.append(drawer);
   const confirmDialog = document.createElement("dialog"); confirmDialog.className = "ws-confirm-dialog";
   confirmDialog.innerHTML = `<p id="ws-confirm-text"></p><div><button type="button" id="ws-confirm-cancel">取消</button><button type="button" id="ws-confirm-ok">确认</button></div>`;
@@ -579,6 +579,30 @@ export function mountWorkspace(bridge) {
   });
   $("#ws-ref-visible").addEventListener("change", (event) => store.setState({ reference: { visible: event.target.checked } }));
 
+  // .pixler = ZIP 封装的结构化项目文件。判定不只看后缀：再看 ZIP 签名 PK。
+  const isPixlerFile = async (file) => {
+    if (/\.pixler$/i.test(file.name || "")) return true;
+    try {
+      const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+      return String.fromCharCode(head[0], head[1]) === "PK";
+    } catch {
+      return false;
+    }
+  };
+
+  let pixlerNote = "";
+  const loadPixlerProject = async (file) => {
+    const { importPixlerProject } = await import("../importers/pixler.mjs?v=20260922-pixler1");
+    const result = await importPixlerProject(file, { palette: editorService.getPaletteColors?.() || [] });
+    const info = result.report;
+    window.LibmsPixlerLastReport = info;
+    pixlerNote = `已载入 Pixler · ${info.columns}×${info.rows} · ${info.usedColors} 色 / ${info.totalBeads} 颗`;
+    if (!info.beadMatchSynced) pixlerNote += " · 文件内色号表与网格不同步，已按 CIEDE2000 重新匹配";
+    if (info.unresolvedCells) pixlerNote += ` · ${info.unresolvedCells} 格无匹配色号`;
+    if (info.restoredSettings?.gridVisible) bridge.setEditorGridVisible?.(true);
+    return JSON.stringify(result.project);
+  };
+
   const projectFileInput = $("#ws-project-file");
   $("#ws-project-import").addEventListener("click", () => projectFileInput.click());
   projectFileInput.addEventListener("change", async () => {
@@ -587,13 +611,17 @@ export function mountWorkspace(bridge) {
     if (!file) return;
     if (!await askConfirmation("载入工程存档会替换当前图纸，未保存的手动编辑将丢失。继续吗？")) return;
     try {
-      bridge.loadProjectJson(await file.text());
+      // .pixler 是结构化项目文件：走原生解析，绝不转成图片再识别（避免二次损失）。
+      const isPixler = await isPixlerFile(file);
+      const payload = isPixler ? await loadPixlerProject(file) : await file.text();
+      bridge.loadProjectJson(payload);
       editorService.clearHistory();
       store.setState({
         editor: { tool: "select", selectedCell: null, selection: null, hoveredCell: null, highlightedColor: null },
         ui: { exportDrawerOpen: false },
       });
       viewport.fitToViewport();
+      if (pixlerNote) $("#ws-export-message").textContent = pixlerNote;
     } catch (error) {
       $("#ws-export-message").textContent = error.message;
     }

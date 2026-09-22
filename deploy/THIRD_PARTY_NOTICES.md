@@ -46,6 +46,15 @@
 - 许可：**SIL Open Font License 1.1**
 - 状态：仅通过 CDN 链接加载，字体文件本身不随本仓库分发
 
+### 6. `vendor/fflate.js` — ZIP / DEFLATE 压缩库
+
+- 许可：**MIT**
+- 版权：`Copyright (c) 2021 Arjun Barrett`
+- 上游：<https://github.com/101arrowz/fflate>
+- 版本：0.8.2（UMD 构建，32 KB）
+- 用途：`.pixler` 项目文件的 ZIP 解包与 `deflate-raw` 解压
+- 状态：**原样引入**，未修改
+
 ---
 
 ## 二、仅参考思路、未复制源码
