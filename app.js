@@ -881,7 +881,7 @@ function init() {
   import("./ui/workspace-bootstrap.js?v=20260928-v3-shell")
     .then(({ bootstrapWorkspace }) => bootstrapWorkspace({
       bridge: window.LibmsWorkspaceBridge,
-      prepareLegacyShell: setupProfessionalMainLayout,
+      prepareLegacyShell: prepareCompatibilityShell,
     }))
     .catch((error) => {
       document.body.dataset.workspaceState = "failed";
@@ -889,7 +889,7 @@ function init() {
     });
 }
 
-function setupProfessionalMainLayout() {
+function prepareCompatibilityShell() {
   const wrap = document.querySelector(".workspace-wrap");
   const grid = wrap?.querySelector(".workspace-grid");
   const studio = grid?.querySelector(".studio-main");
