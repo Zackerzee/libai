@@ -3,7 +3,7 @@ import { createGenerationService } from "../services/generation-service.js?v=202
 import { createPaletteService } from "../services/palette-service.js";
 import { createExportService } from "../services/export-service.js?v=20260917-batchA";
 import { createEditorService } from "../services/editor-service.js?v=20260918-usage2";
-import { createViewportService } from "../services/viewport-service.js?v=20260924-text";
+import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260924-text";
 import { createCanvasRenderer } from "./canvas-renderer.js?v=20260924-text";
 import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20260916-phase35-5";
 import { magicWandSelection, fitSelectionBox, invertSelection as invertSelectionMask, selectAll as selectAllCells, translateSelection } from "../services/shapes-service.js?v=20260918-usage2";
@@ -12,6 +12,7 @@ import { GenerationPanel } from "./generation-panel.js?v=20260918-usage2";
 import { GridEditorToolbar, SHAPE_TOOLS } from "./grid-editor-toolbar.js?v=20260918-usage2";
 import { detectPixelMultiple, loadImageData, logicalSize } from "./pixel-multiple.js?v=20260923-pixelmultiple";
 import { ZoomControls } from "./zoom-controls.js?v=20260924-text";
+import { Navigator } from "./navigator.js?v=20260928-v31";
 import { TextPanel } from "./text-panel.js?v=20260924-text";
 import { createTextLayer, rasterizeTextCached, layerContainsCell } from "../services/text-layer-service.js?v=20260924-text";
 import { createInventoryService } from "../services/inventory-service.js?v=20260917-inventory";
@@ -402,6 +403,18 @@ export function mountWorkspace(bridge) {
   const viewport = createViewportService(store, () => ({ viewportWidth: well.clientWidth, viewportHeight: well.clientHeight,
     gridWidth: bridge.getResult().width || 0, gridHeight: bridge.getResult().height || 0 }));
   const renderer = createCanvasRenderer(layers, viewport, () => bridge.getResult(), () => get().view, () => get().editor, () => get().reference, (code) => editorService.resolveColor(code));
+  const navigatorHost = document.createElement("aside");
+  well.append(navigatorHost);
+  const navigator = Navigator({
+    host: navigatorHost,
+    getResult: () => bridge.getResult(),
+    getView: () => get().view,
+    getViewportSize: () => ({ width: well.clientWidth, height: well.clientHeight }),
+    onNavigate: (x, y) => {
+      const result = bridge.getResult(), cell = BASE_CELL * get().view.zoom;
+      viewport.setPan((result.width / 2 - x) * cell, (result.height / 2 - y) * cell);
+    },
+  });
   const sourceCanvas = $("#ws-source-canvas"), sourcePreview = $("#ws-source-preview");
   let sourceImage = null, sourceImageUrl = "", sourceLayout = null, sourceDrawPending = false, sourceDrag = null;
   const requestSourceDraw = () => { if (!sourceDrawPending) { sourceDrawPending = true; requestAnimationFrame(drawSourceEditor); } };
@@ -656,7 +669,7 @@ export function mountWorkspace(bridge) {
       zoomControls.setZoom(Math.round(state.view.zoom * 100), false);
       $("#ws-canvas-hint").textContent = canvasHint(state.view);
       if (buildActive()) updateBuildOverlay();
-      renderer.requestDraw(); return;
+      renderer.requestDraw(); navigator.requestDraw(); return;
     }
     const hasSource = state.status.hasSource, hasPattern = state.status.hasPattern;
     // 源图一变（新导入 / 恢复会话）就重新识别像素倍数。挂在 paint 上而不是只挂
@@ -701,6 +714,7 @@ export function mountWorkspace(bridge) {
     }
     // 施工模式：图纸变了要重算区块与颜色，视图变了要重定位叠加层
     if (buildActive()) { if (patch.stats || patch.status) { renderBlockMap(); renderBlockColors(); } updateBuildOverlay(); }
+    navigator.requestDraw();
     if (patch.stats || patch.status || patch.editor?.highlightedColor) $("#ws-color-list").innerHTML = state.stats.colors.map((color) => `<button type="button" data-ws-color="${esc(color.code)}" class="ws-color-row ${state.editor.highlightedColor === color.code ? "active" : ""}"><span class="ws-swatch" style="background:${esc(color.hex)}"></span><span>${esc(color.code)}</span><small>${color.count.toLocaleString("zh-CN", { useGrouping: false })}</small></button>`).join("") || '<p class="ws-note">生成图纸后显示色号与数量。</p>';
     const checks = bridge.getChecks(); $("#ws-check-results").innerHTML = hasPattern ? `<p>尺寸：${state.canvas.width} × ${state.canvas.height}</p><p>颜色：${state.stats.usedColors} 色${checks.validation?.valid === false ? " · 超出当前上限" : " · 已校验"}</p>${checks.structural ? `<p>结构检测：${esc(JSON.stringify(checks.structural))}</p>` : ""}` : "生成后显示可验证的尺寸、色数与结构报告。";
     viewBar.querySelectorAll("[data-ws-view]").forEach((button) => { button.classList.toggle("active", button.dataset.wsView === state.view.mode); button.disabled = button.dataset.wsView === "original" && !hasSource; });

@@ -43,6 +43,10 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .ws-canvas-well { min-height: 0; position: relative; display: grid; place-items: center; overflow: hidden; touch-action: none; cursor: grab; background-color: var(--ws-canvas); background-image: radial-gradient(#d0d6cf 1px, transparent 1px); background-size: 24px 24px; }
 .ws-canvas-well.is-panning { cursor: grabbing; }.ws-canvas-well img { max-width: none; max-height: none; width: auto; height: auto; object-fit: contain; transform-origin: center; user-select: none; pointer-events: none; image-rendering: pixelated; filter: drop-shadow(0 1px 2px #18241b17); }
 .ws-canvas-layers { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.ws-navigator { position: absolute; z-index: 4; right: 14px; bottom: 14px; width: 190px; padding: 7px; border: 1px solid var(--ws-border); border-radius: 9px; background: color-mix(in srgb, var(--ws-surface) 92%, transparent); box-shadow: 0 5px 18px #17231b1f; backdrop-filter: blur(8px); cursor: crosshair; }
+.ws-navigator[hidden] { display: none; }
+.ws-navigator-title { margin: 0 2px 5px; color: var(--ws-text-secondary); font-size: 10px; font-weight: 700; letter-spacing: .06em; }
+.ws-navigator canvas { display: block; width: 176px; height: 116px; border-radius: 4px; touch-action: none; image-rendering: pixelated; }
 .ws-layer { position: absolute; inset: 0; pointer-events: none; }
 .ws-source-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }.ws-source-canvas[hidden] { display: none; }
 .ws-source-preview { display: block; width: 100%; max-height: 160px; object-fit: contain; border: 1px solid var(--ws-border); border-radius: 7px; background: var(--ws-canvas); }
