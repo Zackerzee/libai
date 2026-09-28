@@ -1,4 +1,5 @@
 body.phase2-workspace { background: var(--ws-app); color: var(--ws-text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", system-ui, sans-serif; }
+.workspace-bootstrap-error { position: fixed; z-index: var(--ds-layer-toast); top: 0; left: 0; right: 0; padding: 8px 12px; border-bottom: 1px solid var(--ds-color-danger); background: var(--ds-color-surface); color: var(--ds-color-danger); font: 12px/1.5 var(--ds-font-ui); text-align: center; }
 body.phase2-workspace > .app-shell { height: 100dvh; min-height: 0; overflow: hidden; }
 body.phase2-workspace > .app-shell > .topbar,
 body.phase2-workspace > .app-shell > .site-footer,

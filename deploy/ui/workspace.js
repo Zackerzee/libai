@@ -24,13 +24,20 @@ const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&":
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 
 export function mountWorkspace(bridge) {
+  if (!bridge) throw new Error("缺少 Workspace Bridge");
   const store = projectStore, generation = createGenerationService(bridge, store);
   const palettes = createPaletteService(bridge, store), exports = createExportService(bridge, store), editorService = createEditorService(bridge, { onHistoryChange: () => updateHistory() });
   const wrap = document.querySelector(".workspace-wrap"), grid = wrap?.querySelector(".workspace-grid");
   const top = wrap?.querySelector(".main-global-toolbar"), left = grid?.querySelector(".main-left-toolbar");
   const center = grid?.querySelector(".main-center-workspace"), right = grid?.querySelector(".main-right-inspector");
-  if (!wrap || !grid || !top || !left || !center || !right || grid.dataset.phase2Ready) return;
+  if (grid?.dataset.phase2Ready) return { mounted: true, reused: true };
+  const missing = [
+    [wrap, ".workspace-wrap"], [grid, ".workspace-grid"], [top, ".main-global-toolbar"],
+    [left, ".main-left-toolbar"], [center, ".main-center-workspace"], [right, ".main-right-inspector"],
+  ].filter(([node]) => !node).map(([, selector]) => selector);
+  if (missing.length) throw new Error("工作台骨架不完整：" + missing.join(", "));
   grid.dataset.phase2Ready = "true";
+  grid.dataset.workspaceShell = "v3";
   bridge.setLockAspectRatio(false);
   bridge.setWidth(104); bridge.setHeight(104);
   store.setState({ canvas: { width: 104, height: 104, lockAspectRatio: false }, generation: { engine: "v2.5", algorithm: "current" } });

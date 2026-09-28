@@ -856,7 +856,6 @@ function rgbToHex(rgbValue) {
 }
 
 function init() {
-  setupProfessionalMainLayout();
   setupProfessionalEditorLayout();
   validateMardPalette();
   loadExternalBrandPalettes();
@@ -879,7 +878,15 @@ function init() {
   renderEditorLibraryOptions();
   bindEvents();
   updateResultUi();
-  import("./ui/workspace.js?v=20260924-text").then(({ mountWorkspace }) => mountWorkspace(window.LibmsWorkspaceBridge)).catch((error) => console.error("Workspace UI mount failed", error));
+  import("./ui/workspace-bootstrap.js?v=20260928-v3-shell")
+    .then(({ bootstrapWorkspace }) => bootstrapWorkspace({
+      bridge: window.LibmsWorkspaceBridge,
+      prepareLegacyShell: setupProfessionalMainLayout,
+    }))
+    .catch((error) => {
+      document.body.dataset.workspaceState = "failed";
+      console.error("Workspace bootstrap module failed", error);
+    });
 }
 
 function setupProfessionalMainLayout() {
