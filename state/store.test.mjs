@@ -312,7 +312,7 @@ test("Phase 3B：projectStore 字段已能在 libmsStore 中找到归属（无�
     paletteState: ["id"],
     rendererState: ["mode", "showGrid", "showCodes", "codeVisibilityThreshold"],
     viewportState: ["zoom"],
-    editorState: ["selectedCell", "hoveredCell", "shapePreview", "highlightedColor",
+    editorState: ["selectedCell", "selectedPaletteId", "hoveredCell", "shapePreview", "highlightedColor", "highlightedPaletteId",
       "brushSize", "wandTolerance", "shapeFilled", "symmetryHorizontal", "symmetryVertical", "paletteCategory", "recentColors",
       "clipboard", "history"],
   };

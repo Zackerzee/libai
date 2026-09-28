@@ -170,9 +170,11 @@
     editorState: {
       // —— Phase 3B：承接 projectStore.editor 的字段（workspace.js 写 35 次，此前零测试保护）——
       selectedCell: null,      // projectStore.editor.selectedCell
+      selectedPaletteId: null,
       hoveredCell: null,       // projectStore.editor.hoveredCell
       shapePreview: null,      // projectStore.editor.shapePreview
       highlightedColor: null,  // projectStore.editor.highlightedColor
+      highlightedPaletteId: null,
       brushSize: 1,            // projectStore.editor.brushSize
       wandTolerance: 12,       // projectStore.editor.wandTolerance
       shapeFilled: false,      // projectStore.editor.shapeFilled

@@ -57,6 +57,9 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .ws-grid-toolbar-host { position: absolute; z-index: 5; top: 12px; left: 50%; transform: translateX(-50%); width: min(690px, calc(100% - 32px)); overflow: visible; }
 .ws-cell-details { min-height: 66px; padding: 10px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface-soft); font-size: 12px; }
 .ws-cell-details strong { font-size: 17px; }.ws-cell-details p { margin: 4px 0; }
+.ws-current-color-summary { min-height: 42px; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 8px 10px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface-soft); color: var(--ws-text-secondary); font-size: 12px; }
+.ws-current-color-summary strong { color: var(--ws-text); font-size: 14px; }.ws-current-color-summary b { margin-left: auto; color: var(--ws-text); font-variant-numeric: tabular-nums; }
+.ws-current-color-swatch { width: 22px; height: 22px; flex: 0 0 auto; border: 1px solid #17231b35; border-radius: 4px; }
 .ws-bead-picker { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 4px; max-height: 220px; margin-top: 8px; overflow-y: auto; }
 .ws-bead-picker button { display: grid; justify-items: center; gap: 3px; padding: 4px 2px; border: 1px solid var(--ws-border); border-radius: 5px; background: var(--ws-surface); color: var(--ws-text-secondary); cursor: pointer; }
 .ws-bead-picker button.active,.ws-bead-picker button:hover { border-color: var(--ws-accent); color: var(--ws-accent); }.ws-bead-picker span { width: 20px; height: 20px; border: 1px solid #17231b25; border-radius: 3px; }.ws-bead-picker small { font-size: 10px; }

@@ -34,6 +34,26 @@ test("global replace stores cell diffs and a new edit clears redo", () => {
   editor.setCellColor(1,0,"A03"); assert.equal(editor.canRedo(),false);
 });
 
+test("global replace uses paletteId rather than RGB or display code", () => {
+  const source = { code: "OLD", paletteId: "mard:H05", hex: "#111111", rgb: [17,17,17] };
+  const sameRgbDifferentId = { code: "TWIN", paletteId: "mard:H06", hex: "#111111", rgb: [17,17,17] };
+  const target = { code: "NEW", paletteId: "mard:H07", hex: "#eeeeee", rgb: [238,238,238] };
+  const grid = [[source, sameRgbDifferentId]];
+  const bridge = {
+    getResult: () => ({ grid, width: 2, height: 1, colors: [] }),
+    getCell: (x, y) => grid[y]?.[x] || null,
+    getPaletteColors: () => [source, sameRgbDifferentId, target],
+    applyCellChanges(changes) { for (const { x, y, after } of changes) grid[y][x] = after; return changes.length; },
+  };
+  const editor = createEditorService(bridge);
+  assert.equal(editor.getColorUsage("mard:H05"), 1);
+  assert.equal(editor.replaceColor("mard:H05", "mard:H07"), true);
+  assert.equal(grid[0][0].paletteId, "mard:H07");
+  assert.equal(grid[0][1].paletteId, "mard:H06", "相同 RGB 但不同 paletteId 不应被替换");
+  editor.undo();
+  assert.equal(grid[0][0].paletteId, "mard:H05");
+});
+
 test("region replace changes only selected cells and undoes as one action", () => {
   const { grid, editor } = fixture();
   assert.equal(editor.replaceColorInSelection("H07", "A03", { x0: 0, y0: 0, x1: 0, y1: 1 }), true);

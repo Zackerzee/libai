@@ -1,6 +1,7 @@
 import { BASE_CELL } from "../services/viewport-service.js?v=20260924-text";
 import { rasterizeTextCached, cellsBox } from "../services/text-layer-service.js?v=20260924-text";
 import { resolveScreenRenderPolicy } from "../smart-preprocessing/render-policy.mjs?v=20260928-v3";
+import { paletteIdOf } from "../services/palette-identity.js";
 
 export const codeForegroundColor = (rgb) => {
   if (!rgb) return "#17212b";
@@ -86,7 +87,8 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
       const sx = o.x + x * cell, sy = o.y + y * cell;
       if (color) {
         const hex = color.hex || `rgb(${color.rgb.join(",")})`;
-        ctx[L.base].globalAlpha = editor.highlightedColor && color.code !== editor.highlightedColor ? 0.25 : 1;
+        const highlighted = editor.highlightedPaletteId || editor.highlightedColor;
+        ctx[L.base].globalAlpha = highlighted && paletteIdOf(color) !== highlighted ? 0.2 : 1;
         ctx[L.base].fillStyle = hex;
         if (view.mode === "beads") {
           ctx[L.base].beginPath(); ctx[L.base].arc(sx + cell / 2, sy + cell / 2, cell * 0.43, 0, Math.PI * 2); ctx[L.base].fill();

@@ -82,8 +82,8 @@ test("snapshot: view / reference 默认值", () => {
 test("snapshot: editor 默认值（workspace.js 最常写的一块）", () => {
   const s = createProjectStore().getState();
   assert.deepEqual(s.editor, {
-    tool: "select", hoveredCell: null, selectedCell: null, selectedColor: null,
-    highlightedColor: null, selection: null, paletteCategory: "all",
+    tool: "select", hoveredCell: null, selectedCell: null, selectedPaletteId: null, selectedColor: null,
+    highlightedColor: null, highlightedPaletteId: null, selection: null, paletteCategory: "all",
     recentColors: [], brushSize: 1, shapeFilled: false,
     symmetryHorizontal: false, symmetryVertical: false, wandTolerance: 12,
     shapePreview: null, clipboard: null,

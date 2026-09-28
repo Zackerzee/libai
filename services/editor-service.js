@@ -2,6 +2,7 @@ import { selectionContains, selectionCells, outerOutline } from "./selection-ser
 import { shapeCells, expandBrush } from "./shapes-service.js";
 import { createCellCommand, createStructureCommand, isEditorCommand } from "./editor-command.js";
 import { symmetryCells } from "./symmetry-service.js";
+import { paletteIdOf } from "./palette-identity.js";
 
 const cloneGrid = (grid) => grid.map((row) => row.map((color) => (color ? { ...color, rgb: Array.isArray(color.rgb) ? [...color.rgb] : color.rgb } : null)));
 
@@ -22,9 +23,9 @@ export function rotateGrid(grid, turns) {
 export function createEditorService(bridge, { limit = 100, onHistoryChange = () => {} } = {}) {
   const undoStack = [], redoStack = [];
   const clone = (color) => color ? { ...color, rgb: Array.isArray(color.rgb) ? [...color.rgb] : color.rgb } : null;
-  const same = (a, b) => a?.code === b?.code;
+  const same = (a, b) => paletteIdOf(a) === paletteIdOf(b);
   const result = () => bridge.getResult();
-  const colorFor = (code) => bridge.getPaletteColors().find((color) => color.code.toUpperCase() === String(code || "").trim().toUpperCase()) || null;
+  const colorFor = (identity) => bridge.getPaletteColors().find((color) => paletteIdOf(color) === String(identity || "") || color.code.toUpperCase() === String(identity || "").trim().toUpperCase()) || null;
   let stroke = null;
   // 剪贴板存「相对选区左上角的偏移」，粘贴时把选区左上角对齐到目标格。
   // 空豆也一并入板（矩形选区＝真正的图章），因此粘贴会覆盖目标区域的空白格。
@@ -84,23 +85,27 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
   const api = {
     getCell: (x, y) => bridge.getCell(x, y),
     getPaletteColors: () => bridge.getPaletteColors(),
-    getColorUsage: (code) => result().colors.find((color) => color.code === code)?.count || 0,
+    getColorUsage(identity) {
+      const key = paletteIdOf(colorFor(identity)) || String(identity || "");
+      return result().grid.flat().filter((color) => paletteIdOf(color) === key).length;
+    },
     resolveColor: colorFor,
     setCellColor(x, y, code, options = {}) {
       const before = bridge.getCell(x, y), after = colorFor(code);
       if (!after) return false;
       return commit("CELL_COLOR_CHANGE", `单豆：${before?.code || "空白"} → ${after.code}`, changesFor(symmetric([{ x, y }], options), after));
     },
-    replaceColor(fromCode, toCode, selection = null) {
-      const after = colorFor(toCode);
-      if (!after || fromCode === after.code) return false;
+    replaceColor(fromPaletteId, toPaletteId, selection = null) {
+      const after = colorFor(toPaletteId);
+      const fromIdentity = paletteIdOf(colorFor(fromPaletteId)) || String(fromPaletteId);
+      if (!after || fromIdentity === paletteIdOf(after)) return false;
       const changes = [];
       result().grid.forEach((row, y) => row.forEach((before, x) => {
-        if (before?.code !== fromCode) return;
+        if (paletteIdOf(before) !== fromIdentity) return;
         if (selection && !selectionContains(selection, x, y)) return;
         changes.push({ x, y, before: clone(before), after: clone(after) });
       }));
-      return commit(selection ? "REGION_CHANGE" : "COLOR_REPLACE", `替换：${fromCode} → ${after.code}`, changes);
+      return commit(selection ? "REGION_CHANGE" : "COLOR_REPLACE", `替换：${colorFor(fromPaletteId)?.code || fromPaletteId} → ${after.code}`, changes);
     },
     replaceColorInSelection(fromCode, toCode, selection) { return this.replaceColor(fromCode, toCode, selection); },
     applyCells(cells, code, type = "BRUSH_STROKE", label = null) {
