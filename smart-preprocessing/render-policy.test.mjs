@@ -34,3 +34,12 @@ test("screen policy centralizes grid and code visibility without coupling their 
     baseCell: 20, codeThreshold: 16,
   }), { displayedCell: 20, showCodes: true, showGrid: true });
 });
+
+test("screen policy covers the workspace bridge 12px cell threshold", () => {
+  assert.deepEqual(resolveScreenRenderPolicy({
+    showCodes: true, showGrid: true, zoom: 1, baseCell: 12,
+  }), { displayedCell: 12, showCodes: false, showGrid: true });
+  assert.deepEqual(resolveScreenRenderPolicy({
+    showCodes: true, showGrid: true, zoom: 1.5, baseCell: 12,
+  }), { displayedCell: 18, showCodes: true, showGrid: true });
+});

@@ -7106,7 +7106,13 @@ window.LibmsWorkspaceBridge = {
   getRenderUrl({ mode, showGrid = false, showCodes = false, zoom = 1, highlightedCode = null } = {}) {
     if (mode === "original") return state.sourceDataUrl || state.previewUrl;
     if (!state.grid.length) return "";
-    const canShowCodes = Boolean(showCodes && zoom * 12 >= 14);
+    const screenPolicy = window.LibmsRenderPolicy?.resolveScreenRenderPolicy?.({
+      showCodes,
+      showGrid,
+      zoom,
+      baseCell: 12,
+    });
+    const canShowCodes = screenPolicy?.showCodes ?? false;
     if (mode === "pattern") return renderBeadPattern({ matrix: state.grid, stats: state.stats, preset: "PATTERN_EXPORT", cell: 18,
       showGrid, showCodes: canShowCodes, showCoordinates: true, minLongSide: 0 }).toDataURL("image/png");
     const cell = 12;

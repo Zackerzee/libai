@@ -19,9 +19,20 @@ import { createOcrService } from "../services/ocr-service.js?v=20260917-inventor
 import { createLegendRecognitionService } from "../services/legend-recognition-service.js?v=20260917-inventory";
 import { InventoryPanel } from "./inventory-panel.js?v=20260917-inventory";
 import { UsageDialog } from "./usage-dialog.js?v=20260917-inventory";
+import { resolveScreenRenderPolicy } from "../smart-preprocessing/render-policy.mjs?v=20260928-v3";
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
+
+const canvasHint = (view) => {
+  const policy = resolveScreenRenderPolicy({
+    showCodes: view.showCodes,
+    zoom: view.zoom,
+    baseCell: 20,
+    codeThreshold: view.codeVisibilityThreshold,
+  });
+  return view.showCodes && !policy.showCodes ? "放大以查看色号" : "拖动画布平移 · 滚轮缩放";
+};
 
 export function mountWorkspace(bridge) {
   if (!bridge) throw new Error("缺少 Workspace Bridge");
@@ -633,7 +644,7 @@ export function mountWorkspace(bridge) {
     }
     if (patch.view && Object.keys(patch).length === 1 && Object.keys(patch.view).every((key) => ["zoom","panX","panY"].includes(key))) {
       zoomControls.setZoom(Math.round(state.view.zoom * 100), false);
-      $("#ws-canvas-hint").textContent = state.view.showCodes && state.view.zoom * 20 < state.view.codeVisibilityThreshold ? "放大以查看色号" : "拖动画布平移 · 滚轮缩放";
+      $("#ws-canvas-hint").textContent = canvasHint(state.view);
       if (buildActive()) updateBuildOverlay();
       renderer.requestDraw(); return;
     }
@@ -735,7 +746,7 @@ export function mountWorkspace(bridge) {
     if (patch.view || patch.editor || patch.stats || patch.status || patch.source || patch.reference) renderer.requestDraw();
     // 库存面板只在图纸/项目状态变化时重建；库存自身的变更由它自己订阅，避免每次鼠标移动都重排表格
     if (patch.status || patch.stats) inventoryPanel?.render();
-    $("#ws-canvas-hint").textContent = state.view.showCodes && state.view.zoom * 20 < state.view.codeVisibilityThreshold ? "放大以查看色号" : "拖动画布平移 · 滚轮缩放";
+    $("#ws-canvas-hint").textContent = canvasHint(state.view);
   };
   const affectedCount = (code) => {
     const selection = get().editor.selection;
