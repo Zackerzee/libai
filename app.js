@@ -7243,6 +7243,13 @@ window.LibmsWorkspaceBridge = {
       if (!Array.isArray(row) || row.length !== width) throw new Error("工程文件矩阵宽高与画布尺寸不一致");
       return row.map(resolve);
     });
+    // 工程存档只包含图纸矩阵，不包含原始图片。清掉上一项目的源图，避免工作台仍在
+    // 「原图」视图时显示旧图片，而 Navigator 已经显示刚载入的新图纸。
+    state.sourceDataUrl = "";
+    state.processedSourceDataUrl = "";
+    state.sourceNaturalWidth = 0;
+    state.sourceNaturalHeight = 0;
+    state.sourceName = String(payload.projectName || "导入工程");
     if (!this.replaceGridStructure({ grid, width, height })) throw new Error("工程文件无法载入当前画布");
     if (payload.palette?.maxColors != null && els.maxColorsInput) els.maxColorsInput.value = String(payload.palette.maxColors);
     return this.getResult();

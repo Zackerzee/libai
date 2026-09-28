@@ -385,8 +385,10 @@ export function mountWorkspace(bridge) {
   // 「重新生成」平时隐藏：只有存在手动编辑、自动生成主动让路时才出现，作为显式覆盖出口。
   $("#ws-generate").addEventListener("click", async () => { if (bridge.getResult().manualEdited && !await askConfirmation("重新生成会覆盖当前手动修改。继续吗？")) return;
     try { await generation.generate({ overwriteApproved: true }); } catch (error) { $("#ws-status").textContent = error.message; } });
-  $("#ws-import-again").addEventListener("click", async () => {
-    if (bridge.getResult().manualEdited && !await askConfirmation("换图会移除当前手动修改。继续吗？")) return;
+  $("#ws-import-again").addEventListener("click", () => {
+    // 必须在这次 click 的同步用户手势里打开文件选择器。经过异步 dialog/await 后，
+    // Safari 与部分 Chromium 会把 input.click() 当成非用户触发并直接拦截。
+    if (bridge.getResult().manualEdited && !window.confirm("换图会移除当前手动修改。继续吗？")) return;
     bridge.importImage({ overwriteApproved: true });
   });
   $("#ws-source-open").addEventListener("click", () => store.setState({ ui: { activePanel: "source" } }));
@@ -492,6 +494,22 @@ export function mountWorkspace(bridge) {
   // 虽然回调是运行时执行，但保持「谁先注册都能引用」的写法更不容易踩 TDZ。
   function currentTextLayers() { return get().editor.textLayers || []; }
   function setTextLayers(layers, activeId = null) { store.setState({ editor: { textLayers: layers, activeTextLayerId: activeId } }); }
+  function textDropPoint() {
+    const { w, h } = gridSize();
+    const origin = viewport.origin(), cell = origin.cell || BASE_CELL;
+    const x = (well.clientWidth / 2 - origin.x) / cell;
+    const y = (well.clientHeight / 2 - origin.y) / cell;
+    return { x: clamp(Math.round(x), 0, Math.max(0, w - 1)), y: clamp(Math.round(y), 0, Math.max(0, h - 1)) };
+  }
+  function addTextLayer(at = textDropPoint()) {
+    if (!get().status.hasPattern) { notify("先生成图纸，再添加文字。"); return null; }
+    const color = get().editor.selectedColor || editorService.getPaletteColors()[0]?.code || "";
+    const layer = createTextLayer({ x: at.x, y: at.y, color });
+    setTextLayers([...currentTextLayers(), layer], layer.id);
+    store.setState({ editor: { tool: "text" }, ui: { activePanel: "edit" }, view: { mode: "blocks" } });
+    renderer.requestDraw();
+    return layer;
+  }
   // ---- 形状工具：约束与预览 ----
   // Shift 把终点吸附到 8 个方向（直线）或等比外接框（矩形 / 圆形）。
   // 吸附在「格坐标」上完成，所以预览与最终落笔用的是同一组整数，不会出现半格误差。
@@ -762,8 +780,15 @@ export function mountWorkspace(bridge) {
       const inTop = extendedToolbar?.root.querySelector(`[data-panel="${action}"]`);
       if (inTop) inTop.disabled = disabled;
     };
-    ["mirror", "mirror-vertical", "rotate-cw", "rotate-ccw", "replace", "outline"].forEach((action) => setActionDisabled(action, !hasPattern));
+    ["mirror", "mirror-vertical", "rotate-cw", "rotate-ccw", "replace"].forEach((action) => setActionDisabled(action, !hasPattern));
+    setActionDisabled("outline", !hasPattern || !hasSelection || !state.editor.selectedColor);
     setActionDisabled("compare", !hasSource);
+    // 不满足前置条件的工具直接禁用，避免出现“按钮能点、画布却毫无反应”的假功能。
+    for (const tool of ["select", "bead", "text", "brush", "eraser", "fill", "line", "rect", "ellipse", "region", "wand", "same", "connected", "eyedropper", "pan"]) {
+      gridToolbar.setToolDisabled(tool, !hasPattern);
+      extendedToolbar.setToolDisabled(tool, !hasPattern);
+    }
+    extendedToolbar.setToolDisabled("source-eyedropper", !hasSource);
     syncReferenceUi(state);
     if (patch.editor?.selectedColor || patch.editor?.paletteCategory || patch.stats || patch.ui?.activePanel === "edit") renderPicker();
     // 文字面板：字体/颜色/加粗倾斜/字号/旋转/落豆数都要每次状态变化回灌一次。
@@ -884,7 +909,10 @@ export function mountWorkspace(bridge) {
       bridge.loadProjectJson(payload);
       editorService.clearHistory();
       store.setState({
-        editor: { tool: "select", selectedCell: null, selection: null, hoveredCell: null, highlightedColor: null },
+        source: { image: "", width: 0, height: 0 },
+        status: { hasSource: false, hasPattern: true, dirty: true, generationError: null },
+        view: { mode: "blocks" },
+        editor: { tool: "select", selectedCell: null, selection: null, hoveredCell: null, highlightedColor: null, textLayers: [], activeTextLayerId: null },
         ui: { exportDrawerOpen: false },
       });
       viewport.fitToViewport();
@@ -904,7 +932,14 @@ export function mountWorkspace(bridge) {
     activeTool: get().editor.tool,
     brushSize: get().editor.brushSize,
     shapeFilled: get().editor.shapeFilled,
-    onToolChange: (tool) => store.setState({ editor: { tool }, ui: { activePanel: tool === "source-eyedropper" ? "source" : tool === "replace" ? "color" : "edit" } }),
+    onToolChange: (tool) => {
+      if (["bead", "brush", "fill", "line", "rect", "ellipse", "text"].includes(tool) && !get().editor.selectedColor) {
+        const fallback = bridge.getResult().colors?.[0]?.code || editorService.getPaletteColors()[0]?.code || null;
+        if (fallback) store.setState({ editor: { selectedColor: fallback } });
+      }
+      if (tool === "text" && !get().editor.activeTextLayerId) { addTextLayer(); return; }
+      store.setState({ editor: { tool }, ui: { activePanel: tool === "source-eyedropper" ? "source" : tool === "replace" ? "color" : "edit" } });
+    },
     onBrushSizeChange: (size) => store.setState({ editor: { brushSize: size } }),
     onShapeFilledChange: (filled) => store.setState({ editor: { shapeFilled: filled } }),
     onPanelAction: (action) => {
@@ -916,7 +951,11 @@ export function mountWorkspace(bridge) {
       if (action === "rotate-cw") { rotateGridAction(1); return; }
       if (action === "rotate-ccw") { rotateGridAction(3); return; }
       if (action === "replace") { store.setState({ editor: { tool: "replace" }, ui: { activePanel: "color" } }); return; }
-      if (action === "outline") { editorService.outline(get().editor.selection, get().editor.selectedColor, $("#ws-outline-diagonal").checked); return; }
+      if (action === "outline") {
+        if (!get().editor.selection) { notify("先用框选、魔棒、同色或连通工具选择一个区域。"); return; }
+        if (!get().editor.selectedColor) { notify("先在「色彩」里选择描边色号。"); return; }
+        editorService.outline(get().editor.selection, get().editor.selectedColor, $("#ws-outline-diagonal").checked); return;
+      }
       if (action === "guides") { store.setState({ view: { showGrid: !get().view.showGrid } }); return; }
       if (action === "compare") { toggleCompare(); return; }
     },
@@ -1136,24 +1175,9 @@ export function mountWorkspace(bridge) {
       cells: active ? rasterizeTextCached(active, w, h).cells.length : 0,
     });
   }
-  // 新图层的落点 = 当前视口中心对应的格。视口未就绪时退回画布左上角附近。
-  function textDropPoint() {
-    const { w, h } = gridSize();
-    const origin = viewport.origin(), cell = origin.cell || 20;
-    const x = (well.clientWidth / 2 - origin.x) / cell;
-    const y = (well.clientHeight / 2 - origin.y) / cell;
-    return { x: clamp(Math.round(x), 0, Math.max(0, w - 1)), y: clamp(Math.round(y), 0, Math.max(0, h - 1)) };
-  }
   textPanel = new TextPanel({
     root: "#textPanel",
-    onAdd: () => {
-      if (!get().status.hasPattern) { notify("先生成图纸，再添加文字。"); return; }
-      const at = textDropPoint();
-      const layer = createTextLayer({ x: at.x, y: at.y, color: get().editor.selectedColor || "" });
-      setTextLayers([...currentTextLayers(), layer], layer.id);
-      store.setState({ editor: { tool: "text" }, ui: { activePanel: "edit" } });
-      renderer.requestDraw();
-    },
+    onAdd: () => addTextLayer(),
     onPatch: (id, patch) => {
       if (!id) return;
       setTextLayers(currentTextLayers().map((layer) => (layer.id === id ? { ...layer, ...patch } : layer)), id);

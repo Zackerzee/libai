@@ -169,8 +169,17 @@ export class GridEditorToolbar {
   }
   openHelp() { this.helpDialog?.showModal(); }
   closeMore() { this.root.querySelector(".sl-tool-more")?.removeAttribute("open"); }
-  setTool(tool) { if (tool === this.activeTool) return; this.activeTool = tool; this.sync(); this.onToolChange(tool); }
+  setTool(tool) {
+    // 合并/删除最后一个文字图层后，工具仍可能保持 text。再次点击必须新建图层，
+    // 不能因为按钮已经高亮就静默无响应。
+    if (tool === this.activeTool) { if (tool === "text") this.onToolChange(tool); return; }
+    this.activeTool = tool; this.sync(); this.onToolChange(tool);
+  }
   setActiveTool(tool) { this.activeTool = tool; this.sync(); }
+  setToolDisabled(tool, disabled) {
+    const button = this.root.querySelector(`[data-tool="${tool}"]`);
+    if (button) button.disabled = Boolean(disabled);
+  }
   // 取色按钮上的色块：传 hex 字符串（或 null 表示尚未取色）。只在值真变了才写 DOM，
   // paint 每次状态变化都会调它，无条件赋值会白刷。
   setEyedropperColor(hex) {
