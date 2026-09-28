@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { GRID_TOOLS } from "../../ui/grid-editor-toolbar.js";
 import { createProjectStore } from "../../state/project-store.js";
-import { clampZoom, ZOOM_STEPS } from "../../services/viewport-service.js";
+import { clampZoom, ZOOM_STEPS, MIN_ZOOM } from "../../services/viewport-service.js";
 
 test("grid toolbar exposes every editor tool the workspace relies on", () => {
   const ids = new Set(GRID_TOOLS.map((tool) => tool.id));
@@ -42,10 +42,12 @@ test("generation section updates independently without touching canvas/palette",
 });
 
 test("zoom percent bridge clamps to the viewport multiplier range", () => {
-  // zoom-controls 用百分比 25–800，viewport 用倍数 0.25–8，onChange 里 value/100。
-  assert.equal(clampZoom(0.25), 0.25);
+  // zoom-controls 用百分比 2–800，viewport 用倍数 0.02–8，onChange 里 value/100。
+  assert.equal(clampZoom(MIN_ZOOM), MIN_ZOOM);
   assert.equal(clampZoom(8), 8);
-  assert.equal(clampZoom(0.1), 0.25); // 低于下限
+  // 0.14 是 180 豆图纸适配窗口时的真实缩放，旧版会被抬到 0.25 导致图纸放不进窗口。
+  assert.equal(clampZoom(0.14), 0.14);
+  assert.equal(clampZoom(0.001), MIN_ZOOM); // 低于下限
   assert.equal(clampZoom(12), 8); // 高于上限
   assert.equal(100 / 100, 1); // 100% = 1x
   assert.equal(250 / 100, 2.5);

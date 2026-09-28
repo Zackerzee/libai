@@ -3,7 +3,7 @@ body.phase2-workspace > .app-shell { height: 100dvh; min-height: 0; overflow: hi
 body.phase2-workspace > .app-shell > .topbar,
 body.phase2-workspace > .app-shell > .site-footer,
 body.phase2-workspace > .app-shell > .mobile-bottom-bar { display: none !important; }
-body.phase2-workspace .workspace-wrap { position: relative; flex: none !important; max-width: none !important; width: 100%; height: 100dvh !important; min-height: 0; margin: 0; padding: 0 !important; display: grid !important; grid-template-rows: var(--ws-toolbar-height) minmax(0,1fr) var(--ws-viewbar-height) !important; overflow: hidden; background: var(--ws-app); }
+body.phase2-workspace .workspace-wrap { position: relative; flex: none !important; max-width: none !important; width: 100%; height: 100dvh !important; min-height: 0; margin: 0; padding: 0 !important; display: grid !important; grid-template-rows: var(--ws-toolbar-height) auto minmax(0,1fr) var(--ws-viewbar-height) !important; overflow: hidden; background: var(--ws-app); }
 body.phase2-workspace .workspace-grid[data-phase2-ready="true"] { max-width: none !important; width: 100%; min-height: 0; height: 100%; margin: 0; padding: 0 !important; display: grid !important; grid-template-columns: var(--ws-rail-width) minmax(0,1fr) var(--ws-inspector-width) !important; gap: 0 !important; overflow: hidden; }
 .ws-topbar { display: flex; align-items: center; gap: var(--ws-space-3); min-width: 0; height: var(--ws-toolbar-height); padding: 0 var(--ws-space-4); border-bottom: 1px solid var(--ws-border); background: var(--ws-surface); }
 .ws-engine-label { display: flex; align-items: center; gap: 6px; color: var(--ws-text-secondary); font-size: 12px; white-space: nowrap; }
@@ -146,3 +146,137 @@ body.phase2-workspace .workspace-grid[data-phase2-ready="true"] { max-width: non
 @media (max-width: 760px) { body.phase2-workspace .workspace-grid[data-phase2-ready="true"] { grid-template-columns: 56px minmax(0,1fr) !important; }.ws-inspector { position: absolute; z-index: 20; top: var(--ws-toolbar-height); right: 0; bottom: var(--ws-viewbar-height); width: min(300px,calc(100vw - 56px)); box-shadow: -8px 0 18px #17231b13; }.ws-brand span:last-child { display: none; }.ws-brand { min-width: 30px; }.ws-topbar { gap: 5px; padding: 0 7px; }.ws-name { min-width: 0; }.ws-viewbar { overflow-x: auto; padding: 0 7px; }.ws-view-modes,.ws-view-toggles { flex: 0 0 auto; } }
 @media (prefers-reduced-motion: reduce) { .ws-export-drawer { transition: visibility 0s, opacity .12s; transform: none; opacity: 0; }.ws-export-drawer.open { opacity: 1; } .ws-button:active,.ws-rail-button:active { transform: none; } }
 @media (prefers-contrast: more) { .ws-rail-button.active,.ws-color-row.active { border-color: var(--ws-accent); } }
+
+/* ───────── 顶栏参数条：编辑工具与变换 + 图纸尺寸（单行） + 视图缩放 ─────────
+   作为 .workspace-wrap 网格第 2 行（auto），横贯整宽，位于工作台上方、底部画笔坞之上。
+   色号选择与生成参数一律不在这里，统一收在右栏「色彩」面板，避免与画笔坞重复、也不再压住画布。 */
+.phase2-workspace .ws-top-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 50px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--ws-border);
+  background: var(--ws-surface);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.phase2-workspace .ws-top-controls::-webkit-scrollbar { height: 8px; }
+.phase2-workspace .ws-top-controls::-webkit-scrollbar-thumb { background: #d6d3cf; border-radius: 8px; }
+.phase2-workspace .ws-top-tools { flex: 0 0 auto; display: flex; align-items: center; }
+
+/* 图纸尺寸：一行预设 52 / 78 / 104 / 自动，右侧紧邻缩放；靠 auto 外边距贴右 */
+.phase2-workspace .ws-top-size {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  padding-left: 12px;
+  border-left: 1px solid var(--ws-border);
+}
+.phase2-workspace .ws-top-size-label { color: var(--ws-text-tertiary); font-size: 11px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; }
+.phase2-workspace .ws-size-chips { display: flex; align-items: center; gap: 4px; }
+.phase2-workspace .ws-size-chip {
+  min-width: 44px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--ws-border);
+  border-radius: 8px;
+  background: var(--ws-surface);
+  color: var(--ws-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.phase2-workspace .ws-size-chip:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
+.phase2-workspace .ws-size-chip.is-active { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
+.phase2-workspace .ws-size-chip-auto { min-width: 52px; }
+.phase2-workspace .ws-top-zoom { display: flex; align-items: center; }
+
+/* 手动尺寸步进器：− [最长边] +，按当前比例缩放 */
+.phase2-workspace .ws-size-stepper { display: flex; align-items: center; gap: 2px; }
+.phase2-workspace .ws-size-stepper button,
+.phase2-workspace .ws-multiple-stepper button { width: 28px; height: 30px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface); color: var(--ws-text-secondary); font-size: 15px; line-height: 1; cursor: pointer; }
+.phase2-workspace .ws-size-stepper button:hover,
+.phase2-workspace .ws-multiple-stepper button:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
+.phase2-workspace .ws-size-stepper input { width: 62px; height: 30px; padding: 0 6px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface); color: var(--ws-text); font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; text-align: center; }
+.phase2-workspace .ws-size-stepper input::-webkit-outer-spin-button,
+.phase2-workspace .ws-size-stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* 像素倍数识别：读数 + 手动 −/+ 覆盖 */
+.phase2-workspace .ws-multiple { display: flex; align-items: center; gap: 6px; }
+.phase2-workspace .ws-multiple-label { color: var(--ws-text-tertiary); font-size: 11px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; }
+.phase2-workspace .ws-multiple-stepper { display: flex; align-items: center; gap: 2px; }
+.phase2-workspace .ws-multiple-stepper output { display: grid; place-items: center; min-width: 48px; height: 30px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface-soft); color: var(--ws-text); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.phase2-workspace .ws-multiple.is-manual .ws-multiple-stepper output { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
+
+/* 扩展工具条：单行不换行；工具与变换动作之间用分隔线分组 */
+.phase2-workspace .sl-grid-toolbar-extended { flex-wrap: nowrap; }
+.phase2-workspace .sl-grid-toolbar-extended .sl-tool-sep { width: 1px; align-self: stretch; margin: 4px 6px; background: var(--ws-border); }
+
+/* ───────── 右栏「色彩」面板：色卡 + 生成参数 + 色号选择 ─────────
+   GenerationPanel 从顶栏搬进窄右栏，撤掉横向卡片布局、回归竖排；预设网格压成 2 列。 */
+.phase2-workspace .ws-panel[data-ws-inspector="color"] .sl-generation-panel { gap: 12px; margin: 12px 0 4px; }
+.phase2-workspace .ws-panel[data-ws-inspector="color"] .sl-panel-section { padding: 12px; border-radius: 10px; border-color: var(--ws-border); }
+.phase2-workspace .ws-panel[data-ws-inspector="color"] .sl-section-heading { margin-bottom: 12px; }
+.phase2-workspace .ws-panel[data-ws-inspector="color"] .sl-section-heading h3 { font-size: 13px; }
+.phase2-workspace .ws-panel[data-ws-inspector="color"] .sl-section-heading p { font-size: 11px; }
+.phase2-workspace .ws-panel[data-ws-inspector="color"] .sl-preset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.phase2-workspace .ws-panel[data-ws-inspector="color"] .sl-sampling-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.phase2-workspace .ws-panel[data-ws-inspector="color"] .sl-advanced-content { display: block; }
+.phase2-workspace .ws-panel[data-ws-inspector="color"] #ws-color-search { width: 100%; height: 32px; margin-bottom: 8px; padding: 0 9px; border: 1px solid var(--ws-border); border-radius: 6px; font-size: 12px; background: var(--ws-surface); color: var(--ws-text); }
+
+/* ───────── 右栏「编辑」面板：文字素材（浮动图层） ─────────
+   结构照 Pixler 的「添加文字」：上面是浮动图层列表，下面是当前图层的编辑表单。
+   文字在画布上只画在 overlay 层（拖动/调参全程不写 grid），点「向下合并」才写进图纸。 */
+.phase2-workspace .ws-text-panel { display: grid; gap: 10px; margin: 10px 0 4px; }
+
+/* 浮动图层列表 */
+.phase2-workspace .ws-text-layers { display: grid; gap: 6px; }
+.phase2-workspace .ws-text-layers-head { color: var(--ws-text-tertiary); font-size: 11px; font-weight: 700; letter-spacing: .06em; }
+.phase2-workspace .ws-text-layers-head b { color: var(--ws-text-secondary); }
+.phase2-workspace .ws-text-layer {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  padding: 7px 9px; border: 1px solid var(--ws-border); border-radius: 8px;
+  background: var(--ws-surface); color: var(--ws-text-secondary);
+  font-size: 12px; text-align: left; cursor: pointer;
+}
+.phase2-workspace .ws-text-layer:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
+.phase2-workspace .ws-text-layer.is-active { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
+.phase2-workspace .ws-text-layer-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phase2-workspace .ws-text-layer-badge { flex: 0 0 auto; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--ws-accent); color: var(--ws-accent); font-size: 10px; font-weight: 700; }
+
+/* 编辑表单：文字内容 / 字体 / 颜色 / 加粗倾斜 / 字号 / 旋转 */
+.phase2-workspace .ws-text-editor { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--ws-border); border-radius: 10px; background: var(--ws-surface-soft); }
+.phase2-workspace .ws-text-label { color: var(--ws-text-secondary); font-size: 11px; }
+.phase2-workspace .ws-text-colors { display: flex; flex-wrap: wrap; gap: 6px; }
+.phase2-workspace .ws-text-swatch {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 7px 3px 3px; border: 1px solid var(--ws-border); border-radius: 6px;
+  background: var(--ws-surface); color: var(--ws-text-secondary);
+  font-size: 11px; font-weight: 650; cursor: pointer;
+}
+.phase2-workspace .ws-text-swatch i { width: 16px; height: 16px; border: 1px solid var(--ws-border); border-radius: 3px; }
+.phase2-workspace .ws-text-swatch:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
+.phase2-workspace .ws-text-swatch.is-on { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
+.phase2-workspace .ws-text-swatch-pick,
+.phase2-workspace .ws-text-swatch-add { padding: 3px 9px; font-size: 13px; line-height: 1; }
+.phase2-workspace .ws-text-style { display: flex; gap: 6px; }
+.phase2-workspace .ws-text-toggle {
+  width: 34px; height: 30px; border: 1px solid var(--ws-border); border-radius: 8px;
+  background: var(--ws-surface); color: var(--ws-text-secondary); font-size: 13px; cursor: pointer;
+}
+.phase2-workspace .ws-text-toggle:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
+.phase2-workspace .ws-text-toggle.is-on { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
+.phase2-workspace .ws-text-actions { display: grid; grid-template-columns: auto 1fr; gap: 8px; }
+.phase2-workspace .ws-text-delete { color: var(--ws-danger); }
+.phase2-workspace .ws-text-delete:hover:not(:disabled) { border-color: var(--ws-danger); background: var(--ws-surface); color: var(--ws-danger); }
+
+@media (max-width: 760px) {
+  /* 小屏：顶栏改为纵向堆叠，尺寸组不再贴右 */
+  .phase2-workspace .ws-top-controls { flex-direction: column; align-items: stretch; gap: 8px; }
+  .phase2-workspace .ws-top-size { margin-left: 0; padding-left: 0; border-left: 0; }
+}

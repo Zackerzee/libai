@@ -42,9 +42,17 @@
 
 ### 5. 字体
 
-- Nunito、Noto Sans SC，经 Google Fonts CDN 引入
-- 许可：**SIL Open Font License 1.1**
-- 状态：仅通过 CDN 链接加载，字体文件本身不随本仓库分发
+- **`vendor/fusion-pixel/` — 缝合像素字体 / Fusion Pixel Font**
+  - 许可：**SIL Open Font License 1.1**（全文见 [`vendor/fusion-pixel/LICENSE-OFL.txt`](vendor/fusion-pixel/LICENSE-OFL.txt)）
+  - 版权：`Copyright (c) 2022, TakWolf (https://takwolf.com)`
+  - 上游：<https://github.com/TakWolf/fusion-pixel-font>（上游版本 2026.08.11）
+  - 打包来源：npm `@vp-tw/cjk-web-fonts-fusion-pixel-font@0.0.1`（MIT AND OFL-1.1，
+    README 声明为 vp-tw 维护的非官方 webfont 打包）
+  - 用途：全站界面字体（12px 等宽简体中文子集，77 个 `unicode-range` 分片，共约 1.1 MB）
+  - 状态：**原样引入**，未修改字形；`NOTICE.md` 与许可全文随目录一并保留
+  - 该字体本身合并了多个 OFL 许可项目的字形，完整许可文本见 `vendor/fusion-pixel/LICENSE-OFL.txt`
+- ~~Nunito、Noto Sans SC，经 Google Fonts CDN 引入~~ —— **2026-09-22 已移除**，
+  改由上面的本地像素字体承担全部界面字形（同时省掉一次 797ms 的渲染阻塞请求）
 
 ### 6. `vendor/fflate.js` — ZIP / DEFLATE 压缩库
 
@@ -72,6 +80,28 @@
 | `guqiao5757-png/doudou-up-beads` | 用量汇总设计 | 见各仓库 |
 | `DanZai233/PixelBead` | 绘图交互设计 | 见各仓库 |
 | `beads9/pindou-workbench` | PW 算法模块设计思路 | 仓库内无 LICENSE 文件，故不作为许可依据，仅参考 |
+
+### 与 Pixler 的关系（格式互操作 + 视觉参照，均未复制源码）
+
+上游：**Pixler** <https://pixler.starrylight.art>（商业产品，闭源，未提供公开许可）。
+
+- `importers/pixler.mjs` —— `.pixler` 项目文件导入适配器
+  - 做法：对**用户自己导出的** `.pixler` 文件做**格式反推**，直接读取其中的结构化网格，
+    而不是转成图片再识别（避免二次损失）。
+  - 未复制上游任何源码文本、未调用上游任何接口、未绕过任何授权校验。
+  - 文件内的色板与色号属于**用户自己作品的数据**，随用户文件一并读取；
+    色差计算使用公开的 sRGB→CIELAB(D65) 与 CIEDE2000 标准公式，未抄录 Pixler 的数据表。
+  - 兼容性范围：`codecVersion 1`。上游若变更格式，导入会明确报错而不是猜测
+    （见 `tests/pixler-import.test.mjs` 中「非 Pixler 的 ZIP 应被拒绝」用例）。
+- `styles/pixler-skin.css` —— 工作台视觉参照
+  - 仅参照其**栅格尺寸与信息密度**（左轨 54px、右栏 244px、顶栏 34px、直角纸张画布）
+    这一级别的布局参数。布局尺寸本身不受著作权保护。
+  - 未复制其图标、插画、字体文件、文案或配色表；像素字体为独立选用的
+    Fusion Pixel（OFL-1.1，见上文第 5 项）。
+  - 界面上的品牌名、色号体系、功能命名均沿用本站自身定义。
+
+> 若上游对上述任一项提出异议，`importers/pixler.mjs` 与 `styles/pixler-skin.css`
+> 均为可独立摘除的模块，摘除后本站主流程不受影响。
 
 ---
 

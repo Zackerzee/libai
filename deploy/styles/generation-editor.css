@@ -554,6 +554,11 @@ input:checked + .sl-switch-ui::after {
   color: #a1a9b6;
 }
 
+/* 取色按钮上的「当前色」色块：右键画布取色后，这里立刻反映刚取到的颜色。
+   .sl-tool-button 已 position:relative，色块绝对定位在右上角，不挤占图标与文字。 */
+.sl-tool-swatch { position: absolute; top: 2px; right: 2px; width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,.3); box-shadow: inset 0 0 0 1px rgba(255,255,255,.55); background: transparent; pointer-events: none; }
+.sl-tool-swatch.is-empty { background-image: conic-gradient(#c9c2c6 25%, #fff 0 50%, #c9c2c6 0 75%, #fff 0); background-size: 6px 6px; }
+
 .sl-toolbar-divider {
   width: 1px;
   height: 24px;

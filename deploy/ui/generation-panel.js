@@ -60,7 +60,7 @@ export class GenerationPanel {
       contrast: 0,
       saturation: 0,
 
-      advancedOpen: false,
+      advancedOpen: true,
 
       ...initialState
     };
@@ -86,11 +86,7 @@ export class GenerationPanel {
     this.root.innerHTML = `
       <section class="sl-generation-panel">
 
-        ${this.renderPresetSection()}
-
-        ${this.renderSizeSection()}
-
-        ${this.renderSamplingSection()}
+        ${this.renderGenMethodSection()}
 
         ${this.renderProtectionSection()}
 
@@ -100,29 +96,21 @@ export class GenerationPanel {
 
         <p class="sl-info-box">亮度、对比度、饱和度、旋转与裁剪请在「图片调整」中应用。</p>
 
-        <div class="sl-generate-footer">
-          <button
-            class="sl-primary-button"
-            data-action="generate"
-            type="button"
-          >
-            生成拼豆图纸
-          </button>
-        </div>
-
       </section>
     `;
 
     this.syncUI();
   }
 
-  renderPresetSection() {
+  // 算法与生成方式合并成同一段：先选生成策略（preset），再定取色算法（sampling）。
+  // 图纸尺寸不在这里 —— 已提到工作台上方的顶栏，做成 52 / 78 / 104 / 自动 一行。
+  renderGenMethodSection() {
     return `
       <div class="sl-panel-section">
         <div class="sl-section-heading">
           <div>
-            <h3>生成方式</h3>
-            <p>根据图片类型选择不同的生成策略</p>
+            <h3>算法与生成方式</h3>
+            <p>先选生成策略，再定每颗豆从原图取色的算法</p>
           </div>
         </div>
 
@@ -178,129 +166,6 @@ export class GenerationPanel {
           )}
 
         </div>
-      </div>
-    `;
-  }
-
-  presetButton(value, title, description, icon) {
-    return `
-      <button
-        type="button"
-        class="sl-preset-card"
-        data-preset="${value}"
-      >
-        <span class="sl-preset-icon">${icon}</span>
-
-        <span class="sl-preset-copy">
-          <strong>${title}</strong>
-          <small>${description}</small>
-        </span>
-
-        <span class="sl-preset-check">✓</span>
-      </button>
-    `;
-  }
-
-  renderSizeSection() {
-    const sizes = [36, 52, 78, 104, 156, 200];
-
-    return `
-      <div class="sl-panel-section">
-
-        <div class="sl-section-heading">
-          <div>
-            <h3>图纸尺寸</h3>
-            <p>宽度和高度可以独立设置</p>
-          </div>
-
-          <label class="sl-inline-switch">
-            <span>锁定比例</span>
-
-            <input
-              type="checkbox"
-              data-field="lockAspectRatio"
-            />
-
-            <span class="sl-switch-ui"></span>
-          </label>
-        </div>
-
-        <div class="sl-size-fields">
-
-          <label class="sl-number-field">
-            <span>宽度</span>
-
-            <div>
-              <input
-                type="number"
-                min="1"
-                max="500"
-                data-field="width"
-              />
-
-              <span>豆</span>
-            </div>
-          </label>
-
-          <span class="sl-size-cross">×</span>
-
-          <label class="sl-number-field">
-            <span>高度</span>
-
-            <div>
-              <input
-                type="number"
-                min="1"
-                max="500"
-                data-field="height"
-              />
-
-              <span>豆</span>
-            </div>
-          </label>
-
-        </div>
-
-        <div class="sl-size-presets">
-
-          ${sizes
-            .map(
-              size => `
-                <button
-                  type="button"
-                  data-size="${size}"
-                  class="sl-chip"
-                >
-                  ${size}
-                </button>
-              `
-            )
-            .join("")}
-
-          <button
-            type="button"
-            class="sl-chip"
-            data-action="focus-custom-size"
-          >
-            自定义
-          </button>
-
-        </div>
-
-      </div>
-    `;
-  }
-
-  renderSamplingSection() {
-    return `
-      <div class="sl-panel-section">
-
-        <div class="sl-section-heading">
-          <div>
-            <h3>格子采样</h3>
-            <p>决定每颗豆如何从原图获得代表颜色</p>
-          </div>
-        </div>
 
         <div class="sl-sampling-tabs">
 
@@ -347,6 +212,25 @@ export class GenerationPanel {
         ></div>
 
       </div>
+    `;
+  }
+
+  presetButton(value, title, description, icon) {
+    return `
+      <button
+        type="button"
+        class="sl-preset-card"
+        data-preset="${value}"
+      >
+        <span class="sl-preset-icon">${icon}</span>
+
+        <span class="sl-preset-copy">
+          <strong>${title}</strong>
+          <small>${description}</small>
+        </span>
+
+        <span class="sl-preset-check">✓</span>
+      </button>
     `;
   }
 
@@ -479,17 +363,12 @@ export class GenerationPanel {
     return `
       <div class="sl-panel-section sl-advanced-section">
 
-        <button
-          type="button"
-          class="sl-advanced-trigger"
-          data-action="toggle-advanced"
-        >
-          <span>更多设置</span>
-
-          <span data-role="advanced-label">
-            展开
-          </span>
-        </button>
+        <div class="sl-section-heading">
+          <div>
+            <h3>更多设置</h3>
+            <p>亮度、对比度、饱和度与智能辅助开关</p>
+          </div>
+        </div>
 
         <div
           class="sl-advanced-content"
@@ -650,19 +529,6 @@ export class GenerationPanel {
         return;
       }
 
-      const size = event.target.closest("[data-size]");
-
-      if (size) {
-        const value = Number(size.dataset.size);
-
-        this.setState({
-          width: value,
-          height: value
-        });
-
-        return;
-      }
-
       const stepper = event.target.closest("[data-step-field]");
 
       if (stepper) {
@@ -715,22 +581,10 @@ export class GenerationPanel {
       if (!action) return;
 
       switch (action.dataset.action) {
-        case "toggle-advanced":
-          this.setState({
-            advancedOpen: !this.state.advancedOpen
-          });
-          break;
-
         case "generate":
           this.onGenerate({
             ...this.state
           });
-          break;
-
-        case "focus-custom-size":
-          this.root
-            .querySelector('[data-field="width"]')
-            ?.focus();
           break;
       }
     });

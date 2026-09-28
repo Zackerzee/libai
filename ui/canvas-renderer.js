@@ -1,4 +1,5 @@
-import { BASE_CELL } from "../services/viewport-service.js";
+import { BASE_CELL } from "../services/viewport-service.js?v=20260924-text";
+import { rasterizeTextCached, cellsBox } from "../services/text-layer-service.js?v=20260924-text";
 
 export const codeForegroundColor = (rgb) => {
   if (!rgb) return "#17212b";
@@ -9,7 +10,7 @@ export const codeForegroundColor = (rgb) => {
 // reference 必须排在 base 之下：底图垫在豆格下方，空豆处才透得出来。
 const LAYER_NAMES = ["reference", "base", "grid", "codes", "overlay"];
 
-export function createCanvasRenderer(container, viewport, getResult, getView, getEditor, getReference = () => null) {
+export function createCanvasRenderer(container, viewport, getResult, getView, getEditor, getReference = () => null, resolveColor = () => null) {
   const layers = LAYER_NAMES.map((name) => {
     const canvas = document.createElement("canvas"); canvas.className = `ws-layer ws-layer-${name}`;
     canvas.dataset.layer = name; container.append(canvas); return canvas;
@@ -141,6 +142,34 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
         ctx[L.overlay].setLineDash([4, 3]);
         ctx[L.overlay].strokeRect(anchor.x, anchor.y, (maxX - minX + 1) * cell, (maxY - minY + 1) * cell);
         ctx[L.overlay].setLineDash([]);
+      }
+    }
+    // 浮动文字图层。只画在 overlay 层、不写进 grid：所以拖动/调参过程中撤销栈是干净的，
+    // 点「向下合并」才产生一步历史。用与合并完全相同的栅格化结果来画，
+    // 保证「看到的格子」就是「合下去的格子」。
+    if (editor.textLayers?.length) {
+      for (const layer of editor.textLayers) {
+        const { cells } = rasterizeTextCached(layer, gridWidth, gridHeight);
+        if (!cells.length) continue;
+        const hex = resolveColor(layer.color)?.hex || layer.color || "#e87325";
+        const isActive = layer.id === editor.activeTextLayerId;
+        ctx[L.overlay].globalAlpha = isActive ? 0.82 : 0.5;
+        ctx[L.overlay].fillStyle = hex;
+        for (const { x, y } of cells) {
+          if (x < x0 || x >= x1 || y < y0 || y >= y1) continue;
+          const p = viewport.gridToScreen(x, y);
+          ctx[L.overlay].fillRect(p.x, p.y, cell, cell);
+        }
+        ctx[L.overlay].globalAlpha = 1;
+        const box = cellsBox(cells);
+        if (box && isActive) {
+          const anchor = viewport.gridToScreen(box.x0, box.y0);
+          ctx[L.overlay].strokeStyle = "#e87325";
+          ctx[L.overlay].lineWidth = 1.5;
+          ctx[L.overlay].setLineDash([4, 3]);
+          ctx[L.overlay].strokeRect(anchor.x, anchor.y, box.width * cell, box.height * cell);
+          ctx[L.overlay].setLineDash([]);
+        }
       }
     }
     if (["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)) {

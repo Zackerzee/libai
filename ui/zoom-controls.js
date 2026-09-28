@@ -1,8 +1,23 @@
+import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEPS, zoomToSlider, sliderToZoom } from "../services/viewport-service.js?v=20260924-text";
+
+// 「−」「+」按共享的 ZOOM_STEPS 跳档。
+// 原来固定 ±25 个百分点：在 25% 下限时代已经够粗，下限降到 2% 后更是没法用
+// （2% 按一次变 27%，等于直接跳过整个「看整幅」区间）。走档位表各区间手感才一致。
+const stepFrom = (percent, direction) => {
+  const current = percent / 100;
+  const next = direction < 0
+    ? [...ZOOM_STEPS].reverse().find((value) => value < current - 0.001)
+    : ZOOM_STEPS.find((value) => value > current + 0.001);
+  return (next ?? current) * 100;
+};
+
 export class ZoomControls {
   constructor({
     root,
-    min = 25,
-    max = 800,
+    // 默认区间直接取自 viewport-service 的常量，避免两处各写一份后漂移：
+    // 一旦 setZoom 夹的区间比 fitToViewport 允许的更窄，读数就会和真实缩放对不上。
+    min = MIN_ZOOM * 100,
+    max = MAX_ZOOM * 100,
     value = 100,
     onChange = () => {},
     onFit = () => {}
@@ -40,6 +55,7 @@ export class ZoomControls {
         <button
           type="button"
           data-action="zoom-out"
+          aria-label="缩小"
         >
           −
         </button>
@@ -49,23 +65,25 @@ export class ZoomControls {
           class="sl-zoom-value"
           data-role="zoom-value"
         >
-          ${this.value}%
+          ${Math.round(this.value)}%
         </button>
 
         <button
           type="button"
           data-action="zoom-in"
+          aria-label="放大"
         >
           +
         </button>
 
         <input
           type="range"
-          min="${this.min}"
-          max="${this.max}"
-          value="${this.value}"
-          step="5"
+          min="0"
+          max="100"
+          step="1"
+          value="${zoomToSlider(this.value / 100)}"
           data-role="zoom-slider"
+          aria-label="缩放"
         />
 
       </div>
@@ -84,20 +102,22 @@ export class ZoomControls {
           break;
 
         case "zoom-out":
-          this.setZoom(this.value - 25);
+          this.setZoom(stepFrom(this.value, -1));
           break;
 
         case "zoom-in":
-          this.setZoom(this.value + 25);
+          this.setZoom(stepFrom(this.value, 1));
           break;
       }
     });
 
+    // 滑块是 0–100 的**对数**刻度（见 viewport-service 的 zoomToSlider）：
+    // 线性刻度下 2%–100% 只占轨道前 12%，低倍段挤成一团点不准。
     this.root
       .querySelector('[data-role="zoom-slider"]')
       .addEventListener("input", event => {
         this.setZoom(
-          Number(event.target.value)
+          sliderToZoom(Number(event.target.value)) * 100
         );
       });
   }
@@ -114,7 +134,7 @@ export class ZoomControls {
 
     this.root.querySelector(
       '[data-role="zoom-slider"]'
-    ).value = this.value;
+    ).value = zoomToSlider(this.value / 100);
 
     if (emit) {
       this.onChange(this.value);

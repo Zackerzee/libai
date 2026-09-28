@@ -137,11 +137,19 @@ export function toGray(imageData) {
  * 往外留 pad（避免笔画贴着裁剪边）。
  */
 export function cropBox(image, box, { inset = 0, padRatio = 0.12 } = {}) {
+  // 契约：box 是 {x0,y0,x1,y1}（左上角 + 右下角坐标），**不是** {x,y,width,height}。
+  // 传错形状时下面每个算式都会得到 NaN，一路传到 new OffscreenCanvas(NaN, NaN)，
+  // 抛出的却是「Value is not of type 'unsigned long'」—— 完全看不出问题在哪。
+  // 这里提前拦下，把错误指到真正的原因上。
+  const { x0: bx0, y0: by0, x1: bx1, y1: by1 } = box ?? {};
+  if (![bx0, by0, bx1, by1].every(Number.isFinite)) {
+    throw new TypeError("cropBox: box 必须是 {x0,y0,x1,y1} 且四个值都是有限数（不是 {x,y,width,height}）");
+  }
   const step = Math.max(0, Math.floor(inset));
-  const x0 = Math.max(0, Math.floor(box.x0) + step);
-  const y0 = Math.max(0, Math.floor(box.y0) + step);
-  const x1 = Math.min(image.width, Math.ceil(box.x1) - step);
-  const y1 = Math.min(image.height, Math.ceil(box.y1) - step);
+  const x0 = Math.max(0, Math.floor(bx0) + step);
+  const y0 = Math.max(0, Math.floor(by0) + step);
+  const x1 = Math.min(image.width, Math.ceil(bx1) - step);
+  const y1 = Math.min(image.height, Math.ceil(by1) - step);
   const cropWidth = Math.max(1, x1 - x0);
   const cropHeight = Math.max(1, y1 - y0);
   const pad = Math.max(2, Math.round(cropHeight * padRatio));

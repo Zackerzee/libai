@@ -98,6 +98,22 @@ test("cropBox 不越出图片边界", () => {
   assert.ok(crop.height <= 50);
 });
 
+test("cropBox 对错误的 box 形状给出可读报错，而不是一路 NaN 到 OffscreenCanvas", () => {
+  // 契约是 {x0,y0,x1,y1}。传成 {x,y,width,height} 时，
+  // 原实现会让每个算式得到 NaN，最终在 new OffscreenCanvas(NaN, NaN) 处
+  // 抛出「Value is not of type 'unsigned long'」—— 完全指不到真正的原因。
+  const image = { width: 200, height: 100 };
+  assert.throws(
+    () => cropBox(image, { x: 0, y: 0, width: 200, height: 100 }),
+    /x0,y0,x1,y1/,
+  );
+  assert.throws(() => cropBox(image, {}), /x0,y0,x1,y1/);
+  assert.throws(() => cropBox(image, undefined), /x0,y0,x1,y1/);
+  assert.throws(() => cropBox(image, { x0: 0, y0: 0, x1: NaN, y1: 10 }), /x0,y0,x1,y1/);
+  // 正确形状不受影响
+  assert.doesNotThrow(() => cropBox(image, { x0: 0, y0: 0, x1: 200, y1: 100 }));
+});
+
 test("scaleForHeight 让小字放大到至少 64px 高", () => {
   // 小字靠 minHeight 兜底：高度 10 时按 64/10 = 6.4 倍放大
   assert.equal(scaleForHeight(10), 6.4);

@@ -1,6 +1,17 @@
 export const BASE_CELL = 20;
-export const ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 6, 8];
-export const clampZoom = (zoom) => Math.max(0.25, Math.min(8, Number(zoom) || 1));
+// 缩放下限必须低到「整幅图纸能落进窗口」。
+// 180 豆 × 20px = 3600px，画布区宽 ~900px 时需要的适配缩放约 0.23——比原先的 0.25 还小，
+// 于是 25% 的下限直接把「适配窗口」卡死：fitToViewport() 算出来 0.23 又被 clamp 回 0.25，
+// 结果大图纸永远有一截露在窗口外。降到 2% 后，500 豆（10000px）在 250px 宽的窗口里也能完整显示。
+export const MIN_ZOOM = 0.02;
+export const MAX_ZOOM = 8;
+export const ZOOM_STEPS = [0.02, 0.05, 0.1, 0.15, 0.2, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 6, 8];
+// 注意别写成 `Number(zoom) || 1`：0 是合法输入（滑块最左端），
+// 用 `||` 会被当成「无效值」替换成 1，滑块拖到底反而跳到 100%。
+export const clampZoom = (zoom) => {
+  const value = Number(zoom);
+  return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Number.isFinite(value) ? value : 1));
+};
 
 export function createViewportService(store, getSize) {
   const state = () => store.getState().view;
@@ -24,6 +35,9 @@ export function createViewportService(store, getSize) {
     return { x: Math.max(0, Math.min(gridWidth - 1, Math.floor((x - o.x) / o.cell))),
       y: Math.max(0, Math.min(gridHeight - 1, Math.floor((y - o.y) / o.cell))) };
   };
+  // 连续格坐标（可含小数）。文字图层拖动要的是这个：取整交给栅格化那一步，
+  // 手感才顺；不夹边界也不返回 null —— 拖出画布时文字应该继续跟着鼠标走。
+  const screenToGridFloat = (x, y) => { const o = origin(); return { x: (x - o.x) / o.cell, y: (y - o.y) / o.cell }; };
   const setZoom = (zoom, point = null) => {
     const next = clampZoom(zoom), old = state().zoom;
     if (next === old) return;
@@ -35,10 +49,10 @@ export function createViewportService(store, getSize) {
       panY: anchor.y - b.viewportHeight / 2 - (gy - b.gridHeight / 2) * nextCell } });
   };
   return {
-    origin, gridToScreen, screenToGrid, screenToGridClamped, setZoom,
+    origin, gridToScreen, screenToGrid, screenToGridClamped, screenToGridFloat, setZoom,
     zoomAroundPoint: setZoom,
-    zoomIn() { setZoom(ZOOM_STEPS.find((value) => value > state().zoom + 0.001) || 8); },
-    zoomOut() { setZoom([...ZOOM_STEPS].reverse().find((value) => value < state().zoom - 0.001) || 0.25); },
+    zoomIn() { setZoom(ZOOM_STEPS.find((value) => value > state().zoom + 0.001) || MAX_ZOOM); },
+    zoomOut() { setZoom([...ZOOM_STEPS].reverse().find((value) => value < state().zoom - 0.001) || MIN_ZOOM); },
     fitToViewport() {
       const b = bounds(); if (!b.gridWidth || !b.gridHeight) return;
       const zoom = clampZoom(Math.min((b.viewportWidth - 64) / (b.gridWidth * BASE_CELL), (b.viewportHeight - 64) / (b.gridHeight * BASE_CELL)));
@@ -50,6 +64,7 @@ export function createViewportService(store, getSize) {
   };
 }
 
-// Logarithmic slider gives precision around 100% without wasting most of the track above 400%.
-export const zoomToSlider = (zoom) => Math.round(100 * Math.log(clampZoom(zoom) / 0.25) / Math.log(8 / 0.25));
-export const sliderToZoom = (value) => clampZoom(0.25 * Math.pow(8 / 0.25, Number(value) / 100));
+// 对数滑块：2%–800% 跨度 400 倍，线性刻度会把 90% 的轨道浪费在 100% 以上，
+// 低倍段（恰恰是「看整幅」最常用的区间）挤成几个像素，根本点不准。
+export const zoomToSlider = (zoom) => Math.round(100 * Math.log(clampZoom(zoom) / MIN_ZOOM) / Math.log(MAX_ZOOM / MIN_ZOOM));
+export const sliderToZoom = (value) => clampZoom(MIN_ZOOM * Math.pow(MAX_ZOOM / MIN_ZOOM, Number(value) / 100));

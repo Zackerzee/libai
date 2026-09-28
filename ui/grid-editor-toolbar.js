@@ -1,6 +1,7 @@
 export const GRID_TOOLS = [
   { id: "select", label: "选择", shortcut: "V" },
   { id: "bead", label: "单豆", shortcut: "N" },
+  { id: "text", label: "文字", shortcut: "T" },
   { id: "brush", label: "画笔", shortcut: "B" },
   { id: "eraser", label: "擦除", shortcut: "E" },
   { id: "fill", label: "填色", shortcut: "G" },
@@ -18,6 +19,13 @@ export const GRID_TOOLS = [
 
 // 形状工具共用「拖动绘制」交互，画布层据此分流。
 export const SHAPE_TOOLS = { line: "line", rect: "rect", ellipse: "ellipse" };
+// 工具条主区顺序。取色紧跟画笔：右键画布取色后，左键即可用当前色画笔，
+// 把取色放在画笔旁边让「取色 → 画」的来回最短。
+export const PRIMARY_ORDER = ["brush", "eyedropper", "eraser", "fill", "line", "rect", "ellipse"];
+// 顶栏「扩展」区：编辑/选择类工具（取色已在主区，不放这里避免重复）。
+export const EXTENDED_TOOL_IDS = ["select", "bead", "text", "region", "wand", "same", "connected", "pan", "source-eyedropper"];
+// 顶栏「操作」区：与底栏画笔工具栏不重叠的变换/批量动作。
+export const EXTENDED_ACTION_IDS = [["replace", "换色"], ["outline", "描边"], ["rotate-ccw", "逆时针 90°"], ["rotate-cw", "顺时针 90°"], ["mirror-vertical", "上下镜像"], ["guides", "辅助线"], ["compare", "原图对比"]];
 // 笔宽固定为奇数格：偶数笔宽没有对称中心，实际落笔位置会偏移半格。
 export const BRUSH_SIZES = [1, 3, 5, 7, 9];
 
@@ -51,19 +59,20 @@ const icons = {
   rect: svg('<rect x="4.5" y="7.5" width="23" height="17" rx="1"/>'),
   ellipse: svg('<ellipse cx="16" cy="16" rx="12" ry="9.5"/>'),
   wand: svg('<path d="m5 27 13-13"/><path d="m16.5 15.5 4 4"/><path d="M23 5.5l1.1 3.2 3.2 1.1-3.2 1.1L23 14.1l-1.1-3.2-3.2-1.1 3.2-1.1z"/>'),
+  text: svg('<path d="M6 7h20"/><path d="M16 7v18"/><path d="M11 25h10"/>'),
   mirror: svg('<path d="M16 3v26" stroke-dasharray="3 3"/><path d="M12 8 4 12v9l8 4V8Zm8 0 8 4v9l-8 4V8Z"/>'),
   more: svg('<circle cx="6" cy="16" r="1.7" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1.7" fill="currentColor" stroke="none"/><circle cx="26" cy="16" r="1.7" fill="currentColor" stroke="none"/>'),
   undo: svg('<path d="M13 8 5 15l8 7"/><path d="M5 15h13c7 0 10 4 10 10"/>'),
   redo: svg('<path d="m19 8 8 7-8 7"/><path d="M27 15H14C7 15 4 19 4 25"/>'),
   help: svg('<circle cx="16" cy="16" r="12"/><path d="M12.5 12.6a3.6 3.6 0 1 1 4.4 3.5c-.9.3-1.4 1-1.4 1.9v.6"/><circle cx="15.5" cy="23" r="1.3" fill="currentColor" stroke="none"/>'),
 };
-const primaryIds = ["brush", "eraser", "fill", "line", "rect", "ellipse"];
-const moreActions = [["replace", "换色"], ["outline", "描边"], ["rotate-ccw", "逆时针 90°"], ["rotate-cw", "顺时针 90°"], ["guides", "辅助线"], ["compare", "原图对比"], ["mirror-vertical", "上下镜像"]];
-const smallGlyph = { select: "↖", bead: "□", region: "▧", same: "≋", connected: "⌘", eyedropper: "⌾", "source-eyedropper": "◉" };
+const primaryIds = PRIMARY_ORDER;
+const smallGlyph = { select: "↖", bead: "□", region: "▧", same: "≋", connected: "⌘", eyedropper: "⌾", "source-eyedropper": "◉", text: "T" };
 
 export class GridEditorToolbar {
-  constructor({ root, activeTool = "select", brushSize = 1, shapeFilled = false, onToolChange = () => {}, onPanelAction = () => {}, onBrushSizeChange = () => {}, onShapeFilledChange = () => {} }) {
+  constructor({ root, variant = "primary", activeTool = "select", brushSize = 1, shapeFilled = false, onToolChange = () => {}, onPanelAction = () => {}, onBrushSizeChange = () => {}, onShapeFilledChange = () => {} }) {
     this.root = typeof root === "string" ? document.querySelector(root) : root;
+    this.variant = variant;
     this.activeTool = activeTool;
     this.brushSize = brushSize;
     this.shapeFilled = shapeFilled;
@@ -71,29 +80,44 @@ export class GridEditorToolbar {
     this.onPanelAction = onPanelAction;
     this.onBrushSizeChange = onBrushSizeChange;
     this.onShapeFilledChange = onShapeFilledChange;
-    this.render(); this.bindEvents(); this.bindShortcuts(); this.bindHelp();
+    this.render(); this.bindEvents();
+    // 键盘快捷键只绑定在主区实例：GRID_TOOLS 里所有工具的快捷键（含选择/框选/魔棒/同色/连通/移动）
+    // 都经主区这一处处理，处理后走 store → paint → 两个实例一起同步高亮。扩展区再绑一份只会重复触发。
+    // 帮助对话框同理只在主区实例里建（扩展区没有独立的帮助节点，点帮助走 onPanelAction → 主区 openHelp）。
+    if (this.variant !== "extended") { this.bindShortcuts(); this.bindHelp(); }
   }
   toolButton(tool, secondary = false) {
-    return `<button type="button" class="sl-tool-button${secondary ? " sl-tool-button-secondary" : ""}" data-tool="${tool.id}" title="${tool.label}${tool.shortcut ? ` (${tool.shortcut})` : ""}" aria-label="${tool.label}"><span class="sl-tool-icon">${icons[tool.id] || `<span class="sl-tool-glyph">${smallGlyph[tool.id]}</span>`}</span><span class="sl-tool-label">${tool.label}</span></button>`;
+    // 取色按钮常显「当前色」色块：右键画布取色后，这里立刻反映刚取到的颜色。
+    const swatch = tool.id === "eyedropper" ? `<span class="sl-tool-swatch" data-eyedropper-swatch aria-hidden="true"></span>` : "";
+    return `<button type="button" class="sl-tool-button${secondary ? " sl-tool-button-secondary" : ""}${tool.id === "eyedropper" ? " sl-tool-button-eyedrop" : ""}" data-tool="${tool.id}" title="${tool.label}${tool.shortcut ? ` (${tool.shortcut})` : ""}" aria-label="${tool.label}">${swatch}<span class="sl-tool-icon">${icons[tool.id] || `<span class="sl-tool-glyph">${smallGlyph[tool.id]}</span>`}</span><span class="sl-tool-label">${tool.label}</span></button>`;
   }
   render() {
-    const primary = GRID_TOOLS.filter((tool) => primaryIds.includes(tool.id));
-    const secondary = GRID_TOOLS.filter((tool) => !primaryIds.includes(tool.id));
-    // 工具条是浮在画布上方的浮层（top:12px），一旦换行就会把多出来的高度压在画布上、
-    // 抢走下面几行的点击。所以这里严格保持单行：新增控件一律放到「编辑」检查器里。
+    // 底栏主区：画笔类主工具 + 左右镜像 + 历史。不再有「更多」菜单——
+    // 选择 / 框选 / 魔棒 / 同色 / 连通 / 移动 / 原图取色以及换色、描边、旋转、上下镜像、
+    // 辅助线、原图对比等动作，已全部迁到顶栏的扩展工具条（variant="extended"），避免重复。
+    if (this.variant === "extended") { this.renderExtended(); return; }
+    const primary = PRIMARY_ORDER.map((id) => GRID_TOOLS.find((tool) => tool.id === id)).filter(Boolean);
     this.root.innerHTML = `<div class="sl-grid-toolbar" role="toolbar" aria-label="画布工具"><div class="sl-toolbar-primary">
       ${primary.map((tool) => this.toolButton(tool)).join("")}
       <button type="button" class="sl-tool-button" data-panel="mirror" title="左右镜像整个图纸，可撤销" aria-label="左右镜像"><span class="sl-tool-icon">${icons.mirror}</span><span class="sl-tool-label">镜像</span></button>
-      <details class="sl-tool-more"><summary class="sl-tool-button" aria-label="更多工具"><span class="sl-tool-icon">${icons.more}</span><span class="sl-tool-label">更多</span></summary><div class="sl-tool-menu" role="group" aria-label="更多编辑工具">
-        ${secondary.map((tool) => this.toolButton(tool, true)).join("")}
-        ${moreActions.map(([id, label]) => `<button type="button" class="sl-tool-button sl-tool-button-secondary" data-panel="${id}"><span class="sl-tool-label">${label}</span></button>`).join("")}
-        <button type="button" class="sl-tool-button sl-tool-button-secondary" data-panel="help"><span class="sl-tool-label">功能说明与快捷键</span></button>
-        <button type="button" class="sl-tool-button sl-tool-button-secondary" disabled title="像素字（待实现）">像素字 · 待实现</button>
-      </div></details></div><div class="sl-toolbar-history" aria-label="编辑历史">
-        <button type="button" class="sl-history-button" data-panel="help" aria-label="功能说明与快捷键" title="功能说明与快捷键">${icons.help}</button>
-        <button type="button" class="sl-history-button" data-panel="undo" aria-label="撤销" title="撤销" disabled>${icons.undo}</button>
-        <button type="button" class="sl-history-button" data-panel="redo" aria-label="重做" title="重做" disabled>${icons.redo}</button>
-      </div></div>`;
+    </div><div class="sl-toolbar-history" aria-label="编辑历史">
+      <button type="button" class="sl-history-button" data-panel="help" aria-label="功能说明与快捷键" title="功能说明与快捷键">${icons.help}</button>
+      <button type="button" class="sl-history-button" data-panel="undo" aria-label="撤销" title="撤销" disabled>${icons.undo}</button>
+      <button type="button" class="sl-history-button" data-panel="redo" aria-label="重做" title="重做" disabled>${icons.redo}</button>
+    </div></div>`;
+    this.sync();
+  }
+  // 顶栏扩展区：编辑/选择类工具 + 变换/批量动作 + 帮助。不使用浮层，横向排布，
+  // 内容随顶栏容器横向滚动；与底栏画笔工具栏互不重叠、互不重复。
+  renderExtended() {
+    const tools = EXTENDED_TOOL_IDS.map((id) => GRID_TOOLS.find((tool) => tool.id === id)).filter(Boolean);
+    const actions = EXTENDED_ACTION_IDS.map(([id, label]) => `<button type="button" class="sl-tool-button" data-panel="${id}" title="${label}" aria-label="${label}"><span class="sl-tool-label">${label}</span></button>`).join("");
+    this.root.innerHTML = `<div class="sl-grid-toolbar sl-grid-toolbar-extended" role="toolbar" aria-label="编辑工具与变换"><div class="sl-toolbar-primary">
+      ${tools.map((tool) => this.toolButton(tool)).join("")}
+      <span class="sl-tool-sep" aria-hidden="true"></span>
+      ${actions}
+      <button type="button" class="sl-tool-button" data-panel="help" title="功能说明与快捷键" aria-label="功能说明与快捷键">${icons.help}</button>
+    </div></div>`;
     this.sync();
   }
   bindEvents() {
@@ -135,6 +159,7 @@ export class GridEditorToolbar {
         ["框选 / 魔棒", "框选为矩形区域；魔棒按色差容差自动圈选连续区域，Shift 叠加、Alt 减掉"],
         ["同色 / 连通", "同色 = 全图同色号；连通 = 只选相邻的同色块"],
         ["取色 / 原图取色", "取色取自当前图纸；原图取色取自中央原图"],
+        ["文字", "在画布上点一下放一个文字图层；拖动可移动。字体 / 颜色 / 加粗倾斜 / 字号 / 旋转在右栏「编辑」里调，调完点「向下合并」才写进图纸"],
         ["移动", "拖动画布视图，不改图纸"],
       ].map(([key, label]) => `<div><dt>${key}</dt><dd>${label}</dd></div>`).join("")}</dl></section>`;
     dialog.querySelector(".ws-help-close").addEventListener("click", () => dialog.close());
@@ -146,6 +171,15 @@ export class GridEditorToolbar {
   closeMore() { this.root.querySelector(".sl-tool-more")?.removeAttribute("open"); }
   setTool(tool) { if (tool === this.activeTool) return; this.activeTool = tool; this.sync(); this.onToolChange(tool); }
   setActiveTool(tool) { this.activeTool = tool; this.sync(); }
+  // 取色按钮上的色块：传 hex 字符串（或 null 表示尚未取色）。只在值真变了才写 DOM，
+  // paint 每次状态变化都会调它，无条件赋值会白刷。
+  setEyedropperColor(hex) {
+    const next = hex || null;
+    if (this._eyedropperHex === next) return;
+    this._eyedropperHex = next;
+    const swatch = this.root.querySelector("[data-eyedropper-swatch]");
+    if (swatch) { swatch.style.background = next || "transparent"; swatch.classList.toggle("is-empty", !next); }
+  }
   // 可见的笔宽控件在「编辑」检查器里（工具条必须保持单行高度），这里只保留状态。
   // notify 必须显式区分：从 store 回灌时绝不能回调，否则 setState → paint → setBrushSize → setState 会绕成死循环；
   // 而用户改控件时又必须无条件回调 —— 曾经只在「值被夹取」时才回调，导致显示 3 而实际落笔仍按旧值。

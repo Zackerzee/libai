@@ -44,9 +44,17 @@ const DIRECT_PATTERN_MIN_COLOR_COUNT = 3;
 const BLANK_BOARD_MIN = 1;
 const BLANK_BOARD_MAX = 1000;
 const TFJS_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js";
-const NSFWJS_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/nsfwjs@4.2.1/dist/nsfwjs.min.js";
-const SAFETY_SCRIPT_LOAD_TIMEOUT = 8000;
-const SAFETY_MODEL_LOAD_TIMEOUT = 12000;
+// nsfwjs 4.x 浏览器版**不自带模型**：必须按「模型元数据 → 权重分片 → 主包」的顺序
+// 依次挂上三个 script，最后才能调用 nsfwjs.load()（默认 MobileNetV2）。
+// 三处路径任一写错，loadLocalSafetyModel() 都会静默返回 null，图片审查被整体跳过。
+const NSFWJS_CDN = "https://cdn.jsdelivr.net/npm/nsfwjs@4.2.1/dist";
+const NSFWJS_MODEL_URL = `${NSFWJS_CDN}/models/mobilenet_v2/model.min.js`;
+const NSFWJS_WEIGHTS_URL = `${NSFWJS_CDN}/models/mobilenet_v2/group1-shard1of1.min.js`;
+const NSFWJS_SCRIPT_URL = `${NSFWJS_CDN}/browser/nsfwjs.min.js`;
+// 权重分片单个 3.4 MB，原先的 8 秒在弱网下必然超时（超时会静默放行，等于审查失效）。
+// 这里给到 20 秒；再长就没有意义了 —— 用户在上传后会一直停在「本地审查中」。
+const SAFETY_SCRIPT_LOAD_TIMEOUT = 20000;
+const SAFETY_MODEL_LOAD_TIMEOUT = 15000;
 const NSFW_THRESHOLDS = {
   Porn: 0.55,
   Hentai: 0.55,
@@ -797,107 +805,11 @@ const els = {
   applyGridAlignButton: document.querySelector("#apply-grid-align-button"),
 };
 
-const state = {
-  sourceDataUrl: "",
-  sourceName: "",
-  sourceNaturalWidth: 0,
-  sourceNaturalHeight: 0,
-  grid: [],
-  stats: [],
-  generationEngine: "v2.5",
-  generationPreset: "auto",
-  generationSampling: "auto",
-  generationEngineLast: "",
-  // 算法引擎：与 generationEngine（v2.5 / legacy）正交的第二条轴。
-  // "current" = 现有 libms 链路，一行未改；"bgs" = src/algorithms/bgs；
-  // "pindou-workbench" / "hybrid-pw" = src/algorithms/pindou-workbench。
-  // 默认 "current"，所以不选新引擎时全站行为与以前逐位一致。
-  algorithmEngine: "current",
-  algorithmEngineLast: "",
-  pindoReport: null,
-  bgsReport: null,
-  // Batch F：pw 两个引擎的报告与档位。没跑过就是 null，不参与任何计算。
-  pwReport: null,
-  pwPaletteMatchMode: "ciede2000",
-  pwOptions: null,
-  pwHybridOptions: null,
-  chartUrl: "",
-  previewUrl: "",
-  paletteLabel: "",
-  width: 0,
-  height: 0,
-  previewZoom: 1,
-  previewRenderCell: 8,
-  previewDetailCodesVisible: false,
-  previewModalUsesCurrentGrid: false,
-  editorZoom: 1,
-  selectedBrand: DEFAULT_BRAND,
-  selectedColor: null,
-  editorGrid: [],
-  editorTool: "pencil",
-  editorFloating: null,
-  editorSelection: null,
-  activeEditorSelection: null,
-  editorReferenceImage: null,
-  editorReference: null,
-  referenceUndo: [],
-  currentPaintAction: [],
-  patternAdjustBase: null,
-  patternAdjustPreviewGrid: null,
-  patternAdjustTarget: "editor",
-  patternAdjustFrame: 0,
-  gridAlignBase: null,
-  generationOriginalGrid: null,
-  generationOptimizedGrid: null,
-  showingOptimizedGrid: true,
-  optimizerReport: null,
-  structuralTransitionReport: null,
-  structuralDetectionBaseline: null,
-  regionalBlockReport: null,
-  paletteBudget: null,
-  editorPrefs: {
-    showGrid: true,
-    showCodes: true,
-    showCoords: true,
-    snap: true,
-    toolbarPosition: "left",
-  },
-  assemblyMode: false,
-  assemblyHighlightCode: "",
-  playActiveCode: "",
-  currentSelectedColor: null,
-  playCompletedBeads: new Set(),
-  playStorageKey: "",
-  playHoverRow: "",
-  playHoverCol: "",
-  assemblyHistoryActive: false,
-  assemblyHideCellText: false,
-  directPatternFile: null,
-  paintUndo: [],
-  replaceUndo: [],
-  manualEdited: false,
-  importApproved: false,
-  targetHeight: 50,
-  aspectRatioLocked: false,
-  isPainting: false,
-  lastPaintKey: "",
-  importMode: "photo",
-  autoProcessAfterLoad: false,
-  restoreAutoSizePending: false,
-  livePreviewTimer: 0,
-  livePreviewPending: false,
-  isProcessingImage: false,
-  backgroundDecision: "",
-  paletteEngine: null,
-  sourceSafetyChecked: false,
-  processedSourceDataUrl: "",
-  sourceTransform: { crop: null, cropRatio: "free", rotation: 0, flipX: false, flipY: false,
-    brightness: 0, contrast: 0, saturation: 0, sharpen: 0,
-    expand: { top: 0, bottom: 0, left: 0, right: 0 }, background: "#ffffff" },
-  safetyModel: null,
-  safetyModelLoading: null,
-  safetyModelUnavailable: false,
-};
+const state = window.libmsStore.compat();
+/* ↑ Phase 2：原 100 字段扁平 state 字面量已替换为 store.js 的兼容层 Proxy。
+   真实数据只存一份，位于 window.libmsStore（state/store.js）。
+   旧代码 state.xxx 读写全部路由到 store，无双写。详见 STATE-MIGRATION.md。
+   不要在 Phase 3/4 之前在此恢复字面量或新增直接写入的字段。 */
 
 function applyRandomPixelTheme() {
   const background = pickRandom(PIXEL_THEME_COLORS);
@@ -967,7 +879,7 @@ function init() {
   renderEditorLibraryOptions();
   bindEvents();
   updateResultUi();
-  import("./ui/workspace.js?v=20260918-pindo1").then(({ mountWorkspace }) => mountWorkspace(window.LibmsWorkspaceBridge)).catch((error) => console.error("Workspace UI mount failed", error));
+  import("./ui/workspace.js?v=20260924-text").then(({ mountWorkspace }) => mountWorkspace(window.LibmsWorkspaceBridge)).catch((error) => console.error("Workspace UI mount failed", error));
 }
 
 function setupProfessionalMainLayout() {
@@ -1996,6 +1908,10 @@ async function loadLocalSafetyModel() {
   state.safetyModelLoading = (async () => {
     try {
       if (!window.tf) await loadScriptOnce(TFJS_SCRIPT_URL);
+      // 顺序不可调换：nsfwjs.load() 依赖前两个 script 挂上的全局量
+      // （window.model / window.group1_shard1of1）。
+      if (!window.model) await loadScriptOnce(NSFWJS_MODEL_URL);
+      if (!window.group1_shard1of1) await loadScriptOnce(NSFWJS_WEIGHTS_URL);
       if (!window.nsfwjs) await loadScriptOnce(NSFWJS_SCRIPT_URL);
       if (!window.nsfwjs?.load) return null;
       state.safetyModel = await withTimeout(window.nsfwjs.load(), SAFETY_MODEL_LOAD_TIMEOUT);

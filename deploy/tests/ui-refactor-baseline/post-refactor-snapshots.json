@@ -1,9 +1,0 @@
-{
-  "capturedFrom": "new Workspace browser UI at 127.0.0.1:8767; actual Color Grid exposed only for localhost diagnostics",
-  "cases": [
-    {"fixture":"images.png","requestedWidth":52,"requestedMaxColors":38,"width":52,"height":49,"usedColors":10,"totalBeads":1792,"matrixHash":"1d2fb1ab","paletteCodeDistribution":{"H02":398,"H03":17,"H04":26,"H05":57,"H06":82,"H07":992,"H09":92,"H11":41,"H20":39,"M15":48}},
-    {"fixture":"images.png","requestedWidth":78,"requestedMaxColors":38,"width":78,"height":74,"usedColors":10,"totalBeads":3979,"matrixHash":"343a897e","paletteCodeDistribution":{"H02":1097,"H03":22,"H04":32,"H05":71,"H06":89,"H07":2420,"H09":88,"H11":47,"H20":32,"M15":81}},
-    {"fixture":"images.png","requestedWidth":104,"requestedMaxColors":38,"width":104,"height":98,"usedColors":10,"totalBeads":6559,"matrixHash":"cec80835","paletteCodeDistribution":{"H02":1451,"H03":48,"H04":41,"H05":141,"H06":104,"H07":4310,"H09":166,"H11":85,"H20":111,"M15":102}},
-    {"fixture":"libai-logo.png","requestedWidth":52,"requestedMaxColors":38,"width":52,"height":52,"usedColors":38,"totalBeads":2177,"matrixHash":"37e8a20a","paletteCodeDistribution":{"A01":3,"A11":8,"A19":23,"A20":19,"A21":6,"A25":5,"A26":318,"B06":9,"B07":26,"B08":297,"B20":15,"B28":20,"C01":19,"C06":24,"C07":316,"C13":7,"C21":5,"C24":9,"C27":12,"C28":9,"D16":11,"E01":11,"E15":10,"E17":10,"F02":8,"F03":116,"F04":75,"F05":115,"F14":16,"F25":3,"H01":6,"H02":519,"H10":8,"H12":8,"H13":16,"H17":12,"H18":66,"H19":17}}
-  ]
-}
