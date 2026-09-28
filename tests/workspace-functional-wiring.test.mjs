@@ -32,3 +32,10 @@ test("需要颜色的绘图工具会自动获得可用颜色，描边会校验�
   assert.match(workspace, /extendedToolbar\.setToolDisabled\("source-eyedropper", !hasSource\)/);
   assert.match(toolbar, /setToolDisabled\(tool, disabled\)/);
 });
+
+test("没有图纸或原图时，依赖内容的视图与参数控件会禁用", () => {
+  assert.match(workspace, /button\.dataset\.wsView === "original" \? !hasSource : !hasPattern/);
+  assert.match(workspace, /\$\("#ws-compare"\)\.disabled = !hasSource/);
+  assert.match(workspace, /\$\("#ws-apply-outline"\)\.disabled = !hasPattern \|\| !hasSelection/);
+  assert.match(workspace, /control\.disabled = !hasSource/);
+});

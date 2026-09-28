@@ -704,6 +704,9 @@ export function mountWorkspace(bridge) {
     right.querySelector('.ws-side-tabs [data-ws-panel="source"]').disabled = !hasSource;
     $("#ws-import-again").hidden = !hasSource;
     $("#ws-making").disabled = !hasPattern; $("#ws-export").disabled = !hasPattern; $("#ws-open-editor").disabled = !hasPattern;
+    $("#ws-bead-size").disabled = !hasPattern;
+    $("#ws-replace-confirm").disabled = !hasPattern;
+    $("#ws-ref-pick").disabled = !hasPattern;
     $("#ws-status").textContent = state.status.generationError ? `生成失败：${state.status.generationError}` : state.status.generating ? "正在生成" : bridge.getResult().manualEdited ? "已手动编辑" : state.status.dirty ? "参数待更新" : hasPattern ? "已生成" : hasSource ? "图片已导入" : "未开始";
     $("#ws-legacy-retry").hidden = !state.status.generationError;
     if (document.activeElement !== top.querySelector("#ws-project-name")) top.querySelector("#ws-project-name").value = state.project.name;
@@ -735,7 +738,12 @@ export function mountWorkspace(bridge) {
     navigator.requestDraw();
     if (patch.stats || patch.status || patch.editor?.highlightedColor) $("#ws-color-list").innerHTML = state.stats.colors.map((color) => `<button type="button" data-ws-color="${esc(color.code)}" class="ws-color-row ${state.editor.highlightedColor === color.code ? "active" : ""}"><span class="ws-swatch" style="background:${esc(color.hex)}"></span><span>${esc(color.code)}</span><small>${color.count.toLocaleString("zh-CN", { useGrouping: false })}</small></button>`).join("") || '<p class="ws-note">生成图纸后显示色号与数量。</p>';
     const checks = bridge.getChecks(); $("#ws-check-results").innerHTML = hasPattern ? `<p>尺寸：${state.canvas.width} × ${state.canvas.height}</p><p>颜色：${state.stats.usedColors} 色${checks.validation?.valid === false ? " · 超出当前上限" : " · 已校验"}</p>${checks.structural ? `<p>结构检测：${esc(JSON.stringify(checks.structural))}</p>` : ""}` : "生成后显示可验证的尺寸、色数与结构报告。";
-    viewBar.querySelectorAll("[data-ws-view]").forEach((button) => { button.classList.toggle("active", button.dataset.wsView === state.view.mode); button.disabled = button.dataset.wsView === "original" && !hasSource; });
+    viewBar.querySelectorAll("[data-ws-view]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.wsView === state.view.mode);
+      button.disabled = button.dataset.wsView === "original" ? !hasSource : !hasPattern;
+    });
+    $("#ws-compare").disabled = !hasSource;
+    $("#ws-grid").disabled = !hasPattern; $("#ws-codes").disabled = !hasPattern;
     $("#ws-grid").checked = state.view.showGrid; $("#ws-codes").checked = state.view.showCodes;
     zoomControls.setZoom(Math.round(state.view.zoom * 100), false);
     gridToolbar.setActiveTool(state.editor.tool);
@@ -765,6 +773,7 @@ export function mountWorkspace(bridge) {
     $("#ws-invert-selection").disabled = !hasPattern;
     $("#ws-paste-selection").disabled = !editorService.hasClipboard() || !hasPattern;
     $("#ws-select-all").disabled = !hasPattern;
+    $("#ws-apply-outline").disabled = !hasPattern || !hasSelection || !state.editor.selectedColor;
     const selected = state.editor.selectedCell;
     const selectedColor = selected ? editorService.getCell(selected.x, selected.y) : null;
     $("#ws-cell-details").innerHTML = state.editor.selection ? `<strong>${esc({rectangle:"矩形", "same-color":"同色",connected:"连通", "magic-wand":"魔棒", inverse:"反选", selection:"区域"}[state.editor.selection.kind] || "区域")}选区 · ${selectionCells(state.editor.selection, state.canvas.width, state.canvas.height).length.toLocaleString("zh-CN", { useGrouping: false })} 豆</strong><p>X ${state.editor.selection.x0 + 1}–${state.editor.selection.x1 + 1} · Y ${state.editor.selection.y0 + 1}–${state.editor.selection.y1 + 1}</p><p>选区换色、擦除与描边仅影响对应豆格。方向键可整体搬移。</p>` : selected ? `<strong>${esc(selectedColor?.code || "空白")}</strong><p>位置 · X ${selected.x + 1} / Y ${selected.y + 1}</p><p>${selectedColor ? `${esc(selectedColor.hex || "")} · RGB ${esc(selectedColor.rgb?.join(",") || "")}` : "真正空豆"}</p><p>使用 · ${selectedColor ? editorService.getColorUsage(selectedColor.code).toLocaleString("zh-CN", { useGrouping: false }) : 0} 颗</p>` : "用选择工具点击画布中的一颗豆。";
@@ -789,6 +798,8 @@ export function mountWorkspace(bridge) {
       extendedToolbar.setToolDisabled(tool, !hasPattern);
     }
     extendedToolbar.setToolDisabled("source-eyedropper", !hasSource);
+    topControls.querySelectorAll("[data-size], [data-size-step], [data-multiple-step]").forEach((control) => { control.disabled = !hasSource; });
+    $("#ws-size-input").disabled = !hasSource;
     syncReferenceUi(state);
     if (patch.editor?.selectedColor || patch.editor?.paletteCategory || patch.stats || patch.ui?.activePanel === "edit") renderPicker();
     // 文字面板：字体/颜色/加粗倾斜/字号/旋转/落豆数都要每次状态变化回灌一次。
