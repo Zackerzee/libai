@@ -41,13 +41,14 @@ export function mountWorkspace(bridge) {
   const wrap = document.querySelector(".workspace-wrap"), grid = wrap?.querySelector(".workspace-grid");
   const top = wrap?.querySelector(".main-global-toolbar"), left = grid?.querySelector(".main-left-toolbar");
   const center = grid?.querySelector(".main-center-workspace"), right = grid?.querySelector(".main-right-inspector");
-  if (grid?.dataset.phase2Ready) return { mounted: true, reused: true };
+  if (grid?.dataset.workspaceReady) return { mounted: true, reused: true };
+  if (grid?.dataset.workspaceMounting) throw new Error("工作台正在挂载");
   const missing = [
     [wrap, ".workspace-wrap"], [grid, ".workspace-grid"], [top, ".main-global-toolbar"],
     [left, ".main-left-toolbar"], [center, ".main-center-workspace"], [right, ".main-right-inspector"],
   ].filter(([node]) => !node).map(([, selector]) => selector);
   if (missing.length) throw new Error("工作台骨架不完整：" + missing.join(", "));
-  grid.dataset.phase2Ready = "true";
+  grid.dataset.workspaceMounting = "true";
   grid.dataset.workspaceShell = "v3";
   bridge.setLockAspectRatio(false);
   bridge.setWidth(104); bridge.setHeight(104);
@@ -1343,4 +1344,7 @@ export function mountWorkspace(bridge) {
   store.subscribe(paint);
   syncLegacy(); paint(get(), { status: true, stats: true });
   renderPicker();
+  delete grid.dataset.workspaceMounting;
+  grid.dataset.workspaceReady = "true";
+  return { mounted: true, reused: false };
 }

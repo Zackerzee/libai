@@ -21,6 +21,14 @@ test("bootstrap prepares compatibility shell before mounting workspace", () => {
 test("workspace fails loudly when its required shell is incomplete", () => {
   assert.match(workspace, /工作台骨架不完整/);
   assert.match(workspace, /dataset\.workspaceShell = "v3"/);
+  assert.match(workspace, /dataset\.workspaceReady/);
+  assert.doesNotMatch(workspace, /phase2Ready/);
+});
+
+test("workspace is marked ready only after its initial paint completes", () => {
+  assert.ok(workspace.indexOf("paint(get(), { status: true, stats: true })") < workspace.lastIndexOf('dataset.workspaceReady = "true"'));
+  assert.match(workspace, /dataset\.workspaceMounting/);
+  assert.match(bootstrap, /delete shell\.dataset\.workspaceReady/);
 });
 
 test("render policy has one canonical browser module identity", () => {

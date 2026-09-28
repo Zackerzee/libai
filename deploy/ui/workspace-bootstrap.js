@@ -26,6 +26,11 @@ export function bootstrapWorkspace({ bridge, prepareLegacyShell }) {
     document.getElementById(ERROR_ID)?.remove();
     return result;
   } catch (error) {
+    const shell = document.querySelector(".workspace-grid");
+    if (shell) {
+      delete shell.dataset.workspaceMounting;
+      delete shell.dataset.workspaceReady;
+    }
     showFailure(error);
     console.error("Workspace bootstrap failed", error);
     return null;
