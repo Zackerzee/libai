@@ -7,61 +7,14 @@
  *   · 施工模式为暗色 #1C191F 底 / #F4F1F5 字
  *   · 全直角、1px 细边、零渐变零阴影
  *
- * 本文件替代原 animal-island.css 的位置（同为最后加载的覆盖层）。
- * 只改视觉：配色 / 字体 / 圆角 / 阴影 / 尺寸令牌。
+ * 组件视觉规则。权威令牌已迁到 tokens.css；本文件不再维护第二套
+ * 无作用域 :root 配色。
  *
  * ⚠️ 令牌权威性：styles.css 末尾存在无条件的 Pixel(:2058) / Apple(:2632) 主题
  *    :root 块，源码顺序靠后、会静默覆盖靠前的同名令牌。故本文件用**同样的
  *    :root 选择器 + 最后加载**，才能成为事实唯一来源。改主题一律写这里。
  * ⚠️ 像素字体只在 12px 整数倍下锐利。字号一律取 12 / 24 的倍数，勿写 13/15px。
  * ============================================================= */
-
-/* ---------- 0. 令牌权威覆盖 ---------- */
-:root {
-  /* 亮色（编辑模式） */
-  --page: #eae7ec;
-  --surface: #ffffff;
-  --surface-strong: #ffffff;
-  --surface-card: #ffffff;
-  --surface-soft: #f4f2f6;
-  --secondary-bg: #f4f2f6;
-  --secondary-pressed: #e6e2ea;
-  --ink: #211f26;
-  --body: #45404e;
-  --charcoal: #55505e;
-  --muted: #7d7887;
-  --muted-soft: #9a94a4;
-  --line: rgba(33, 31, 38, 0.16);
-  --line-soft: rgba(33, 31, 38, 0.09);
-
-  /* 强调色：品红 */
-  --primary: #df3478;
-  --primary-hover: #e8548d;
-  --primary-pressed: #c02663;
-  --primary-active: #c02663;
-  --blue: #df3478;
-  --blue-dark: #c02663;
-  --cyan: #df3478;
-  --primary-bg: #fbe8f0;
-  --focus-outer: #df3478;
-  --focus-ring-button: #df3478;
-
-  /* 直角 + 无阴影 */
-  --radius-pill: 0;
-  --radius-lg: 0;
-  --radius-md: 0;
-  --btn-3d: none;
-  --btn-3d-hover: none;
-  --btn-3d-active: none;
-  --panel-shadow: none;
-  --soft-shadow: none;
-
-  --dur: 0.12s;
-  --ease: steps(2, end);
-
-  /* 字体 */
-  --px-font: "Fusion Pixel 12px Monospaced Simplified Chinese", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-}
 
 /* ---------- 1. 底 + 字体 ---------- */
 html,
@@ -206,17 +159,6 @@ button:focus-visible, .primary-action:focus-visible,
 .ai-switch { border-radius: 0 !important; }
 .ai-switch::after { border-radius: 0 !important; }
 .ai-switch:checked { background: var(--primary); }
-
-/* ---------- 4. 工作台尺寸令牌 ---------- */
-@media (min-width: 1101px) {
-  :root {
-    --ws-rail-width: 54px;
-    --ws-inspector-width: 244px;
-    --ws-toolbar-height: 34px;
-    --ws-viewbar-height: 46px;
-    --ws-radius-sm: 0px;
-  }
-}
 
 /* 画布台：直角 + 细边，无阴影
    ⚠️ 只能改 margin，不能改 padding —— viewport-service 惰性读 well.clientWidth，

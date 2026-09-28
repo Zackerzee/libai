@@ -1,76 +1,173 @@
-/* =============================================================
- * animal-island-ui style tokens
- * 里白造物站点整体改版：套用 animal-island-ui 视觉语言
- * 来源：https://github.com/guokaigdg/animal-island-ui (CC BY-NC 4.0)
- * 设计令牌：暖米底 / 棕褐字 / 薄荷青主色 / 12px+ 圆角 / 3D 按钮阴影 / Nunito 字体
- * 本文件只放变量，不写布局。所有组件经 var() 自动级联。
- * ============================================================= */
-
+/* Libms Design Tokens — V3 M1
+ * Single source of truth. Legacy variables below are compatibility aliases.
+ * Scoped themes may override --ds-* values, never add another unscoped palette.
+ */
 :root {
-  /* ---- animal-island 原始令牌（引用方便，不强制使用） ---- */
-  --animal-font: "Nunito", "Noto Sans SC", -apple-system, "PingFang SC",
-    "Hiragino Sans GB", sans-serif;
-  --animal-primary: #19c8b9;
-  --animal-primary-hover: #3dd4c6;
-  --animal-primary-active: #11a89b;
-  --animal-primary-bg: #e6f9f6;
-  --animal-text: #794f27;
-  --animal-text-body: #725d42;
-  --animal-text-secondary: #9f927d;
-  --animal-text-muted: #8a7b66;
-  --animal-text-disabled: #c4b89e;
-  --animal-bg: #f8f8f0;
-  --animal-bg-content: rgb(247, 243, 223);
-  --animal-bg-disabled: #f0ece2;
-  --animal-border: #c4b89e;
-  --animal-border-hover: #a89878;
-  --animal-radius-sm: 12px;
-  --animal-radius: 18px;
-  --animal-radius-lg: 24px;
-  --animal-radius-pill: 50px;
-  --animal-shadow-btn: #bdaea0;
-  --animal-shadow-input: #d4c9b4;
-  --animal-focus-yellow: #ffcc00;
-  --animal-focus-yellow-d: #e0b800;
-  --animal-success: #6fba2c;
-  --animal-warning: #f5c31c;
-  --animal-error: #e05a5a;
-  --animal-ease: cubic-bezier(0.4, 0, 0.2, 1);
-  --animal-duration-fast: 0.15s;
-  --animal-duration: 0.25s;
-  --animal-duration-slow: 0.35s;
+  --ds-font-ui: "Fusion Pixel 12px Monospaced Simplified Chinese", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --ds-font-mono: var(--ds-font-ui);
+  --ds-font-size-xs: 10px;
+  --ds-font-size-sm: 11px;
+  --ds-font-size-md: 12px;
+  --ds-font-size-lg: 16px;
+  --ds-font-size-xl: 24px;
+  --ds-line-height: 1.5;
 
-  /* ---- 站点级 --ws-* 令牌：映射为 animal-island 值 ---- */
-  --ws-app: #f8f8f0; /* 主背景：米白羊皮纸 */
-  --ws-canvas: #f7f3df; /* 内容区背景 */
-  --ws-surface: #fffdf7; /* 暖白卡片 */
-  --ws-surface-soft: #f3efe2;
-  --ws-border: #c4b89e; /* 暖棕边框 */
-  --ws-border-strong: #a89878;
-  --ws-text: #725d42; /* 正文棕褐（禁纯黑） */
-  --ws-text-strong: #794f27; /* 强调标题棕 */
-  --ws-text-secondary: #9f927d;
-  --ws-text-tertiary: #8a7b66;
-  --ws-accent: #19c8b9; /* 薄荷青主色 */
-  --ws-accent-hover: #3dd4c6;
-  --ws-accent-active: #11a89b;
-  --ws-accent-soft: #e6f9f6;
-  --ws-danger: #e05a5a; /* animal error 红 */
-  --ws-radius-sm: 12px; /* 最小交互圆角 */
-  --ws-radius-md: 18px;
-  --ws-radius-lg: 24px;
-  --ws-radius-pill: 50px;
-  --ws-rail-width: 72px;
-  --ws-inspector-width: 360px;
-  --ws-toolbar-height: 56px;
-  --ws-viewbar-height: 48px;
+  --ds-color-app: #eae7ec;
+  --ds-color-canvas: #eae7ec;
+  --ds-color-surface: #fff;
+  --ds-color-surface-strong: #fff;
+  --ds-color-surface-soft: #f4f2f6;
+  --ds-color-surface-pressed: #e6e2ea;
+  --ds-color-text: #45404e;
+  --ds-color-text-strong: #211f26;
+  --ds-color-text-secondary: #7d7887;
+  --ds-color-text-tertiary: #9a94a4;
+  --ds-color-border: rgba(33, 31, 38, .16);
+  --ds-color-border-soft: rgba(33, 31, 38, .09);
+  --ds-color-accent: #df3478;
+  --ds-color-accent-hover: #e8548d;
+  --ds-color-accent-active: #c02663;
+  --ds-color-accent-soft: #fbe8f0;
+  --ds-color-on-accent: #fff;
+  --ds-color-danger: #d33b54;
+  --ds-color-success: #248a3d;
+  --ds-color-warning: #bf6a02;
+  --ds-color-focus: #df3478;
 
-  /* ---- 跨文件共用的深度 / 动效令牌 ---- */
-  --ai-3d-btn: 0 5px 0 0 #bdaea0; /* 仅主按钮的像素堆叠阴影 */
-  --ai-3d-btn-hover: 0 7px 0 0 #bdaea0;
-  --ai-3d-btn-active: 0 2px 0 0 #bdaea0;
-  --ai-soft-shadow: 0 2px 4px 0 rgba(61, 52, 40, 0.06);
-  --ai-soft-shadow-hover: 0 3px 10px 0 rgba(61, 52, 40, 0.1);
-  --ai-ease: cubic-bezier(0.4, 0, 0.2, 1);
-  --ai-dur: 0.25s;
+  --ds-space-1: 2px;
+  --ds-space-2: 4px;
+  --ds-space-3: 6px;
+  --ds-space-4: 8px;
+  --ds-space-5: 12px;
+  --ds-space-6: 16px;
+  --ds-space-7: 20px;
+  --ds-space-8: 24px;
+  --ds-radius-sm: 0;
+  --ds-radius-md: 0;
+  --ds-radius-lg: 0;
+  --ds-radius-pill: 0;
+  --ds-shadow-raised: none;
+  --ds-shadow-overlay: none;
+  --ds-duration-fast: 80ms;
+  --ds-duration: 120ms;
+  --ds-ease: steps(2, end);
+  --ds-layer-dropdown: 30;
+  --ds-layer-overlay: 50;
+  --ds-layer-toast: 60;
+  --ds-rail-width: 54px;
+  --ds-inspector-width: 244px;
+  --ds-toolbar-height: 34px;
+  --ds-viewbar-height: 46px;
+
+  /* Legacy page aliases */
+  --page: var(--ds-color-app);
+  --surface: var(--ds-color-surface);
+  --surface-strong: var(--ds-color-surface-strong);
+  --surface-card: var(--ds-color-surface);
+  --surface-soft: var(--ds-color-surface-soft);
+  --secondary-bg: var(--ds-color-surface-soft);
+  --secondary-pressed: var(--ds-color-surface-pressed);
+  --ink: var(--ds-color-text-strong);
+  --body: var(--ds-color-text);
+  --charcoal: var(--ds-color-text);
+  --muted: var(--ds-color-text-secondary);
+  --muted-soft: var(--ds-color-text-tertiary);
+  --line: var(--ds-color-border);
+  --line-soft: var(--ds-color-border-soft);
+  --primary: var(--ds-color-accent);
+  --primary-hover: var(--ds-color-accent-hover);
+  --primary-pressed: var(--ds-color-accent-active);
+  --primary-active: var(--ds-color-accent-active);
+  --primary-bg: var(--ds-color-accent-soft);
+  --blue: var(--ds-color-accent);
+  --blue-dark: var(--ds-color-accent-active);
+  --cyan: var(--ds-color-accent);
+  --green: var(--ds-color-success);
+  --amber: var(--ds-color-warning);
+  --danger: var(--ds-color-danger);
+  --focus-outer: var(--ds-color-focus);
+  --focus-ring-button: var(--ds-color-focus);
+  --radius-sm: var(--ds-radius-sm);
+  --radius-md: var(--ds-radius-md);
+  --radius-lg: var(--ds-radius-lg);
+  --radius-pill: var(--ds-radius-pill);
+  --panel-shadow: var(--ds-shadow-raised);
+  --soft-shadow: var(--ds-shadow-raised);
+  --btn-3d: none;
+  --btn-3d-hover: none;
+  --btn-3d-active: none;
+  --dur-fast: var(--ds-duration-fast);
+  --dur: var(--ds-duration);
+  --dur-slow: var(--ds-duration);
+  --ease: var(--ds-ease);
+  --px-font: var(--ds-font-ui);
+
+  /* Workspace aliases */
+  --ws-app: var(--ds-color-app);
+  --ws-canvas: var(--ds-color-canvas);
+  --ws-surface: var(--ds-color-surface);
+  --ws-surface-soft: var(--ds-color-surface-soft);
+  --ws-border: var(--ds-color-border);
+  --ws-border-strong: var(--ds-color-text-tertiary);
+  --ws-text: var(--ds-color-text);
+  --ws-text-strong: var(--ds-color-text-strong);
+  --ws-text-secondary: var(--ds-color-text-secondary);
+  --ws-text-tertiary: var(--ds-color-text-tertiary);
+  --ws-accent: var(--ds-color-accent);
+  --ws-accent-hover: var(--ds-color-accent-hover);
+  --ws-accent-active: var(--ds-color-accent-active);
+  --ws-accent-soft: var(--ds-color-accent-soft);
+  --ws-danger: var(--ds-color-danger);
+  --ws-radius-sm: var(--ds-radius-sm);
+  --ws-radius-md: var(--ds-radius-md);
+  --ws-radius-lg: var(--ds-radius-lg);
+  --ws-radius-pill: var(--ds-radius-pill);
+  --ws-rail-width: var(--ds-rail-width);
+  --ws-inspector-width: var(--ds-inspector-width);
+  --ws-toolbar-height: var(--ds-toolbar-height);
+  --ws-viewbar-height: var(--ds-viewbar-height);
+  --ws-space-1: var(--ds-space-1);
+  --ws-space-2: var(--ds-space-2);
+  --ws-space-3: var(--ds-space-3);
+  --ws-space-4: var(--ds-space-4);
+  --ws-space-5: var(--ds-space-5);
+
+  /* Deprecated Animal Island / ai aliases */
+  --animal-font: var(--ds-font-ui);
+  --animal-primary: var(--ds-color-accent);
+  --animal-primary-hover: var(--ds-color-accent-hover);
+  --animal-primary-active: var(--ds-color-accent-active);
+  --animal-primary-bg: var(--ds-color-accent-soft);
+  --animal-text: var(--ds-color-text-strong);
+  --animal-text-body: var(--ds-color-text);
+  --animal-text-secondary: var(--ds-color-text-secondary);
+  --animal-text-muted: var(--ds-color-text-tertiary);
+  --animal-text-disabled: var(--ds-color-text-tertiary);
+  --animal-bg: var(--ds-color-app);
+  --animal-bg-content: var(--ds-color-surface-soft);
+  --animal-bg-disabled: var(--ds-color-surface-soft);
+  --animal-border: var(--ds-color-border);
+  --animal-border-hover: var(--ds-color-text-tertiary);
+  --animal-radius-sm: var(--ds-radius-sm);
+  --animal-radius: var(--ds-radius-md);
+  --animal-radius-lg: var(--ds-radius-lg);
+  --animal-radius-pill: var(--ds-radius-pill);
+  --animal-shadow-btn: transparent;
+  --animal-shadow-input: transparent;
+  --animal-focus-yellow: var(--ds-color-focus);
+  --animal-focus-yellow-d: var(--ds-color-focus);
+  --animal-success: var(--ds-color-success);
+  --animal-warning: var(--ds-color-warning);
+  --animal-error: var(--ds-color-danger);
+  --animal-ease: var(--ds-ease);
+  --animal-duration-fast: var(--ds-duration-fast);
+  --animal-duration: var(--ds-duration);
+  --animal-duration-slow: var(--ds-duration);
+  --ai-3d-btn: none;
+  --ai-3d-btn-hover: none;
+  --ai-3d-btn-active: none;
+  --ai-soft-shadow: var(--ds-shadow-raised);
+  --ai-soft-shadow-hover: var(--ds-shadow-raised);
+  --ai-ease: var(--ds-ease);
+  --ai-dur: var(--ds-duration);
 }
