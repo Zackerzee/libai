@@ -11,6 +11,18 @@ export function shouldShowBeadCode(zoom, cellSize) {
   return Number(zoom) * Number(cellSize) >= CODE_VISIBILITY_CELL_PX;
 }
 
-const api = { CODE_VISIBILITY_CELL_PX, RENDER_PRESETS, shouldShowBeadCode };
-if (typeof window !== "undefined") window.LibmsRenderPolicy = api;
+export function resolveScreenRenderPolicy({
+  mode = "blocks", showCodes = false, showGrid = false,
+  zoom = 1, baseCell = 1, codeThreshold = CODE_VISIBILITY_CELL_PX,
+  gridThreshold = 5,
+} = {}) {
+  const displayedCell = Number(zoom) * Number(baseCell);
+  return Object.freeze({
+    displayedCell,
+    showCodes: Boolean(showCodes && displayedCell >= Number(codeThreshold)),
+    showGrid: Boolean((showGrid || mode === "pattern") && displayedCell >= Number(gridThreshold)),
+  });
+}
 
+const api = { CODE_VISIBILITY_CELL_PX, RENDER_PRESETS, shouldShowBeadCode, resolveScreenRenderPolicy };
+if (typeof window !== "undefined") window.LibmsRenderPolicy = api;

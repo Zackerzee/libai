@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { RENDER_PRESETS, shouldShowBeadCode } from "./render-policy.mjs";
+import { RENDER_PRESETS, shouldShowBeadCode, resolveScreenRenderPolicy } from "./render-policy.mjs";
 
 test("clean preview and preview export never show codes or fine grid", () => {
   for (const name of ["PREVIEW_CLEAN", "PREVIEW_EXPORT"]) {
@@ -22,4 +22,15 @@ test("code visibility follows actual displayed cell size", () => {
   assert.equal(shouldShowBeadCode(1.7, 8), false);
   assert.equal(shouldShowBeadCode(1.75, 8), true);
   assert.equal(shouldShowBeadCode(1, 14), true);
+});
+
+test("screen policy centralizes grid and code visibility without coupling their toggles", () => {
+  assert.deepEqual(resolveScreenRenderPolicy({
+    mode: "blocks", showCodes: true, showGrid: false, zoom: 0.75,
+    baseCell: 20, codeThreshold: 16,
+  }), { displayedCell: 15, showCodes: false, showGrid: false });
+  assert.deepEqual(resolveScreenRenderPolicy({
+    mode: "pattern", showCodes: true, showGrid: false, zoom: 1,
+    baseCell: 20, codeThreshold: 16,
+  }), { displayedCell: 20, showCodes: true, showGrid: true });
 });

@@ -1,5 +1,6 @@
 import { BASE_CELL } from "../services/viewport-service.js?v=20260924-text";
 import { rasterizeTextCached, cellsBox } from "../services/text-layer-service.js?v=20260924-text";
+import { resolveScreenRenderPolicy } from "../smart-preprocessing/render-policy.mjs?v=20260928-v3";
 
 export const codeForegroundColor = (rgb) => {
   if (!rgb) return "#17212b";
@@ -66,6 +67,11 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
     const ctx = layers.map((layer) => context(layer, b.dpr, b.width, b.height));
     if (!result?.grid?.length) return;
     const cell = BASE_CELL * view.zoom, o = viewport.origin(), gridWidth = result.width, gridHeight = result.height;
+    const displayPolicy = resolveScreenRenderPolicy({
+      mode: view.mode, showCodes: view.showCodes, showGrid: view.showGrid,
+      zoom: view.zoom, baseCell: BASE_CELL,
+      codeThreshold: view.codeVisibilityThreshold, gridThreshold: 5,
+    });
     if (view.mode === "original") {
       if (source) ctx[L.base].drawImage(source, o.x, o.y, gridWidth * cell, gridHeight * cell);
       return;
@@ -88,11 +94,11 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
         } else ctx[L.base].fillRect(sx, sy, Math.ceil(cell + 0.25), Math.ceil(cell + 0.25));
       } else if (cell >= 12) { ctx[L.base].fillStyle = "rgba(226,235,240,.28)"; ctx[L.base].fillRect(sx + 2, sy + 2, cell - 4, cell - 4); }
       ctx[L.base].globalAlpha = 1;
-      if ((view.showGrid || view.mode === "pattern") && cell >= 5) {
+      if (displayPolicy.showGrid) {
         ctx[L.grid].strokeStyle = "rgba(25,42,57,.22)"; ctx[L.grid].lineWidth = 1 / b.dpr;
         ctx[L.grid].strokeRect(sx + 0.5 / b.dpr, sy + 0.5 / b.dpr, cell, cell);
       }
-      if (color && view.showCodes && cell >= view.codeVisibilityThreshold) {
+      if (color && displayPolicy.showCodes) {
         const fontSize = Math.min(34, Math.max(8, cell * 0.43));
         ctx[L.codes].font = `600 ${fontSize}px system-ui, sans-serif`;
         ctx[L.codes].textAlign = "center"; ctx[L.codes].textBaseline = "middle";
