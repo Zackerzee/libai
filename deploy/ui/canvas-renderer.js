@@ -140,8 +140,12 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
         }
       } else {
         const p = viewport.gridToScreen(editor.selection.x0, editor.selection.y0);
+        const selectionWidth = (editor.selection.x1 - editor.selection.x0 + 1) * cell;
+        const selectionHeight = (editor.selection.y1 - editor.selection.y0 + 1) * cell;
+        ctx[L.overlay].fillStyle = "rgba(232,115,37,.07)";
+        ctx[L.overlay].fillRect(p.x, p.y, selectionWidth, selectionHeight);
         ctx[L.overlay].strokeStyle = "#e87325"; ctx[L.overlay].lineWidth = 2; ctx[L.overlay].setLineDash([5, 3]);
-        ctx[L.overlay].strokeRect(p.x, p.y, (editor.selection.x1 - editor.selection.x0 + 1) * cell, (editor.selection.y1 - editor.selection.y0 + 1) * cell);
+        ctx[L.overlay].strokeRect(p.x, p.y, selectionWidth, selectionHeight);
         ctx[L.overlay].setLineDash([]);
       }
     }

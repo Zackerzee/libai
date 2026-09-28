@@ -60,6 +60,12 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .ws-current-color-summary { min-height: 42px; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 8px 10px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface-soft); color: var(--ws-text-secondary); font-size: 12px; }
 .ws-current-color-summary strong { color: var(--ws-text); font-size: 14px; }.ws-current-color-summary b { margin-left: auto; color: var(--ws-text); font-variant-numeric: tabular-nums; }
 .ws-current-color-swatch { width: 22px; height: 22px; flex: 0 0 auto; border: 1px solid #17231b35; border-radius: 4px; }
+.ws-palette-suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin: 7px 0 10px; }
+.ws-palette-suggestions button { display: grid; justify-items: center; gap: 2px; min-width: 38px; padding: 5px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); color: var(--ws-text-secondary); cursor: pointer; }
+.ws-palette-suggestions button span { width: 24px; height: 18px; border: 1px solid #17231b35; border-radius: 4px; }
+.ws-palette-diagnostic-list { display: grid; gap: 4px; max-height: 180px; overflow: auto; margin: 7px 0 10px; }
+.ws-palette-diagnostic-list button { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 7px; min-height: 30px; padding: 4px 7px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); color: var(--ws-text); text-align: left; cursor: pointer; }
+.ws-palette-diagnostic-list button span { width: 18px; height: 18px; border: 1px solid #17231b35; border-radius: 3px; }.ws-palette-diagnostic-list button small { color: var(--ws-text-secondary); }
 .ws-bead-picker { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 4px; max-height: 220px; margin-top: 8px; overflow-y: auto; }
 .ws-bead-picker button { display: grid; justify-items: center; gap: 3px; padding: 4px 2px; border: 1px solid var(--ws-border); border-radius: 5px; background: var(--ws-surface); color: var(--ws-text-secondary); cursor: pointer; }
 .ws-bead-picker button.active,.ws-bead-picker button:hover { border-color: var(--ws-accent); color: var(--ws-accent); }.ws-bead-picker span { width: 20px; height: 20px; border: 1px solid #17231b25; border-radius: 3px; }.ws-bead-picker small { font-size: 10px; }

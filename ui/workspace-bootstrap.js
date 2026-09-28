@@ -1,4 +1,4 @@
-import { mountWorkspace } from "./workspace.js?v=20260928-color-inspector-final";
+import { mountWorkspace } from "./workspace.js?v=20260928-editor-phase2";
 import { markLegacyUi } from "./legacy-ui-policy.js?v=20260928-v3";
 
 const ERROR_ID = "workspace-bootstrap-error";

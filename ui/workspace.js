@@ -2,9 +2,9 @@ import { projectStore } from "../state/project-store.js?v=20260918-usage2";
 import { createGenerationService } from "../services/generation-service.js?v=20260918-usage2";
 import { createPaletteService } from "../services/palette-service.js";
 import { createExportService } from "../services/export-service.js?v=20260917-batchA";
-import { createEditorService } from "../services/editor-service.js?v=20260928-color-inspector-final";
+import { createEditorService } from "../services/editor-service.js?v=20260928-editor-phase2";
 import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260924-text";
-import { createCanvasRenderer } from "./canvas-renderer.js?v=20260928-color-inspector";
+import { createCanvasRenderer } from "./canvas-renderer.js?v=20260928-editor-phase2";
 import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20260916-phase35-5";
 import { magicWandSelection, fitSelectionBox, invertSelection as invertSelectionMask, selectAll as selectAllCells, translateSelection } from "../services/shapes-service.js?v=20260918-usage2";
 import { renderSourceTransform, defaultSourceTransform, cropFromDrag, sourceOutputGeometry } from "../services/source-editor-service.js?v=20260916-phase35-5";
@@ -166,9 +166,17 @@ export function mountWorkspace(bridge) {
   colorInspector.innerHTML = `<div class="ws-section-title">当前颜色</div>
     <div class="ws-current-color-summary" id="ws-current-color-summary">点击画布中的拼豆格子识别颜色</div>
     <label class="ws-switch-row"><input id="ws-same-color-highlight" type="checkbox" disabled> 同色高亮：开启</label>
+    <div class="ws-section-title">选区颜色</div>
+    <div class="ws-note" id="ws-selection-palette-summary">框选区域后显示颜色统计。</div>
+    <div class="ws-palette-diagnostic-list" id="ws-selection-palette-list"></div>
+    <div class="ws-section-title">相近颜色</div>
+    <div class="ws-palette-suggestions" id="ws-similar-colors"><span class="ws-note">选择当前颜色后显示推荐。</span></div>
     <label class="ws-field">选择替换色<select id="ws-current-color-target" disabled><option value="">选择替换色</option></select></label>
     <div class="ws-note" id="ws-current-color-impact">选择当前颜色后显示替换数量。</div>
-    <button type="button" class="ws-button ws-wide" id="ws-current-color-replace" disabled>全局替换</button>`;
+    <div class="ws-selection-actions"><button type="button" id="ws-selection-color-replace" disabled>仅选区替换</button><button type="button" id="ws-current-color-replace" disabled>全局替换</button></div>
+    <div class="ws-section-title">低频颜色</div>
+    <label class="ws-field">诊断阈值<select id="ws-rare-threshold"><option value="3">≤ 3 颗</option><option value="5">≤ 5 颗</option><option value="8">≤ 8 颗</option></select></label>
+    <div class="ws-palette-diagnostic-list" id="ws-rare-colors"></div>`;
   symmetryControls.before(colorInspector);
   const gallery = document.querySelector(".gallery-section"); if (gallery) right.querySelector(".ws-project-gallery-slot").append(gallery);
 
@@ -810,11 +818,30 @@ export function mountWorkspace(bridge) {
     const selectedPaletteId = state.editor.selectedPaletteId;
     const inspectedColor = selectedPaletteId ? (editorService.getPaletteColors().find((color) => paletteIdOf(color) === selectedPaletteId) || selectedColor) : null;
     const inspectedCount = selectedPaletteId ? editorService.getColorUsage(selectedPaletteId) : 0;
+    const paletteById = new Map(editorService.getPaletteColors().map((color) => [paletteIdOf(color), color]));
+    const selectionUsage = hasSelection ? editorService.getSelectionPaletteUsage(state.editor.selection) : new Map();
+    const selectionTotal = [...selectionUsage.values()].reduce((sum, count) => sum + count, 0);
+    const selectionSourceCount = selectedPaletteId ? (selectionUsage.get(selectedPaletteId) || 0) : 0;
     $("#ws-current-color-summary").innerHTML = inspectedColor
       ? `<strong>当前：${esc(inspectedColor.code)}</strong><span class="ws-current-color-swatch" style="background:${esc(inspectedColor.hex || "#cccccc")}"></span><b>${inspectedCount.toLocaleString("zh-CN", { useGrouping: false })}颗</b>`
       : "点击画布中的拼豆格子识别颜色";
     $("#ws-same-color-highlight").disabled = !selectedPaletteId;
     $("#ws-same-color-highlight").checked = Boolean(selectedPaletteId && state.editor.highlightedPaletteId === selectedPaletteId);
+    if (hasSelection) {
+      const width = state.editor.selection.x1 - state.editor.selection.x0 + 1;
+      const height = state.editor.selection.y1 - state.editor.selection.y0 + 1;
+      $("#ws-selection-palette-summary").textContent = `${width} × ${height} · ${selectionTotal.toLocaleString("zh-CN", { useGrouping: false })} 颗 · ${selectionUsage.size} 色`;
+      $("#ws-selection-palette-list").innerHTML = [...selectionUsage]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([paletteId, count]) => { const color = paletteById.get(paletteId); return `<button type="button" data-ws-inspect-palette="${esc(paletteId)}"><span style="background:${esc(color?.hex || "#ccc")}"></span><b>${esc(color?.code || paletteId)}</b><small>${count}颗</small></button>`; }).join("");
+    } else {
+      $("#ws-selection-palette-summary").textContent = "框选区域后显示颜色统计。";
+      $("#ws-selection-palette-list").innerHTML = "";
+    }
+    const similar = selectedPaletteId ? editorService.findSimilarPaletteColors(selectedPaletteId, { limit: 6 }) : [];
+    $("#ws-similar-colors").innerHTML = similar.length
+      ? similar.map((color) => `<button type="button" data-ws-similar-target="${esc(color.paletteId)}" title="${esc(color.name || color.code)}"><span style="background:${esc(color.hex || "#ccc")}"></span><small>${esc(color.code)}</small></button>`).join("")
+      : '<span class="ws-note">选择当前颜色后显示推荐。</span>';
     const targetSelect = $("#ws-current-color-target");
     const previousTarget = targetSelect.value;
     targetSelect.innerHTML = '<option value="">选择替换色</option>' + editorService.getPaletteColors()
@@ -824,10 +851,16 @@ export function mountWorkspace(bridge) {
     targetSelect.disabled = !selectedPaletteId;
     const targetColor = editorService.resolveColor(targetSelect.value);
     $("#ws-current-color-impact").textContent = inspectedColor && targetColor
-      ? `${inspectedColor.code} → ${targetColor.code} · 将替换 ${inspectedCount.toLocaleString("zh-CN", { useGrouping: false })} 颗`
+      ? `${inspectedColor.code} → ${targetColor.code} · 全局 ${inspectedCount.toLocaleString("zh-CN", { useGrouping: false })} 颗${hasSelection ? ` · 选区内 ${selectionSourceCount.toLocaleString("zh-CN", { useGrouping: false })} 颗` : ""}`
       : selectedPaletteId ? `当前颜色共 ${inspectedCount.toLocaleString("zh-CN", { useGrouping: false })} 颗` : "选择当前颜色后显示替换数量。";
     $("#ws-current-color-replace").textContent = inspectedColor ? `全局替换 ${inspectedColor.code}` : "全局替换";
     $("#ws-current-color-replace").disabled = !selectedPaletteId || !targetColor || !inspectedCount;
+    $("#ws-selection-color-replace").textContent = inspectedColor ? `选区替换 ${inspectedColor.code}` : "仅选区替换";
+    $("#ws-selection-color-replace").disabled = !hasSelection || !selectedPaletteId || !targetColor || !selectionSourceCount;
+    const rare = hasPattern ? editorService.detectRarePaletteColors({ maxCount: Number($("#ws-rare-threshold").value || 3) }) : [];
+    $("#ws-rare-colors").innerHTML = rare.length
+      ? rare.map((entry) => { const color = paletteById.get(entry.paletteId); return `<button type="button" data-ws-rare-palette="${esc(entry.paletteId)}"><span style="background:${esc(color?.hex || "#ccc")}"></span><b>${esc(entry.code)}</b><small>${entry.count}颗</small></button>`; }).join("")
+      : '<span class="ws-note">当前阈值内没有低频颜色。</span>';
     $("#ws-cell-details").innerHTML = state.editor.selection ? `<strong>${esc({rectangle:"矩形", "same-color":"同色",connected:"连通", "magic-wand":"魔棒", inverse:"反选", selection:"区域"}[state.editor.selection.kind] || "区域")}选区 · ${selectionCells(state.editor.selection, state.canvas.width, state.canvas.height).length.toLocaleString("zh-CN", { useGrouping: false })} 豆</strong><p>X ${state.editor.selection.x0 + 1}–${state.editor.selection.x1 + 1} · Y ${state.editor.selection.y0 + 1}–${state.editor.selection.y1 + 1}</p><p>选区换色、擦除与描边仅影响对应豆格。方向键可整体搬移。</p>` : selected ? `<strong>${esc(selectedColor?.code || "空白")}</strong><p>位置 · X ${selected.x + 1} / Y ${selected.y + 1}</p><p>${selectedColor ? `${esc(selectedColor.hex || "")} · RGB ${esc(selectedColor.rgb?.join(",") || "")}` : "真正空豆"}</p><p>使用 · ${selectedColor ? editorService.getColorUsage(paletteIdOf(selectedColor)).toLocaleString("zh-CN", { useGrouping: false }) : 0} 颗</p>` : "用选择工具点击画布中的一颗豆。";
     const toolInfo = {select:"选择 · 点击查看豆格",bead:"单豆 · 选中色号后点击豆格",brush:"画笔 · 拖动为一笔历史，笔宽见检查器",eraser:"橡皮 · 拖动擦成真正空豆，笔宽见检查器",fill:"填充 · 四方向连续色块",line:"直线 · 从起点拖到终点，Shift 吸附 45°",rect:"矩形 · 拖出外接框，Shift 约束正方形",ellipse:"圆形 · 拖出外接框，Shift 约束正圆",region:"框选 · 拖出矩形选区",wand:"魔棒 · 按色差容差圈选连续区域，Shift 叠加 / Alt 减掉",same:"同色选择 · 点击任意豆格",connected:"连通选择 · 点击连续色块",eyedropper:"取色 · 点击豆格设置当前色","source-eyedropper":"原图取色 · 点击中央原图",outline:"描边 · 先选择区域再应用",replace:"换色 · 在色彩面板设置色号",pan:"移动 · 拖动画布",text:"文字 · 点画布放一个文字图层，拖动可移动；调好字体/颜色/字号后点「向下合并」写进图纸"};
     $("#ws-tool-details").textContent = `${toolInfo[state.editor.tool] || state.editor.tool}${state.editor.selectedColor ? ` · 当前 ${state.editor.selectedColor}` : ""}`;
@@ -884,7 +917,39 @@ export function mountWorkspace(bridge) {
   $("#ws-same-color-highlight").addEventListener("change", (event) => {
     store.setState({ editor: { highlightedPaletteId: event.target.checked ? get().editor.selectedPaletteId : null } });
   });
+  const inspectPalette = (paletteId, selectedCell = get().editor.selectedCell) => {
+    const color = editorService.resolveColor(paletteId);
+    if (!color) return;
+    store.setState({ editor: { selectedPaletteId: paletteIdOf(color), selectedColor: color.code, highlightedPaletteId: paletteIdOf(color), selectedCell }, ui: { activePanel: "edit" } });
+  };
+  $("#ws-selection-palette-list").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-ws-inspect-palette]");
+    if (button) inspectPalette(button.dataset.wsInspectPalette);
+  });
+  $("#ws-similar-colors").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-ws-similar-target]");
+    if (!button) return;
+    $("#ws-current-color-target").value = button.dataset.wsSimilarTarget;
+    paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } });
+  });
+  $("#ws-rare-threshold").addEventListener("change", () => paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } }));
+  $("#ws-rare-colors").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-ws-rare-palette]");
+    if (!button) return;
+    const entry = editorService.detectRarePaletteColors({ maxCount: Number($("#ws-rare-threshold").value || 3) }).find((item) => item.paletteId === button.dataset.wsRarePalette);
+    inspectPalette(button.dataset.wsRarePalette, entry?.cells?.[0] || null);
+  });
   $("#ws-current-color-target").addEventListener("change", () => paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } }));
+  $("#ws-selection-color-replace").addEventListener("click", () => {
+    const from = get().editor.selectedPaletteId, to = $("#ws-current-color-target").value, selection = get().editor.selection;
+    const before = editorService.resolveColor(from), after = editorService.resolveColor(to);
+    const count = selection ? (editorService.getSelectionPaletteUsage(selection).get(from) || 0) : 0;
+    if (!selection || !from || !after || !count) return;
+    askConfirmation(`${before?.code || from} → ${after.code}，仅替换选区内 ${count} 颗。继续吗？`).then((accepted) => {
+      if (!accepted || !editorService.replaceColorInSelection(from, to, selection)) return;
+      store.setState({ editor: { selectedPaletteId: paletteIdOf(after), highlightedPaletteId: paletteIdOf(after), selectedColor: after.code } });
+    });
+  });
   $("#ws-current-color-replace").addEventListener("click", () => {
     const from = get().editor.selectedPaletteId;
     const to = $("#ws-current-color-target").value;
@@ -1193,7 +1258,11 @@ export function mountWorkspace(bridge) {
       return;
     }
     if (event.key === " " && !event.repeat) { event.preventDefault(); spaceDown = true; return; }
-    if (event.key === "Escape") { store.setState({ editor: { selectedCell: null, selectedPaletteId: null, highlightedPaletteId: null, selection: null, shapePreview: null } }); return; }
+    if (event.key === "Escape") {
+      if (get().editor.highlightedPaletteId) store.setState({ editor: { highlightedPaletteId: null } });
+      else store.setState({ editor: { selectedCell: null, selectedPaletteId: null, selection: null, shapePreview: null } });
+      return;
+    }
     if ((event.key === "Delete" || event.key === "Backspace") && get().editor.selection && get().status.hasPattern) {
       event.preventDefault(); editorService.eraseSelection(get().editor.selection); return;
     }

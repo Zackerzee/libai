@@ -99,6 +99,37 @@ test("region replace changes only selected cells and undoes as one action", () =
   assert.equal(grid[1][0].code, "H07");
 });
 
+test("selection usage keeps palette identities separate and local replace history ignores later selection changes", () => {
+  const A = { code: "SAME", paletteId: "brand:A", hex: "#111", rgb: [17,17,17] };
+  const TWIN = { code: "SAME", paletteId: "brand:TWIN", hex: "#111", rgb: [17,17,17] };
+  const B = { code: "B", paletteId: "brand:B", hex: "#eee", rgb: [238,238,238] };
+  const grid = [[A, A, TWIN], [A, TWIN, A]];
+  const bridge = {
+    getResult: () => ({ grid, width: 3, height: 2, colors: [] }),
+    getCell: (x, y) => grid[y]?.[x] || null,
+    getPaletteColors: () => [A, TWIN, B],
+    applyCellChanges(changes) { for (const { x, y, after } of changes) grid[y][x] = after; return changes.length; },
+  };
+  const editor = createEditorService(bridge);
+  const selection = { kind: "rectangle", x0: 0, y0: 0, x1: 1, y1: 1 };
+  assert.deepEqual([...editor.getSelectionPaletteUsage(selection)], [["brand:A", 3], ["brand:TWIN", 1]]);
+  assert.equal(editor.replaceColorInSelection("brand:A", "brand:B", selection), true);
+  assert.equal(grid[0][0].paletteId, "brand:B");
+  assert.equal(grid[1][0].paletteId, "brand:B");
+  assert.equal(grid[1][2].paletteId, "brand:A", "选区外来源色必须保持不变");
+  assert.equal(grid[1][1].paletteId, "brand:TWIN", "相同 RGB 的不同 paletteId 不应替换");
+  assert.deepEqual(editor.historyDepth(), { undo: 1, redo: 0 });
+
+  const laterSelection = { kind: "rectangle", x0: 2, y0: 0, x1: 2, y1: 1 };
+  assert.deepEqual([...editor.getSelectionPaletteUsage(laterSelection)], [["brand:TWIN", 1], ["brand:A", 1]]);
+  assert.equal(editor.undo(), true);
+  assert.equal(grid[0][0].paletteId, "brand:A");
+  assert.equal(grid[1][0].paletteId, "brand:A");
+  assert.equal(editor.redo(), true);
+  assert.equal(grid[0][0].paletteId, "brand:B");
+  assert.equal(grid[1][0].paletteId, "brand:B");
+});
+
 test("history retains at most 100 actions", () => {
   const { editor } = fixture();
   for (let i = 0; i < 105; i++) editor.setCellColor(0, 0, i % 2 ? "H07" : "A03");

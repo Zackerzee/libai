@@ -3,7 +3,8 @@ import { shapeCells, expandBrush } from "./shapes-service.js";
 import { createCellCommand, createStructureCommand, isEditorCommand } from "./editor-command.js";
 import { symmetryCells } from "./symmetry-service.js";
 import { paletteIdOf } from "./palette-identity.js";
-import { getPaletteUsageCounts, inspectPaletteCell } from "./palette-usage.js";
+import { getPaletteIndex, inspectPaletteCell } from "./palette-usage.js";
+import { findSimilarPaletteColors, detectRarePaletteColors } from "./palette-diagnostics.js";
 
 const cloneGrid = (grid) => grid.map((row) => row.map((color) => (color ? { ...color, rgb: Array.isArray(color.rgb) ? [...color.rgb] : color.rgb } : null)));
 
@@ -29,9 +30,10 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
   const colorFor = (identity) => bridge.getPaletteColors().find((color) => paletteIdOf(color) === String(identity || "") || color.code.toUpperCase() === String(identity || "").trim().toUpperCase()) || null;
   let stroke = null;
   // 网格修改后才失效，普通鼠标移动或 UI 重绘直接复用统计结果。
-  let usageCounts = null;
-  const invalidateUsageCounts = () => { usageCounts = null; };
-  const currentUsageCounts = () => usageCounts || (usageCounts = getPaletteUsageCounts(result().grid));
+  let paletteIndex = null, selectionUsageCache = null;
+  const invalidateUsageCounts = () => { paletteIndex = null; selectionUsageCache = null; };
+  const currentPaletteIndex = () => paletteIndex || (paletteIndex = getPaletteIndex(result().grid));
+  const currentUsageCounts = () => new Map([...currentPaletteIndex()].map(([paletteId, entry]) => [paletteId, entry.count]));
   // 剪贴板存「相对选区左上角的偏移」，粘贴时把选区左上角对齐到目标格。
   // 空豆也一并入板（矩形选区＝真正的图章），因此粘贴会覆盖目标区域的空白格。
   let clipboard = null;
@@ -91,12 +93,25 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
   const api = {
     getCell: (x, y) => bridge.getCell(x, y),
     getPaletteColors: () => bridge.getPaletteColors(),
-    getPaletteUsageCounts: () => new Map(currentUsageCounts()),
+    getPaletteUsageCounts: currentUsageCounts,
     getColorUsage(identity) {
       const key = paletteIdOf(colorFor(identity)) || String(identity || "");
-      return currentUsageCounts().get(key) || 0;
+      return currentPaletteIndex().get(key)?.count || 0;
     },
     inspectCell(x, y) { return inspectPaletteCell(result().grid, x, y, currentUsageCounts()); },
+    getSelectionPaletteUsage(selection) {
+      if (!selection) return new Map();
+      if (selectionUsageCache?.selection === selection) return new Map(selectionUsageCache.usage);
+      const usage = new Map();
+      for (const { x, y } of selectedCells(selection)) {
+        const paletteId = paletteIdOf(bridge.getCell(x, y));
+        if (paletteId) usage.set(paletteId, (usage.get(paletteId) || 0) + 1);
+      }
+      selectionUsageCache = { selection, usage };
+      return new Map(usage);
+    },
+    findSimilarPaletteColors(paletteId, options) { return findSimilarPaletteColors(bridge.getPaletteColors(), paletteId, options); },
+    detectRarePaletteColors(options) { return detectRarePaletteColors(currentPaletteIndex(), options); },
     invalidateUsageCounts,
     resolveColor: colorFor,
     setCellColor(x, y, code, options = {}) {
