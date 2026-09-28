@@ -3,6 +3,7 @@ import { shapeCells, expandBrush } from "./shapes-service.js";
 import { createCellCommand, createStructureCommand, isEditorCommand } from "./editor-command.js";
 import { symmetryCells } from "./symmetry-service.js";
 import { paletteIdOf } from "./palette-identity.js";
+import { getPaletteUsageCounts, inspectPaletteCell } from "./palette-usage.js";
 
 const cloneGrid = (grid) => grid.map((row) => row.map((color) => (color ? { ...color, rgb: Array.isArray(color.rgb) ? [...color.rgb] : color.rgb } : null)));
 
@@ -27,6 +28,10 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
   const result = () => bridge.getResult();
   const colorFor = (identity) => bridge.getPaletteColors().find((color) => paletteIdOf(color) === String(identity || "") || color.code.toUpperCase() === String(identity || "").trim().toUpperCase()) || null;
   let stroke = null;
+  // 网格修改后才失效，普通鼠标移动或 UI 重绘直接复用统计结果。
+  let usageCounts = null;
+  const invalidateUsageCounts = () => { usageCounts = null; };
+  const currentUsageCounts = () => usageCounts || (usageCounts = getPaletteUsageCounts(result().grid));
   // 剪贴板存「相对选区左上角的偏移」，粘贴时把选区左上角对齐到目标格。
   // 空豆也一并入板（矩形选区＝真正的图章），因此粘贴会覆盖目标区域的空白格。
   let clipboard = null;
@@ -47,6 +52,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
   };
   const run = (command) => {
     if (!isEditorCommand(command) || !command.execute()) return false;
+    invalidateUsageCounts();
     record(command);
     if (command.kind === "structure") pruneFor(command.width, command.height);
     return true;
@@ -85,10 +91,13 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
   const api = {
     getCell: (x, y) => bridge.getCell(x, y),
     getPaletteColors: () => bridge.getPaletteColors(),
+    getPaletteUsageCounts: () => new Map(currentUsageCounts()),
     getColorUsage(identity) {
       const key = paletteIdOf(colorFor(identity)) || String(identity || "");
-      return result().grid.flat().filter((color) => paletteIdOf(color) === key).length;
+      return currentUsageCounts().get(key) || 0;
     },
+    inspectCell(x, y) { return inspectPaletteCell(result().grid, x, y, currentUsageCounts()); },
+    invalidateUsageCounts,
     resolveColor: colorFor,
     setCellColor(x, y, code, options = {}) {
       const before = bridge.getCell(x, y), after = colorFor(code);
@@ -130,6 +139,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
         bridge.applyCellChanges([{ x: cell.x, y: cell.y, after: clone(after) }], { live: true });
         touched = true;
       }
+      if (touched) invalidateUsageCounts();
       return touched;
     },
     endStroke() {
@@ -137,13 +147,14 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
       const { code, cells } = stroke; stroke = null;
       const changes = [...cells.values()];
       if (changes.length) bridge.applyCellChanges([], { finalize: true });
+      if (changes.length) invalidateUsageCounts();
       return changes.length ? record(cellCommand(
         code ? "BRUSH_STROKE" : "ERASE_STROKE",
         code ? `画笔：${code}` : `擦除：${changes.length} 豆`,
         changes,
       )) : false;
     },
-    cancelStroke() { if (!stroke) return; bridge.applyCellChanges([...stroke.cells.values()].map(({x,y,before})=>({x,y,after:clone(before)}))); stroke = null; },
+    cancelStroke() { if (!stroke) return; bridge.applyCellChanges([...stroke.cells.values()].map(({x,y,before})=>({x,y,after:clone(before)}))); stroke = null; invalidateUsageCounts(); },
     // 形状工具：预览与提交共用 shapePlan，杜绝「预览一套、落笔另一套」。
     previewShape(kind, start, end, options = {}) { return symmetric(shapePlan(kind, start, end, options), options); },
     applyShape(kind, start, end, code, options = {}) {
@@ -248,6 +259,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     undo() {
       const command = undoStack.pop(); if (!command) return false;
       if (!command.undo()) { undoStack.push(command); return false; }
+      invalidateUsageCounts();
       const { width, height } = result();
       pruneFor(width, height);
       redoStack.push(command); onHistoryChange(); return true;
@@ -255,13 +267,14 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     redo() {
       const command = redoStack.pop(); if (!command) return false;
       if (!command.redo()) { redoStack.push(command); return false; }
+      invalidateUsageCounts();
       const { width, height } = result();
       pruneFor(width, height);
       undoStack.push(command); onHistoryChange(); return true;
     },
     canUndo: () => undoStack.length > 0,
     canRedo: () => redoStack.length > 0,
-    clearHistory() { undoStack.length = 0; redoStack.length = 0; stroke = null; onHistoryChange(); },
+    clearHistory() { undoStack.length = 0; redoStack.length = 0; stroke = null; invalidateUsageCounts(); onHistoryChange(); },
     historyDepth: () => ({ undo: undoStack.length, redo: redoStack.length }),
   };
   return api;

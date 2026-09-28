@@ -54,6 +54,39 @@ test("global replace uses paletteId rather than RGB or display code", () => {
   assert.equal(grid[0][0].paletteId, "mard:H05");
 });
 
+test("usage counts and inspected cell identity follow chained replace undo redo", () => {
+  const A = { code: "A", paletteId: "mard:A", hex: "#111111", rgb: [17,17,17] };
+  const B = { code: "B", paletteId: "mard:B", hex: "#222222", rgb: [34,34,34] };
+  const C = { code: "C", paletteId: "mard:C", hex: "#333333", rgb: [51,51,51] };
+  const grid = [[A, A, B]];
+  let scans = 0;
+  const bridge = {
+    getResult() { scans++; return { grid, width: 3, height: 1, colors: [] }; },
+    getCell: (x, y) => grid[y]?.[x] || null,
+    getPaletteColors: () => [A, B, C],
+    applyCellChanges(changes) { for (const { x, y, after } of changes) grid[y][x] = after; return changes.length; },
+  };
+  const editor = createEditorService(bridge);
+  assert.deepEqual(editor.inspectCell(0, 0), { color: A, paletteId: "mard:A", count: 2 });
+  const afterFirstCount = scans;
+  assert.equal(editor.getColorUsage("mard:A"), 2);
+  assert.equal(editor.getColorUsage("mard:B"), 1);
+  assert.equal(scans, afterFirstCount, "重复读取颗数不应重新扫描网格");
+
+  assert.equal(editor.replaceColor("mard:A", "mard:B"), true);
+  assert.deepEqual([...editor.getPaletteUsageCounts()], [["mard:B", 3]]);
+  assert.equal(editor.replaceColor("mard:B", "mard:C"), true);
+  assert.deepEqual([...editor.getPaletteUsageCounts()], [["mard:C", 3]]);
+  assert.equal(editor.undo(), true);
+  assert.deepEqual([...editor.getPaletteUsageCounts()], [["mard:B", 3]]);
+  assert.equal(editor.undo(), true);
+  assert.deepEqual([...editor.getPaletteUsageCounts()], [["mard:A", 2], ["mard:B", 1]]);
+  assert.equal(editor.redo(), true);
+  assert.deepEqual([...editor.getPaletteUsageCounts()], [["mard:B", 3]]);
+  assert.equal(editor.redo(), true);
+  assert.deepEqual([...editor.getPaletteUsageCounts()], [["mard:C", 3]]);
+});
+
 test("region replace changes only selected cells and undoes as one action", () => {
   const { grid, editor } = fixture();
   assert.equal(editor.replaceColorInSelection("H07", "A03", { x0: 0, y0: 0, x1: 0, y1: 1 }), true);

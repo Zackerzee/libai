@@ -2,7 +2,7 @@ import { projectStore } from "../state/project-store.js?v=20260918-usage2";
 import { createGenerationService } from "../services/generation-service.js?v=20260918-usage2";
 import { createPaletteService } from "../services/palette-service.js";
 import { createExportService } from "../services/export-service.js?v=20260917-batchA";
-import { createEditorService } from "../services/editor-service.js?v=20260928-color-inspector";
+import { createEditorService } from "../services/editor-service.js?v=20260928-color-inspector-final";
 import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260924-text";
 import { createCanvasRenderer } from "./canvas-renderer.js?v=20260928-color-inspector";
 import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20260916-phase35-5";
@@ -274,12 +274,28 @@ export function mountWorkspace(bridge) {
   });
   window.addEventListener("libms:source-transform-changed", () => { store.setState({ status: { dirty: true } }); });
   window.addEventListener("libms:project-result", (event) => { const first = !get().status.hasPattern;
+    editorService.invalidateUsageCounts();
     if (!event.detail.manualEdited) { editorService.clearHistory(); store.setState({ editor: { tool: "select", hoveredCell: null, selectedCell: null, selectedPaletteId: null, selectedColor: null, highlightedColor: null, highlightedPaletteId: null, selection: null } }); }
     syncLegacy(event.detail); updateHistory();
     // 首次出图、或尺寸刚被自动流程改过 → 适配窗口，保证「导入即可见全貌」。
     if ((first || fitOnNextResult) && event.detail.grid?.length) { fitOnNextResult = false; viewport.fitToViewport(); } });
   window.addEventListener("libms:generation-error", (event) => store.setState({ status: { generating: false, generationError: event.detail } }));
-  window.addEventListener("libms:grid-edited", (event) => { syncLegacy(event.detail); updateHistory(); });
+  window.addEventListener("libms:grid-edited", (event) => {
+    editorService.invalidateUsageCounts();
+    syncLegacy(event.detail);
+    const selected = get().editor.selectedCell;
+    if (selected) {
+      const inspected = editorService.inspectCell(selected.x, selected.y);
+      const paletteId = inspected?.paletteId || null;
+      const followsSelection = Boolean(get().editor.highlightedPaletteId);
+      store.setState({ editor: {
+        selectedPaletteId: paletteId,
+        selectedColor: inspected?.color?.code || get().editor.selectedColor,
+        highlightedPaletteId: followsSelection ? paletteId : null,
+      } });
+    }
+    updateHistory();
+  });
   window.addEventListener("libms:legacy-editor-saved", () => { editorService.clearHistory(); store.setState({ editor: { tool: "select", hoveredCell: null, selectedCell: null, selection: null } }); });
 
   const brandNames = { mard: "MARD", coco: "COCO", manman: "漫漫", panpan: "盼盼", mixiaowo: "咪小窝" };
@@ -637,8 +653,8 @@ export function mountWorkspace(bridge) {
       renderer.requestDraw();
       return;
     }
-    const picked = cell ? editorService.getCell(cell.x, cell.y) : null;
-    const paletteId = paletteIdOf(picked);
+    const inspected = cell ? editorService.inspectCell(cell.x, cell.y) : null;
+    const paletteId = inspected?.paletteId || null;
     store.setState({
       editor: { selectedCell: cell, selectedPaletteId: paletteId, highlightedPaletteId: paletteId, selection: null },
       ui: { activePanel: cell ? "edit" : get().ui.activePanel },
@@ -890,7 +906,7 @@ export function mountWorkspace(bridge) {
   };
   ["#ws-bead-picker","#ws-recent-colors"].forEach((selector) => $(selector).addEventListener("click", (event) => { const button = event.target.closest("[data-ws-pick]"); if (button) activateColor(button.dataset.wsPick); }));
   $("#ws-erase-selection").addEventListener("click", () => editorService.eraseSelection(get().editor.selection));
-  $("#ws-clear-selection").addEventListener("click", () => store.setState({ editor: { selection: null, shapePreview: null } }));
+  $("#ws-clear-selection").addEventListener("click", () => store.setState({ editor: { selectedCell: null, selectedPaletteId: null, highlightedPaletteId: null, selection: null, shapePreview: null } }));
   $("#ws-apply-outline").addEventListener("click", () => editorService.outline(get().editor.selection, get().editor.selectedColor, $("#ws-outline-diagonal").checked));
   $("#ws-undo").addEventListener("click", () => editorService.undo()); $("#ws-redo").addEventListener("click", () => editorService.redo());
 
@@ -1177,7 +1193,7 @@ export function mountWorkspace(bridge) {
       return;
     }
     if (event.key === " " && !event.repeat) { event.preventDefault(); spaceDown = true; return; }
-    if (event.key === "Escape") { store.setState({ editor: { selectedCell: null, selection: null, shapePreview: null } }); return; }
+    if (event.key === "Escape") { store.setState({ editor: { selectedCell: null, selectedPaletteId: null, highlightedPaletteId: null, selection: null, shapePreview: null } }); return; }
     if ((event.key === "Delete" || event.key === "Backspace") && get().editor.selection && get().status.hasPattern) {
       event.preventDefault(); editorService.eraseSelection(get().editor.selection); return;
     }
