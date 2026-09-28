@@ -88,7 +88,7 @@ textarea {
 
 /* ---------- 3. 控件 ---------- */
 .primary-action, #download-button-top, .quick-button,
-.ws-button-primary, #ws-generate, .ws-export-primary {
+.ws-button-primary, #ws-generate {
   background: var(--primary) !important;
   color: #ffffff !important;
   border: 1px solid var(--primary) !important;
@@ -365,8 +365,6 @@ body.ws-mode-build { background: var(--page) !important; color: var(--body); }
 /* 尺寸快捷值、采样方式等按钮组同样收紧 */
 .phase2-workspace .sl-size-presets { gap: 3px; }
 .phase2-workspace .sl-size-presets button { min-height: 24px; padding: 0 6px; font-size: 12px; border-radius: 0; }
-.phase2-workspace .sl-segment { gap: 3px; }
-.phase2-workspace .sl-segment button { min-height: 24px; font-size: 12px; border-radius: 0; }
 /* 格子采样：5 个选项原为 5 列 × 58px 高，压成 3 列 × 30px 的方块组 */
 .phase2-workspace .sl-sampling-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; padding: 0; background: transparent; }
 .phase2-workspace .sl-sampling-card { min-height: 30px; gap: 1px; border: 1px solid var(--line); border-radius: 0; background: var(--surface); color: var(--muted); }

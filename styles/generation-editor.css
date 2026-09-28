@@ -117,79 +117,11 @@
   opacity: 1;
 }
 
-/* Sizes */
-
-.sl-size-fields {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-}
-
-.sl-number-field {
-  flex: 1;
-}
-
-.sl-number-field > span {
-  display: block;
-  margin-bottom: 7px;
-  font-size: 12px;
-  color: #7d899b;
-}
-
-.sl-number-field > div {
-  display: flex;
-  align-items: center;
-
-  height: 42px;
-
-  border: 1px solid #dde4ed;
-  border-radius: 10px;
-
-  overflow: hidden;
-}
-
-.sl-number-field input {
-  min-width: 0;
-  flex: 1;
-
-  height: 100%;
-  padding: 0 12px;
-
-  border: 0;
-  outline: 0;
-
-  font: inherit;
-}
-
-.sl-number-field div span {
-  padding-right: 12px;
-  color: #9aa5b5;
-  font-size: 12px;
-}
-
-.sl-size-cross {
-  padding-bottom: 11px;
-  color: #a4adba;
-}
-
 .sl-size-presets {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
-}
-
-.sl-chip {
-  min-width: 52px;
-  height: 32px;
-
-  padding: 0 12px;
-
-  border: 1px solid #e1e6ee;
-  border-radius: 999px;
-
-  background: #fff;
-  cursor: pointer;
 }
 
 /* Sampling */
@@ -313,8 +245,7 @@
   margin-top: 10px;
 }
 
-.sl-switch-row,
-.sl-inline-switch {
+.sl-switch-row {
   position: relative;
 
   display: flex;
@@ -354,8 +285,7 @@
   color: #929daf;
 }
 
-.sl-switch-row input,
-.sl-inline-switch input {
+.sl-switch-row input {
   position: absolute;
   opacity: 0;
   pointer-events: none;
@@ -475,23 +405,6 @@ input:checked + .sl-switch-ui::after {
   color: #71829a;
 }
 
-/* Advanced */
-
-.sl-advanced-trigger {
-  display: flex;
-  justify-content: space-between;
-
-  width: 100%;
-
-  border: 0;
-  background: transparent;
-
-  font: inherit;
-  font-weight: 600;
-
-  cursor: pointer;
-}
-
 .sl-advanced-content {
   display: none;
   padding-top: 12px;
@@ -598,22 +511,6 @@ input:checked + .sl-switch-ui::after {
 .sl-zoom-controls input[type="range"] {
   width: 130px;
   accent-color: #1769d2;
-}
-
-/* Generate */
-
-.sl-generate-footer {
-  position: sticky;
-  bottom: 0;
-
-  padding-top: 4px;
-
-  background:
-    linear-gradient(
-      to bottom,
-      rgba(255,255,255,0),
-      #fff 30%
-    );
 }
 
 .sl-primary-button {
