@@ -1,4 +1,5 @@
 import { mountWorkspace } from "./workspace.js?v=20260924-text";
+import { markLegacyUi } from "./legacy-ui-policy.js?v=20260928-v3";
 
 const ERROR_ID = "workspace-bootstrap-error";
 
@@ -19,6 +20,7 @@ export function bootstrapWorkspace({ bridge, prepareLegacyShell }) {
   document.body.dataset.workspaceState = "preparing";
   try {
     prepareLegacyShell?.();
+    markLegacyUi(document);
     const result = mountWorkspace(bridge);
     document.body.dataset.workspaceState = "ready";
     document.getElementById(ERROR_ID)?.remove();
