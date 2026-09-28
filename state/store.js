@@ -176,6 +176,8 @@
       brushSize: 1,            // projectStore.editor.brushSize
       wandTolerance: 12,       // projectStore.editor.wandTolerance
       shapeFilled: false,      // projectStore.editor.shapeFilled
+      symmetryHorizontal: false,
+      symmetryVertical: false,
       paletteCategory: "all",  // projectStore.editor.paletteCategory
       recentColors: [],        // projectStore.editor.recentColors
       clipboard: null,         // projectStore.editor.clipboard

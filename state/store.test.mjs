@@ -313,7 +313,7 @@ test("Phase 3B：projectStore 字段已能在 libmsStore 中找到归属（无�
     rendererState: ["mode", "showGrid", "showCodes", "codeVisibilityThreshold"],
     viewportState: ["zoom"],
     editorState: ["selectedCell", "hoveredCell", "shapePreview", "highlightedColor",
-      "brushSize", "wandTolerance", "shapeFilled", "paletteCategory", "recentColors",
+      "brushSize", "wandTolerance", "shapeFilled", "symmetryHorizontal", "symmetryVertical", "paletteCategory", "recentColors",
       "clipboard", "history"],
   };
   for (const [ns, fields] of Object.entries(expected)) {

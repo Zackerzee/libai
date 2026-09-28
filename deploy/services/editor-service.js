@@ -1,6 +1,7 @@
 import { selectionContains, selectionCells, outerOutline } from "./selection-service.js";
 import { shapeCells, expandBrush } from "./shapes-service.js";
 import { createCellCommand, createStructureCommand, isEditorCommand } from "./editor-command.js";
+import { symmetryCells } from "./symmetry-service.js";
 
 const cloneGrid = (grid) => grid.map((row) => row.map((color) => (color ? { ...color, rgb: Array.isArray(color.rgb) ? [...color.rgb] : color.rgb } : null)));
 
@@ -71,6 +72,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     for (const { x, y } of cells) map.set(`${x},${y}`, clone(after));
     return changesFromMap(map);
   };
+  const symmetric = (cells, options = {}) => symmetryCells(cells, result().width, result().height, options.symmetry);
   // 选区 → 格列表。宽高取当前图纸，越界格由 selectionCells 自行裁剪。
   const selectedCells = (selection) => selection ? selectionCells(selection, result().width, result().height) : [];
   const shapeLabel = (kind) => ({ line: "直线", rect: "矩形", ellipse: "圆形" }[kind] || kind);
@@ -84,10 +86,10 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     getPaletteColors: () => bridge.getPaletteColors(),
     getColorUsage: (code) => result().colors.find((color) => color.code === code)?.count || 0,
     resolveColor: colorFor,
-    setCellColor(x, y, code) {
+    setCellColor(x, y, code, options = {}) {
       const before = bridge.getCell(x, y), after = colorFor(code);
-      if (!after || same(before, after)) return false;
-      return commit("CELL_COLOR_CHANGE", `单豆：${before?.code || "空白"} → ${after.code}`, [{ x, y, before: clone(before), after: clone(after) }]);
+      if (!after) return false;
+      return commit("CELL_COLOR_CHANGE", `单豆：${before?.code || "空白"} → ${after.code}`, changesFor(symmetric([{ x, y }], options), after));
     },
     replaceColor(fromCode, toCode, selection = null) {
       const after = colorFor(toCode);
@@ -107,14 +109,14 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     },
     eraseCells(cells, label = null) { const changes = changesFor(cells, null); return commit("ERASE", label || `擦除：${changes.length} 豆`, changes); },
     eraseSelection(selection) { if (!selection) return false; const { width, height } = result(); return this.eraseCells(selectionCells(selection, width, height)); },
-    beginStroke(code = null, { size = 1, shape = "round" } = {}) { stroke = { code, size, shape, cells: new Map() }; return true; },
+    beginStroke(code = null, { size = 1, shape = "round", symmetry = null } = {}) { stroke = { code, size, shape, symmetry, cells: new Map() }; return true; },
     strokeCell(x, y) {
       if (!stroke || !result().grid[y] || x < 0 || x >= result().grid[y].length) return false;
       const after = stroke.code ? colorFor(stroke.code) : null;
       if (stroke.code && !after) return false;
       // 笔宽在落笔时按核膨胀：同一笔内重复经过的格由 Map 去重，不会把历史撑大。
       let touched = false;
-      for (const cell of expandBrush([{ x, y }], stroke.size, stroke.shape)) {
+      for (const cell of symmetryCells(expandBrush([{ x, y }], stroke.size, stroke.shape), result().width, result().height, stroke.symmetry)) {
         const row = result().grid[cell.y];
         if (!row || cell.x < 0 || cell.x >= row.length) continue;
         const id = `${cell.x},${cell.y}`, before = bridge.getCell(cell.x, cell.y);
@@ -138,12 +140,12 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     },
     cancelStroke() { if (!stroke) return; bridge.applyCellChanges([...stroke.cells.values()].map(({x,y,before})=>({x,y,after:clone(before)}))); stroke = null; },
     // 形状工具：预览与提交共用 shapePlan，杜绝「预览一套、落笔另一套」。
-    previewShape(kind, start, end, options = {}) { return shapePlan(kind, start, end, options); },
+    previewShape(kind, start, end, options = {}) { return symmetric(shapePlan(kind, start, end, options), options); },
     applyShape(kind, start, end, code, options = {}) {
       const color = colorFor(code);
       if (!color) return false;
       const cells = shapePlan(kind, start, end, options);
-      return commit("SHAPE", `形状：${shapeLabel(kind)}${options.filled ? "（实心）" : ""}`, changesFor(cells, color));
+      return commit("SHAPE", `形状：${shapeLabel(kind)}${options.filled ? "（实心）" : ""}`, changesFor(symmetric(cells, options), color));
     },
     // 剪贴板与选区搬移。四者都建立在 selectedCells / changesFromMap 之上。
     copySelection(selection) {
@@ -184,7 +186,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
       }
       return commit("MOVE_SELECTION", `移动选区：${dx >= 0 ? "+" : ""}${dx}, ${dy >= 0 ? "+" : ""}${dy}`, changesFromMap(map));
     },
-    fillAt(x, y, code) {
+    fillAt(x, y, code, options = {}) {
       const grid = result().grid, from = grid[y]?.[x]?.code ?? null, after = colorFor(code);
       if (!grid[y] || !after || from === after.code) return false;
       const seen = new Set([`${x},${y}`]), queue = [{x,y}], cells = [];
@@ -197,7 +199,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
           if (grid[ny] && nx >= 0 && nx < grid[ny].length && !seen.has(id)) { seen.add(id); queue.push({x:nx,y:ny}); }
         }
       }
-      return commit("FLOOD_FILL", `填充：${from || "空白"} → ${after.code}`, changesFor(cells, after));
+      return commit("FLOOD_FILL", `填充：${from || "空白"} → ${after.code}`, changesFor(symmetric(cells, options), after));
     },
     outline(selection, code, diagonal = false) {
       if (!selection) return false;

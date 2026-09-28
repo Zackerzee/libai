@@ -84,7 +84,8 @@ test("snapshot: editor 默认值（workspace.js 最常写的一块）", () => {
   assert.deepEqual(s.editor, {
     tool: "select", hoveredCell: null, selectedCell: null, selectedColor: null,
     highlightedColor: null, selection: null, paletteCategory: "all",
-    recentColors: [], brushSize: 1, shapeFilled: false, wandTolerance: 12,
+    recentColors: [], brushSize: 1, shapeFilled: false,
+    symmetryHorizontal: false, symmetryVertical: false, wandTolerance: 12,
     shapePreview: null, clipboard: null,
     history: { canUndo: false, canRedo: false },
   });

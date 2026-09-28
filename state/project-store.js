@@ -62,6 +62,8 @@ function snapshot(store) {
     recentColors: s.editorState.recentColors,
     brushSize: s.editorState.brushSize,
     shapeFilled: s.editorState.shapeFilled,
+    symmetryHorizontal: s.editorState.symmetryHorizontal,
+    symmetryVertical: s.editorState.symmetryVertical,
     wandTolerance: s.editorState.wandTolerance,
     shapePreview: s.editorState.shapePreview,
     clipboard: s.editorState.clipboard,

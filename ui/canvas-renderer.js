@@ -114,6 +114,22 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
       ctx[L.overlay].strokeRect(p.x + 1, p.y + 1, cell - 2, cell - 2);
     };
     outline(editor.hoveredCell, false); outline(editor.selectedCell, true);
+    if (editor.symmetryHorizontal || editor.symmetryVertical) {
+      const overlay = ctx[L.overlay];
+      overlay.save();
+      overlay.strokeStyle = "rgba(194, 70, 133, .82)";
+      overlay.lineWidth = 1.5;
+      overlay.setLineDash([7, 5]);
+      if (editor.symmetryHorizontal) {
+        const axisX = o.x + gridWidth * cell / 2;
+        overlay.beginPath(); overlay.moveTo(axisX, o.y); overlay.lineTo(axisX, o.y + gridHeight * cell); overlay.stroke();
+      }
+      if (editor.symmetryVertical) {
+        const axisY = o.y + gridHeight * cell / 2;
+        overlay.beginPath(); overlay.moveTo(o.x, axisY); overlay.lineTo(o.x + gridWidth * cell, axisY); overlay.stroke();
+      }
+      overlay.restore();
+    }
     if (editor.selection) {
       if (editor.selection.mask) {
         ctx[L.overlay].fillStyle = "rgba(232,115,37,.22)"; ctx[L.overlay].strokeStyle = "#e87325"; ctx[L.overlay].lineWidth = 1;

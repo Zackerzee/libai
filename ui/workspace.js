@@ -154,6 +154,11 @@ export function mountWorkspace(bridge) {
       <section class="ws-panel" data-ws-inspector="check"><div class="ws-section-title">真实检查结果</div><div id="ws-check-results" class="ws-check-results">生成后显示可验证的尺寸、色数与结构报告。</div></section>
       <section class="ws-panel" data-ws-inspector="inventory"><div id="inventoryPanel"></div></section>
     </div>`;
+  const editPanel = right.querySelector('[data-ws-inspector="edit"]');
+  const symmetryControls = document.createElement("div");
+  symmetryControls.className = "ws-symmetry-controls";
+  symmetryControls.innerHTML = '<div class="ws-section-title">对称绘制</div><div class="ws-selection-actions"><label><input id="ws-symmetry-horizontal" type="checkbox"> 左右</label><label><input id="ws-symmetry-vertical" type="checkbox"> 上下</label></div>';
+  editPanel?.querySelector("#ws-cell-details")?.previousElementSibling?.before(symmetryControls);
   const gallery = document.querySelector(".gallery-section"); if (gallery) right.querySelector(".ws-project-gallery-slot").append(gallery);
 
   // 工作台上方的参数条，只保留两件事：
@@ -212,6 +217,10 @@ export function mountWorkspace(bridge) {
   });
 
   const $ = (selector) => wrap.querySelector(selector);
+  const symmetryOptions = () => ({ symmetry: {
+    horizontal: get().editor.symmetryHorizontal,
+    vertical: get().editor.symmetryVertical,
+  } });
   const get = () => store.getState();
   function updateHistory() {
     store.setState({ editor: { history: { canUndo: editorService.canUndo(), canRedo: editorService.canRedo() } } });
@@ -490,7 +499,7 @@ export function mountWorkspace(bridge) {
     if (drag?.type !== "shape") return;
     const target = constrainShapeEnd(drag.kind, drag.start, end, constrain);
     drag.end = target;
-    const cells = editorService.previewShape(drag.kind, drag.start, target, shapeOptions());
+    const cells = editorService.previewShape(drag.kind, drag.start, target, { ...shapeOptions(), ...symmetryOptions() });
     const color = get().editor.selectedColor ? editorService.resolveColor(get().editor.selectedColor) : null;
     store.setState({ editor: { shapePreview: { cells, hex: color?.hex || null } } });
   };
@@ -543,12 +552,12 @@ export function mountWorkspace(bridge) {
       return;
     }
     if (["same","connected"].includes(tool) && cell) { const original = get().editor.selection, selection = tool === "same" ? sameColorSelection(bridge.getResult().grid, cell.x, cell.y, original) : connectedSelection(bridge.getResult().grid, cell.x, cell.y, original); store.setState({ editor: { selection, selectedCell: cell }, ui: { activePanel: "edit" } }); return; }
-    if (tool === "fill" && cell) { const selected = get().editor.selectedColor; if (selected) editorService.fillAt(cell.x, cell.y, selected); store.setState({ editor: { selectedCell: cell }, ui: { activePanel: "edit" } }); return; }
+    if (tool === "fill" && cell) { const selected = get().editor.selectedColor; if (selected) editorService.fillAt(cell.x, cell.y, selected, symmetryOptions()); store.setState({ editor: { selectedCell: cell }, ui: { activePanel: "edit" } }); return; }
     if (["brush","eraser"].includes(tool) && cell) {
       const selected = get().editor.selectedColor;
       if (tool === "brush" && !selected) { store.setState({ ui: { activePanel: "edit" } }); return; }
       well.setPointerCapture(event.pointerId); drag = { type: "stroke" };
-      editorService.beginStroke(tool === "brush" ? selected : null, { size: get().editor.brushSize, shape: "round" });
+      editorService.beginStroke(tool === "brush" ? selected : null, { size: get().editor.brushSize, shape: "round", ...symmetryOptions() });
       editorService.strokeCell(cell.x, cell.y); renderer.requestDraw();
       return;
     }
@@ -558,7 +567,7 @@ export function mountWorkspace(bridge) {
     }
     if (tool === "bead" && cell) {
       const selected = get().editor.selectedColor;
-      if (selected) editorService.setCellColor(cell.x, cell.y, selected);
+      if (selected) editorService.setCellColor(cell.x, cell.y, selected, symmetryOptions());
       store.setState({ editor: { selectedCell: cell }, ui: { activePanel: "edit" } }); return;
     }
     // 文字工具：点已有文字 = 选中并拖动；点空白 = 就地新建一个图层。
@@ -618,7 +627,7 @@ export function mountWorkspace(bridge) {
     if (drag?.type === "shape") {
       const selected = get().editor.selectedColor;
       // 预览只活在 overlay 层，所以这里才产生唯一的一步历史；取消则直接丢弃预览。
-      if (!cancel && selected) editorService.applyShape(drag.kind, drag.start, drag.end || drag.start, selected, shapeOptions());
+      if (!cancel && selected) editorService.applyShape(drag.kind, drag.start, drag.end || drag.start, selected, { ...shapeOptions(), ...symmetryOptions() });
       store.setState({ editor: { shapePreview: null } });
     }
     drag = null; well.classList.remove("is-panning"); renderer.requestDraw(); };
@@ -712,6 +721,10 @@ export function mountWorkspace(bridge) {
     $("#ws-brush-size-value").textContent = String(state.editor.brushSize);
     $("#ws-shape-filled").disabled = !hasPattern;
     $("#ws-shape-filled").checked = state.editor.shapeFilled;
+    $("#ws-symmetry-horizontal").checked = state.editor.symmetryHorizontal;
+    $("#ws-symmetry-vertical").checked = state.editor.symmetryVertical;
+    $("#ws-symmetry-horizontal").disabled = !hasPattern;
+    $("#ws-symmetry-vertical").disabled = !hasPattern;
     $("#ws-wand-tolerance").disabled = !hasPattern;
     $("#ws-wand-tolerance-value").textContent = String(state.editor.wandTolerance);
     const hasSelection = Boolean(state.editor.selection);
@@ -1028,6 +1041,8 @@ export function mountWorkspace(bridge) {
     $("#ws-shape-filled").addEventListener("change", (event) => {
       store.setState({ editor: { shapeFilled: event.target.checked } });
     });
+    $("#ws-symmetry-horizontal").addEventListener("change", (event) => store.setState({ editor: { symmetryHorizontal: event.target.checked } }));
+    $("#ws-symmetry-vertical").addEventListener("change", (event) => store.setState({ editor: { symmetryVertical: event.target.checked } }));
   };
   attachSelectionActions();
   window.addEventListener("keydown", (event) => {

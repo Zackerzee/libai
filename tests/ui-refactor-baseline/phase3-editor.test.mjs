@@ -62,6 +62,38 @@ test("brush stroke is one undo action and eraser stores actual empty cells", () 
   editor.undo(); assert.equal(grid[0][0].code,"H07");
 });
 
+test("symmetry brush paints mirrored cells as one undoable action", () => {
+  const { grid, editor } = fixture();
+  editor.beginStroke("A03", { symmetry: { horizontal: true } });
+  editor.strokeCell(0, 0);
+  editor.endStroke();
+  assert.equal(grid[0][0].code, "A03");
+  assert.equal(grid[0][1].code, "A03");
+  assert.deepEqual(editor.historyDepth(), { undo: 1, redo: 0 });
+  editor.undo();
+  assert.equal(grid[0][0].code, "H07");
+  assert.equal(grid[0][1].code, "H07");
+});
+
+test("symmetry single-cell edit still repairs its mirror when the source already has the target color", () => {
+  const { grid, editor } = fixture();
+  assert.equal(editor.setCellColor(1, 1, "A03", { symmetry: { horizontal: true } }), true);
+  assert.equal(grid[1][0].code, "A03");
+  assert.equal(grid[1][1].code, "A03");
+  editor.undo();
+  assert.equal(grid[1][0].code, "H07");
+  assert.equal(grid[1][1].code, "A03");
+});
+
+test("symmetry shape preview and committed shape use the same mirrored cells", () => {
+  const { grid, editor } = fixture();
+  const options = { symmetry: { horizontal: true } };
+  assert.deepEqual(editor.previewShape("line", { x: 0, y: 0 }, { x: 0, y: 0 }, options), [{ x: 0, y: 0 }, { x: 1, y: 0 }]);
+  editor.applyShape("line", { x: 0, y: 0 }, { x: 0, y: 0 }, "A03", options);
+  assert.equal(grid[0][0].code, "A03");
+  assert.equal(grid[0][1].code, "A03");
+});
+
 test("four-neighbor fill, outline and grid flip all undo from canonical diffs", () => {
   const { grid, editor } = fixture();
   editor.fillAt(0,0,"A03"); assert.equal(grid[0][1].code,"A03"); assert.equal(editor.historyDepth().undo,1);
