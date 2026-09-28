@@ -1,5 +1,6 @@
 import { selectionContains, selectionCells, outerOutline } from "./selection-service.js";
 import { shapeCells, expandBrush } from "./shapes-service.js";
+import { createCellCommand, createStructureCommand, isEditorCommand } from "./editor-command.js";
 
 const cloneGrid = (grid) => grid.map((row) => row.map((color) => (color ? { ...color, rgb: Array.isArray(color.rgb) ? [...color.rgb] : color.rgb } : null)));
 
@@ -30,27 +31,28 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
   // 豆格类历史只在画布宽高不变时有效；结构类历史自带整幅快照，永远有效。
   // 宽高一旦改变，按旧宽高记录的豆格动作坐标已不可信，必须剔除而不是硬套。
   const pruneFor = (width, height) => {
-    const valid = (entry) => entry.kind === "structure" || (entry.w === width && entry.h === height);
+    const valid = (entry) => entry.kind !== "cells" || (entry.width === width && entry.height === height);
     for (let index = undoStack.length - 1; index >= 0; index -= 1) if (!valid(undoStack[index])) undoStack.splice(index, 1);
     for (let index = redoStack.length - 1; index >= 0; index -= 1) if (!valid(redoStack[index])) redoStack.splice(index, 1);
   };
-  const push = (type, label, changes) => {
-    if (!changes.length) return false;
-    undoStack.push({ kind: "cells", type, label, changes, w: result().width, h: result().height });
+  const record = (command) => {
+    if (!isEditorCommand(command)) return false;
+    undoStack.push(command);
     if (undoStack.length > limit) undoStack.shift();
     redoStack.length = 0;
     onHistoryChange();
     return true;
   };
-  const pushStructural = (type, label, before, after) => {
-    undoStack.push({ kind: "structure", type, label, before, after });
-    if (undoStack.length > limit) undoStack.shift();
-    redoStack.length = 0;
-    pruneFor(after.width, after.height);
-    onHistoryChange();
+  const run = (command) => {
+    if (!isEditorCommand(command) || !command.execute()) return false;
+    record(command);
+    if (command.kind === "structure") pruneFor(command.width, command.height);
     return true;
   };
-  const commit = (type, label, changes) => !changes.length || !bridge.applyCellChanges(changes) ? false : push(type, label, changes);
+  const cellCommand = (type, label, changes) => createCellCommand(bridge, {
+    type, label, changes, width: result().width, height: result().height,
+  });
+  const commit = (type, label, changes) => !changes.length ? false : run(cellCommand(type, label, changes));
   // 「格 → 目标颜色」的显式映射是各种编辑动作的公共出口：
   // 画笔、形状、粘贴、移动都能表达成它，于是撤销/重做只需处理一种历史载荷。
   const changesFromMap = (map) => {
@@ -128,7 +130,11 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
       const { code, cells } = stroke; stroke = null;
       const changes = [...cells.values()];
       if (changes.length) bridge.applyCellChanges([], { finalize: true });
-      return push(code ? "BRUSH_STROKE" : "ERASE_STROKE", code ? `画笔：${code}` : `擦除：${changes.length} 豆`, changes);
+      return changes.length ? record(cellCommand(
+        code ? "BRUSH_STROKE" : "ERASE_STROKE",
+        code ? `画笔：${code}` : `擦除：${changes.length} 豆`,
+        changes,
+      )) : false;
     },
     cancelStroke() { if (!stroke) return; bridge.applyCellChanges([...stroke.cells.values()].map(({x,y,before})=>({x,y,after:clone(before)}))); stroke = null; },
     // 形状工具：预览与提交共用 shapePlan，杜绝「预览一套、落笔另一套」。
@@ -222,34 +228,29 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
         width: turns === 2 ? width : height,
         height: turns === 2 ? height : width,
       };
-      if (!bridge.replaceGridStructure({ grid: after.grid, width: after.width, height: after.height })) return false;
-      return pushStructural(
-        turns === 1 ? "ROTATE_CW" : turns === 3 ? "ROTATE_CCW" : "ROTATE_180",
-        turns === 1 ? "顺时针旋转 90°" : turns === 3 ? "逆时针旋转 90°" : "旋转 180°",
+      return run(createStructureCommand(bridge, {
+        type: turns === 1 ? "ROTATE_CW" : turns === 3 ? "ROTATE_CCW" : "ROTATE_180",
+        label: turns === 1 ? "顺时针旋转 90°" : turns === 3 ? "逆时针旋转 90°" : "旋转 180°",
         before,
         after,
-      );
+      }));
     },
     canRotate: () => typeof bridge.replaceGridStructure === "function",
-    getHistory() { return undoStack.map(({ type, label, changes }) => ({ type, label, count: changes?.length ?? 0 })); },
+    executeCommand(command) { return run(command); },
+    getHistory() { return undoStack.map(({ type, label, affectedCells }) => ({ type, label, count: affectedCells })); },
     undo() {
-      const action = undoStack.pop(); if (!action) return false;
-      if (action.kind === "structure") {
-        if (typeof bridge.replaceGridStructure !== "function" || !bridge.replaceGridStructure({ ...action.before })) { undoStack.push(action); return false; }
-        pruneFor(action.before.width, action.before.height);
-        redoStack.push(action); onHistoryChange(); return true;
-      }
-      const inverse = action.changes.map(({ x, y, before }) => ({ x, y, after: clone(before) }));
-      bridge.applyCellChanges(inverse); redoStack.push(action); onHistoryChange(); return true;
+      const command = undoStack.pop(); if (!command) return false;
+      if (!command.undo()) { undoStack.push(command); return false; }
+      const { width, height } = result();
+      pruneFor(width, height);
+      redoStack.push(command); onHistoryChange(); return true;
     },
     redo() {
-      const action = redoStack.pop(); if (!action) return false;
-      if (action.kind === "structure") {
-        if (typeof bridge.replaceGridStructure !== "function" || !bridge.replaceGridStructure({ ...action.after })) { redoStack.push(action); return false; }
-        pruneFor(action.after.width, action.after.height);
-        undoStack.push(action); onHistoryChange(); return true;
-      }
-      bridge.applyCellChanges(action.changes); undoStack.push(action); onHistoryChange(); return true;
+      const command = redoStack.pop(); if (!command) return false;
+      if (!command.redo()) { redoStack.push(command); return false; }
+      const { width, height } = result();
+      pruneFor(width, height);
+      undoStack.push(command); onHistoryChange(); return true;
     },
     canUndo: () => undoStack.length > 0,
     canRedo: () => redoStack.length > 0,
