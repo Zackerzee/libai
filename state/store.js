@@ -181,6 +181,10 @@
       shapeFilled: false,      // projectStore.editor.shapeFilled
       symmetryHorizontal: false,
       symmetryVertical: false,
+      symmetryMode: "none",
+      symmetryAxisX: null,
+      symmetryAxisY: null,
+      symmetryGuideVisible: true,
       paletteCategory: "all",  // projectStore.editor.paletteCategory
       recentColors: [],        // projectStore.editor.recentColors
       clipboard: null,         // projectStore.editor.clipboard

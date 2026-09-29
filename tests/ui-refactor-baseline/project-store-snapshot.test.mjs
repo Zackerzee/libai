@@ -85,7 +85,8 @@ test("snapshot: editor 默认值（workspace.js 最常写的一块）", () => {
     tool: "select", hoveredCell: null, selectedCell: null, selectedPaletteId: null, selectedColor: null,
     highlightedColor: null, highlightedPaletteId: null, selection: null, paletteCategory: "all",
     recentColors: [], brushSize: 1, pixelPerfect: true, shapeFilled: false,
-    symmetryHorizontal: false, symmetryVertical: false, wandTolerance: 12,
+    symmetryHorizontal: false, symmetryVertical: false, symmetryMode: "none",
+    symmetryAxisX: null, symmetryAxisY: null, symmetryGuideVisible: true, wandTolerance: 12,
     shapePreview: null, clipboard: null,
     history: { canUndo: false, canRedo: false },
   });

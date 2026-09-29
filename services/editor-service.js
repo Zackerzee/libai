@@ -2,7 +2,7 @@ import { selectionContains, selectionCells, outerOutline } from "./selection-ser
 import { shapeCells, expandBrush, lineCells } from "./shapes-service.js";
 import { cleanPixelPerfectPath } from "./pixel-perfect-stroke.js";
 import { createCellCommand, createStructureCommand, isEditorCommand } from "./editor-command.js";
-import { symmetryCells } from "./symmetry-service.js";
+import { symmetryBrushCells } from "./symmetry-service.js";
 import { paletteIdOf } from "./palette-identity.js";
 import { getPaletteIndex, inspectPaletteCell } from "./palette-usage.js";
 import { findSimilarPaletteColors, detectRarePaletteColors } from "./palette-diagnostics.js";
@@ -82,7 +82,6 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     for (const { x, y } of cells) map.set(`${x},${y}`, clone(after));
     return changesFromMap(map);
   };
-  const symmetric = (cells, options = {}) => symmetryCells(cells, result().width, result().height, options.symmetry);
   // 选区 → 格列表。宽高取当前图纸，越界格由 selectionCells 自行裁剪。
   const selectedCells = (selection) => selection ? selectionCells(selection, result().width, result().height) : [];
   const shapeLabel = (kind) => ({ line: "直线", rect: "矩形", ellipse: "圆形" }[kind] || kind);
@@ -115,10 +114,10 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     detectRarePaletteColors(options) { return detectRarePaletteColors(currentPaletteIndex(), options); },
     invalidateUsageCounts,
     resolveColor: colorFor,
-    setCellColor(x, y, code, options = {}) {
+    setCellColor(x, y, code) {
       const before = bridge.getCell(x, y), after = colorFor(code);
       if (!after) return false;
-      return commit("CELL_COLOR_CHANGE", `单豆：${before?.code || "空白"} → ${after.code}`, changesFor(symmetric([{ x, y }], options), after));
+      return commit("CELL_COLOR_CHANGE", `单豆：${before?.code || "空白"} → ${after.code}`, changesFor([{ x, y }], after));
     },
     replaceColor(fromPaletteId, toPaletteId, selection = null) {
       const after = colorFor(toPaletteId);
@@ -166,7 +165,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
       const segment = stroke.last ? lineCells(stroke.last.x,stroke.last.y,x,y).slice(1) : [{x,y}];
       stroke.path.push(...segment); stroke.last={x,y};
       const centers = stroke.pixelPerfect ? cleanPixelPerfectPath(stroke.path) : stroke.path;
-      const desiredCells = symmetric(expandBrush(centers,stroke.size,stroke.shape),{symmetry:stroke.symmetry});
+      const desiredCells = symmetryBrushCells(centers, result().width, result().height, { size:stroke.size, shape:stroke.shape, symmetry:stroke.symmetry });
       const desired = new Set(desiredCells.filter((cell)=>result().grid[cell.y]&&cell.x>=0&&cell.x<result().grid[cell.y].length).map((cell)=>`${cell.x},${cell.y}`));
       let touched = false;
       for (const id of stroke.active) if (!desired.has(id)) {
@@ -198,12 +197,12 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     },
     cancelStroke() { if (!stroke) return; bridge.applyCellChanges([...stroke.cells.values()].map(({x,y,before})=>({x,y,after:clone(before)}))); stroke = null; invalidateUsageCounts(); },
     // 形状工具：预览与提交共用 shapePlan，杜绝「预览一套、落笔另一套」。
-    previewShape(kind, start, end, options = {}) { return symmetric(shapePlan(kind, start, end, options), options); },
+    previewShape(kind, start, end, options = {}) { return shapePlan(kind, start, end, options); },
     applyShape(kind, start, end, code, options = {}) {
       const color = colorFor(code);
       if (!color) return false;
       const cells = shapePlan(kind, start, end, options);
-      return commit("SHAPE", `形状：${shapeLabel(kind)}${options.filled ? "（实心）" : ""}`, changesFor(symmetric(cells, options), color));
+      return commit("SHAPE", `形状：${shapeLabel(kind)}${options.filled ? "（实心）" : ""}`, changesFor(cells, color));
     },
     // 剪贴板与选区搬移。四者都建立在 selectedCells / changesFromMap 之上。
     copySelection(selection) {
@@ -244,7 +243,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
       }
       return commit("MOVE_SELECTION", `移动选区：${dx >= 0 ? "+" : ""}${dx}, ${dy >= 0 ? "+" : ""}${dy}`, changesFromMap(map));
     },
-    fillAt(x, y, code, options = {}) {
+    fillAt(x, y, code) {
       const grid = result().grid, from = paletteIdOf(grid[y]?.[x]), after = colorFor(code);
       if (!grid[y] || !after || from === paletteIdOf(after)) return false;
       const seen = new Set([`${x},${y}`]), queue = [{x,y}], cells = [];
@@ -257,7 +256,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
           if (grid[ny] && nx >= 0 && nx < grid[ny].length && !seen.has(id)) { seen.add(id); queue.push({x:nx,y:ny}); }
         }
       }
-      return commit("FLOOD_FILL", `填充：${from || "空白"} → ${after.code}`, changesFor(symmetric(cells, options), after));
+      return commit("FLOOD_FILL", `填充：${from || "空白"} → ${after.code}`, changesFor(cells, after));
     },
     outline(selection, code, diagonal = false) {
       if (!selection) return false;

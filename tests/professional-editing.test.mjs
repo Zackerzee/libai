@@ -92,3 +92,21 @@ test("brush larger than one disables pixel perfect and uses square footprint",()
   editor.beginStroke("brand:B",{pixelPerfect:true,size:3,shape:"square"}); editor.strokeCell(2,1); editor.endStroke();
   assert.equal(grid.flat().filter((cell)=>cell.paletteId==="brand:B").length,9);
 });
+
+test("vertical symmetry pencil and eraser commit each gesture as one history command",()=>{
+  const {grid,editor}=fixture(["AAAAAA","AAAAAA","AAAAAA"]);
+  const symmetry={mode:"vertical",axisX:2.5,axisY:1};
+  editor.beginStroke("brand:B",{symmetry}); editor.strokeCell(0,1); editor.strokeCell(1,1); editor.endStroke();
+  assert.deepEqual(grid[1].map((cell)=>cell.paletteId),["brand:B","brand:B","brand:A","brand:A","brand:B","brand:B"]);
+  assert.deepEqual(editor.historyDepth(),{undo:1,redo:0});
+  editor.undo(); assert.deepEqual(grid[1].map((cell)=>cell.paletteId),Array(6).fill("brand:A"));
+  editor.redo(); assert.equal(grid[1][5].paletteId,"brand:B");
+  editor.beginStroke(null,{size:3,symmetry}); editor.strokeCell(0,1); editor.endStroke();
+  assert.equal(grid.flat().filter(Boolean).length,6); assert.equal(editor.historyDepth().undo,2);
+});
+
+test("both-axis 5×5 brush deduplicates overlap and clips boundaries",()=>{
+  const {grid,editor}=fixture(Array(7).fill("AAAAAAA"));
+  editor.beginStroke("brand:B",{size:5,symmetry:{mode:"both",axisX:3,axisY:3}}); editor.strokeCell(3,3); editor.endStroke();
+  assert.equal(grid.flat().filter((cell)=>cell.paletteId==="brand:B").length,25);
+});

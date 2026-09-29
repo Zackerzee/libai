@@ -2,6 +2,7 @@ import { BASE_CELL } from "../services/viewport-service.js?v=20260924-text";
 import { rasterizeTextCached, cellsBox } from "../services/text-layer-service.js?v=20260924-text";
 import { resolveScreenRenderPolicy } from "../smart-preprocessing/render-policy.mjs?v=20260928-v3";
 import { paletteIdOf } from "../services/palette-identity.js";
+import { symmetryBrushCells } from "../services/symmetry-service.js";
 
 export const codeForegroundColor = (rgb) => {
   if (!rgb) return "#17212b";
@@ -116,12 +117,13 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
       ctx[L.overlay].strokeRect(p.x + 1, p.y + 1, cell - 2, cell - 2);
     };
     if (editor.hoveredCell && ["brush","eraser"].includes(editor.tool)) {
-      const radius=Math.floor(Math.max(1,Number(editor.brushSize)||1)/2), overlay=ctx[L.overlay];
+      const overlay=ctx[L.overlay];
       overlay.save(); overlay.fillStyle=editor.tool==="eraser"?"rgba(220,68,55,.12)":"rgba(232,115,37,.14)";
       overlay.strokeStyle=editor.tool==="eraser"?"rgba(220,68,55,.78)":"rgba(232,115,37,.72)"; overlay.lineWidth=1;
-      for(let dy=-radius;dy<=radius;dy+=1) for(let dx=-radius;dx<=radius;dx+=1){
-        const x=editor.hoveredCell.x+dx,y=editor.hoveredCell.y+dy;
-        if(x<0||y<0||x>=gridWidth||y>=gridHeight) continue;
+      const axisX=Number.isFinite(editor.symmetryAxisX)?editor.symmetryAxisX:(gridWidth-1)/2;
+      const axisY=Number.isFinite(editor.symmetryAxisY)?editor.symmetryAxisY:(gridHeight-1)/2;
+      const previewCells=symmetryBrushCells([editor.hoveredCell],gridWidth,gridHeight,{size:editor.brushSize,shape:"square",symmetry:{mode:editor.symmetryMode||"none",axisX,axisY}});
+      for(const {x,y} of previewCells){
         const p=viewport.gridToScreen(x,y); overlay.fillRect(p.x,p.y,cell,cell); overlay.strokeRect(p.x+.5,p.y+.5,Math.max(0,cell-1),Math.max(0,cell-1));
       }
       overlay.restore();
@@ -164,18 +166,21 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
         overlay.restore();
       }
     }
-    if (editor.symmetryHorizontal || editor.symmetryVertical) {
+    const symmetryMode = editor.symmetryMode || "none";
+    if (editor.symmetryGuideVisible !== false && symmetryMode !== "none") {
       const overlay = ctx[L.overlay];
       overlay.save();
       overlay.strokeStyle = "rgba(194, 70, 133, .82)";
       overlay.lineWidth = 1.5;
       overlay.setLineDash([7, 5]);
-      if (editor.symmetryHorizontal) {
-        const axisX = o.x + gridWidth * cell / 2;
+      if (["vertical","both"].includes(symmetryMode)) {
+        const modelAxisX = Number.isFinite(editor.symmetryAxisX) ? editor.symmetryAxisX : (gridWidth - 1) / 2;
+        const axisX = o.x + (modelAxisX + .5) * cell;
         overlay.beginPath(); overlay.moveTo(axisX, o.y); overlay.lineTo(axisX, o.y + gridHeight * cell); overlay.stroke();
       }
-      if (editor.symmetryVertical) {
-        const axisY = o.y + gridHeight * cell / 2;
+      if (["horizontal","both"].includes(symmetryMode)) {
+        const modelAxisY = Number.isFinite(editor.symmetryAxisY) ? editor.symmetryAxisY : (gridHeight - 1) / 2;
+        const axisY = o.y + (modelAxisY + .5) * cell;
         overlay.beginPath(); overlay.moveTo(o.x, axisY); overlay.lineTo(o.x + gridWidth * cell, axisY); overlay.stroke();
       }
       overlay.restore();

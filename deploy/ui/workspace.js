@@ -162,7 +162,11 @@ export function mountWorkspace(bridge) {
   const editPanel = right.querySelector('[data-ws-inspector="edit"]');
   const symmetryControls = document.createElement("div");
   symmetryControls.className = "ws-symmetry-controls";
-  symmetryControls.innerHTML = '<div class="ws-section-title">对称绘制</div><div class="ws-selection-actions"><label><input id="ws-symmetry-horizontal" type="checkbox"> 左右</label><label><input id="ws-symmetry-vertical" type="checkbox"> 上下</label></div>';
+  symmetryControls.innerHTML = `<div class="ws-section-title">对称绘制</div>
+    <label class="ws-field">模式<select id="ws-symmetry-mode"><option value="none">关闭</option><option value="vertical">左右镜像</option><option value="horizontal">上下镜像</option><option value="both">四向镜像</option></select></label>
+    <div class="ws-selection-actions"><label>X 轴 <input id="ws-symmetry-axis-x" type="number" min="0" step="0.5" inputmode="decimal"></label><label>Y 轴 <input id="ws-symmetry-axis-y" type="number" min="0" step="0.5" inputmode="decimal"></label></div>
+    <label class="ws-switch-row"><input id="ws-symmetry-guides" type="checkbox" checked> 显示对称轴</label>
+    <p class="ws-note">仅作用于画笔和橡皮擦。104×104 默认中心轴为 51.5。</p>`;
   editPanel?.querySelector("#ws-cell-details")?.previousElementSibling?.before(symmetryControls);
   const colorInspector = document.createElement("div");
   colorInspector.className = "ws-current-color";
@@ -267,10 +271,15 @@ export function mountWorkspace(bridge) {
   });
 
   const $ = (selector) => wrap.querySelector(selector);
-  const symmetryOptions = () => ({ symmetry: {
-    horizontal: get().editor.symmetryHorizontal,
-    vertical: get().editor.symmetryVertical,
-  } });
+  const symmetryOptions = () => {
+    const result = bridge.getResult();
+    const editor = get().editor;
+    return { symmetry: {
+      mode: editor.symmetryMode || "none",
+      axisX: Number.isFinite(editor.symmetryAxisX) ? editor.symmetryAxisX : (result.width - 1) / 2,
+      axisY: Number.isFinite(editor.symmetryAxisY) ? editor.symmetryAxisY : (result.height - 1) / 2,
+    } };
+  };
   const get = () => store.getState();
   function updateHistory() {
     store.setState({ editor: { history: { canUndo: editorService.canUndo(), canRedo: editorService.canRedo() } } });
@@ -609,7 +618,7 @@ export function mountWorkspace(bridge) {
     if (drag?.type !== "shape") return;
     const target = constrainShapeEnd(drag.kind, drag.start, end, constrain);
     drag.end = target;
-    const cells = editorService.previewShape(drag.kind, drag.start, target, { ...shapeOptions(), ...symmetryOptions() });
+    const cells = editorService.previewShape(drag.kind, drag.start, target, shapeOptions());
     const color = get().editor.selectedColor ? editorService.resolveColor(get().editor.selectedColor) : null;
     store.setState({ editor: { shapePreview: { cells, hex: color?.hex || null } } });
   };
@@ -662,7 +671,7 @@ export function mountWorkspace(bridge) {
       return;
     }
     if (["same","connected"].includes(tool) && cell) { const original = get().editor.selection, selection = tool === "same" ? sameColorSelection(bridge.getResult().grid, cell.x, cell.y, original) : connectedSelection(bridge.getResult().grid, cell.x, cell.y, original); store.setState({ editor: { selection, selectedCell: cell }, ui: { activePanel: "edit" } }); return; }
-    if (tool === "fill" && cell) { const selected=get().editor.selectedPaletteId||get().editor.selectedColor; if(selected) editorService.fillAt(cell.x,cell.y,selected,symmetryOptions()); store.setState({editor:{selectedCell:cell},ui:{activePanel:"edit"}}); return; }
+    if (tool === "fill" && cell) { const selected=get().editor.selectedPaletteId||get().editor.selectedColor; if(selected) editorService.fillAt(cell.x,cell.y,selected); store.setState({editor:{selectedCell:cell},ui:{activePanel:"edit"}}); return; }
     if (["brush","eraser"].includes(tool) && cell) {
       const selected = get().editor.selectedPaletteId || get().editor.selectedColor;
       if (tool === "brush" && !selected) { store.setState({ ui: { activePanel: "edit" } }); return; }
@@ -677,7 +686,7 @@ export function mountWorkspace(bridge) {
     }
     if (tool === "bead" && cell) {
       const selected = get().editor.selectedPaletteId || get().editor.selectedColor;
-      if (selected) editorService.setCellColor(cell.x, cell.y, selected, symmetryOptions());
+      if (selected) editorService.setCellColor(cell.x, cell.y, selected);
       store.setState({ editor: { selectedCell: cell }, ui: { activePanel: "edit" } }); return;
     }
     // 文字工具：点已有文字 = 选中并拖动；点空白 = 就地新建一个图层。
@@ -742,7 +751,7 @@ export function mountWorkspace(bridge) {
     if (drag?.type === "shape") {
       const selected = get().editor.selectedColor;
       // 预览只活在 overlay 层，所以这里才产生唯一的一步历史；取消则直接丢弃预览。
-      if (!cancel && selected) editorService.applyShape(drag.kind, drag.start, drag.end || drag.start, selected, { ...shapeOptions(), ...symmetryOptions() });
+      if (!cancel && selected) editorService.applyShape(drag.kind, drag.start, drag.end || drag.start, selected, shapeOptions());
       store.setState({ editor: { shapePreview: null } });
     }
     drag = null; well.classList.remove("is-panning"); renderer.requestDraw(); };
@@ -847,10 +856,17 @@ export function mountWorkspace(bridge) {
     $("#ws-pixel-perfect").disabled = !hasPattern || state.editor.brushSize !== 1;
     $("#ws-shape-filled").disabled = !hasPattern;
     $("#ws-shape-filled").checked = state.editor.shapeFilled;
-    $("#ws-symmetry-horizontal").checked = state.editor.symmetryHorizontal;
-    $("#ws-symmetry-vertical").checked = state.editor.symmetryVertical;
-    $("#ws-symmetry-horizontal").disabled = !hasPattern;
-    $("#ws-symmetry-vertical").disabled = !hasPattern;
+    $("#ws-symmetry-mode").value = state.editor.symmetryMode || "none";
+    $("#ws-symmetry-mode").disabled = !hasPattern;
+    const resultSize = bridge.getResult();
+    $("#ws-symmetry-axis-x").max = String(Math.max(0, resultSize.width - 1));
+    $("#ws-symmetry-axis-y").max = String(Math.max(0, resultSize.height - 1));
+    $("#ws-symmetry-axis-x").value = String(Number.isFinite(state.editor.symmetryAxisX) ? state.editor.symmetryAxisX : (resultSize.width - 1) / 2);
+    $("#ws-symmetry-axis-y").value = String(Number.isFinite(state.editor.symmetryAxisY) ? state.editor.symmetryAxisY : (resultSize.height - 1) / 2);
+    $("#ws-symmetry-axis-x").disabled = !hasPattern;
+    $("#ws-symmetry-axis-y").disabled = !hasPattern;
+    $("#ws-symmetry-guides").checked = state.editor.symmetryGuideVisible !== false;
+    $("#ws-symmetry-guides").disabled = !hasPattern;
     $("#ws-wand-tolerance").disabled = !hasPattern;
     $("#ws-wand-tolerance-value").textContent = String(state.editor.wandTolerance);
     const hasSelection = Boolean(state.editor.selection);
@@ -1237,6 +1253,18 @@ export function mountWorkspace(bridge) {
   };
 
   const projectFileInput = $("#ws-project-file");
+  const applyLoadedProject = (payload) => {
+    bridge.loadProjectJson(payload);
+    editorService.clearHistory();
+    store.setState({
+      source: { image: "", width: 0, height: 0 },
+      status: { hasSource: false, hasPattern: true, dirty: true, generationError: null },
+      view: { mode: "blocks" },
+      editor: { tool: "select", selectedCell: null, selectedPaletteId: null, selection: null, hoveredCell: null, highlightedColor: null, highlightedPaletteId: null, textLayers: [], activeTextLayerId: null },
+      ui: { exportDrawerOpen: false },
+    });
+    viewport.fitToViewport();
+  };
   $("#ws-project-import").addEventListener("click", () => projectFileInput.click());
   projectFileInput.addEventListener("change", async () => {
     const file = projectFileInput.files?.[0];
@@ -1247,16 +1275,7 @@ export function mountWorkspace(bridge) {
       // .pixler 是结构化项目文件：走原生解析，绝不转成图片再识别（避免二次损失）。
       const isPixler = await isPixlerFile(file);
       const payload = isPixler ? await loadPixlerProject(file) : await file.text();
-      bridge.loadProjectJson(payload);
-      editorService.clearHistory();
-      store.setState({
-        source: { image: "", width: 0, height: 0 },
-        status: { hasSource: false, hasPattern: true, dirty: true, generationError: null },
-        view: { mode: "blocks" },
-        editor: { tool: "select", selectedCell: null, selectedPaletteId: null, selection: null, hoveredCell: null, highlightedColor: null, highlightedPaletteId: null, textLayers: [], activeTextLayerId: null },
-        ui: { exportDrawerOpen: false },
-      });
-      viewport.fitToViewport();
+      applyLoadedProject(payload);
       if (pixlerNote) $("#ws-export-message").textContent = pixlerNote;
     } catch (error) {
       $("#ws-export-message").textContent = error.message;
@@ -1436,8 +1455,17 @@ export function mountWorkspace(bridge) {
       store.setState({ editor: { shapeFilled: event.target.checked } });
     });
     $("#ws-pixel-perfect").addEventListener("change", (event) => store.setState({editor:{pixelPerfect:event.target.checked}}));
-    $("#ws-symmetry-horizontal").addEventListener("change", (event) => store.setState({ editor: { symmetryHorizontal: event.target.checked } }));
-    $("#ws-symmetry-vertical").addEventListener("change", (event) => store.setState({ editor: { symmetryVertical: event.target.checked } }));
+    $("#ws-symmetry-mode").addEventListener("change", (event) => {
+      const mode = event.target.value;
+      store.setState({ editor: { symmetryMode: mode, symmetryHorizontal: ["vertical","both"].includes(mode), symmetryVertical: ["horizontal","both"].includes(mode) } });
+    });
+    const updateSymmetryAxis = (key, input, maximum) => {
+      const value = clamp(Math.round((Number(input.value) || 0) * 2) / 2, 0, maximum);
+      input.value = String(value); store.setState({ editor: { [key]: value } });
+    };
+    $("#ws-symmetry-axis-x").addEventListener("change", (event) => updateSymmetryAxis("symmetryAxisX", event.target, Math.max(0, bridge.getResult().width - 1)));
+    $("#ws-symmetry-axis-y").addEventListener("change", (event) => updateSymmetryAxis("symmetryAxisY", event.target, Math.max(0, bridge.getResult().height - 1)));
+    $("#ws-symmetry-guides").addEventListener("change", (event) => store.setState({ editor: { symmetryGuideVisible: event.target.checked } }));
   };
   attachSelectionActions();
   window.addEventListener("keydown", (event) => {
@@ -1743,6 +1771,14 @@ export function mountWorkspace(bridge) {
   store.subscribe(paint);
   syncLegacy(); paint(get(), { status: true, stats: true });
   renderPicker();
+  // 可复现浏览器 QA 入口只在本机开放；固定夹具不进入工程格式，也不会影响线上用户。
+  const qaProject = new URLSearchParams(location.search).get("qaProject");
+  if (["localhost", "127.0.0.1"].includes(location.hostname) && qaProject === "editor-104") {
+    fetch("./tests/fixtures/editor-104x104.libms-project")
+      .then((response) => { if (!response.ok) throw new Error(`QA fixture ${response.status}`); return response.text(); })
+      .then((payload) => { applyLoadedProject(payload); $("#ws-export-message").textContent = "已载入固定 104×104 编辑器 QA 工程"; })
+      .catch((error) => { $("#ws-export-message").textContent = error.message; });
+  }
   delete grid.dataset.workspaceMounting;
   grid.dataset.workspaceReady = "true";
   return { mounted: true, reused: false };
