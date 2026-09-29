@@ -1,10 +1,10 @@
-import { projectStore } from "../state/project-store.js?v=20260918-usage2";
+import { projectStore } from "../state/project-store.js?v=20260929-editor-phase8";
 import { createGenerationService } from "../services/generation-service.js?v=20260918-usage2";
 import { createPaletteService } from "../services/palette-service.js";
 import { createExportService } from "../services/export-service.js?v=20260917-batchA";
-import { createEditorService } from "../services/editor-service.js?v=20260929-editor-phase6";
+import { createEditorService } from "../services/editor-service.js?v=20260929-editor-phase8";
 import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260929-editor-phase3";
-import { createCanvasRenderer } from "./canvas-renderer.js?v=20260929-editor-phase6";
+import { createCanvasRenderer } from "./canvas-renderer.js?v=20260929-editor-phase8";
 import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20260916-phase35-5";
 import { magicWandSelection, fitSelectionBox, invertSelection as invertSelectionMask, selectAll as selectAllCells, translateSelection } from "../services/shapes-service.js?v=20260918-usage2";
 import { renderSourceTransform, defaultSourceTransform, cropFromDrag, sourceOutputGeometry } from "../services/source-editor-service.js?v=20260916-phase35-5";
@@ -168,6 +168,15 @@ export function mountWorkspace(bridge) {
     <label class="ws-switch-row"><input id="ws-symmetry-guides" type="checkbox" checked> 显示对称轴</label>
     <p class="ws-note">仅作用于画笔和橡皮擦。104×104 默认中心轴为 51.5。</p>`;
   editPanel?.querySelector("#ws-cell-details")?.previousElementSibling?.before(symmetryControls);
+  const outlineControls=document.createElement("div");outlineControls.className="ws-outline-controls";
+  outlineControls.innerHTML=`<div class="ws-section-title">结构描边</div>
+    <label class="ws-field">来源<select id="ws-outline-source"><option value="component">当前连通区域</option><option value="palette">全图当前颜色</option><option value="selection">选区内容</option></select></label>
+    <label class="ws-field">描边颜色<select id="ws-outline-target"></select></label>
+    <div class="ws-selection-actions"><label>厚度 <select id="ws-outline-thickness"><option>1</option><option>2</option><option>3</option></select></label><label>邻域 <select id="ws-outline-connectivity"><option value="4">4 邻域</option><option value="8">8 邻域</option></select></label></div>
+    <label class="ws-switch-row"><input id="ws-outline-holes" type="checkbox"> 包含内部孔洞</label>
+    <button type="button" class="ws-button ws-wide" id="ws-outline-preview">预览描边</button><p class="ws-note" id="ws-outline-summary">选择来源和真实色号后预览。</p>
+    <div class="ws-selection-actions"><button type="button" id="ws-outline-apply" disabled>应用</button><button type="button" id="ws-outline-cancel" disabled>取消</button></div>`;
+  symmetryControls.before(outlineControls);
   const colorInspector = document.createElement("div");
   colorInspector.className = "ws-current-color";
   colorInspector.innerHTML = `<div class="ws-section-title">当前颜色</div>
@@ -282,7 +291,7 @@ export function mountWorkspace(bridge) {
   };
   const get = () => store.getState();
   function updateHistory() {
-    store.setState({ editor: { history: { canUndo: editorService.canUndo(), canRedo: editorService.canRedo() } } });
+    store.setState({ editor: { history: { canUndo: editorService.canUndo(), canRedo: editorService.canRedo() }, outlinePreview: null } });
   }
   const syncLegacy = (result = bridge.getResult()) => {
     if (!result) return;
@@ -767,6 +776,9 @@ export function mountWorkspace(bridge) {
     $("#ws-bead-picker").innerHTML = colors.map((color) => `<button type="button" data-ws-pick="${esc(color.code)}" title="${esc(color.name || color.code)} · 使用 ${editorService.getColorUsage(color.code)} 颗" class="${get().editor.selectedColor === color.code ? "active" : ""}"><span style="background:${esc(color.hex)}"></span><small>${esc(color.code)}</small></button>`).join("") || '<p class="ws-note">没有匹配的色号。</p>';
   }
   const paint = (state, patch = {}) => {
+    if (state.editor.outlinePreview && patch.editor && ["selection","selectedCell","selectedPaletteId"].some((key)=>Object.prototype.hasOwnProperty.call(patch.editor,key))) {
+      store.setState({editor:{outlinePreview:null}}); return;
+    }
     // 拖拽过程中的高频更新（悬停格、形状预览）只重绘画布，不走整块面板重建，
     // 否则每移动一格就要重排一次调色板与库存表，手感会拖沓。
     if (patch.editor && Object.keys(patch).length === 1 && Object.keys(patch.editor).every((key) => key === "hoveredCell" || key === "shapePreview")) { renderer.requestDraw(); return; }
@@ -856,6 +868,12 @@ export function mountWorkspace(bridge) {
     $("#ws-pixel-perfect").disabled = !hasPattern || state.editor.brushSize !== 1;
     $("#ws-shape-filled").disabled = !hasPattern;
     $("#ws-shape-filled").checked = state.editor.shapeFilled;
+    const outlineTarget=$("#ws-outline-target"),outlineSelected=state.editor.outlineTargetPaletteId||state.editor.selectedPaletteId||"";
+    outlineTarget.innerHTML=`<option value="">选择真实色号</option>${editorService.getPaletteColors().map(c=>`<option value="${esc(paletteIdOf(c))}">${esc(c.code)}</option>`).join("")}`;
+    outlineTarget.value=editorService.resolveColor(outlineSelected)?paletteIdOf(editorService.resolveColor(outlineSelected)):"";
+    const outlinePreview=state.editor.outlinePreview;
+    $("#ws-outline-summary").textContent=outlinePreview?`候选 ${outlinePreview.candidateCount} · 新增 ${outlinePreview.cells.length} 颗 · 阻挡 ${outlinePreview.blockedCount} 颗`:"选择来源和真实色号后预览。";
+    $("#ws-outline-apply").disabled=!outlinePreview?.cells?.length;$("#ws-outline-cancel").disabled=!outlinePreview;
     $("#ws-symmetry-mode").value = state.editor.symmetryMode || "none";
     $("#ws-symmetry-mode").disabled = !hasPattern;
     const resultSize = bridge.getResult();
@@ -1455,6 +1473,16 @@ export function mountWorkspace(bridge) {
       store.setState({ editor: { shapeFilled: event.target.checked } });
     });
     $("#ws-pixel-perfect").addEventListener("change", (event) => store.setState({editor:{pixelPerfect:event.target.checked}}));
+    const cancelOutlinePreview=()=>store.setState({editor:{outlinePreview:null}});
+    for(const id of ["#ws-outline-source","#ws-outline-thickness","#ws-outline-connectivity","#ws-outline-holes"]) $(id).addEventListener("change",cancelOutlinePreview);
+    $("#ws-outline-target").addEventListener("change",event=>store.setState({editor:{outlineTargetPaletteId:event.target.value,outlinePreview:null}}));
+    $("#ws-outline-preview").addEventListener("click",()=>{
+      const target=$("#ws-outline-target").value;if(!target){notify("请先选择描边颜色。");return;}
+      const state=get(),plan=editorService.planOutline({sourceMode:$("#ws-outline-source").value,selectedCell:state.editor.selectedCell,selectedPaletteId:state.editor.selectedPaletteId,selection:state.editor.selection,thickness:Number($("#ws-outline-thickness").value),connectivity:Number($("#ws-outline-connectivity").value),includeHoles:$("#ws-outline-holes").checked});
+      store.setState({editor:{outlinePreview:{...plan,cells:plan.outlineCells,targetPaletteId:target,candidateCount:plan.candidateCells.length,blockedCount:plan.blockedCells.length}}});renderer.requestDraw();
+    });
+    $("#ws-outline-cancel").addEventListener("click",cancelOutlinePreview);
+    $("#ws-outline-apply").addEventListener("click",()=>{const preview=get().editor.outlinePreview;if(!preview)return;editorService.applyOutlinePlan(preview,preview.targetPaletteId);store.setState({editor:{outlinePreview:null}});renderer.requestDraw();});
     $("#ws-symmetry-mode").addEventListener("change", (event) => {
       const mode = event.target.value;
       store.setState({ editor: { symmetryMode: mode, symmetryHorizontal: ["vertical","both"].includes(mode), symmetryVertical: ["horizontal","both"].includes(mode) } });

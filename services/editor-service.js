@@ -6,6 +6,8 @@ import { symmetryBrushCells } from "./symmetry-service.js";
 import { paletteIdOf } from "./palette-identity.js";
 import { getPaletteIndex, inspectPaletteCell } from "./palette-usage.js";
 import { findSimilarPaletteColors, detectRarePaletteColors } from "./palette-diagnostics.js";
+import { buildColorComponents } from "./structural-diagnostics.js";
+import { computeOuterOutline } from "./outline-service.js";
 
 const cloneGrid = (grid) => grid.map((row) => row.map((color) => (color ? { ...color, rgb: Array.isArray(color.rgb) ? [...color.rgb] : color.rgb } : null)));
 
@@ -112,6 +114,17 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     },
     findSimilarPaletteColors(paletteId, options) { return findSimilarPaletteColors(bridge.getPaletteColors(), paletteId, options); },
     detectRarePaletteColors(options) { return detectRarePaletteColors(currentPaletteIndex(), options); },
+    planOutline({ sourceMode="component", selectedCell=null, selectedPaletteId=null, selection=null, thickness=1, connectivity=4, includeHoles=false }={}) {
+      const grid=result().grid; let sourceCells=[];
+      if(sourceMode==="selection") sourceCells=selectedCells(selection).filter(({x,y})=>grid[y]?.[x]);
+      else if(sourceMode==="palette") grid.forEach((row,y)=>row.forEach((color,x)=>{if(paletteIdOf(color)===selectedPaletteId)sourceCells.push({x,y});}));
+      else if(selectedCell){const index=buildColorComponents(grid,{connectivity:4});const id=index.cellToComponent.get(`${selectedCell.x},${selectedCell.y}`);sourceCells=index.components[id]?.cells.map(c=>({...c}))||[];}
+      return computeOuterOutline(sourceCells,grid,{thickness,connectivity,includeHoles});
+    },
+    applyOutlinePlan(plan, code) {
+      const after=colorFor(code); if(!after||!plan?.outlineCells?.length)return false;
+      return commit("OUTLINE",`结构描边：${after.code} · ${plan.outlineCells.length} 颗`,changesFor(plan.outlineCells,after));
+    },
     invalidateUsageCounts,
     resolveColor: colorFor,
     setCellColor(x, y, code) {

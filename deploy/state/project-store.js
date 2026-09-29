@@ -79,6 +79,8 @@ function snapshot(store) {
   if (s.editorState.textLayers !== undefined) editor.textLayers = s.editorState.textLayers;
   if (s.editorState.activeTextLayerId !== undefined) editor.activeTextLayerId = s.editorState.activeTextLayerId;
   if (s.editorState.textRecentColors !== undefined) editor.textRecentColors = s.editorState.textRecentColors;
+  if (s.editorState.outlineTargetPaletteId !== undefined) editor.outlineTargetPaletteId = s.editorState.outlineTargetPaletteId;
+  if (s.editorState.outlinePreview !== undefined) editor.outlinePreview = s.editorState.outlinePreview;
 
   return {
     project: { ...s.documentState },

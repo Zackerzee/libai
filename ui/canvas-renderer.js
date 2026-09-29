@@ -166,6 +166,11 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
         overlay.restore();
       }
     }
+    if (editor.outlinePreview?.cells?.length) {
+      const previewColor=resolveColor(editor.outlinePreview.targetPaletteId);
+      if(previewColor){const overlay=ctx[L.overlay];overlay.save();overlay.globalAlpha=.68;overlay.fillStyle=previewColor.hex||`rgb(${previewColor.rgb.join(",")})`;overlay.strokeStyle="rgba(255,255,255,.9)";overlay.lineWidth=1;
+        for(const c of editor.outlinePreview.cells){if(c.x<x0||c.x>=x1||c.y<y0||c.y>=y1)continue;const p=viewport.gridToScreen(c.x,c.y);overlay.fillRect(p.x,p.y,cell,cell);overlay.strokeRect(p.x+.5,p.y+.5,Math.max(0,cell-1),Math.max(0,cell-1));}overlay.restore();}
+    }
     const symmetryMode = editor.symmetryMode || "none";
     if (editor.symmetryGuideVisible !== false && symmetryMode !== "none") {
       const overlay = ctx[L.overlay];

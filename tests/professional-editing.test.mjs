@@ -110,3 +110,19 @@ test("both-axis 5×5 brush deduplicates overlap and clips boundaries",()=>{
   editor.beginStroke("brand:B",{size:5,symmetry:{mode:"both",axisX:3,axisY:3}}); editor.strokeCell(3,3); editor.endStroke();
   assert.equal(grid.flat().filter((cell)=>cell.paletteId==="brand:B").length,25);
 });
+
+test("structural outline previews without mutation and applies as one undoable command",()=>{
+  const {grid,editor}=fixture(["AAAAA","A...A","A...A","A...A","AAAAA"]),before=grid.flat().map(c=>c?.paletteId||null);
+  const plan=editor.planOutline({sourceMode:"component",selectedCell:{x:0,y:0},selectedPaletteId:"brand:A",thickness:1,connectivity:4,includeHoles:true});
+  assert.equal(plan.outlineCells.length,8);assert.deepEqual(grid.flat().map(c=>c?.paletteId||null),before,"preview must not mutate grid");
+  assert.equal(editor.applyOutlinePlan(plan,"brand:B"),true);assert.equal(grid.flat().filter(c=>c?.paletteId==="brand:B").length,8);assert.deepEqual(editor.historyDepth(),{undo:1,redo:0});
+  editor.undo();assert.deepEqual(grid.flat().map(c=>c?.paletteId||null),before);editor.redo();assert.equal(grid[1][1].paletteId,"brand:B");
+});
+
+test("outline source modes preserve palette identity and selection scope",()=>{
+  const {editor}=fixture(["AT.A","....","AA.."]);
+  const component=editor.planOutline({sourceMode:"component",selectedCell:{x:0,y:0},selectedPaletteId:"brand:A"});
+  const palette=editor.planOutline({sourceMode:"palette",selectedPaletteId:"brand:A"});
+  const selection=editor.planOutline({sourceMode:"selection",selection:{x0:0,y0:0,x1:1,y1:0}});
+  assert.equal(component.sourceCells.length,1);assert.equal(palette.sourceCells.length,4);assert.equal(selection.sourceCells.length,2,"same RGB different identity remains separate but selection includes both real cells");
+});

@@ -1,0 +1,10 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { computeExternalEmpty, computeOuterOutline } from "../services/outline-service.js";
+const grid=(w,h,filled=[])=>{const g=Array.from({length:h},()=>Array(w).fill(null));for(const c of filled)g[c.y][c.x]={paletteId:c.id||"A"};return g;};
+const ids=c=>c.map(p=>`${p.x},${p.y}`).sort();
+test("single cell produces deterministic 4/8-neighbor outer outlines",()=>{const g=grid(5,5,[{x:2,y:2}]);assert.equal(computeOuterOutline([{x:2,y:2}],g).outlineCells.length,4);assert.equal(computeOuterOutline([{x:2,y:2}],g,{connectivity:8}).outlineCells.length,8);});
+test("thickness expands discrete layers and never includes source",()=>{const g=grid(9,9,[{x:4,y:4}]);for(const n of [1,2,3]){const p=computeOuterOutline([{x:4,y:4}],g,{thickness:n});assert.ok(!ids(p.outlineCells).includes("4,4"));assert.equal(p.outlineCells.length,2*n*(n+1));}});
+test("occupied candidates are blocked rather than overwritten",()=>{const g=grid(5,5,[{x:2,y:2},{x:3,y:2,id:"B"}]);const p=computeOuterOutline([{x:2,y:2}],g);assert.equal(p.outlineCells.length,3);assert.deepEqual(ids(p.blockedCells),["3,2"]);});
+test("closed holes excluded by default and included on request",()=>{const source=[];for(let y=1;y<=3;y++)for(let x=1;x<=3;x++)if(x===1||x===3||y===1||y===3)source.push({x,y});const g=grid(5,5,source);assert.ok(!ids(computeOuterOutline(source,g).outlineCells).includes("2,2"));assert.ok(ids(computeOuterOutline(source,g,{includeHoles:true}).outlineCells).includes("2,2"));assert.ok(!computeExternalEmpty(source,5,5).has("2,2"));});
+test("canvas edge clips without wrap or resize",()=>{const g=grid(3,3,[{x:0,y:0}]);assert.deepEqual(ids(computeOuterOutline([{x:0,y:0}],g).outlineCells),["0,1","1,0"]);});
