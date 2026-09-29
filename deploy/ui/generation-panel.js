@@ -102,15 +102,15 @@ export class GenerationPanel {
     this.syncUI();
   }
 
-  // 算法与生成方式合并成同一段：先选生成策略（preset），再定取色算法（sampling）。
+  // 普通界面只暴露场景模式；底层 sampling 由各模式内部映射，避免同一能力重复出现。
   // 图纸尺寸不在这里 —— 已提到工作台上方的顶栏，做成 52 / 78 / 104 / 自动 一行。
   renderGenMethodSection() {
     return `
       <div class="sl-panel-section">
         <div class="sl-section-heading">
           <div>
-            <h3>算法与生成方式</h3>
-            <p>先选生成策略，再定每颗豆从原图取色的算法</p>
+            <h3>生成模式</h3>
+            <p>选择最接近原图内容的处理方式</p>
           </div>
         </div>
 
@@ -165,51 +165,14 @@ export class GenerationPanel {
             "⬡"
           )}
 
-        </div>
-
-        <div class="sl-sampling-tabs">
-
-          ${this.samplingButton(
-            "auto",
-            "智能",
-            "自动",
-            "根据图片与区域动态选择"
-          )}
-
-          ${this.samplingButton(
-            "mean",
+          ${this.presetButton(
+            "photo",
             "写实",
-            "均值",
-            "适合照片、人像与风景"
-          )}
-
-          ${this.samplingButton(
-            "center",
-            "像素",
-            "中心点",
-            "适合像素画与规整素材"
-          )}
-
-          ${this.samplingButton(
-            "dominant",
-            "色块",
-            "主导色",
-            "适合动漫、插画与 Logo"
-          )}
-
-          ${this.samplingButton(
-            "edge",
-            "边缘",
-            "边缘感知",
-            "减少轮廓混色和边缘杂色"
+            "保留照片的自然明暗",
+            "◐"
           )}
 
         </div>
-
-        <div
-          class="sl-sampling-description"
-          data-role="sampling-description"
-        ></div>
 
       </div>
     `;
@@ -230,20 +193,6 @@ export class GenerationPanel {
         </span>
 
         <span class="sl-preset-check">✓</span>
-      </button>
-    `;
-  }
-
-  samplingButton(value, title, subtitle, description) {
-    return `
-      <button
-        type="button"
-        class="sl-sampling-card"
-        data-sampling="${value}"
-        data-description="${description}"
-      >
-        <strong>${title}</strong>
-        <span>${subtitle}</span>
       </button>
     `;
   }
@@ -519,16 +468,6 @@ export class GenerationPanel {
         return;
       }
 
-      const sampling = event.target.closest("[data-sampling]");
-
-      if (sampling) {
-        this.setState({
-          sampling: sampling.dataset.sampling
-        });
-
-        return;
-      }
-
       const stepper = event.target.closest("[data-step-field]");
 
       if (stepper) {
@@ -711,6 +650,20 @@ export class GenerationPanel {
         autoBackground: false,
         strokeProtection: false,
         accentProtection: false
+      },
+
+      photo: {
+        sampling: "mean",
+        detailProtection: 70,
+        edgeProtection: 70,
+        cleanupStrength: 50,
+        preserveEyes: true,
+        preserveHighlights: true,
+        preserveMicroDetails: true,
+        subjectCrop: false,
+        autoBackground: false,
+        strokeProtection: false,
+        accentProtection: false
       }
     };
 
@@ -755,30 +708,6 @@ export class GenerationPanel {
           button.dataset.preset === this.state.preset
         );
       });
-
-    this.root
-      .querySelectorAll("[data-sampling]")
-      .forEach(button => {
-        button.classList.toggle(
-          "is-active",
-          button.dataset.sampling === this.state.sampling
-        );
-      });
-
-    const currentSampling =
-      this.root.querySelector(
-        `[data-sampling="${this.state.sampling}"]`
-      );
-
-    const description =
-      this.root.querySelector(
-        '[data-role="sampling-description"]'
-      );
-
-    if (currentSampling && description) {
-      description.textContent =
-        currentSampling.dataset.description;
-    }
 
     const advanced =
       this.root.querySelector(

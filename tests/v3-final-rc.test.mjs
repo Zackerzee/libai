@@ -7,6 +7,7 @@ const root=new URL("../",import.meta.url);
 const html=readFileSync(new URL("index.html",root),"utf8");
 const app=readFileSync(new URL("app.js",root),"utf8");
 const workspace=readFileSync(new URL("ui/workspace.js",root),"utf8");
+const generationPanel=readFileSync(new URL("ui/generation-panel.js",root),"utf8");
 
 test("landing page exposes the two explicit V3 creation paths and required blank presets",()=>{
   assert.match(html,/>图片转拼豆</);assert.match(html,/>＋ 新建空白图纸</);
@@ -31,6 +32,16 @@ test("full real palette remains separate from current usage and synchronizes sel
   assert.match(workspace,/id="ws-color-search"/);assert.match(workspace,/id="ws-bead-picker"/);
   assert.match(workspace,/selectedPaletteId:color\?paletteIdOf\(color\):null/);
   assert.match(workspace,/paletteCurrentColor=editorService\.resolveColor/);
+});
+
+test("release UI exposes eight scene modes while sampling remains an internal strategy",()=>{
+  for(const mode of ["小白一键","智能","人像","动漫","插画","像素","Logo","写实"])assert.match(generationPanel,new RegExp(`"${mode}"`));
+  assert.doesNotMatch(generationPanel,/data-sampling=/);
+  assert.doesNotMatch(generationPanel,/samplingButton\(/);
+  assert.match(generationPanel,/photo: \{\s*sampling: "mean"/);
+  assert.match(generationPanel,/portrait: \{\s*sampling: "edge"/);
+  assert.match(generationPanel,/pixel: \{\s*sampling: "center"/);
+  assert.match(generationPanel,/illustration: \{\s*sampling: "dominant"/);
 });
 
 test("200x200 editing stress keeps one command per stroke and survives undo redo",()=>{
