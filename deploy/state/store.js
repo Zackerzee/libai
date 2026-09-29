@@ -258,7 +258,8 @@
 
     /** 参考图叠加层：projectStore.reference */
     referenceState: {
-      url: "", opacity: 40, fit: "contain", visible: true,
+      url: "", opacity: 40, fit: "contain", visible: true, useSource: true,
+      offsetX: 0, offsetY: 0, scale: 1, smoothing: "smooth", displayMode: "normal", adjusting: false,
     },
 
     /** 状态标志：projectStore.status + app.js 的瞬态标志 */

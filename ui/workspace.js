@@ -4,7 +4,7 @@ import { createPaletteService } from "../services/palette-service.js";
 import { createExportService } from "../services/export-service.js?v=20260917-batchA";
 import { createEditorService } from "../services/editor-service.js?v=20260929-editor-phase8";
 import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260929-editor-phase3";
-import { createCanvasRenderer } from "./canvas-renderer.js?v=20260929-editor-phase8";
+import { createCanvasRenderer } from "./canvas-renderer.js?v=20260929-editor-phase9";
 import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20260916-phase35-5";
 import { magicWandSelection, fitSelectionBox, invertSelection as invertSelectionMask, selectAll as selectAllCells, translateSelection } from "../services/shapes-service.js?v=20260918-usage2";
 import { renderSourceTransform, defaultSourceTransform, cropFromDrag, sourceOutputGeometry } from "../services/source-editor-service.js?v=20260916-phase35-5";
@@ -17,6 +17,7 @@ import { createInspectionState, currentInspectionIssue, setInspectionIssues, sta
 import { TextPanel } from "./text-panel.js?v=20260924-text";
 import { createTextLayer, rasterizeTextCached, layerContainsCell } from "../services/text-layer-service.js?v=20260924-text";
 import { createInventoryService } from "../services/inventory-service.js?v=20260917-inventory";
+import { moveReference } from "../services/reference-layer-service.js";
 import { createOcrService } from "../services/ocr-service.js?v=20260917-inventory";
 import { createLegendRecognitionService } from "../services/legend-recognition-service.js?v=20260917-inventory";
 import { InventoryPanel } from "./inventory-panel.js?v=20260917-inventory";
@@ -155,7 +156,7 @@ export function mountWorkspace(bridge) {
         <p class="ws-note" id="ws-replace-impact">选择来源色后显示影响颗数。</p>
         <button type="button" class="ws-button ws-wide" id="ws-replace-confirm">确认替换</button>
       </section>
-      <section class="ws-panel" data-ws-inspector="edit"><div class="ws-section-title">当前工具</div><div id="ws-tool-details" class="ws-cell-details">选择工具 · 点击查看单豆</div><div class="ws-section-title">选中拼豆 / 区域</div><div id="ws-cell-details" class="ws-cell-details">用选择工具点击画布中的一颗豆。</div><div class="ws-section-title">工具选项</div><label class="ws-source-slider">笔宽<span id="ws-brush-size-value">1</span><input type="range" id="ws-brush-size" min="1" max="9" step="2" value="1" aria-label="画笔大小（格）"></label><label class="ws-switch-row"><input type="checkbox" id="ws-shape-filled"> 形状实心（矩形 / 圆形）</label><label class="ws-source-slider">魔棒容差<span id="ws-wand-tolerance-value">12</span><input type="range" id="ws-wand-tolerance" min="0" max="100" value="12"></label><div class="ws-selection-actions"><button type="button" id="ws-erase-selection">擦除选区</button><button type="button" id="ws-clear-selection">清除选择</button></div><div class="ws-selection-actions"><button type="button" id="ws-copy-selection">复制</button><button type="button" id="ws-cut-selection">剪切</button><button type="button" id="ws-paste-selection">粘贴</button></div><div class="ws-selection-actions"><button type="button" id="ws-invert-selection">反选</button><button type="button" id="ws-select-all">全选</button></div><div class="ws-outline-options"><label><input id="ws-outline-diagonal" type="checkbox">描边包含对角</label><button type="button" id="ws-apply-outline">外描边</button></div><div class="ws-editor-actions"><button type="button" id="ws-undo" disabled>撤销</button><button type="button" id="ws-redo" disabled>重做</button></div><div id="ws-history-label" class="ws-note"></div><div class="ws-section-title">文字素材</div><div id="textPanel" class="ws-text-panel"></div><div class="ws-section-title">参考底图描图</div><p class="ws-note">底图垫在豆格下方，空白处透出，照着描就行。底图只作参考，不会写进图纸。</p><div class="ws-source-buttons"><button type="button" id="ws-ref-pick">选择底图</button><button type="button" id="ws-ref-clear">移除底图</button></div><input type="file" id="ws-ref-file" accept="image/*" hidden><label class="ws-field">贴合方式<select id="ws-ref-fit"><option value="contain">适应 · 保持比例居中</option><option value="stretch">拉伸 · 铺满整块画布</option></select></label><label class="ws-source-slider">透明度<span id="ws-ref-opacity-value">40%</span><input type="range" id="ws-ref-opacity" min="0" max="100" value="40"></label><label class="ws-switch-row"><input type="checkbox" id="ws-ref-visible" checked> 显示底图</label><div class="ws-section-title">旧画板高级工具</div><button type="button" class="ws-button ws-wide" id="ws-open-editor" disabled>打开原画板</button></section>
+      <section class="ws-panel" data-ws-inspector="edit"><div class="ws-section-title">当前工具</div><div id="ws-tool-details" class="ws-cell-details">选择工具 · 点击查看单豆</div><div class="ws-section-title">选中拼豆 / 区域</div><div id="ws-cell-details" class="ws-cell-details">用选择工具点击画布中的一颗豆。</div><div class="ws-section-title">工具选项</div><label class="ws-source-slider">笔宽<span id="ws-brush-size-value">1</span><input type="range" id="ws-brush-size" min="1" max="9" step="2" value="1" aria-label="画笔大小（格）"></label><label class="ws-switch-row"><input type="checkbox" id="ws-shape-filled"> 形状实心（矩形 / 圆形）</label><label class="ws-source-slider">魔棒容差<span id="ws-wand-tolerance-value">12</span><input type="range" id="ws-wand-tolerance" min="0" max="100" value="12"></label><div class="ws-selection-actions"><button type="button" id="ws-erase-selection">擦除选区</button><button type="button" id="ws-clear-selection">清除选择</button></div><div class="ws-selection-actions"><button type="button" id="ws-copy-selection">复制</button><button type="button" id="ws-cut-selection">剪切</button><button type="button" id="ws-paste-selection">粘贴</button></div><div class="ws-selection-actions"><button type="button" id="ws-invert-selection">反选</button><button type="button" id="ws-select-all">全选</button></div><div class="ws-outline-options"><label><input id="ws-outline-diagonal" type="checkbox">描边包含对角</label><button type="button" id="ws-apply-outline">外描边</button></div><div class="ws-editor-actions"><button type="button" id="ws-undo" disabled>撤销</button><button type="button" id="ws-redo" disabled>重做</button></div><div id="ws-history-label" class="ws-note"></div><div class="ws-section-title">文字素材</div><div id="textPanel" class="ws-text-panel"></div><div class="ws-section-title">参考图</div><p class="ws-note">独立底层，只供对照，不参与网格、色卡、诊断或导出。</p><div class="ws-source-buttons"><button type="button" id="ws-ref-pick">添加 / 替换</button><button type="button" id="ws-ref-clear">移除</button></div><input type="file" id="ws-ref-file" accept="image/*" hidden><label class="ws-switch-row"><input type="checkbox" id="ws-ref-visible" checked> 显示参考图</label><label class="ws-source-slider">透明度<span id="ws-ref-opacity-value">40%</span><input type="range" id="ws-ref-opacity" min="0" max="100" value="40"></label><label class="ws-field">显示<select id="ws-ref-display"><option value="normal">正常</option><option value="reference-only">只看原图</option><option value="grid-only">只看图纸</option></select></label><label class="ws-field">适配<select id="ws-ref-fit"><option value="contain">Fit · 完整适应</option><option value="cover">Cover · 铺满裁切</option></select></label><label class="ws-field">质量<select id="ws-ref-smoothing"><option value="smooth">平滑</option><option value="pixelated">像素</option></select></label><label class="ws-source-slider">参考图缩放<span id="ws-ref-scale-value">100%</span><input type="range" id="ws-ref-scale" min="25" max="200" value="100"></label><div class="ws-selection-actions"><button type="button" id="ws-ref-adjust">调整位置</button><button type="button" id="ws-ref-reset">重新适配</button></div><div class="ws-section-title">旧画板高级工具</div><button type="button" class="ws-button ws-wide" id="ws-open-editor" disabled>打开原画板</button></section>
       <section class="ws-panel" data-ws-inspector="check"><div class="ws-section-title">真实检查结果</div><div id="ws-check-results" class="ws-check-results">生成后显示可验证的尺寸、色数与结构报告。</div></section>
       <section class="ws-panel" data-ws-inspector="inventory"><div id="inventoryPanel"></div></section>
     </div>`;
@@ -503,7 +504,8 @@ export function mountWorkspace(bridge) {
   const well = $("#ws-canvas-well"), layers = $("#ws-canvas-layers");
   const viewport = createViewportService(store, () => ({ viewportWidth: well.clientWidth, viewportHeight: well.clientHeight,
     gridWidth: bridge.getResult().width || 0, gridHeight: bridge.getResult().height || 0 }));
-  const renderer = createCanvasRenderer(layers, viewport, () => bridge.getResult(), () => get().view, () => get().editor, () => get().reference, (code) => editorService.resolveColor(code), () => diagnosticOverlayVisible ? diagnosticOverlayIssues : [], () => repairPreview);
+  const effectiveReference=()=>{const s=get();return {...s.reference,url:s.reference.url||(s.reference.useSource!==false?s.source.image:"")};};
+  const renderer = createCanvasRenderer(layers, viewport, () => bridge.getResult(), () => get().view, () => get().editor, effectiveReference, (code) => editorService.resolveColor(code), () => diagnosticOverlayVisible ? diagnosticOverlayIssues : [], () => repairPreview);
   const navigatorHost = document.createElement("aside");
   well.append(navigatorHost);
   const navigator = Navigator({
@@ -636,6 +638,7 @@ export function mountWorkspace(bridge) {
       if (get().editor.tool === "source-eyedropper") { sampleOriginalSource(norm); return; }
       well.setPointerCapture(event.pointerId); sourceDrag={ start:norm, previous:bridge.getSourceTransform().crop, moved:false }; return; }
     if (!get().status.hasPattern) return;
+    if(get().reference.adjusting&&effectiveReference().url&&event.button===0){well.setPointerCapture(event.pointerId);drag={type:"reference",x:event.clientX,y:event.clientY,reference:{...get().reference}};return;}
     const selectedTool = get().editor.tool, tool = event.altKey ? "eyedropper" : selectedTool, p = point(event), cell = viewport.screenToGrid(p.x, p.y);
     // 右键取色：在任意工具下都能从画布取色设为当前色，不切换工具、不改图纸。
     // 与「取色」工具的区别：工具是点一下取完自动切回画笔；右键是纯取色，工具态不动。
@@ -738,6 +741,7 @@ export function mountWorkspace(bridge) {
     if (!get().status.hasPattern) return;
     const p = point(event), cell = viewport.screenToGrid(p.x, p.y);
     if (drag?.type === "pan") { viewport.setPan(drag.panX + event.clientX - drag.x, drag.panY + event.clientY - drag.y); return; }
+    if(drag?.type==="reference"){const cell=BASE_CELL*get().view.zoom;store.setState({reference:moveReference(drag.reference,event.clientX-drag.x,event.clientY-drag.y,cell)});return;}
     if (drag?.type === "region" && cell) { store.setState({ editor: { selection: rectangularSelection(drag.start.x, drag.start.y, cell.x, cell.y, bridge.getResult().width, bridge.getResult().height) } }); return; }
     if (drag?.type === "stroke") { if (cell) { editorService.strokeCell(cell.x, cell.y); renderer.requestDraw(); } return; }
     if (drag?.type === "shape") {
@@ -1221,12 +1225,15 @@ export function mountWorkspace(bridge) {
 
   const referenceInput = $("#ws-ref-file");
   const syncReferenceUi = (state = get()) => {
-    const hasReference = Boolean(state.reference.url);
+    const hasReference = Boolean(state.reference.url||(state.reference.useSource!==false&&state.source.image));
     $("#ws-ref-fit").value = state.reference.fit;
     $("#ws-ref-opacity").value = String(state.reference.opacity);
     $("#ws-ref-opacity-value").textContent = `${state.reference.opacity}%`;
     $("#ws-ref-visible").checked = state.reference.visible !== false;
-    ["#ws-ref-clear", "#ws-ref-fit", "#ws-ref-opacity", "#ws-ref-visible"].forEach((selector) => { $(selector).disabled = !hasReference; });
+    $("#ws-ref-display").value=state.reference.displayMode||"normal";$("#ws-ref-smoothing").value=state.reference.smoothing||"smooth";
+    $("#ws-ref-scale").value=String(Math.round((state.reference.scale||1)*100));$("#ws-ref-scale-value").textContent=`${Math.round((state.reference.scale||1)*100)}%`;
+    $("#ws-ref-adjust").textContent=state.reference.adjusting?"完成调整":"调整位置";
+    ["#ws-ref-clear", "#ws-ref-fit", "#ws-ref-opacity", "#ws-ref-visible","#ws-ref-display","#ws-ref-smoothing","#ws-ref-scale","#ws-ref-adjust","#ws-ref-reset"].forEach((selector) => { $(selector).disabled = !hasReference; });
   };
   $("#ws-ref-pick").addEventListener("click", () => referenceInput.click());
   referenceInput.addEventListener("change", () => {
@@ -1234,11 +1241,16 @@ export function mountWorkspace(bridge) {
     referenceInput.value = "";
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => store.setState({ reference: { url: String(reader.result || ""), visible: true, fit: get().reference.fit } });
+    reader.onload = () => store.setState({ reference: { url: String(reader.result || ""),useSource:false,visible:true,fit:"contain",offsetX:0,offsetY:0,scale:1 } });
     reader.readAsDataURL(file);
   });
-  $("#ws-ref-clear").addEventListener("click", () => store.setState({ reference: { url: "", visible: true } }));
+  $("#ws-ref-clear").addEventListener("click", () => store.setState({ reference: { url:"",useSource:false,visible:true,adjusting:false } }));
   $("#ws-ref-fit").addEventListener("change", (event) => store.setState({ reference: { fit: event.target.value } }));
+  $("#ws-ref-display").addEventListener("change",event=>store.setState({reference:{displayMode:event.target.value}}));
+  $("#ws-ref-smoothing").addEventListener("change",event=>store.setState({reference:{smoothing:event.target.value}}));
+  $("#ws-ref-scale").addEventListener("input",event=>{const scale=clamp(Number(event.target.value)||100,25,200)/100;$("#ws-ref-scale-value").textContent=`${Math.round(scale*100)}%`;store.setState({reference:{scale}});});
+  $("#ws-ref-adjust").addEventListener("click",()=>store.setState({reference:{adjusting:!get().reference.adjusting}}));
+  $("#ws-ref-reset").addEventListener("click",()=>store.setState({reference:{offsetX:0,offsetY:0,scale:1,fit:"contain"}}));
   $("#ws-ref-opacity").addEventListener("input", (event) => {
     const value = clamp(Math.round(Number(event.target.value) || 0), 0, 100);
     $("#ws-ref-opacity-value").textContent = `${value}%`;

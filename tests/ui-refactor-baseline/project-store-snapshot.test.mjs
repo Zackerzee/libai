@@ -76,7 +76,7 @@ test("snapshot: view / reference 默认值", () => {
     mode: "blocks", zoom: 1, panX: 0, panY: 0,
     showGrid: false, showCodes: false, codeVisibilityThreshold: 16,
   });
-  assert.deepEqual(s.reference, { url: "", opacity: 40, fit: "contain", visible: true });
+  assert.deepEqual(s.reference, { url:"",opacity:40,fit:"contain",visible:true,useSource:true,offsetX:0,offsetY:0,scale:1,smoothing:"smooth",displayMode:"normal",adjusting:false });
 });
 
 test("snapshot: editor 默认值（workspace.js 最常写的一块）", () => {

@@ -293,7 +293,19 @@ test("statusState：旧 state 的会话/状态标志正确归桶（Phase 3B 由 
 test("uiState / referenceState / documentState / statsState：Phase 3B 新增命名空间默认合理", () => {
   const { store } = fresh();
   assert.deepEqual(store.get("uiState"), { activePanel: "project", inspectorOpen: true, exportDrawerOpen: false });
-  assert.deepEqual(store.get("referenceState"), { url: "", opacity: 40, fit: "contain", visible: true });
+  assert.deepEqual(store.get("referenceState"), {
+    url: "",
+    opacity: 40,
+    fit: "contain",
+    visible: true,
+    useSource: true,
+    offsetX: 0,
+    offsetY: 0,
+    scale: 1,
+    smoothing: "smooth",
+    displayMode: "normal",
+    adjusting: false,
+  });
   assert.deepEqual(store.get("documentState"), { id: null, name: "未命名作品" });
   assert.deepEqual(store.get("statsState"), { totalBeads: 0, usedColors: 0, colors: [] });
   // metaState 应已不存在

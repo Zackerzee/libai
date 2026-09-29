@@ -3,6 +3,7 @@ import { rasterizeTextCached, cellsBox } from "../services/text-layer-service.js
 import { resolveScreenRenderPolicy } from "../smart-preprocessing/render-policy.mjs?v=20260928-v3";
 import { paletteIdOf } from "../services/palette-identity.js";
 import { symmetryBrushCells } from "../services/symmetry-service.js";
+import { referenceLayout } from "../services/reference-layer-service.js";
 
 export const codeForegroundColor = (rgb) => {
   if (!rgb) return "#17212b";
@@ -46,19 +47,14 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
     const image = new Image(); image.onload = () => { if (referenceUrl === url) { reference = image; requestDraw(); } }; image.src = url;
     return null;
   };
-  // 适应 = 保持比例居中铺满；拉伸 = 直接铺满整块画布，允许变形。
   const drawReference = (ctx, settings, box) => {
     const image = referenceImage(settings.url || "");
     if (!image) return;
     ctx.save();
     ctx.globalAlpha = Math.min(1, Math.max(0, (Number(settings.opacity) || 0) / 100));
-    if (settings.fit === "stretch") {
-      ctx.drawImage(image, box.x, box.y, box.width, box.height);
-    } else {
-      const scale = Math.min(box.width / image.naturalWidth, box.height / image.naturalHeight);
-      const width = image.naturalWidth * scale, height = image.naturalHeight * scale;
-      ctx.drawImage(image, box.x + (box.width - width) / 2, box.y + (box.height - height) / 2, width, height);
-    }
+    ctx.imageSmoothingEnabled=settings.smoothing!=="pixelated";
+    ctx.beginPath();ctx.rect(box.x,box.y,box.width,box.height);ctx.clip();
+    const layout=referenceLayout(image.naturalWidth,image.naturalHeight,box,settings);if(layout)ctx.drawImage(image,layout.x,layout.y,layout.width,layout.height);
     ctx.restore();
   };
   const draw = () => {
@@ -78,9 +74,10 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
       if (source) ctx[L.base].drawImage(source, o.x, o.y, gridWidth * cell, gridHeight * cell);
       return;
     }
-    if (ref?.visible !== false && ref?.url) {
-      drawReference(ctx[L.reference], ref, { x: o.x, y: o.y, width: gridWidth * cell, height: gridHeight * cell });
+    if (ref?.displayMode!=="grid-only"&&ref?.visible !== false && ref?.url) {
+      drawReference(ctx[L.reference], ref, { x: o.x, y: o.y, width: gridWidth * cell, height: gridHeight * cell, cell });
     }
+    if(ref?.displayMode==="reference-only")return;
     const x0 = Math.max(0, Math.floor(-o.x / cell)), x1 = Math.min(gridWidth, Math.ceil((b.width - o.x) / cell));
     const y0 = Math.max(0, Math.floor(-o.y / cell)), y1 = Math.min(gridHeight, Math.ceil((b.height - o.y) / cell));
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
