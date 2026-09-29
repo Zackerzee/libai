@@ -42,7 +42,9 @@ test("没有图纸或原图时，依赖内容的视图与参数控件会禁用",
 
 test("专业画笔复用统一工具分发并接入补线、Pixel Perfect 与临时吸管",()=>{
   assert.match(workspace,/tool = event\.altKey \? "eyedropper" : selectedTool/);
-  assert.match(workspace,/pixelPerfect:get\(\)\.editor\.pixelPerfect/);
+  assert.match(workspace,/pixelPerfect:editor\.pixelPerfect/);
+  assert.match(workspace,/inkMode:tool==="brush"/);
+  assert.match(workspace,/rampPaletteIds/);
   assert.match(workspace,/shape:"square"/);
   assert.match(workspace,/selectedPaletteId:\s*paletteIdOf\(color\)/);
   assert.match(toolbar,/\{ id: "brush", label: "画笔", shortcut: "B" \}/);

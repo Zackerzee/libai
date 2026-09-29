@@ -185,6 +185,10 @@
       symmetryAxisX: null,
       symmetryAxisY: null,
       symmetryGuideVisible: true,
+      rampBasePaletteId: null,
+      rampSize: 5,
+      rampPaletteIds: [],
+      inkMode: "normal",
       paletteCategory: "all",  // projectStore.editor.paletteCategory
       recentColors: [],        // projectStore.editor.recentColors
       clipboard: null,         // projectStore.editor.clipboard

@@ -8,6 +8,7 @@ import { getPaletteIndex, inspectPaletteCell } from "./palette-usage.js";
 import { findSimilarPaletteColors, detectRarePaletteColors } from "./palette-diagnostics.js";
 import { buildColorComponents } from "./structural-diagnostics.js";
 import { computeOuterOutline } from "./outline-service.js";
+import { stepDarker, stepLighter } from "./color-ramp-service.js";
 
 const cloneGrid = (grid) => grid.map((row) => row.map((color) => (color ? { ...color, rgb: Array.isArray(color.rgb) ? [...color.rgb] : color.rgb } : null)));
 
@@ -167,14 +168,15 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     },
     eraseCells(cells, label = null) { const changes = changesFor(cells, null); return commit("ERASE", label || `擦除：${changes.length} 豆`, changes); },
     eraseSelection(selection) { if (!selection) return false; const { width, height } = result(); return this.eraseCells(selectionCells(selection, width, height)); },
-    beginStroke(code = null, { size = 1, shape = "square", symmetry = null, pixelPerfect = false } = {}) {
-      stroke = { code, size, shape, symmetry, pixelPerfect:Boolean(pixelPerfect && size === 1), path:[], cells:new Map(), active:new Set(), last:null };
+    beginStroke(code = null, { size = 1, shape = "square", symmetry = null, pixelPerfect = false, inkMode = "normal", rampPaletteIds = [] } = {}) {
+      stroke = { code, size, shape, symmetry, pixelPerfect:Boolean(pixelPerfect && size === 1), inkMode, rampPaletteIds:[...rampPaletteIds], path:[], cells:new Map(), active:new Set(), last:null };
       return true;
     },
     strokeCell(x, y) {
       if (!stroke || !result().grid[y] || x < 0 || x >= result().grid[y].length) return false;
+      const shading = stroke.inkMode === "darker" || stroke.inkMode === "lighter";
       const after = stroke.code ? colorFor(stroke.code) : null;
-      if (stroke.code && !after) return false;
+      if (!shading && stroke.code && !after) return false;
       const segment = stroke.last ? lineCells(stroke.last.x,stroke.last.y,x,y).slice(1) : [{x,y}];
       stroke.path.push(...segment); stroke.last={x,y};
       const centers = stroke.pixelPerfect ? cleanPixelPerfectPath(stroke.path) : stroke.path;
@@ -188,23 +190,29 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
       for (const cell of desiredCells) {
         const row=result().grid[cell.y]; if(!row||cell.x<0||cell.x>=row.length) continue;
         const id=`${cell.x},${cell.y}`;
-        if (!stroke.cells.has(id)) stroke.cells.set(id,{x:cell.x,y:cell.y,before:clone(bridge.getCell(cell.x,cell.y)),after:clone(after)});
+        if (!stroke.cells.has(id)) {
+          const before=clone(bridge.getCell(cell.x,cell.y));
+          const beforeId=paletteIdOf(before);
+          const targetId=shading?(stroke.inkMode==="lighter"?stepLighter(stroke.rampPaletteIds,beforeId):stepDarker(stroke.rampPaletteIds,beforeId)):null;
+          const target=shading?(targetId!==beforeId?colorFor(targetId):before):after;
+          stroke.cells.set(id,{x:cell.x,y:cell.y,before,after:clone(target)});
+        }
         if (stroke.active.has(id)) continue;
-        const original=stroke.cells.get(id); original.after=clone(after); stroke.active.add(id);
-        if (!same(bridge.getCell(cell.x,cell.y),after)) { bridge.applyCellChanges([{x:cell.x,y:cell.y,after:clone(after)}],{live:true}); touched=true; }
+        const original=stroke.cells.get(id); stroke.active.add(id);
+        if (!same(bridge.getCell(cell.x,cell.y),original.after)) { bridge.applyCellChanges([{x:cell.x,y:cell.y,after:clone(original.after)}],{live:true}); touched=true; }
       }
       if (touched) invalidateUsageCounts();
       return touched;
     },
     endStroke() {
       if (!stroke) return false;
-      const { code, cells, active } = stroke; stroke = null;
+      const { code, cells, active, inkMode } = stroke; stroke = null;
       const changes = [...active].map((id)=>cells.get(id)).filter(({before,after})=>!same(before,after));
       if (changes.length) bridge.applyCellChanges([], { finalize: true });
       if (changes.length) invalidateUsageCounts();
       return changes.length ? record(cellCommand(
-        code ? "BRUSH_STROKE" : "ERASE_STROKE",
-        code ? `画笔：${code}` : `擦除：${changes.length} 豆`,
+        inkMode !== "normal" ? "SHADING_STROKE" : code ? "BRUSH_STROKE" : "ERASE_STROKE",
+        inkMode === "darker" ? `加深：${changes.length} 豆` : inkMode === "lighter" ? `提亮：${changes.length} 豆` : code ? `画笔：${code}` : `擦除：${changes.length} 豆`,
         changes,
       )) : false;
     },

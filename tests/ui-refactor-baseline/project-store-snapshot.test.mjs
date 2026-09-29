@@ -87,6 +87,7 @@ test("snapshot: editor 默认值（workspace.js 最常写的一块）", () => {
     recentColors: [], brushSize: 1, pixelPerfect: true, shapeFilled: false,
     symmetryHorizontal: false, symmetryVertical: false, symmetryMode: "none",
     symmetryAxisX: null, symmetryAxisY: null, symmetryGuideVisible: true, wandTolerance: 12,
+    rampBasePaletteId: null, rampSize: 5, rampPaletteIds: [], inkMode: "normal",
     shapePreview: null, clipboard: null,
     history: { canUndo: false, canRedo: false },
   });

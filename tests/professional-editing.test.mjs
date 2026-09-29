@@ -111,6 +111,21 @@ test("both-axis 5×5 brush deduplicates overlap and clips boundaries",()=>{
   assert.equal(grid.flat().filter((cell)=>cell.paletteId==="brand:B").length,25);
 });
 
+test("shading stroke steps every cell by its own palette identity and commits one undo",()=>{
+  const {grid,editor}=fixture(["ATB"]),rampPaletteIds=["brand:A","brand:TWIN","brand:B"];
+  editor.beginStroke("brand:TWIN",{inkMode:"darker",rampPaletteIds});editor.strokeCell(0,0);editor.strokeCell(2,0);editor.endStroke();
+  assert.deepEqual(grid[0].map(cell=>cell.paletteId),["brand:A","brand:A","brand:TWIN"]);
+  assert.deepEqual(editor.historyDepth(),{undo:1,redo:0});editor.undo();assert.deepEqual(grid[0].map(cell=>cell.paletteId),["brand:A","brand:TWIN","brand:B"]);editor.redo();assert.equal(grid[0][2].paletteId,"brand:TWIN");
+});
+
+test("shading respects symmetry and brush footprint while out-of-ramp cells remain unchanged",()=>{
+  const {grid,editor}=fixture(["AATBBA","AATBBA","AATBBA"]),rampPaletteIds=["brand:A","brand:B"];
+  editor.beginStroke("brand:A",{inkMode:"lighter",rampPaletteIds,size:3,symmetry:{mode:"vertical",axisX:2.5,axisY:1}});editor.strokeCell(0,1);editor.endStroke();
+  assert.equal(grid.flat().filter(cell=>cell?.paletteId==="brand:B").length,15);
+  assert.equal(grid[0][2].paletteId,"brand:TWIN","same RGB but out-of-ramp identity is not modified");
+  assert.equal(editor.historyDepth().undo,1);
+});
+
 test("structural outline previews without mutation and applies as one undoable command",()=>{
   const {grid,editor}=fixture(["AAAAA","A...A","A...A","A...A","AAAAA"]),before=grid.flat().map(c=>c?.paletteId||null);
   const plan=editor.planOutline({sourceMode:"component",selectedCell:{x:0,y:0},selectedPaletteId:"brand:A",thickness:1,connectivity:4,includeHoles:true});

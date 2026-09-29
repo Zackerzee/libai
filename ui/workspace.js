@@ -2,7 +2,7 @@ import { projectStore } from "../state/project-store.js?v=20260929-editor-phase8
 import { createGenerationService } from "../services/generation-service.js?v=20260918-usage2";
 import { createPaletteService } from "../services/palette-service.js";
 import { createExportService } from "../services/export-service.js?v=20260917-batchA";
-import { createEditorService } from "../services/editor-service.js?v=20260929-editor-phase8";
+import { createEditorService } from "../services/editor-service.js?v=20260929-editor-phase10";
 import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260929-editor-phase3";
 import { createCanvasRenderer } from "./canvas-renderer.js?v=20260929-editor-phase9";
 import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20260916-phase35-5";
@@ -18,6 +18,7 @@ import { TextPanel } from "./text-panel.js?v=20260924-text";
 import { createTextLayer, rasterizeTextCached, layerContainsCell } from "../services/text-layer-service.js?v=20260924-text";
 import { createInventoryService } from "../services/inventory-service.js?v=20260917-inventory";
 import { moveReference } from "../services/reference-layer-service.js";
+import { buildRamp, createPaletteMetricCache } from "../services/color-ramp-service.js";
 import { createOcrService } from "../services/ocr-service.js?v=20260917-inventory";
 import { createLegendRecognitionService } from "../services/legend-recognition-service.js?v=20260917-inventory";
 import { InventoryPanel } from "./inventory-panel.js?v=20260917-inventory";
@@ -191,6 +192,13 @@ export function mountWorkspace(bridge) {
     <label class="ws-field">选择替换色<select id="ws-current-color-target" disabled><option value="">选择替换色</option></select></label>
     <div class="ws-note" id="ws-current-color-impact">选择当前颜色后显示替换数量。</div>
     <div class="ws-selection-actions"><button type="button" id="ws-selection-color-replace" disabled>仅选区替换</button><button type="button" id="ws-current-color-replace" disabled>全局替换</button></div>
+    <div class="ws-section-title">色阶</div>
+    <div class="ws-note">暗 ← <span id="ws-ramp-base-label">选择一个基础色</span> → 亮</div>
+    <div class="ws-palette-suggestions" id="ws-color-ramp"></div>
+    <label class="ws-field">级数<select id="ws-ramp-size"><option value="3">3 级</option><option value="5" selected>5 级</option><option value="7">7 级</option></select></label>
+    <div class="ws-selection-actions"><button type="button" id="ws-ramp-regenerate">重新生成</button><button type="button" id="ws-ramp-remove-level">移除当前级</button></div>
+    <label class="ws-field">替换当前级<select id="ws-ramp-level-target"></select></label>
+    <label class="ws-field">Ink<select id="ws-ink-mode"><option value="normal">普通</option><option value="darker">加深</option><option value="lighter">提亮</option></select></label>
     <div class="ws-section-title">低频颜色</div>
     <label class="ws-field">诊断阈值<select id="ws-rare-threshold"><option value="3">≤ 3 颗</option><option value="5">≤ 5 颗</option><option value="8">≤ 8 颗</option></select></label>
     <div class="ws-palette-diagnostic-list" id="ws-rare-colors"></div>
@@ -219,6 +227,13 @@ export function mountWorkspace(bridge) {
       <button type="button" class="ws-button ws-wide" id="ws-repair-apply-high">应用全部高置信建议</button>
     </div>`;
   symmetryControls.before(colorInspector);
+  let activeRampIndex = -1;
+  let rampCachePalette = null, rampMetricCache = null;
+  const rampCache = () => {
+    const palette = editorService.getPaletteColors();
+    if (palette !== rampCachePalette) { rampCachePalette = palette; rampMetricCache = createPaletteMetricCache(palette); }
+    return { palette, cache: rampMetricCache };
+  };
   const pixelPerfectControl = document.createElement("label");
   pixelPerfectControl.className = "ws-switch-row";
   pixelPerfectControl.innerHTML = '<input type="checkbox" id="ws-pixel-perfect" checked> Pixel Perfect（仅 1 格画笔）';
@@ -688,7 +703,9 @@ export function mountWorkspace(bridge) {
       const selected = get().editor.selectedPaletteId || get().editor.selectedColor;
       if (tool === "brush" && !selected) { store.setState({ ui: { activePanel: "edit" } }); return; }
       well.setPointerCapture(event.pointerId); drag = { type: "stroke" };
-      editorService.beginStroke(tool === "brush" ? (get().editor.selectedPaletteId || selected) : null, { size:get().editor.brushSize, shape:"square", pixelPerfect:get().editor.pixelPerfect, ...symmetryOptions() });
+      const editor=get().editor,baseId=editor.rampBasePaletteId||editor.selectedPaletteId;
+      const rampData=rampCache(),rampPaletteIds=editor.rampPaletteIds?.length?editor.rampPaletteIds:buildRamp(rampData.palette,baseId,{size:editor.rampSize||5,cache:rampData.cache}).map(color=>color.paletteId);
+      editorService.beginStroke(tool === "brush" ? (editor.selectedPaletteId || selected) : null, { size:editor.brushSize, shape:"square", pixelPerfect:editor.pixelPerfect, inkMode:tool==="brush"?(editor.inkMode||"normal"):"normal",rampPaletteIds, ...symmetryOptions() });
       editorService.strokeCell(cell.x, cell.y); renderer.requestDraw();
       return;
     }
@@ -927,6 +944,23 @@ export function mountWorkspace(bridge) {
     $("#ws-similar-colors").innerHTML = similar.length
       ? similar.map((color) => `<button type="button" data-ws-similar-target="${esc(color.paletteId)}" title="${esc(color.name || color.code)}"><span style="background:${esc(color.hex || "#ccc")}"></span><small>${esc(color.code)}</small></button>`).join("")
       : '<span class="ws-note">选择当前颜色后显示推荐。</span>';
+    const rampBaseId = state.editor.rampBasePaletteId || selectedPaletteId;
+    const rampData=rampCache(),generatedRamp = rampBaseId ? buildRamp(rampData.palette, rampBaseId, { size: state.editor.rampSize || 5,cache:rampData.cache }) : [];
+    const rampIds = state.editor.rampBasePaletteId === rampBaseId && state.editor.rampPaletteIds?.length
+      ? state.editor.rampPaletteIds.filter((id) => paletteById.has(id)) : generatedRamp.map((color) => color.paletteId);
+    const rampColors = rampIds.map((id) => paletteById.get(id)).filter(Boolean);
+    const rampBase = paletteById.get(rampBaseId);
+    $("#ws-ramp-base-label").textContent = rampBase ? `基础 ${rampBase.code}` : "选择一个基础色";
+    $("#ws-ramp-size").value = String(state.editor.rampSize || 5);
+    $("#ws-ink-mode").value = state.editor.inkMode || "normal";
+    $("#ws-color-ramp").innerHTML = rampColors.length ? rampColors.map((color,index)=>`<button type="button" data-ws-ramp-index="${index}" data-ws-ramp-color="${esc(paletteIdOf(color))}" class="${paletteIdOf(color)===rampBaseId?"is-active":""}" title="${esc(color.code)}"><span style="background:${esc(color.hex||"#ccc")}"></span><small>${esc(color.code)}</small></button>`).join("") : '<span class="ws-note">选择当前颜色后生成真实色阶。</span>';
+    const rampTarget=$("#ws-ramp-level-target"),previousRampTarget=rampTarget.value;
+    rampTarget.innerHTML='<option value="">选择真实色号</option>'+editorService.getPaletteColors().map(color=>`<option value="${esc(paletteIdOf(color))}">${esc(color.code)}</option>`).join("");
+    if([...rampTarget.options].some(option=>option.value===previousRampTarget))rampTarget.value=previousRampTarget;
+    const activeRampId=rampIds[activeRampIndex];
+    $("#ws-ramp-remove-level").disabled=!activeRampId||activeRampId===rampBaseId||rampIds.length<=1;
+    $("#ws-ramp-regenerate").disabled=!selectedPaletteId;
+    rampTarget.disabled=activeRampIndex<0||!activeRampId;
     const targetSelect = $("#ws-current-color-target");
     const previousTarget = targetSelect.value;
     targetSelect.innerHTML = '<option value="">选择替换色</option>' + editorService.getPaletteColors()
@@ -1007,7 +1041,8 @@ export function mountWorkspace(bridge) {
     $("#ws-repair-apply-high").textContent = repairQueue.highPlan.changes.length ? `应用全部高置信 · ${repairQueue.highPlan.changes.length}颗` : "应用全部高置信建议";
     $("#ws-cell-details").innerHTML = state.editor.selection ? `<strong>${esc({rectangle:"矩形", "same-color":"同色",connected:"连通", "magic-wand":"魔棒", inverse:"反选", selection:"区域"}[state.editor.selection.kind] || "区域")}选区 · ${selectionCells(state.editor.selection, state.canvas.width, state.canvas.height).length.toLocaleString("zh-CN", { useGrouping: false })} 豆</strong><p>X ${state.editor.selection.x0 + 1}–${state.editor.selection.x1 + 1} · Y ${state.editor.selection.y0 + 1}–${state.editor.selection.y1 + 1}</p><p>选区换色、擦除与描边仅影响对应豆格。方向键可整体搬移。</p>` : selected ? `<strong>${esc(selectedColor?.code || "空白")}</strong><p>位置 · X ${selected.x + 1} / Y ${selected.y + 1}</p><p>${selectedColor ? `${esc(selectedColor.hex || "")} · RGB ${esc(selectedColor.rgb?.join(",") || "")}` : "真正空豆"}</p><p>使用 · ${selectedColor ? editorService.getColorUsage(paletteIdOf(selectedColor)).toLocaleString("zh-CN", { useGrouping: false }) : 0} 颗</p>` : "用选择工具点击画布中的一颗豆。";
     const toolInfo = {select:"选择 · 点击查看豆格",bead:"单豆 · 选中色号后点击豆格",brush:"画笔 · 拖动为一笔历史，笔宽见检查器",eraser:"橡皮 · 拖动擦成真正空豆，笔宽见检查器",fill:"填充 · 四方向连续色块",line:"直线 · 从起点拖到终点，Shift 吸附 45°",rect:"矩形 · 拖出外接框，Shift 约束正方形",ellipse:"圆形 · 拖出外接框，Shift 约束正圆",region:"框选 · 拖出矩形选区",wand:"魔棒 · 按色差容差圈选连续区域，Shift 叠加 / Alt 减掉",same:"同色选择 · 点击任意豆格",connected:"连通选择 · 点击连续色块",eyedropper:"取色 · 点击豆格设置当前色","source-eyedropper":"原图取色 · 点击中央原图",outline:"描边 · 先选择区域再应用",replace:"换色 · 在色彩面板设置色号",pan:"移动 · 拖动画布",text:"文字 · 点画布放一个文字图层，拖动可移动；调好字体/颜色/字号后点「向下合并」写进图纸"};
-    $("#ws-tool-details").textContent = `${toolInfo[state.editor.tool] || state.editor.tool}${state.editor.selectedColor ? ` · 当前 ${state.editor.selectedColor}` : ""}`;
+    const inkLabel=state.editor.tool==="brush"&&state.editor.inkMode!=="normal"?(state.editor.inkMode==="darker"?" · Shade Darker":" · Shade Lighter"):"";
+    $("#ws-tool-details").textContent = `${toolInfo[state.editor.tool] || state.editor.tool}${inkLabel}${state.editor.selectedColor ? ` · 当前 ${state.editor.selectedColor}` : ""}`;
     $("#ws-history-label").textContent = editorService.getHistory().at(-1)?.label || "";
     $("#ws-undo").disabled = !state.editor.history.canUndo; $("#ws-redo").disabled = !state.editor.history.canRedo;
     gridToolbar.setHistory(state.editor.history.canUndo, state.editor.history.canRedo);
@@ -1088,6 +1123,36 @@ export function mountWorkspace(bridge) {
     if (!button) return;
     $("#ws-current-color-target").value = button.dataset.wsSimilarTarget;
     paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } });
+  });
+  const generatedRampIds=(baseId,size=get().editor.rampSize||5)=>{const data=rampCache();return buildRamp(data.palette,baseId,{size,cache:data.cache}).map(color=>color.paletteId);};
+  $("#ws-color-ramp").addEventListener("click",event=>{
+    const button=event.target.closest("[data-ws-ramp-color]");if(!button)return;
+    const editor=get().editor,baseId=editor.rampBasePaletteId||editor.selectedPaletteId;
+    if(!editor.rampBasePaletteId&&baseId)store.setState({editor:{rampBasePaletteId:baseId,rampPaletteIds:generatedRampIds(baseId)}});
+    activeRampIndex=Number(button.dataset.wsRampIndex);
+    inspectPalette(button.dataset.wsRampColor);
+  });
+  $("#ws-ramp-regenerate").addEventListener("click",()=>{
+    const baseId=get().editor.selectedPaletteId;if(!baseId)return;activeRampIndex=-1;
+    store.setState({editor:{rampBasePaletteId:baseId,rampPaletteIds:generatedRampIds(baseId)}});
+  });
+  $("#ws-ramp-size").addEventListener("change",event=>{
+    const size=Number(event.target.value),baseId=get().editor.rampBasePaletteId||get().editor.selectedPaletteId;
+    activeRampIndex=-1;store.setState({editor:{rampSize:size,rampBasePaletteId:baseId,rampPaletteIds:baseId?generatedRampIds(baseId,size):[]}});
+  });
+  $("#ws-ink-mode").addEventListener("change",event=>store.setState({editor:{inkMode:event.target.value}}));
+  $("#ws-ramp-level-target").addEventListener("change",event=>{
+    const state=get(),ids=[...(state.editor.rampPaletteIds?.length?state.editor.rampPaletteIds:generatedRampIds(state.editor.rampBasePaletteId||state.editor.selectedPaletteId))];
+    if(activeRampIndex<0||!ids[activeRampIndex]||!event.target.value)return;
+    ids[activeRampIndex]=event.target.value;
+    const metrics=createPaletteMetricCache(editorService.getPaletteColors());
+    const ordered=[...new Set(ids)].sort((a,b)=>(metrics.get(a)?.lightness||0)-(metrics.get(b)?.lightness||0));
+    store.setState({editor:{rampPaletteIds:ordered}});
+  });
+  $("#ws-ramp-remove-level").addEventListener("click",()=>{
+    const state=get(),base=state.editor.rampBasePaletteId||state.editor.selectedPaletteId,ids=[...(state.editor.rampPaletteIds?.length?state.editor.rampPaletteIds:generatedRampIds(base))];
+    if(activeRampIndex<0||ids[activeRampIndex]===base||ids.length<=1)return;
+    ids.splice(activeRampIndex,1);activeRampIndex=Math.min(activeRampIndex,ids.length-1);store.setState({editor:{rampPaletteIds:ids}});
   });
   $("#ws-rare-threshold").addEventListener("change", () => {
     paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } });
