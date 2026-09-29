@@ -3,7 +3,7 @@ import { createGenerationService } from "../services/generation-service.js?v=202
 import { createPaletteService } from "../services/palette-service.js";
 import { createExportService } from "../services/export-service.js?v=20260917-batchA";
 import { createEditorService } from "../services/editor-service.js?v=20260928-editor-phase2";
-import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260924-text";
+import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260929-editor-phase3";
 import { createCanvasRenderer } from "./canvas-renderer.js?v=20260928-editor-phase2";
 import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20260916-phase35-5";
 import { magicWandSelection, fitSelectionBox, invertSelection as invertSelectionMask, selectAll as selectAllCells, translateSelection } from "../services/shapes-service.js?v=20260918-usage2";
@@ -12,7 +12,8 @@ import { GenerationPanel } from "./generation-panel.js?v=20260918-usage2";
 import { GridEditorToolbar, SHAPE_TOOLS } from "./grid-editor-toolbar.js?v=20260928-functional-audit";
 import { detectPixelMultiple, loadImageData, logicalSize } from "./pixel-multiple.js?v=20260923-pixelmultiple";
 import { ZoomControls } from "./zoom-controls.js?v=20260924-text";
-import { Navigator } from "./navigator.js?v=20260928-v31";
+import { Navigator } from "./navigator.js?v=20260929-editor-phase3";
+import { createInspectionState, currentInspectionIssue, setInspectionIssues, startInspection, stopInspection, nextInspectionIssue, previousInspectionIssue, nextInspectionCell, previousInspectionCell } from "../services/inspection-service.js?v=20260929-editor-phase3";
 import { TextPanel } from "./text-panel.js?v=20260924-text";
 import { createTextLayer, rasterizeTextCached, layerContainsCell } from "../services/text-layer-service.js?v=20260924-text";
 import { createInventoryService } from "../services/inventory-service.js?v=20260917-inventory";
@@ -176,7 +177,13 @@ export function mountWorkspace(bridge) {
     <div class="ws-selection-actions"><button type="button" id="ws-selection-color-replace" disabled>仅选区替换</button><button type="button" id="ws-current-color-replace" disabled>全局替换</button></div>
     <div class="ws-section-title">低频颜色</div>
     <label class="ws-field">诊断阈值<select id="ws-rare-threshold"><option value="3">≤ 3 颗</option><option value="5">≤ 5 颗</option><option value="8">≤ 8 颗</option></select></label>
-    <div class="ws-palette-diagnostic-list" id="ws-rare-colors"></div>`;
+    <div class="ws-palette-diagnostic-list" id="ws-rare-colors"></div>
+    <div class="ws-inspection" id="ws-inspection">
+      <div class="ws-inspection-head"><strong id="ws-inspection-title">问题巡检</strong><button type="button" id="ws-inspection-toggle">开始巡检</button></div>
+      <div class="ws-note" id="ws-inspection-current">当前没有可巡检的问题。</div>
+      <div class="ws-inspection-row"><button type="button" id="ws-inspection-prev">上一项</button><span id="ws-inspection-status">0 / 0</span><button type="button" id="ws-inspection-next">下一项</button></div>
+      <div class="ws-inspection-row"><button type="button" id="ws-inspection-cell-prev">上一个位置</button><span id="ws-inspection-cell-status">0 / 0</span><button type="button" id="ws-inspection-cell-next">下一个位置</button></div>
+    </div>`;
   symmetryControls.before(colorInspector);
   const gallery = document.querySelector(".gallery-section"); if (gallery) right.querySelector(".ws-project-gallery-slot").append(gallery);
 
@@ -267,6 +274,8 @@ export function mountWorkspace(bridge) {
   // 自动尺寸流程改过尺寸后，等下一次出图再适配窗口。
   // 不能在改尺寸的当下 fit：那一刻 getSize() 拿到的还是旧网格，会按旧尺寸算缩放。
   let fitOnNextResult = false;
+  let gridRevision = 0;
+  let inspectionState = createInspectionState();
   window.addEventListener("libms:source-loaded", (event) => {
     editorService.clearHistory();
     store.setState({
@@ -283,6 +292,7 @@ export function mountWorkspace(bridge) {
   window.addEventListener("libms:source-transform-changed", () => { store.setState({ status: { dirty: true } }); });
   window.addEventListener("libms:project-result", (event) => { const first = !get().status.hasPattern;
     editorService.invalidateUsageCounts();
+    gridRevision += 1;
     if (!event.detail.manualEdited) { editorService.clearHistory(); store.setState({ editor: { tool: "select", hoveredCell: null, selectedCell: null, selectedPaletteId: null, selectedColor: null, highlightedColor: null, highlightedPaletteId: null, selection: null } }); }
     syncLegacy(event.detail); updateHistory();
     // 首次出图、或尺寸刚被自动流程改过 → 适配窗口，保证「导入即可见全貌」。
@@ -290,6 +300,7 @@ export function mountWorkspace(bridge) {
   window.addEventListener("libms:generation-error", (event) => store.setState({ status: { generating: false, generationError: event.detail } }));
   window.addEventListener("libms:grid-edited", (event) => {
     editorService.invalidateUsageCounts();
+    gridRevision += 1;
     syncLegacy(event.detail);
     const selected = get().editor.selectedCell;
     if (selected) {
@@ -303,6 +314,7 @@ export function mountWorkspace(bridge) {
       } });
     }
     updateHistory();
+    queueMicrotask(() => activateInspectionCurrent());
   });
   window.addEventListener("libms:legacy-editor-saved", () => { editorService.clearHistory(); store.setState({ editor: { tool: "select", hoveredCell: null, selectedCell: null, selection: null } }); });
 
@@ -446,10 +458,8 @@ export function mountWorkspace(bridge) {
     getResult: () => bridge.getResult(),
     getView: () => get().view,
     getViewportSize: () => ({ width: well.clientWidth, height: well.clientHeight }),
-    onNavigate: (x, y) => {
-      const result = bridge.getResult(), cell = BASE_CELL * get().view.zoom;
-      viewport.setPan((result.width / 2 - x) * cell, (result.height / 2 - y) * cell);
-    },
+    getGridRevision: () => gridRevision,
+    onNavigate: (x, y) => viewport.focusCell(x, y, { center: true, preserveZoom: true }),
   });
   const sourceCanvas = $("#ws-source-canvas"), sourcePreview = $("#ws-source-preview");
   let sourceImage = null, sourceImageUrl = "", sourceLayout = null, sourceDrawPending = false, sourceDrag = null;
@@ -858,9 +868,31 @@ export function mountWorkspace(bridge) {
     $("#ws-selection-color-replace").textContent = inspectedColor ? `选区替换 ${inspectedColor.code}` : "仅选区替换";
     $("#ws-selection-color-replace").disabled = !hasSelection || !selectedPaletteId || !targetColor || !selectionSourceCount;
     const rare = hasPattern ? editorService.detectRarePaletteColors({ maxCount: Number($("#ws-rare-threshold").value || 3) }) : [];
+    const issues = rare.map((entry) => ({
+      id: `rare-color:${entry.paletteId}`,
+      type: "rare-color",
+      paletteId: entry.paletteId,
+      cells: entry.cells,
+      severity: "info",
+      label: `${entry.code} · ${entry.count}颗`,
+      meta: { code: entry.code, count: entry.count },
+    }));
+    inspectionState = setInspectionIssues(inspectionState, issues);
     $("#ws-rare-colors").innerHTML = rare.length
       ? rare.map((entry) => { const color = paletteById.get(entry.paletteId); return `<button type="button" data-ws-rare-palette="${esc(entry.paletteId)}"><span style="background:${esc(color?.hex || "#ccc")}"></span><b>${esc(entry.code)}</b><small>${entry.count}颗</small></button>`; }).join("")
       : '<span class="ws-note">当前阈值内没有低频颜色。</span>';
+    const currentIssue = currentInspectionIssue(inspectionState);
+    const issueCellCount = currentIssue?.cells?.length || 0;
+    $("#ws-inspection-title").textContent = `问题巡检 · ${issues.length}项`;
+    $("#ws-inspection-toggle").textContent = inspectionState.active ? "结束巡检" : "开始巡检";
+    $("#ws-inspection-toggle").disabled = !issues.length;
+    $("#ws-inspection-current").textContent = currentIssue ? currentIssue.label : "当前未发现低频颜色。";
+    $("#ws-inspection-status").textContent = currentIssue ? `${inspectionState.index + 1} / ${issues.length}` : "0 / 0";
+    $("#ws-inspection-cell-status").textContent = issueCellCount ? `${inspectionState.cellIndex + 1} / ${issueCellCount}` : "0 / 0";
+    $("#ws-inspection-prev").disabled = !inspectionState.active || inspectionState.index <= 0;
+    $("#ws-inspection-next").disabled = !inspectionState.active || inspectionState.index < 0 || inspectionState.index >= issues.length - 1;
+    $("#ws-inspection-cell-prev").disabled = !inspectionState.active || issueCellCount <= 1;
+    $("#ws-inspection-cell-next").disabled = !inspectionState.active || issueCellCount <= 1;
     $("#ws-cell-details").innerHTML = state.editor.selection ? `<strong>${esc({rectangle:"矩形", "same-color":"同色",connected:"连通", "magic-wand":"魔棒", inverse:"反选", selection:"区域"}[state.editor.selection.kind] || "区域")}选区 · ${selectionCells(state.editor.selection, state.canvas.width, state.canvas.height).length.toLocaleString("zh-CN", { useGrouping: false })} 豆</strong><p>X ${state.editor.selection.x0 + 1}–${state.editor.selection.x1 + 1} · Y ${state.editor.selection.y0 + 1}–${state.editor.selection.y1 + 1}</p><p>选区换色、擦除与描边仅影响对应豆格。方向键可整体搬移。</p>` : selected ? `<strong>${esc(selectedColor?.code || "空白")}</strong><p>位置 · X ${selected.x + 1} / Y ${selected.y + 1}</p><p>${selectedColor ? `${esc(selectedColor.hex || "")} · RGB ${esc(selectedColor.rgb?.join(",") || "")}` : "真正空豆"}</p><p>使用 · ${selectedColor ? editorService.getColorUsage(paletteIdOf(selectedColor)).toLocaleString("zh-CN", { useGrouping: false }) : 0} 颗</p>` : "用选择工具点击画布中的一颗豆。";
     const toolInfo = {select:"选择 · 点击查看豆格",bead:"单豆 · 选中色号后点击豆格",brush:"画笔 · 拖动为一笔历史，笔宽见检查器",eraser:"橡皮 · 拖动擦成真正空豆，笔宽见检查器",fill:"填充 · 四方向连续色块",line:"直线 · 从起点拖到终点，Shift 吸附 45°",rect:"矩形 · 拖出外接框，Shift 约束正方形",ellipse:"圆形 · 拖出外接框，Shift 约束正圆",region:"框选 · 拖出矩形选区",wand:"魔棒 · 按色差容差圈选连续区域，Shift 叠加 / Alt 减掉",same:"同色选择 · 点击任意豆格",connected:"连通选择 · 点击连续色块",eyedropper:"取色 · 点击豆格设置当前色","source-eyedropper":"原图取色 · 点击中央原图",outline:"描边 · 先选择区域再应用",replace:"换色 · 在色彩面板设置色号",pan:"移动 · 拖动画布",text:"文字 · 点画布放一个文字图层，拖动可移动；调好字体/颜色/字号后点「向下合并」写进图纸"};
     $("#ws-tool-details").textContent = `${toolInfo[state.editor.tool] || state.editor.tool}${state.editor.selectedColor ? ` · 当前 ${state.editor.selectedColor}` : ""}`;
@@ -922,6 +954,18 @@ export function mountWorkspace(bridge) {
     if (!color) return;
     store.setState({ editor: { selectedPaletteId: paletteIdOf(color), selectedColor: color.code, highlightedPaletteId: paletteIdOf(color), selectedCell }, ui: { activePanel: "edit" } });
   };
+  const activateInspectionCurrent = () => {
+    const issue = currentInspectionIssue(inspectionState);
+    if (!inspectionState.active || !issue) return;
+    const cell = issue.cells[inspectionState.cellIndex] || issue.cells[0] || null;
+    inspectPalette(issue.paletteId, cell);
+    if (cell) viewport.focusCell(cell.x, cell.y, { preserveZoom: true, margin: .15 });
+  };
+  const updateInspection = (next) => {
+    inspectionState = next;
+    activateInspectionCurrent();
+    paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } });
+  };
   $("#ws-selection-palette-list").addEventListener("click", (event) => {
     const button = event.target.closest("[data-ws-inspect-palette]");
     if (button) inspectPalette(button.dataset.wsInspectPalette);
@@ -932,13 +976,21 @@ export function mountWorkspace(bridge) {
     $("#ws-current-color-target").value = button.dataset.wsSimilarTarget;
     paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } });
   });
-  $("#ws-rare-threshold").addEventListener("change", () => paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } }));
+  $("#ws-rare-threshold").addEventListener("change", () => {
+    paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } });
+    activateInspectionCurrent();
+  });
   $("#ws-rare-colors").addEventListener("click", (event) => {
     const button = event.target.closest("[data-ws-rare-palette]");
     if (!button) return;
-    const entry = editorService.detectRarePaletteColors({ maxCount: Number($("#ws-rare-threshold").value || 3) }).find((item) => item.paletteId === button.dataset.wsRarePalette);
-    inspectPalette(button.dataset.wsRarePalette, entry?.cells?.[0] || null);
+    const index = inspectionState.issues.findIndex((issue) => issue.paletteId === button.dataset.wsRarePalette);
+    updateInspection(startInspection(inspectionState, index));
   });
+  $("#ws-inspection-toggle").addEventListener("click", () => updateInspection(inspectionState.active ? stopInspection(inspectionState) : startInspection(inspectionState)));
+  $("#ws-inspection-prev").addEventListener("click", () => updateInspection(previousInspectionIssue(inspectionState)));
+  $("#ws-inspection-next").addEventListener("click", () => updateInspection(nextInspectionIssue(inspectionState)));
+  $("#ws-inspection-cell-prev").addEventListener("click", () => updateInspection(previousInspectionCell(inspectionState)));
+  $("#ws-inspection-cell-next").addEventListener("click", () => updateInspection(nextInspectionCell(inspectionState)));
   $("#ws-current-color-target").addEventListener("change", () => paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } }));
   $("#ws-selection-color-replace").addEventListener("click", () => {
     const from = get().editor.selectedPaletteId, to = $("#ws-current-color-target").value, selection = get().editor.selection;

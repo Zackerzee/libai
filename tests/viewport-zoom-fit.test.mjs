@@ -102,3 +102,27 @@ test("对数滑块覆盖 2%–800%，往返误差不超过单步的一半", () =
   // 线性刻度下 25% 会落在轨道 3% 处，低倍段挤成一团；对数刻度应把它放到轨道中部
   assert.ok(zoomToSlider(0.25) > 15, "25% 不该挤在滑块最左端");
 });
+
+test("focusCell 对安全区内格子不移动，对不可见格子定位且保持 zoom", () => {
+  const { viewport, view } = makeViewport(100, 100, 400, 300);
+  viewport.setZoom(2);
+  const zoom = view().zoom;
+  assert.equal(viewport.focusCell(50, 50), false);
+  assert.deepEqual(view(), { zoom, panX: 0, panY: 0 });
+  assert.equal(viewport.focusCell(99, 99), true);
+  assert.equal(view().zoom, zoom);
+  const screen = viewport.gridToScreen(99.5, 99.5);
+  assert.ok(screen.x >= 60 && screen.x <= 340);
+  assert.ok(screen.y >= 45 && screen.y <= 255);
+});
+
+test("focusCell 在已有 pan 与高倍 zoom 下仍使用统一坐标转换", () => {
+  const { viewport, view } = makeViewport(104, 78, 500, 320);
+  viewport.setZoom(6);
+  viewport.setPan(-800, 460);
+  assert.equal(viewport.focusCell(4, 70, { center: true }), true);
+  assert.equal(view().zoom, 6);
+  const point = viewport.gridToScreen(4.5, 70.5);
+  assert.ok(Math.abs(point.x - 250) < .001);
+  assert.ok(Math.abs(point.y - 160) < .001);
+});

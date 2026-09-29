@@ -20,11 +20,42 @@ export function visibleGridRect(view, viewportWidth, viewportHeight, gridWidth, 
   return { x: x0, y: y0, width: Math.max(0, x1 - x0), height: Math.max(0, y1 - y0) };
 }
 
-export function Navigator({ host, getResult, getView, getViewportSize, onNavigate }) {
+export function createNavigatorThumbnailCache(render) {
+  let key = null, value = null, renderCount = 0;
+  return {
+    get(nextKey, ...args) {
+      if (nextKey !== key) { key = nextKey; value = render(...args); renderCount += 1; }
+      return value;
+    },
+    invalidate() { key = null; value = null; },
+    get renderCount() { return renderCount; },
+  };
+}
+
+export function Navigator({ host, getResult, getView, getViewportSize, getGridRevision = () => 0, onNavigate }) {
   host.classList.add("ws-navigator");
   host.innerHTML = '<div class="ws-navigator-title">导航器</div><canvas aria-label="图纸导航缩略图"></canvas>';
   const canvas = host.querySelector("canvas");
   let pending = false;
+  const thumbnailCache = createNavigatorThumbnailCache((result, layout, width, height, dpr) => {
+    const bitmap = document.createElement("canvas");
+    bitmap.width = Math.max(1, Math.round(width * dpr));
+    bitmap.height = Math.max(1, Math.round(height * dpr));
+    const ctx = bitmap.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = "#f7f8f6";
+    ctx.fillRect(layout.x, layout.y, layout.width, layout.height);
+    const pixel = Math.max(layout.scale, .7);
+    (result.grid || []).forEach((row, y) => row.forEach((color, x) => {
+      if (!color) return;
+      ctx.fillStyle = color.hex || `rgb(${color.rgb.join(",")})`;
+      ctx.fillRect(layout.x + x * layout.scale, layout.y + y * layout.scale, pixel, pixel);
+    }));
+    ctx.strokeStyle = "rgba(33, 48, 58, .28)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(layout.x + .5, layout.y + .5, Math.max(0, layout.width - 1), Math.max(0, layout.height - 1));
+    return bitmap;
+  });
 
   const draw = () => {
     pending = false;
@@ -40,17 +71,9 @@ export function Navigator({ host, getResult, getView, getViewportSize, onNavigat
     ctx.clearRect(0, 0, width, height);
     const layout = navigatorLayout(result?.width, result?.height, width, height);
     if (!layout) return;
-    ctx.fillStyle = "#f7f8f6";
-    ctx.fillRect(layout.x, layout.y, layout.width, layout.height);
-    const pixel = Math.max(layout.scale, 0.7);
-    (result.grid || []).forEach((row, y) => row.forEach((color, x) => {
-      if (!color) return;
-      ctx.fillStyle = color.hex || `rgb(${color.rgb.join(",")})`;
-      ctx.fillRect(layout.x + x * layout.scale, layout.y + y * layout.scale, pixel, pixel);
-    }));
-    ctx.strokeStyle = "rgba(33, 48, 58, .28)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(layout.x + .5, layout.y + .5, Math.max(0, layout.width - 1), Math.max(0, layout.height - 1));
+    const cacheKey = `${getGridRevision()}:${result.width}x${result.height}:${canvas.width}x${canvas.height}`;
+    const thumbnail = thumbnailCache.get(cacheKey, result, layout, width, height, dpr);
+    ctx.drawImage(thumbnail, 0, 0, width, height);
     const size = getViewportSize();
     const visible = visibleGridRect(view, size.width, size.height, result.width, result.height);
     ctx.fillStyle = "rgba(232, 115, 37, .11)";
@@ -76,5 +99,5 @@ export function Navigator({ host, getResult, getView, getViewportSize, onNavigat
   canvas.addEventListener("pointermove", (event) => { if (canvas.hasPointerCapture(event.pointerId)) { event.stopPropagation(); navigate(event); } });
   const observer = new ResizeObserver(requestDraw);
   observer.observe(canvas);
-  return { requestDraw, draw, destroy: () => observer.disconnect() };
+  return { requestDraw, draw, invalidateThumbnail: () => thumbnailCache.invalidate(), get thumbnailRenderCount() { return thumbnailCache.renderCount; }, destroy: () => observer.disconnect() };
 }

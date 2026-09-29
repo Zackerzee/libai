@@ -38,6 +38,34 @@ export function createViewportService(store, getSize) {
   // 连续格坐标（可含小数）。文字图层拖动要的是这个：取整交给栅格化那一步，
   // 手感才顺；不夹边界也不返回 null —— 拖出画布时文字应该继续跟着鼠标走。
   const screenToGridFloat = (x, y) => { const o = origin(); return { x: (x - o.x) / o.cell, y: (y - o.y) / o.cell }; };
+  const focusCell = (x, y, options = {}) => {
+    const b = bounds();
+    if (!b.gridWidth || !b.gridHeight || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+    const column = Math.max(0, Math.min(b.gridWidth - 1, Math.floor(x)));
+    const row = Math.max(0, Math.min(b.gridHeight - 1, Math.floor(y)));
+    const o = origin();
+    const centerX = o.x + (column + .5) * o.cell;
+    const centerY = o.y + (row + .5) * o.cell;
+    const marginRatio = Math.max(0, Math.min(.45, Number(options.margin ?? .15)));
+    const marginX = Math.min(b.viewportWidth * marginRatio, Math.max(0, (b.viewportWidth - o.cell) / 2));
+    const marginY = Math.min(b.viewportHeight * marginRatio, Math.max(0, (b.viewportHeight - o.cell) / 2));
+    const safe = {
+      left: marginX + o.cell / 2,
+      right: b.viewportWidth - marginX - o.cell / 2,
+      top: marginY + o.cell / 2,
+      bottom: b.viewportHeight - marginY - o.cell / 2,
+    };
+    const alreadySafe = centerX >= safe.left && centerX <= safe.right && centerY >= safe.top && centerY <= safe.bottom;
+    if (alreadySafe && !options.center) return false;
+    const targetX = options.center ? b.viewportWidth / 2 : Math.max(safe.left, Math.min(safe.right, centerX));
+    const targetY = options.center ? b.viewportHeight / 2 : Math.max(safe.top, Math.min(safe.bottom, centerY));
+    if (Math.abs(targetX - centerX) < .01 && Math.abs(targetY - centerY) < .01) return false;
+    store.setState({ view: {
+      panX: state().panX + targetX - centerX,
+      panY: state().panY + targetY - centerY,
+    } });
+    return true;
+  };
   const setZoom = (zoom, point = null) => {
     const next = clampZoom(zoom), old = state().zoom;
     if (next === old) return;
@@ -49,7 +77,7 @@ export function createViewportService(store, getSize) {
       panY: anchor.y - b.viewportHeight / 2 - (gy - b.gridHeight / 2) * nextCell } });
   };
   return {
-    origin, gridToScreen, screenToGrid, screenToGridClamped, screenToGridFloat, setZoom,
+    origin, gridToScreen, screenToGrid, screenToGridClamped, screenToGridFloat, setZoom, focusCell,
     zoomAroundPoint: setZoom,
     zoomIn() { setZoom(ZOOM_STEPS.find((value) => value > state().zoom + 0.001) || MAX_ZOOM); },
     zoomOut() { setZoom([...ZOOM_STEPS].reverse().find((value) => value < state().zoom - 0.001) || MIN_ZOOM); },

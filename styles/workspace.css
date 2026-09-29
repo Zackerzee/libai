@@ -66,6 +66,11 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .ws-palette-diagnostic-list { display: grid; gap: 4px; max-height: 180px; overflow: auto; margin: 7px 0 10px; }
 .ws-palette-diagnostic-list button { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 7px; min-height: 30px; padding: 4px 7px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); color: var(--ws-text); text-align: left; cursor: pointer; }
 .ws-palette-diagnostic-list button span { width: 18px; height: 18px; border: 1px solid #17231b35; border-radius: 3px; }.ws-palette-diagnostic-list button small { color: var(--ws-text-secondary); }
+.ws-inspection { display: grid; gap: 7px; padding: 9px; border: 1px solid var(--ws-border); border-radius: 8px; background: color-mix(in srgb, var(--ws-surface) 92%, var(--ws-accent) 8%); }
+.ws-inspection-head, .ws-inspection-row { display: flex; align-items: center; justify-content: space-between; gap: 7px; }
+.ws-inspection button { min-height: 28px; padding: 4px 8px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); color: var(--ws-text); cursor: pointer; }
+.ws-inspection button:disabled { opacity: .45; cursor: default; }
+.ws-inspection-row span { min-width: 46px; color: var(--ws-text-secondary); font-size: 12px; text-align: center; }
 .ws-bead-picker { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 4px; max-height: 220px; margin-top: 8px; overflow-y: auto; }
 .ws-bead-picker button { display: grid; justify-items: center; gap: 3px; padding: 4px 2px; border: 1px solid var(--ws-border); border-radius: 5px; background: var(--ws-surface); color: var(--ws-text-secondary); cursor: pointer; }
 .ws-bead-picker button.active,.ws-bead-picker button:hover { border-color: var(--ws-accent); color: var(--ws-accent); }.ws-bead-picker span { width: 20px; height: 20px; border: 1px solid #17231b25; border-radius: 3px; }.ws-bead-picker small { font-size: 10px; }
