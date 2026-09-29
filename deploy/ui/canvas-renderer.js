@@ -12,7 +12,7 @@ export const codeForegroundColor = (rgb) => {
 // reference 必须排在 base 之下：底图垫在豆格下方，空豆处才透得出来。
 const LAYER_NAMES = ["reference", "base", "grid", "codes", "overlay"];
 
-export function createCanvasRenderer(container, viewport, getResult, getView, getEditor, getReference = () => null, resolveColor = () => null) {
+export function createCanvasRenderer(container, viewport, getResult, getView, getEditor, getReference = () => null, resolveColor = () => null, getDiagnostics = () => []) {
   const layers = LAYER_NAMES.map((name) => {
     const canvas = document.createElement("canvas"); canvas.className = `ws-layer ws-layer-${name}`;
     canvas.dataset.layer = name; container.append(canvas); return canvas;
@@ -116,6 +116,25 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
       ctx[L.overlay].strokeRect(p.x + 1, p.y + 1, cell - 2, cell - 2);
     };
     outline(editor.hoveredCell, false); outline(editor.selectedCell, true);
+    const diagnosticIssues = getDiagnostics() || [];
+    if (diagnosticIssues.length) {
+      const overlay = ctx[L.overlay]; overlay.save();
+      for (const issue of diagnosticIssues) for (const diagnosticCell of issue.cells || []) {
+        if (diagnosticCell.x < x0 || diagnosticCell.x >= x1 || diagnosticCell.y < y0 || diagnosticCell.y >= y1) continue;
+        const p = viewport.gridToScreen(diagnosticCell.x, diagnosticCell.y);
+        if (issue.type === "isolated-pixel") {
+          overlay.fillStyle = "rgba(220, 68, 55, .72)";
+          overlay.beginPath(); overlay.arc(p.x + cell * .78, p.y + cell * .22, Math.max(2,Math.min(5,cell*.13)),0,Math.PI*2); overlay.fill();
+        } else if (issue.type === "edge-contamination") {
+          overlay.strokeStyle = "rgba(220, 68, 55, .88)"; overlay.lineWidth = Math.max(1,Math.min(2,cell*.08));
+          overlay.strokeRect(p.x + 1.5,p.y + 1.5,Math.max(0,cell-3),Math.max(0,cell-3));
+        } else if (issue.type === "tiny-region") {
+          overlay.strokeStyle = "rgba(138, 83, 181, .72)"; overlay.lineWidth = 1;
+          overlay.setLineDash([Math.max(2,cell*.18),Math.max(2,cell*.12)]); overlay.strokeRect(p.x + 2,p.y + 2,Math.max(0,cell-4),Math.max(0,cell-4)); overlay.setLineDash([]);
+        }
+      }
+      overlay.restore();
+    }
     if (editor.symmetryHorizontal || editor.symmetryVertical) {
       const overlay = ctx[L.overlay];
       overlay.save();

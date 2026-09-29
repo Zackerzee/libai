@@ -4,7 +4,7 @@ import { createPaletteService } from "../services/palette-service.js";
 import { createExportService } from "../services/export-service.js?v=20260917-batchA";
 import { createEditorService } from "../services/editor-service.js?v=20260928-editor-phase2";
 import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260929-editor-phase3";
-import { createCanvasRenderer } from "./canvas-renderer.js?v=20260928-editor-phase2";
+import { createCanvasRenderer } from "./canvas-renderer.js?v=20260929-editor-phase4";
 import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20260916-phase35-5";
 import { magicWandSelection, fitSelectionBox, invertSelection as invertSelectionMask, selectAll as selectAllCells, translateSelection } from "../services/shapes-service.js?v=20260918-usage2";
 import { renderSourceTransform, defaultSourceTransform, cropFromDrag, sourceOutputGeometry } from "../services/source-editor-service.js?v=20260916-phase35-5";
@@ -23,6 +23,7 @@ import { InventoryPanel } from "./inventory-panel.js?v=20260917-inventory";
 import { UsageDialog } from "./usage-dialog.js?v=20260917-inventory";
 import { resolveScreenRenderPolicy } from "../smart-preprocessing/render-policy.mjs?v=20260928-v3";
 import { paletteIdOf } from "../services/palette-identity.js";
+import { buildStructuralDiagnostics } from "../services/structural-diagnostics.js?v=20260929-editor-phase4d";
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
@@ -178,6 +179,12 @@ export function mountWorkspace(bridge) {
     <div class="ws-section-title">低频颜色</div>
     <label class="ws-field">诊断阈值<select id="ws-rare-threshold"><option value="3">≤ 3 颗</option><option value="5">≤ 5 颗</option><option value="8">≤ 8 颗</option></select></label>
     <div class="ws-palette-diagnostic-list" id="ws-rare-colors"></div>
+    <div class="ws-section-title">结构诊断</div>
+    <div class="ws-diagnostic-counts" id="ws-diagnostic-counts"></div>
+    <label class="ws-field">问题分类<select id="ws-diagnostic-category"><option value="all">全部</option><option value="rare-color">低频颜色</option><option value="isolated-pixel">孤立像素</option><option value="tiny-region">微小区域</option><option value="edge-contamination" selected>边缘污染</option></select></label>
+    <label class="ws-field">严重程度<select id="ws-diagnostic-severity"><option value="all">全部</option><option value="high">高</option><option value="medium">中</option><option value="low">低</option></select></label>
+    <label class="ws-field">微小区域阈值<select id="ws-tiny-threshold"><option value="3">≤ 3 颗</option><option value="5">≤ 5 颗</option><option value="8">≤ 8 颗</option></select></label>
+    <label class="ws-switch-row"><input id="ws-diagnostic-overlay" type="checkbox" checked> 显示诊断标记</label>
     <div class="ws-inspection" id="ws-inspection">
       <div class="ws-inspection-head"><strong id="ws-inspection-title">问题巡检</strong><button type="button" id="ws-inspection-toggle">开始巡检</button></div>
       <div class="ws-note" id="ws-inspection-current">当前没有可巡检的问题。</div>
@@ -276,6 +283,9 @@ export function mountWorkspace(bridge) {
   let fitOnNextResult = false;
   let gridRevision = 0;
   let inspectionState = createInspectionState();
+  let structuralCache = { revision: -1, tinyMaxSize: -1, value: null };
+  let diagnosticOverlayIssues = [];
+  let diagnosticOverlayVisible = true;
   window.addEventListener("libms:source-loaded", (event) => {
     editorService.clearHistory();
     store.setState({
@@ -450,7 +460,7 @@ export function mountWorkspace(bridge) {
   const well = $("#ws-canvas-well"), layers = $("#ws-canvas-layers");
   const viewport = createViewportService(store, () => ({ viewportWidth: well.clientWidth, viewportHeight: well.clientHeight,
     gridWidth: bridge.getResult().width || 0, gridHeight: bridge.getResult().height || 0 }));
-  const renderer = createCanvasRenderer(layers, viewport, () => bridge.getResult(), () => get().view, () => get().editor, () => get().reference, (code) => editorService.resolveColor(code));
+  const renderer = createCanvasRenderer(layers, viewport, () => bridge.getResult(), () => get().view, () => get().editor, () => get().reference, (code) => editorService.resolveColor(code), () => diagnosticOverlayVisible ? diagnosticOverlayIssues : []);
   const navigatorHost = document.createElement("aside");
   well.append(navigatorHost);
   const navigator = Navigator({
@@ -868,25 +878,39 @@ export function mountWorkspace(bridge) {
     $("#ws-selection-color-replace").textContent = inspectedColor ? `选区替换 ${inspectedColor.code}` : "仅选区替换";
     $("#ws-selection-color-replace").disabled = !hasSelection || !selectedPaletteId || !targetColor || !selectionSourceCount;
     const rare = hasPattern ? editorService.detectRarePaletteColors({ maxCount: Number($("#ws-rare-threshold").value || 3) }) : [];
-    const issues = rare.map((entry) => ({
+    const rareIssues = rare.map((entry) => ({
       id: `rare-color:${entry.paletteId}`,
       type: "rare-color",
       paletteId: entry.paletteId,
       cells: entry.cells,
-      severity: "info",
+      severity: entry.count <= 1 ? "high" : entry.count <= 2 ? "medium" : "low",
       label: `${entry.code} · ${entry.count}颗`,
       meta: { code: entry.code, count: entry.count },
     }));
+    const tinyMaxSize = Number($("#ws-tiny-threshold").value || 3);
+    if (hasPattern && (structuralCache.revision !== gridRevision || structuralCache.tinyMaxSize !== tinyMaxSize)) {
+      structuralCache = { revision:gridRevision, tinyMaxSize, value:buildStructuralDiagnostics(bridge.getResult().grid,editorService.getPaletteColors(),{tinyMaxSize}) };
+    }
+    const structural = hasPattern ? structuralCache.value : { isolated:[],tiny:[],edge:[] };
+    const allIssues = [...rareIssues, ...structural.isolated, ...structural.tiny, ...structural.edge];
+    const category = $("#ws-diagnostic-category").value || "all";
+    const severity = $("#ws-diagnostic-severity").value || "all";
+    const issues = allIssues.filter((issue) => (category === "all" || issue.type === category) && (severity === "all" || issue.severity === severity));
+    diagnosticOverlayIssues = issues;
     inspectionState = setInspectionIssues(inspectionState, issues);
     $("#ws-rare-colors").innerHTML = rare.length
       ? rare.map((entry) => { const color = paletteById.get(entry.paletteId); return `<button type="button" data-ws-rare-palette="${esc(entry.paletteId)}"><span style="background:${esc(color?.hex || "#ccc")}"></span><b>${esc(entry.code)}</b><small>${entry.count}颗</small></button>`; }).join("")
       : '<span class="ws-note">当前阈值内没有低频颜色。</span>';
+    const countRows = [["rare-color","低频颜色",rareIssues.length],["isolated-pixel","孤立像素",structural.isolated.length],["tiny-region","微小区域",structural.tiny.length],["edge-contamination","边缘污染",structural.edge.length]];
+    $("#ws-diagnostic-counts").innerHTML = countRows.map(([type,label,count]) => `<button type="button" data-ws-diagnostic-category="${type}" class="${category===type?"active":""}"><span>${label}</span><b>${count}</b></button>`).join("");
     const currentIssue = currentInspectionIssue(inspectionState);
     const issueCellCount = currentIssue?.cells?.length || 0;
     $("#ws-inspection-title").textContent = `问题巡检 · ${issues.length}项`;
     $("#ws-inspection-toggle").textContent = inspectionState.active ? "结束巡检" : "开始巡检";
     $("#ws-inspection-toggle").disabled = !issues.length;
-    $("#ws-inspection-current").textContent = currentIssue ? currentIssue.label : "当前未发现低频颜色。";
+    const typeNames = {"rare-color":"低频颜色","isolated-pixel":"孤立像素","tiny-region":"微小区域","edge-contamination":"边缘污染"};
+    const suggestion = currentIssue?.meta?.suggestedPaletteId ? editorService.resolveColor(currentIssue.meta.suggestedPaletteId) : null;
+    $("#ws-inspection-current").textContent = currentIssue ? `${typeNames[currentIssue.type] || currentIssue.type} · ${currentIssue.label}${suggestion ? ` · 建议颜色 ${suggestion.code}` : ""}` : "当前没有符合筛选的问题。";
     $("#ws-inspection-status").textContent = currentIssue ? `${inspectionState.index + 1} / ${issues.length}` : "0 / 0";
     $("#ws-inspection-cell-status").textContent = issueCellCount ? `${inspectionState.cellIndex + 1} / ${issueCellCount}` : "0 / 0";
     $("#ws-inspection-prev").disabled = !inspectionState.active || inspectionState.index <= 0;
@@ -983,9 +1007,21 @@ export function mountWorkspace(bridge) {
   $("#ws-rare-colors").addEventListener("click", (event) => {
     const button = event.target.closest("[data-ws-rare-palette]");
     if (!button) return;
+    $("#ws-diagnostic-category").value = "rare-color";
+    paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } });
     const index = inspectionState.issues.findIndex((issue) => issue.paletteId === button.dataset.wsRarePalette);
     updateInspection(startInspection(inspectionState, index));
   });
+  $("#ws-diagnostic-counts").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-ws-diagnostic-category]");
+    if (!button) return;
+    $("#ws-diagnostic-category").value = button.dataset.wsDiagnosticCategory;
+    paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } });
+  });
+  $("#ws-diagnostic-category").addEventListener("change", () => paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } }));
+  $("#ws-diagnostic-severity").addEventListener("change", () => paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } }));
+  $("#ws-tiny-threshold").addEventListener("change", () => paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } }));
+  $("#ws-diagnostic-overlay").addEventListener("change", (event) => { diagnosticOverlayVisible = event.target.checked; renderer.requestDraw(); });
   $("#ws-inspection-toggle").addEventListener("click", () => updateInspection(inspectionState.active ? stopInspection(inspectionState) : startInspection(inspectionState)));
   $("#ws-inspection-prev").addEventListener("click", () => updateInspection(previousInspectionIssue(inspectionState)));
   $("#ws-inspection-next").addEventListener("click", () => updateInspection(nextInspectionIssue(inspectionState)));

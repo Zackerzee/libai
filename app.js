@@ -878,7 +878,7 @@ function init() {
   renderEditorLibraryOptions();
   bindEvents();
   updateResultUi();
-  import("./ui/workspace-bootstrap.js?v=20260929-editor-phase3")
+  import("./ui/workspace-bootstrap.js?v=20260929-editor-phase4d")
     .then(({ bootstrapWorkspace }) => bootstrapWorkspace({
       bridge: window.LibmsWorkspaceBridge,
       prepareLegacyShell: prepareCompatibilityShell,
