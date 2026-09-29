@@ -11,7 +11,7 @@
     <link rel="icon" href="./libai-logo-pixel.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./styles.css?v=20260922-pixler" />
     <link rel="stylesheet" href="./styles/tokens.css?v=20260922-pixler" />
-    <link rel="stylesheet" href="./styles/workspace.css?v=20260929-editor-phase4" />
+    <link rel="stylesheet" href="./styles/workspace.css?v=20260929-v3-rc" />
     <link rel="stylesheet" href="./styles/generation-editor.css?v=20260922-pixler" />
     <link rel="stylesheet" href="./vendor/fusion-pixel/fusion-pixel.css?v=20260922" />
     <link rel="stylesheet" href="./styles/pixler-skin.css?v=20260922-pixler" />
@@ -72,12 +72,12 @@
                 >
                   <img id="source-preview" alt="已上传图片预览" hidden />
                   <span class="upload-icon" aria-hidden="true"></span>
-                  <span class="start-title">把图片拖到这里，或点击选择</span>
+                  <span class="start-title">图片转拼豆</span>
                   <span class="start-meta">PNG / JPG / WebP · 10 MB</span>
                 </label>
 
                 <button class="start-card blank-start-card" id="blank-board-button" type="button">
-                  <span class="start-title">＋ 从空白画布开始</span>
+                  <span class="start-title">＋ 新建空白图纸</span>
                   <span class="start-meta">选择常用板规格或输入独立宽高，直接绘制拼豆图纸。</span>
                 </button>
               </div>
@@ -790,7 +790,6 @@
           <button type="button" data-size="52,52">52 × 52</button>
           <button type="button" data-size="78,78">78 × 78</button>
           <button type="button" data-size="104,104">104 × 104</button>
-          <button type="button" data-size="120,120">120 × 120</button>
         </div>
         <div class="direct-pattern-fields">
           <label class="field"><span>宽度</span><input id="blank-board-width" type="number" min="1" max="1000" step="1" value="52" /></label>
@@ -915,6 +914,6 @@
 
     <script src="./vendor/qrcode.js" defer></script>
     <script src="./state/store.js" defer></script>
-    <script src="./app.js?v=20260920-brands" defer></script>
+    <script src="./app.js?v=20260929-v3-rc14" defer></script>
   </body>
 </html>

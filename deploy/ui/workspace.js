@@ -97,8 +97,25 @@ export function mountWorkspace(bridge) {
   const oldTabs = center.querySelector(".main-view-tabs"); if (oldTabs) oldTabs.hidden = true;
   const oldPreview = center.querySelector(".preview-column"); if (oldPreview) oldPreview.classList.add("ws-old-preview");
   const importView = document.createElement("section"); importView.className = "ws-import"; importView.id = "ws-import";
-  importView.innerHTML = `<div class="ws-import-inner"><p class="ws-eyebrow">创作工作台</p><h1>从一张图片开始</h1><p>图片只在本地浏览器处理。拖入图片，或点击选择。</p><div class="ws-drop-slot"></div><span>PNG · JPG · WEBP</span></div>`;
+  importView.innerHTML = `<div class="ws-import-inner"><p class="ws-eyebrow">创作工作台</p><h1>开始创作拼豆图纸</h1><p>选择图片自动生成，或从空白画布开始手工绘制。</p><div class="ws-start-options"><div class="ws-drop-slot"></div><div class="ws-blank-start"><strong>＋ 新建空白图纸</strong><label>尺寸<select id="ws-blank-size"><option value="52,52">52 × 52</option><option value="78,78">78 × 78</option><option value="104,104">104 × 104</option><option value="custom">自定义</option></select></label><div class="ws-blank-custom"><input id="ws-blank-width" type="number" min="1" max="1000" value="52" aria-label="空白图纸宽度"><span>×</span><input id="ws-blank-height" type="number" min="1" max="1000" value="52" aria-label="空白图纸高度"></div><button type="button" id="ws-blank-start">创建空白图纸</button></div></div><span>图片只在本地浏览器处理</span></div>`;
   const oldUpload = document.querySelector("#upload-zone"); importView.querySelector(".ws-drop-slot").append(oldUpload);
+  importView.querySelector("#ws-blank-size").addEventListener("change", (event) => {
+    if (event.target.value==="custom") return;
+    const [width,height]=event.target.value.split(",");
+    importView.querySelector("#ws-blank-width").value=width;
+    importView.querySelector("#ws-blank-height").value=height;
+  });
+  importView.querySelector("#ws-blank-start").addEventListener("click", () => {
+    bridge.createBlankCanvas?.({
+      width:importView.querySelector("#ws-blank-width").value,
+      height:importView.querySelector("#ws-blank-height").value,
+    });
+    const result=bridge.getResult();
+    if (result?.sourceName==="blank-board" && result.grid?.length) {
+      syncLegacy(result);
+      activateBlankCanvas();
+    }
+  });
   const canvas = document.createElement("section"); canvas.className = "ws-canvas-area"; canvas.id = "ws-canvas-area";
   canvas.innerHTML = `<div class="ws-canvas-well" id="ws-canvas-well" role="img" aria-label="当前拼豆作品画布"><div class="ws-canvas-layers" id="ws-canvas-layers"></div><canvas id="ws-source-canvas" class="ws-source-canvas" aria-label="原图裁剪画布" hidden></canvas></div><div class="ws-canvas-stats" id="ws-canvas-stats"><span>已使用颜色</span> <strong id="ws-stats-colors">0</strong> <span>种</span> <i aria-hidden="true">/</i> <strong id="ws-stats-beads">0</strong> <span>颗</span></div><p class="ws-canvas-hint" id="ws-canvas-hint"></p>`;
   center.append(importView, canvas);
@@ -143,13 +160,14 @@ export function mountWorkspace(bridge) {
         <label class="ws-field">品牌<select id="ws-brand"></select></label>
         <label class="ws-field">色数<select id="ws-palette-size"></select></label>
         <div id="generationPanel"></div>
-        <div class="ws-section-title">色号选择</div>
+        <div class="ws-section-title">完整真实色盘</div>
+        <div class="ws-current-color-summary" id="ws-palette-current">当前颜色：未选择</div>
         <input id="ws-color-search" type="search" placeholder="搜索色号 · H7 / H07" aria-label="搜索色号">
         <div id="ws-palette-categories" class="ws-palette-categories"></div>
         <div id="ws-recent-colors" class="ws-recent-colors"></div>
         <div id="ws-bead-picker" class="ws-bead-picker"></div>
         <div class="ws-readout" id="ws-used-colors">尚未生成</div>
-        <div class="ws-section-title">实际用豆颜色</div>
+        <div class="ws-section-title">当前使用色</div>
         <div class="ws-color-list" id="ws-color-list"></div>
         <div class="ws-section-title">全局换色</div>
         <label class="ws-field">来源色号<input id="ws-replace-from" type="text" placeholder="H07"></label>
@@ -365,6 +383,27 @@ export function mountWorkspace(bridge) {
     syncLegacy(event.detail); updateHistory();
     // 首次出图、或尺寸刚被自动流程改过 → 适配窗口，保证「导入即可见全貌」。
     if ((first || fitOnNextResult) && event.detail.grid?.length) { fitOnNextResult = false; viewport.fitToViewport(); } });
+  const activateBlankCanvas = () => {
+    const color=editorService.getPaletteColors()[0]||null;
+    editorService.clearHistory();ignoredIssueKeys.clear();repairPreview=null;
+    store.setState({
+      source:{image:"",width:0,height:0},
+      stats:{totalBeads:0,usedColors:0,colors:[]},
+      status:{hasSource:false,hasPattern:true,dirty:true,generationError:null},
+      editor:{tool:"brush",selectedCell:null,selectedPaletteId:color?paletteIdOf(color):null,selectedColor:color?.code||null,highlightedColor:null,highlightedPaletteId:null,selection:null,hoveredCell:null,rampBasePaletteId:null,rampPaletteIds:[],inkMode:"normal"},
+      ui:{activePanel:"color",exportDrawerOpen:false},
+      view:{mode:"blocks"},
+    });
+    updateHistory();viewport.fitToViewport();renderPicker();
+  };
+  window.addEventListener("libms:blank-canvas-created", activateBlankCanvas);
+  document.querySelector("#blank-board-modal")?.addEventListener("close", () => {
+    const result=bridge.getResult();
+    if (result?.sourceName==="blank-board" && result.grid?.length && !get().status.hasPattern) {
+      syncLegacy(result);
+      activateBlankCanvas();
+    }
+  });
   window.addEventListener("libms:generation-error", (event) => store.setState({ status: { generating: false, generationError: event.detail } }));
   window.addEventListener("libms:grid-edited", (event) => {
     editorService.invalidateUsageCounts();
@@ -920,6 +959,8 @@ export function mountWorkspace(bridge) {
     const selectedPaletteId = state.editor.selectedPaletteId;
     const inspectedColor = selectedPaletteId ? (editorService.getPaletteColors().find((color) => paletteIdOf(color) === selectedPaletteId) || selectedColor) : null;
     const inspectedCount = selectedPaletteId ? editorService.getColorUsage(selectedPaletteId) : 0;
+    const paletteCurrent=$("#ws-palette-current"),paletteCurrentColor=editorService.resolveColor(state.editor.selectedPaletteId||state.editor.selectedColor);
+    if(paletteCurrent)paletteCurrent.innerHTML=paletteCurrentColor?`<strong>当前颜色：${esc(paletteCurrentColor.code)}</strong><span class="ws-current-color-swatch" style="background:${esc(paletteCurrentColor.hex||"#ccc")}"></span>`:"当前颜色：未选择";
     const paletteById = new Map(editorService.getPaletteColors().map((color) => [paletteIdOf(color), color]));
     const selectionUsage = hasSelection ? editorService.getSelectionPaletteUsage(state.editor.selection) : new Map();
     const selectionTotal = [...selectionUsage.values()].reduce((sum, count) => sum + count, 0);

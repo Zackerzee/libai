@@ -878,7 +878,7 @@ function init() {
   renderEditorLibraryOptions();
   bindEvents();
   updateResultUi();
-  import("./ui/workspace-bootstrap.js?v=20260929-editor-phase6")
+  import("./ui/workspace-bootstrap.js?v=20260929-v3-rc14")
     .then(({ bootstrapWorkspace }) => bootstrapWorkspace({
       bridge: window.LibmsWorkspaceBridge,
       prepareLegacyShell: prepareCompatibilityShell,
@@ -6773,7 +6773,7 @@ function updateBlankBoardSummary() {
 }
 
 function createBlankBoard(options = {}) {
-  const { openEditorAfterCreate = true } = options;
+  const { openEditorAfterCreate = false } = options;
   const fallbackSize = getGranularity();
   const width = parseBlankBoardSize(options.width ?? fallbackSize);
   const height = parseBlankBoardSize(options.height ?? fallbackSize);
@@ -6800,11 +6800,15 @@ function createBlankBoard(options = {}) {
   state.height = height;
   state.paletteLabel = getCurrentPaletteLabel();
   state.stats = [];
+  state.manualEdited = true;
   state.assemblyHideCellText = false;
   refreshChartUrl();
   updateResultUi();
   setStatus(`${width} × ${height} 空白画板`);
   els.blankBoardModal?.close();
+  const detail = window.LibmsWorkspaceBridge?.getResult();
+  window.dispatchEvent(new CustomEvent("libms:project-result", { detail }));
+  window.dispatchEvent(new CustomEvent("libms:blank-canvas-created", { detail }));
   if (openEditorAfterCreate) openEditor();
   return true;
 }
@@ -6883,6 +6887,7 @@ window.captureLegacyGenerationBaseline = () => ({
 
 // Thin UI adapter: existing Color Grid, palette and generation functions remain authoritative.
 window.LibmsWorkspaceBridge = {
+  createBlankCanvas: ({ width, height } = {}) => createBlankBoard({ width, height }),
   getResult: () => ({
     width: state.width, height: state.height, grid: state.grid, colors: state.stats,
     usedColors: state.stats.length, totalBeads: state.stats.reduce((sum, color) => sum + color.count, 0),
