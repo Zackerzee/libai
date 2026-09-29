@@ -24,6 +24,7 @@ import { UsageDialog } from "./usage-dialog.js?v=20260917-inventory";
 import { resolveScreenRenderPolicy } from "../smart-preprocessing/render-policy.mjs?v=20260928-v3";
 import { paletteIdOf } from "../services/palette-identity.js";
 import { buildStructuralDiagnostics } from "../services/structural-diagnostics.js?v=20260929-editor-phase4d";
+import { stableIssueKey, deriveRepairSuggestions, createRepairQueue, createRepairPreview } from "../services/repair-suggestion.js?v=20260929-editor-phase5";
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
@@ -190,6 +191,18 @@ export function mountWorkspace(bridge) {
       <div class="ws-note" id="ws-inspection-current">当前没有可巡检的问题。</div>
       <div class="ws-inspection-row"><button type="button" id="ws-inspection-prev">上一项</button><span id="ws-inspection-status">0 / 0</span><button type="button" id="ws-inspection-next">下一项</button></div>
       <div class="ws-inspection-row"><button type="button" id="ws-inspection-cell-prev">上一个位置</button><span id="ws-inspection-cell-status">0 / 0</span><button type="button" id="ws-inspection-cell-next">下一个位置</button></div>
+    </div>
+    <div class="ws-section-title">修复建议</div>
+    <div class="ws-repair-card" id="ws-repair-card">
+      <div class="ws-note" id="ws-repair-current">选择一个可修复问题后显示建议。</div>
+      <label class="ws-field">选择其他颜色<select id="ws-repair-target"><option value="">使用建议颜色</option></select></label>
+      <div class="ws-repair-actions"><button type="button" id="ws-repair-preview">预览</button><button type="button" id="ws-repair-apply">采用建议</button><button type="button" id="ws-repair-ignore">忽略</button></div>
+      <button type="button" id="ws-repair-cancel-preview" hidden>取消预览</button>
+    </div>
+    <div class="ws-repair-queue">
+      <div class="ws-repair-counts" id="ws-repair-counts">高 0 · 中 0 · 低 0 · 冲突 0</div>
+      <div class="ws-repair-actions"><button type="button" id="ws-repair-review-high">审核高置信</button><button type="button" id="ws-repair-review-all">逐项审核</button></div>
+      <button type="button" class="ws-button ws-wide" id="ws-repair-apply-high">应用全部高置信建议</button>
     </div>`;
   symmetryControls.before(colorInspector);
   const gallery = document.querySelector(".gallery-section"); if (gallery) right.querySelector(".ws-project-gallery-slot").append(gallery);
@@ -286,8 +299,14 @@ export function mountWorkspace(bridge) {
   let structuralCache = { revision: -1, tinyMaxSize: -1, value: null };
   let diagnosticOverlayIssues = [];
   let diagnosticOverlayVisible = true;
+  const ignoredIssueKeys = new Set();
+  let repairPreview = null;
+  let repairQueue = createRepairQueue([]);
+  let repairSuggestions = [];
   window.addEventListener("libms:source-loaded", (event) => {
     editorService.clearHistory();
+    ignoredIssueKeys.clear();
+    repairPreview = null;
     store.setState({
       source: { image: event.detail.url, width: event.detail.width, height: event.detail.height },
       project: { name: event.detail.name.replace(/\.[^.]+$/, "") },
@@ -303,7 +322,8 @@ export function mountWorkspace(bridge) {
   window.addEventListener("libms:project-result", (event) => { const first = !get().status.hasPattern;
     editorService.invalidateUsageCounts();
     gridRevision += 1;
-    if (!event.detail.manualEdited) { editorService.clearHistory(); store.setState({ editor: { tool: "select", hoveredCell: null, selectedCell: null, selectedPaletteId: null, selectedColor: null, highlightedColor: null, highlightedPaletteId: null, selection: null } }); }
+    repairPreview = null;
+    if (!event.detail.manualEdited) { ignoredIssueKeys.clear(); editorService.clearHistory(); store.setState({ editor: { tool: "select", hoveredCell: null, selectedCell: null, selectedPaletteId: null, selectedColor: null, highlightedColor: null, highlightedPaletteId: null, selection: null } }); }
     syncLegacy(event.detail); updateHistory();
     // 首次出图、或尺寸刚被自动流程改过 → 适配窗口，保证「导入即可见全貌」。
     if ((first || fitOnNextResult) && event.detail.grid?.length) { fitOnNextResult = false; viewport.fitToViewport(); } });
@@ -311,6 +331,7 @@ export function mountWorkspace(bridge) {
   window.addEventListener("libms:grid-edited", (event) => {
     editorService.invalidateUsageCounts();
     gridRevision += 1;
+    repairPreview = null;
     syncLegacy(event.detail);
     const selected = get().editor.selectedCell;
     if (selected) {
@@ -460,7 +481,7 @@ export function mountWorkspace(bridge) {
   const well = $("#ws-canvas-well"), layers = $("#ws-canvas-layers");
   const viewport = createViewportService(store, () => ({ viewportWidth: well.clientWidth, viewportHeight: well.clientHeight,
     gridWidth: bridge.getResult().width || 0, gridHeight: bridge.getResult().height || 0 }));
-  const renderer = createCanvasRenderer(layers, viewport, () => bridge.getResult(), () => get().view, () => get().editor, () => get().reference, (code) => editorService.resolveColor(code), () => diagnosticOverlayVisible ? diagnosticOverlayIssues : []);
+  const renderer = createCanvasRenderer(layers, viewport, () => bridge.getResult(), () => get().view, () => get().editor, () => get().reference, (code) => editorService.resolveColor(code), () => diagnosticOverlayVisible ? diagnosticOverlayIssues : [], () => repairPreview);
   const navigatorHost = document.createElement("aside");
   well.append(navigatorHost);
   const navigator = Navigator({
@@ -895,13 +916,17 @@ export function mountWorkspace(bridge) {
     const allIssues = [...rareIssues, ...structural.isolated, ...structural.tiny, ...structural.edge];
     const category = $("#ws-diagnostic-category").value || "all";
     const severity = $("#ws-diagnostic-severity").value || "all";
-    const issues = allIssues.filter((issue) => (category === "all" || issue.type === category) && (severity === "all" || issue.severity === severity));
+    const issues = allIssues.filter((issue) => !ignoredIssueKeys.has(stableIssueKey(issue)) && (category === "all" || issue.type === category) && (severity === "all" || issue.severity === severity));
+    repairSuggestions = deriveRepairSuggestions(issues, editorService.getPaletteColors(), ignoredIssueKeys);
+    repairQueue = createRepairQueue(repairSuggestions);
     diagnosticOverlayIssues = issues;
     inspectionState = setInspectionIssues(inspectionState, issues);
     $("#ws-rare-colors").innerHTML = rare.length
       ? rare.map((entry) => { const color = paletteById.get(entry.paletteId); return `<button type="button" data-ws-rare-palette="${esc(entry.paletteId)}"><span style="background:${esc(color?.hex || "#ccc")}"></span><b>${esc(entry.code)}</b><small>${entry.count}颗</small></button>`; }).join("")
       : '<span class="ws-note">当前阈值内没有低频颜色。</span>';
-    const countRows = [["rare-color","低频颜色",rareIssues.length],["isolated-pixel","孤立像素",structural.isolated.length],["tiny-region","微小区域",structural.tiny.length],["edge-contamination","边缘污染",structural.edge.length]];
+    const visibleCounts = new Map();
+    allIssues.filter((issue) => !ignoredIssueKeys.has(stableIssueKey(issue))).forEach((issue) => visibleCounts.set(issue.type,(visibleCounts.get(issue.type)||0)+1));
+    const countRows = [["rare-color","低频颜色",visibleCounts.get("rare-color")||0],["isolated-pixel","孤立像素",visibleCounts.get("isolated-pixel")||0],["tiny-region","微小区域",visibleCounts.get("tiny-region")||0],["edge-contamination","边缘污染",visibleCounts.get("edge-contamination")||0]];
     $("#ws-diagnostic-counts").innerHTML = countRows.map(([type,label,count]) => `<button type="button" data-ws-diagnostic-category="${type}" class="${category===type?"active":""}"><span>${label}</span><b>${count}</b></button>`).join("");
     const currentIssue = currentInspectionIssue(inspectionState);
     const issueCellCount = currentIssue?.cells?.length || 0;
@@ -917,6 +942,25 @@ export function mountWorkspace(bridge) {
     $("#ws-inspection-next").disabled = !inspectionState.active || inspectionState.index < 0 || inspectionState.index >= issues.length - 1;
     $("#ws-inspection-cell-prev").disabled = !inspectionState.active || issueCellCount <= 1;
     $("#ws-inspection-cell-next").disabled = !inspectionState.active || issueCellCount <= 1;
+    const currentRepair = currentIssue ? repairSuggestions.find((item) => item.issueKey === stableIssueKey(currentIssue)) : null;
+    const confidenceNames = { high:"高置信", medium:"中置信", low:"低置信" };
+    $("#ws-repair-current").innerHTML = currentRepair
+      ? `<strong>建议 ${esc(editorService.resolveColor(currentRepair.targetPaletteId)?.code || currentRepair.targetPaletteId)} · ${confidenceNames[currentRepair.confidenceLevel]}</strong><br>${esc(currentRepair.reasonText)}<br>仅修改问题对应 ${currentRepair.cells.length} 颗拼豆。`
+      : "当前问题没有可用的真实色卡修复建议。";
+    const repairTarget = $("#ws-repair-target"), priorRepairTarget = repairTarget.value;
+    repairTarget.innerHTML = '<option value="">使用建议颜色</option>' + editorService.getPaletteColors().map((color) => `<option value="${esc(paletteIdOf(color))}">${esc(color.code)}</option>`).join("");
+    if ([...repairTarget.options].some((option) => option.value === priorRepairTarget)) repairTarget.value = priorRepairTarget;
+    repairTarget.disabled = !currentRepair;
+    $("#ws-repair-preview").disabled = !currentRepair;
+    $("#ws-repair-apply").disabled = !currentRepair;
+    $("#ws-repair-apply").textContent = repairTarget.value ? "采用选择颜色" : "采用建议";
+    $("#ws-repair-ignore").disabled = !currentIssue;
+    $("#ws-repair-cancel-preview").hidden = !repairPreview;
+    $("#ws-repair-counts").textContent = `高 ${repairQueue.counts.high} · 中 ${repairQueue.counts.medium} · 低 ${repairQueue.counts.low} · 冲突 ${repairQueue.conflicts.length}`;
+    $("#ws-repair-review-high").disabled = !repairQueue.counts.high;
+    $("#ws-repair-review-all").disabled = !repairSuggestions.length;
+    $("#ws-repair-apply-high").disabled = !repairQueue.highPlan.changes.length;
+    $("#ws-repair-apply-high").textContent = repairQueue.highPlan.changes.length ? `应用全部高置信 · ${repairQueue.highPlan.changes.length}颗` : "应用全部高置信建议";
     $("#ws-cell-details").innerHTML = state.editor.selection ? `<strong>${esc({rectangle:"矩形", "same-color":"同色",connected:"连通", "magic-wand":"魔棒", inverse:"反选", selection:"区域"}[state.editor.selection.kind] || "区域")}选区 · ${selectionCells(state.editor.selection, state.canvas.width, state.canvas.height).length.toLocaleString("zh-CN", { useGrouping: false })} 豆</strong><p>X ${state.editor.selection.x0 + 1}–${state.editor.selection.x1 + 1} · Y ${state.editor.selection.y0 + 1}–${state.editor.selection.y1 + 1}</p><p>选区换色、擦除与描边仅影响对应豆格。方向键可整体搬移。</p>` : selected ? `<strong>${esc(selectedColor?.code || "空白")}</strong><p>位置 · X ${selected.x + 1} / Y ${selected.y + 1}</p><p>${selectedColor ? `${esc(selectedColor.hex || "")} · RGB ${esc(selectedColor.rgb?.join(",") || "")}` : "真正空豆"}</p><p>使用 · ${selectedColor ? editorService.getColorUsage(paletteIdOf(selectedColor)).toLocaleString("zh-CN", { useGrouping: false }) : 0} 颗</p>` : "用选择工具点击画布中的一颗豆。";
     const toolInfo = {select:"选择 · 点击查看豆格",bead:"单豆 · 选中色号后点击豆格",brush:"画笔 · 拖动为一笔历史，笔宽见检查器",eraser:"橡皮 · 拖动擦成真正空豆，笔宽见检查器",fill:"填充 · 四方向连续色块",line:"直线 · 从起点拖到终点，Shift 吸附 45°",rect:"矩形 · 拖出外接框，Shift 约束正方形",ellipse:"圆形 · 拖出外接框，Shift 约束正圆",region:"框选 · 拖出矩形选区",wand:"魔棒 · 按色差容差圈选连续区域，Shift 叠加 / Alt 减掉",same:"同色选择 · 点击任意豆格",connected:"连通选择 · 点击连续色块",eyedropper:"取色 · 点击豆格设置当前色","source-eyedropper":"原图取色 · 点击中央原图",outline:"描边 · 先选择区域再应用",replace:"换色 · 在色彩面板设置色号",pan:"移动 · 拖动画布",text:"文字 · 点画布放一个文字图层，拖动可移动；调好字体/颜色/字号后点「向下合并」写进图纸"};
     $("#ws-tool-details").textContent = `${toolInfo[state.editor.tool] || state.editor.tool}${state.editor.selectedColor ? ` · 当前 ${state.editor.selectedColor}` : ""}`;
@@ -986,6 +1030,7 @@ export function mountWorkspace(bridge) {
     if (cell) viewport.focusCell(cell.x, cell.y, { preserveZoom: true, margin: .15 });
   };
   const updateInspection = (next) => {
+    repairPreview = null;
     inspectionState = next;
     activateInspectionCurrent();
     paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } });
@@ -1027,6 +1072,65 @@ export function mountWorkspace(bridge) {
   $("#ws-inspection-next").addEventListener("click", () => updateInspection(nextInspectionIssue(inspectionState)));
   $("#ws-inspection-cell-prev").addEventListener("click", () => updateInspection(previousInspectionCell(inspectionState)));
   $("#ws-inspection-cell-next").addEventListener("click", () => updateInspection(nextInspectionCell(inspectionState)));
+  const currentRepairSuggestion = () => {
+    const issue = currentInspectionIssue(inspectionState);
+    return issue ? repairSuggestions.find((suggestion) => suggestion.issueKey === stableIssueKey(issue)) || null : null;
+  };
+  const selectedRepairSuggestion = () => {
+    const suggestion = currentRepairSuggestion();
+    const selectedTarget = $("#ws-repair-target").value;
+    if (!suggestion || !selectedTarget) return suggestion;
+    const target = editorService.resolveColor(selectedTarget);
+    return target ? { ...suggestion, targetPaletteId: paletteIdOf(target), reason:"manual-choice", reasonText:`人工选择 ${target.code}` } : suggestion;
+  };
+  $("#ws-repair-preview").addEventListener("click", () => {
+    repairPreview = createRepairPreview(selectedRepairSuggestion());
+    renderer.requestDraw();
+    paint(get(), { editor:{ selectedPaletteId:get().editor.selectedPaletteId } });
+  });
+  $("#ws-repair-cancel-preview").addEventListener("click", () => {
+    repairPreview = null;
+    renderer.requestDraw();
+    paint(get(), { editor:{ selectedPaletteId:get().editor.selectedPaletteId } });
+  });
+  $("#ws-repair-apply").addEventListener("click", () => {
+    const suggestion = selectedRepairSuggestion();
+    if (!suggestion) return;
+    const target = editorService.resolveColor(suggestion.targetPaletteId);
+    askConfirmation(`仅修复当前问题的 ${suggestion.cells.length} 颗拼豆，替换为 ${target?.code || suggestion.targetPaletteId}？`).then((accepted) => {
+      if (accepted) editorService.applyRepairChanges([suggestion], "采用单项修复建议");
+    });
+  });
+  $("#ws-repair-ignore").addEventListener("click", () => {
+    const issue = currentInspectionIssue(inspectionState);
+    if (!issue) return;
+    ignoredIssueKeys.add(stableIssueKey(issue));
+    repairPreview = null;
+    paint(get(), { editor:{ selectedPaletteId:get().editor.selectedPaletteId } });
+    activateInspectionCurrent();
+  });
+  const startRepairReview = (highOnly = false) => {
+    const eligible = new Set(repairSuggestions.filter((suggestion) => !highOnly || suggestion.confidenceLevel === "high").map((suggestion) => suggestion.issueKey));
+    const index = inspectionState.issues.findIndex((issue) => eligible.has(stableIssueKey(issue)));
+    if (index >= 0) updateInspection(startInspection(inspectionState, index));
+  };
+  $("#ws-repair-review-high").addEventListener("click", () => startRepairReview(true));
+  $("#ws-repair-review-all").addEventListener("click", () => startRepairReview(false));
+  $("#ws-repair-apply-high").addEventListener("click", () => {
+    const { changes, conflicts } = repairQueue.highPlan;
+    if (!changes.length) return;
+    const issueCount = new Set(changes.map((change) => change.suggestionId)).size;
+    askConfirmation(`将修复 ${issueCount} 个高置信问题，共 ${changes.length} 颗拼豆${conflicts.length ? `；${conflicts.length} 个冲突位置会跳过` : ""}。确认修复吗？`).then((accepted) => {
+      if (!accepted) return;
+      const repairs = changes.map((change) => ({ sourcePaletteId:change.sourcePaletteId, targetPaletteId:change.targetPaletteId, cells:[{x:change.x,y:change.y}] }));
+      editorService.applyRepairChanges(repairs, "批量采用高置信修复建议");
+    });
+  });
+  $("#ws-repair-target").addEventListener("change", () => {
+    if (repairPreview) repairPreview = createRepairPreview(selectedRepairSuggestion());
+    $("#ws-repair-apply").textContent = $("#ws-repair-target").value ? "采用选择颜色" : "采用建议";
+    renderer.requestDraw();
+  });
   $("#ws-current-color-target").addEventListener("change", () => paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } }));
   $("#ws-selection-color-replace").addEventListener("click", () => {
     const from = get().editor.selectedPaletteId, to = $("#ws-current-color-target").value, selection = get().editor.selection;

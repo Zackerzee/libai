@@ -12,7 +12,7 @@ export const codeForegroundColor = (rgb) => {
 // reference 必须排在 base 之下：底图垫在豆格下方，空豆处才透得出来。
 const LAYER_NAMES = ["reference", "base", "grid", "codes", "overlay"];
 
-export function createCanvasRenderer(container, viewport, getResult, getView, getEditor, getReference = () => null, resolveColor = () => null, getDiagnostics = () => []) {
+export function createCanvasRenderer(container, viewport, getResult, getView, getEditor, getReference = () => null, resolveColor = () => null, getDiagnostics = () => [], getRepairPreview = () => null) {
   const layers = LAYER_NAMES.map((name) => {
     const canvas = document.createElement("canvas"); canvas.className = `ws-layer ws-layer-${name}`;
     canvas.dataset.layer = name; container.append(canvas); return canvas;
@@ -134,6 +134,24 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
         }
       }
       overlay.restore();
+    }
+    const repairPreview = getRepairPreview();
+    if (repairPreview?.cells?.length) {
+      const previewColor = resolveColor(repairPreview.targetPaletteId);
+      if (previewColor) {
+        const overlay = ctx[L.overlay]; overlay.save();
+        overlay.globalAlpha = .72;
+        overlay.fillStyle = previewColor.hex || `rgb(${previewColor.rgb.join(",")})`;
+        overlay.strokeStyle = "rgba(255,255,255,.95)";
+        overlay.lineWidth = Math.max(1, Math.min(2, cell * .08));
+        for (const previewCell of repairPreview.cells) {
+          if (previewCell.x < x0 || previewCell.x >= x1 || previewCell.y < y0 || previewCell.y >= y1) continue;
+          const p = viewport.gridToScreen(previewCell.x, previewCell.y);
+          overlay.fillRect(p.x, p.y, cell, cell);
+          overlay.strokeRect(p.x + 1, p.y + 1, Math.max(0, cell - 2), Math.max(0, cell - 2));
+        }
+        overlay.restore();
+      }
     }
     if (editor.symmetryHorizontal || editor.symmetryVertical) {
       const overlay = ctx[L.overlay];
