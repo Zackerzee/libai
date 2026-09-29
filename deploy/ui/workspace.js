@@ -27,6 +27,7 @@ import { resolveScreenRenderPolicy } from "../smart-preprocessing/render-policy.
 import { paletteIdOf } from "../services/palette-identity.js";
 import { buildStructuralDiagnostics } from "../services/structural-diagnostics.js?v=20260929-editor-phase4d";
 import { stableIssueKey, deriveRepairSuggestions, createRepairQueue, createRepairPreview } from "../services/repair-suggestion.js?v=20260929-editor-phase5";
+import { membershipService } from "../services/membership-service.js?v=20260930-membership-v1";
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
@@ -43,6 +44,11 @@ const canvasHint = (view) => {
 
 export function mountWorkspace(bridge) {
   if (!bridge) throw new Error("缺少 Workspace Bridge");
+  try {
+    membershipService.init();
+  } catch (error) {
+    console.warn("[membership] 初始化失败；编辑功能继续保持免费可用", error);
+  }
   const store = projectStore, generation = createGenerationService(bridge, store);
   const palettes = createPaletteService(bridge, store), exports = createExportService(bridge, store), editorService = createEditorService(bridge, { onHistoryChange: () => updateHistory() });
   const wrap = document.querySelector(".workspace-wrap"), grid = wrap?.querySelector(".workspace-grid");
@@ -72,6 +78,7 @@ export function mountWorkspace(bridge) {
   top.innerHTML = `<input class="ws-name" id="ws-project-name" aria-label="作品名称" value="未命名作品" maxlength="40">
     <span class="ws-status" id="ws-status">未开始</span>
     <span class="ws-topbar-spacer"></span>
+    <span class="ws-membership-status" id="ws-membership-status" title="Membership Foundation V1 · Free Access Mode">全部功能免费开放</span>
     <label class="ws-engine-label">引擎<select id="ws-engine"><option value="v2.5">智能 V2.5</option><option value="legacy">Legacy</option></select></label>
     <label class="ws-engine-label" title="选择生成算法">算法<select id="ws-algorithm"><option value="current">现有算法</option><option value="bgs">BGS 算法</option><option value="pindou-workbench">PW 算法</option><option value="hybrid-pw">HYBRID-PW 混合</option></select></label>
     <button type="button" class="ws-button" id="ws-source-open">图片调整</button>

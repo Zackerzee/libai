@@ -51,6 +51,7 @@ export const INCLUDE_FILES = [
 /** 要发布进去的目录（递归） */
 export const INCLUDE_DIRS = [
   "assets",
+  "config",
   "importers",
   "services",
   "smart-preprocessing",

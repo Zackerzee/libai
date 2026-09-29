@@ -12,6 +12,7 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .ws-name { min-width: 100px; max-width: 270px; flex: 1; height: 34px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--ws-radius-sm); background: transparent; color: var(--ws-text); font-size: 13px; font-weight: 600; }
 .ws-name:hover,.ws-name:focus { border-color: var(--ws-border); background: var(--ws-surface-soft); outline: none; }
 .ws-status { margin-left: auto; color: var(--ws-text-tertiary); font-size: 11px; white-space: nowrap; }
+.ws-membership-status { flex: 0 0 auto; padding: 4px 8px; border: 1px solid var(--ws-border); border-radius: 999px; background: var(--ws-surface); color: var(--ws-text-secondary); font-size: 11px; white-space: nowrap; }
 .ws-button { min-height: 34px; padding: 0 12px; border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); background: var(--ws-surface); color: var(--ws-text); font-size: 12px; font-weight: 620; white-space: nowrap; cursor: pointer; }
 .ws-button:hover:not(:disabled) { border-color: var(--ws-border-strong); background: var(--ws-surface-soft); }
 .ws-button:active:not(:disabled),.ws-rail-button:active { transform: scale(.98); }

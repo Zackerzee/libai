@@ -878,7 +878,7 @@ function init() {
   renderEditorLibraryOptions();
   bindEvents();
   updateResultUi();
-  import("./ui/workspace-bootstrap.js?v=20260929-v3-stable")
+  import("./ui/workspace-bootstrap.js?v=20260930-membership-v1")
     .then(({ bootstrapWorkspace }) => bootstrapWorkspace({
       bridge: window.LibmsWorkspaceBridge,
       prepareLegacyShell: prepareCompatibilityShell,
