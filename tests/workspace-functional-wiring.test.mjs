@@ -39,3 +39,14 @@ test("没有图纸或原图时，依赖内容的视图与参数控件会禁用",
   assert.match(workspace, /\$\("#ws-apply-outline"\)\.disabled = !hasPattern \|\| !hasSelection/);
   assert.match(workspace, /control\.disabled = !hasSource/);
 });
+
+test("专业画笔复用统一工具分发并接入补线、Pixel Perfect 与临时吸管",()=>{
+  assert.match(workspace,/tool = event\.altKey \? "eyedropper" : selectedTool/);
+  assert.match(workspace,/pixelPerfect:get\(\)\.editor\.pixelPerfect/);
+  assert.match(workspace,/shape:"square"/);
+  assert.match(workspace,/selectedPaletteId:\s*paletteIdOf\(color\)/);
+  assert.match(toolbar,/\{ id: "brush", label: "画笔", shortcut: "B" \}/);
+  assert.match(toolbar,/\{ id: "eraser", label: "擦除", shortcut: "E" \}/);
+  assert.match(toolbar,/\{ id: "eyedropper", label: "取色", shortcut: "I" \}/);
+  assert.match(toolbar,/\{ id: "fill", label: "填色", shortcut: "G" \}/);
+});

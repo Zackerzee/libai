@@ -1,5 +1,6 @@
 import { selectionContains, selectionCells, outerOutline } from "./selection-service.js";
-import { shapeCells, expandBrush } from "./shapes-service.js";
+import { shapeCells, expandBrush, lineCells } from "./shapes-service.js";
+import { cleanPixelPerfectPath } from "./pixel-perfect-stroke.js";
 import { createCellCommand, createStructureCommand, isEditorCommand } from "./editor-command.js";
 import { symmetryCells } from "./symmetry-service.js";
 import { paletteIdOf } from "./palette-identity.js";
@@ -154,29 +155,39 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     },
     eraseCells(cells, label = null) { const changes = changesFor(cells, null); return commit("ERASE", label || `擦除：${changes.length} 豆`, changes); },
     eraseSelection(selection) { if (!selection) return false; const { width, height } = result(); return this.eraseCells(selectionCells(selection, width, height)); },
-    beginStroke(code = null, { size = 1, shape = "round", symmetry = null } = {}) { stroke = { code, size, shape, symmetry, cells: new Map() }; return true; },
+    beginStroke(code = null, { size = 1, shape = "square", symmetry = null, pixelPerfect = false } = {}) {
+      stroke = { code, size, shape, symmetry, pixelPerfect:Boolean(pixelPerfect && size === 1), path:[], cells:new Map(), active:new Set(), last:null };
+      return true;
+    },
     strokeCell(x, y) {
       if (!stroke || !result().grid[y] || x < 0 || x >= result().grid[y].length) return false;
       const after = stroke.code ? colorFor(stroke.code) : null;
       if (stroke.code && !after) return false;
-      // 笔宽在落笔时按核膨胀：同一笔内重复经过的格由 Map 去重，不会把历史撑大。
+      const segment = stroke.last ? lineCells(stroke.last.x,stroke.last.y,x,y).slice(1) : [{x,y}];
+      stroke.path.push(...segment); stroke.last={x,y};
+      const centers = stroke.pixelPerfect ? cleanPixelPerfectPath(stroke.path) : stroke.path;
+      const desiredCells = symmetric(expandBrush(centers,stroke.size,stroke.shape),{symmetry:stroke.symmetry});
+      const desired = new Set(desiredCells.filter((cell)=>result().grid[cell.y]&&cell.x>=0&&cell.x<result().grid[cell.y].length).map((cell)=>`${cell.x},${cell.y}`));
       let touched = false;
-      for (const cell of symmetryCells(expandBrush([{ x, y }], stroke.size, stroke.shape), result().width, result().height, stroke.symmetry)) {
-        const row = result().grid[cell.y];
-        if (!row || cell.x < 0 || cell.x >= row.length) continue;
-        const id = `${cell.x},${cell.y}`, before = bridge.getCell(cell.x, cell.y);
-        if (same(before, after)) continue;
-        if (!stroke.cells.has(id)) stroke.cells.set(id, { x: cell.x, y: cell.y, before: clone(before), after: clone(after) });
-        bridge.applyCellChanges([{ x: cell.x, y: cell.y, after: clone(after) }], { live: true });
-        touched = true;
+      for (const id of stroke.active) if (!desired.has(id)) {
+        const original=stroke.cells.get(id); if (original) bridge.applyCellChanges([{x:original.x,y:original.y,after:clone(original.before)}],{live:true});
+        stroke.active.delete(id); touched=true;
+      }
+      for (const cell of desiredCells) {
+        const row=result().grid[cell.y]; if(!row||cell.x<0||cell.x>=row.length) continue;
+        const id=`${cell.x},${cell.y}`;
+        if (!stroke.cells.has(id)) stroke.cells.set(id,{x:cell.x,y:cell.y,before:clone(bridge.getCell(cell.x,cell.y)),after:clone(after)});
+        if (stroke.active.has(id)) continue;
+        const original=stroke.cells.get(id); original.after=clone(after); stroke.active.add(id);
+        if (!same(bridge.getCell(cell.x,cell.y),after)) { bridge.applyCellChanges([{x:cell.x,y:cell.y,after:clone(after)}],{live:true}); touched=true; }
       }
       if (touched) invalidateUsageCounts();
       return touched;
     },
     endStroke() {
       if (!stroke) return false;
-      const { code, cells } = stroke; stroke = null;
-      const changes = [...cells.values()];
+      const { code, cells, active } = stroke; stroke = null;
+      const changes = [...active].map((id)=>cells.get(id)).filter(({before,after})=>!same(before,after));
       if (changes.length) bridge.applyCellChanges([], { finalize: true });
       if (changes.length) invalidateUsageCounts();
       return changes.length ? record(cellCommand(
@@ -234,12 +245,12 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
       return commit("MOVE_SELECTION", `移动选区：${dx >= 0 ? "+" : ""}${dx}, ${dy >= 0 ? "+" : ""}${dy}`, changesFromMap(map));
     },
     fillAt(x, y, code, options = {}) {
-      const grid = result().grid, from = grid[y]?.[x]?.code ?? null, after = colorFor(code);
-      if (!grid[y] || !after || from === after.code) return false;
+      const grid = result().grid, from = paletteIdOf(grid[y]?.[x]), after = colorFor(code);
+      if (!grid[y] || !after || from === paletteIdOf(after)) return false;
       const seen = new Set([`${x},${y}`]), queue = [{x,y}], cells = [];
       for (let index = 0; index < queue.length; index++) {
         const current = queue[index];
-        if ((grid[current.y]?.[current.x]?.code ?? null) !== from) continue;
+        if (paletteIdOf(grid[current.y]?.[current.x]) !== from) continue;
         cells.push(current);
         for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
           const nx = current.x + dx, ny = current.y + dy, id = `${nx},${ny}`;

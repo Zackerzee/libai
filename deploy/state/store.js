@@ -176,6 +176,7 @@
       highlightedColor: null,  // projectStore.editor.highlightedColor
       highlightedPaletteId: null,
       brushSize: 1,            // projectStore.editor.brushSize
+      pixelPerfect: true,       // 当前 1 格画笔笔迹的确定性转角清理
       wandTolerance: 12,       // projectStore.editor.wandTolerance
       shapeFilled: false,      // projectStore.editor.shapeFilled
       symmetryHorizontal: false,

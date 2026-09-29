@@ -115,7 +115,18 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
       ctx[L.overlay].lineWidth = selected ? 2 : 1;
       ctx[L.overlay].strokeRect(p.x + 1, p.y + 1, cell - 2, cell - 2);
     };
-    outline(editor.hoveredCell, false); outline(editor.selectedCell, true);
+    if (editor.hoveredCell && ["brush","eraser"].includes(editor.tool)) {
+      const radius=Math.floor(Math.max(1,Number(editor.brushSize)||1)/2), overlay=ctx[L.overlay];
+      overlay.save(); overlay.fillStyle=editor.tool==="eraser"?"rgba(220,68,55,.12)":"rgba(232,115,37,.14)";
+      overlay.strokeStyle=editor.tool==="eraser"?"rgba(220,68,55,.78)":"rgba(232,115,37,.72)"; overlay.lineWidth=1;
+      for(let dy=-radius;dy<=radius;dy+=1) for(let dx=-radius;dx<=radius;dx+=1){
+        const x=editor.hoveredCell.x+dx,y=editor.hoveredCell.y+dy;
+        if(x<0||y<0||x>=gridWidth||y>=gridHeight) continue;
+        const p=viewport.gridToScreen(x,y); overlay.fillRect(p.x,p.y,cell,cell); overlay.strokeRect(p.x+.5,p.y+.5,Math.max(0,cell-1),Math.max(0,cell-1));
+      }
+      overlay.restore();
+    } else outline(editor.hoveredCell, false);
+    outline(editor.selectedCell, true);
     const diagnosticIssues = getDiagnostics() || [];
     if (diagnosticIssues.length) {
       const overlay = ctx[L.overlay]; overlay.save();

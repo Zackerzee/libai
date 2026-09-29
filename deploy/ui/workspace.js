@@ -2,9 +2,9 @@ import { projectStore } from "../state/project-store.js?v=20260918-usage2";
 import { createGenerationService } from "../services/generation-service.js?v=20260918-usage2";
 import { createPaletteService } from "../services/palette-service.js";
 import { createExportService } from "../services/export-service.js?v=20260917-batchA";
-import { createEditorService } from "../services/editor-service.js?v=20260928-editor-phase2";
+import { createEditorService } from "../services/editor-service.js?v=20260929-editor-phase6";
 import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260929-editor-phase3";
-import { createCanvasRenderer } from "./canvas-renderer.js?v=20260929-editor-phase4";
+import { createCanvasRenderer } from "./canvas-renderer.js?v=20260929-editor-phase6";
 import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20260916-phase35-5";
 import { magicWandSelection, fitSelectionBox, invertSelection as invertSelectionMask, selectAll as selectAllCells, translateSelection } from "../services/shapes-service.js?v=20260918-usage2";
 import { renderSourceTransform, defaultSourceTransform, cropFromDrag, sourceOutputGeometry } from "../services/source-editor-service.js?v=20260916-phase35-5";
@@ -205,6 +205,10 @@ export function mountWorkspace(bridge) {
       <button type="button" class="ws-button ws-wide" id="ws-repair-apply-high">应用全部高置信建议</button>
     </div>`;
   symmetryControls.before(colorInspector);
+  const pixelPerfectControl = document.createElement("label");
+  pixelPerfectControl.className = "ws-switch-row";
+  pixelPerfectControl.innerHTML = '<input type="checkbox" id="ws-pixel-perfect" checked> Pixel Perfect（仅 1 格画笔）';
+  right.querySelector("#ws-brush-size")?.closest("label")?.after(pixelPerfectControl);
   const gallery = document.querySelector(".gallery-section"); if (gallery) right.querySelector(".ws-project-gallery-slot").append(gallery);
 
   // 工作台上方的参数条，只保留两件事：
@@ -614,12 +618,12 @@ export function mountWorkspace(bridge) {
       if (get().editor.tool === "source-eyedropper") { sampleOriginalSource(norm); return; }
       well.setPointerCapture(event.pointerId); sourceDrag={ start:norm, previous:bridge.getSourceTransform().crop, moved:false }; return; }
     if (!get().status.hasPattern) return;
-    const tool = get().editor.tool, p = point(event), cell = viewport.screenToGrid(p.x, p.y);
+    const selectedTool = get().editor.tool, tool = event.altKey ? "eyedropper" : selectedTool, p = point(event), cell = viewport.screenToGrid(p.x, p.y);
     // 右键取色：在任意工具下都能从画布取色设为当前色，不切换工具、不改图纸。
     // 与「取色」工具的区别：工具是点一下取完自动切回画笔；右键是纯取色，工具态不动。
     if (event.button === 2 && cell) {
       const picked = editorService.getCell(cell.x, cell.y);
-      if (picked) activateColor(picked.code, false);
+      if (picked) activateColor(paletteIdOf(picked), false);
       return;
     }
     if (tool === "pan" || spaceDown || event.button === 1) {
@@ -658,21 +662,21 @@ export function mountWorkspace(bridge) {
       return;
     }
     if (["same","connected"].includes(tool) && cell) { const original = get().editor.selection, selection = tool === "same" ? sameColorSelection(bridge.getResult().grid, cell.x, cell.y, original) : connectedSelection(bridge.getResult().grid, cell.x, cell.y, original); store.setState({ editor: { selection, selectedCell: cell }, ui: { activePanel: "edit" } }); return; }
-    if (tool === "fill" && cell) { const selected = get().editor.selectedColor; if (selected) editorService.fillAt(cell.x, cell.y, selected, symmetryOptions()); store.setState({ editor: { selectedCell: cell }, ui: { activePanel: "edit" } }); return; }
+    if (tool === "fill" && cell) { const selected=get().editor.selectedPaletteId||get().editor.selectedColor; if(selected) editorService.fillAt(cell.x,cell.y,selected,symmetryOptions()); store.setState({editor:{selectedCell:cell},ui:{activePanel:"edit"}}); return; }
     if (["brush","eraser"].includes(tool) && cell) {
-      const selected = get().editor.selectedColor;
+      const selected = get().editor.selectedPaletteId || get().editor.selectedColor;
       if (tool === "brush" && !selected) { store.setState({ ui: { activePanel: "edit" } }); return; }
       well.setPointerCapture(event.pointerId); drag = { type: "stroke" };
-      editorService.beginStroke(tool === "brush" ? selected : null, { size: get().editor.brushSize, shape: "round", ...symmetryOptions() });
+      editorService.beginStroke(tool === "brush" ? (get().editor.selectedPaletteId || selected) : null, { size:get().editor.brushSize, shape:"square", pixelPerfect:get().editor.pixelPerfect, ...symmetryOptions() });
       editorService.strokeCell(cell.x, cell.y); renderer.requestDraw();
       return;
     }
     if (tool === "eyedropper" && cell) {
-      const color = editorService.getCell(cell.x, cell.y); if (color) activateColor(color.code,false);
-      store.setState({ editor: { selectedCell: cell, tool: "brush" }, ui: { activePanel: "edit" } }); return;
+      const color = editorService.getCell(cell.x, cell.y); if (color) activateColor(paletteIdOf(color),false);
+      store.setState({ editor: { selectedCell:cell, ...(selectedTool === "eyedropper" ? {tool:"brush"} : {}) }, ui: { activePanel: "edit" } }); return;
     }
     if (tool === "bead" && cell) {
-      const selected = get().editor.selectedColor;
+      const selected = get().editor.selectedPaletteId || get().editor.selectedColor;
       if (selected) editorService.setCellColor(cell.x, cell.y, selected, symmetryOptions());
       store.setState({ editor: { selectedCell: cell }, ui: { activePanel: "edit" } }); return;
     }
@@ -839,6 +843,8 @@ export function mountWorkspace(bridge) {
     $("#ws-brush-size").disabled = !hasPattern;
     $("#ws-brush-size").value = String(state.editor.brushSize);
     $("#ws-brush-size-value").textContent = String(state.editor.brushSize);
+    $("#ws-pixel-perfect").checked = state.editor.pixelPerfect !== false;
+    $("#ws-pixel-perfect").disabled = !hasPattern || state.editor.brushSize !== 1;
     $("#ws-shape-filled").disabled = !hasPattern;
     $("#ws-shape-filled").checked = state.editor.shapeFilled;
     $("#ws-symmetry-horizontal").checked = state.editor.symmetryHorizontal;
@@ -1158,7 +1164,7 @@ export function mountWorkspace(bridge) {
   const activateColor = (code, applySelected = true) => {
     const color = editorService.resolveColor(code); if (!color) return;
     const selected = get().editor.selectedCell, tool = get().editor.tool;
-    store.setState({ editor: { selectedColor: color.code, recentColors: [color.code, ...get().editor.recentColors.filter((item) => item !== color.code)].slice(0,10), tool: tool === "select" && selected ? "bead" : tool } });
+    store.setState({ editor: { selectedColor:color.code, selectedPaletteId:paletteIdOf(color), recentColors:[color.code,...get().editor.recentColors.filter((item)=>item!==color.code)].slice(0,10), tool:tool==="select"&&selected?"bead":tool } });
     if (applySelected && selected && ["select","bead"].includes(tool)) editorService.setCellColor(selected.x, selected.y, color.code);
   };
   ["#ws-bead-picker","#ws-recent-colors"].forEach((selector) => $(selector).addEventListener("click", (event) => { const button = event.target.closest("[data-ws-pick]"); if (button) activateColor(button.dataset.wsPick); }));
@@ -1270,7 +1276,7 @@ export function mountWorkspace(bridge) {
     onToolChange: (tool) => {
       if (["bead", "brush", "fill", "line", "rect", "ellipse", "text"].includes(tool) && !get().editor.selectedColor) {
         const fallback = bridge.getResult().colors?.[0]?.code || editorService.getPaletteColors()[0]?.code || null;
-        if (fallback) store.setState({ editor: { selectedColor: fallback } });
+        if (fallback) { const color=editorService.resolveColor(fallback); store.setState({ editor: { selectedColor:color?.code||fallback, selectedPaletteId:color?paletteIdOf(color):null } }); }
       }
       if (tool === "text" && !get().editor.activeTextLayerId) { addTextLayer(); return; }
       store.setState({ editor: { tool }, ui: { activePanel: tool === "source-eyedropper" ? "source" : tool === "replace" ? "color" : "edit" } });
@@ -1429,6 +1435,7 @@ export function mountWorkspace(bridge) {
     $("#ws-shape-filled").addEventListener("change", (event) => {
       store.setState({ editor: { shapeFilled: event.target.checked } });
     });
+    $("#ws-pixel-perfect").addEventListener("change", (event) => store.setState({editor:{pixelPerfect:event.target.checked}}));
     $("#ws-symmetry-horizontal").addEventListener("change", (event) => store.setState({ editor: { symmetryHorizontal: event.target.checked } }));
     $("#ws-symmetry-vertical").addEventListener("change", (event) => store.setState({ editor: { symmetryVertical: event.target.checked } }));
   };
