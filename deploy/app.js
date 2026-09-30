@@ -1157,6 +1157,10 @@ function preloadPixelFont() {
 }
 
 function bindLandingCreationEvents() {
+  document.querySelector("[data-focus-blank]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    openBlankBoardDialog();
+  });
   els.fileInput?.addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";

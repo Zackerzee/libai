@@ -1,0 +1,13 @@
+/* Homepage-only overrides loaded after the editor skin. */
+body:not(.phase2-workspace),
+body:not(.phase2-workspace) .topbar,
+body:not(.phase2-workspace) .generator-intro.homepage,
+body:not(.phase2-workspace) .generator-intro.homepage *,
+body:not(.phase2-workspace) .site-footer,
+body:not(.phase2-workspace) .site-footer * {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Noto Sans CJK SC", "Microsoft YaHei", sans-serif !important;
+  font-variant-ligatures: normal;
+  -webkit-font-smoothing: antialiased;
+}
+

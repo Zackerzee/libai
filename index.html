@@ -5,37 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
     <meta
       name="description"
-      content="里白造物公益拼豆图纸生成器，上传图片，调整精细度，一键生成像素画拼豆图纸。"
+      content="LIBMS Studio 是时里白造物推出的专业拼豆设计与制作工作台，提供智能生成、真实色号、精细编辑、材料统计、大图分板与专业输出。"
     />
-    <title>里白造物拼豆图纸生成器 | LiBai Maker Studio</title>
+    <title>LIBMS Studio｜专业拼豆设计与制作工作台</title>
     <link rel="icon" href="./libai-logo-pixel.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=20260922-pixler" />
+    <link rel="stylesheet" href="./styles.css?v=20260930-home-v1" />
     <link rel="stylesheet" href="./styles/tokens.css?v=20260922-pixler" />
     <link rel="stylesheet" href="./styles/workspace.css?v=20260930-lazy-b1" />
     <link rel="stylesheet" href="./styles/generation-editor.css?v=20260922-pixler" />
     <link rel="stylesheet" href="./vendor/fusion-pixel/fusion-pixel.css?v=20260922" />
     <link rel="stylesheet" href="./styles/pixler-skin.css?v=20260930-export-cjk5" />
+    <link rel="stylesheet" href="./styles/homepage.css?v=20260930-home-v1" />
   </head>
   <body>
     <div class="app-shell">
       <header class="topbar">
         <div class="topbar-inner">
-          <a class="brand" href="#" aria-label="里白造物拼豆图纸生成器">
-            <img src="./libai-logo-pixel.svg" alt="" />
-            <span>
-              <strong>里白造物</strong>
-              <small>LiBai Maker Studio</small>
+          <a class="brand" href="#" aria-label="LIBMS Studio 首页">
+            <img src="./assets/brand/shiliber-mark-256.png" alt="时里白造物四色圆环标志" width="48" height="48" />
+            <span class="brand-lockup">
+              <strong>LIBMS Studio</strong>
+              <small>by 时里白造物</small>
             </span>
           </a>
 
-          <nav class="mode-tabs" aria-label="工作模式">
-            <button type="button" disabled>生成模式</button>
-            <button type="button" id="fullscreen-button">全屏模式</button>
+          <nav class="mode-tabs homepage-nav" aria-label="网站导航">
+            <a href="#capabilities">功能</a>
+            <a href="#workflow">教程</a>
+            <a href="#updates">更新日志</a>
+            <a href="#feedback">反馈</a>
           </nav>
 
           <div class="top-actions">
-            <a class="soft-button home-button" href="./index.html">主页</a>
-            <button type="button" class="soft-button hide-sm" id="register-open-button">邀请注册</button>
+            <a class="homepage-enter-button" href="#quick-start">进入工作台</a>
           </div>
         </div>
       </header>
@@ -57,12 +59,54 @@
             />
             <select id="board-select" hidden></select>
 
-            <section class="generator-intro" aria-labelledby="generator-title">
-              <p class="section-kicker">LiBai Maker Studio</p>
-              <h1 id="generator-title">拼豆图纸生成器</h1>
-              <p>上传图片、选择色卡和宽度，实时生成带色号、豆数和成品尺寸的高清图纸。</p>
+            <section class="generator-intro homepage" aria-labelledby="generator-title">
+              <div class="homepage-hero">
+                <div class="hero-copy">
+                  <p class="hero-product"><span>LIBMS</span> <em>Studio</em></p>
+                  <h1 id="generator-title">专业拼豆设计与制作工作台</h1>
+                  <h2>从一张图片，<br />到真正能拼出来的图纸</h2>
+                  <p class="hero-description">智能生成、真实色号、精细编辑、材料统计、<br class="desktop-break" />大图分板与专业输出，一站完成。</p>
+                  <div class="hero-actions">
+                    <label class="hero-primary-action" for="file-input">开始制作</label>
+                    <a class="hero-secondary-action" href="#quick-start" data-focus-blank>新建空白图纸</a>
+                  </div>
+                  <div class="hero-tags" aria-label="支持的作品类型">
+                    <span>照片</span><span>动漫</span><span>插画</span><span>Logo</span><span>像素图</span><span>写实</span>
+                  </div>
+                </div>
 
-              <div class="start-panel">
+                <div class="hero-workflow-visual" aria-label="从原图到拼豆图纸、真实色号和 104 分板的工作流示意">
+                  <div class="hero-visual-glow" aria-hidden="true"></div>
+                  <div class="workflow-card source-card">
+                    <span class="workflow-card-label">原图</span>
+                    <div class="source-art" aria-hidden="true"><span></span><span></span><span></span></div>
+                  </div>
+                  <span class="workflow-arrow first-arrow" aria-hidden="true">→</span>
+                  <div class="workflow-card pattern-card">
+                    <span class="workflow-card-label">拼豆图纸</span>
+                    <div class="bead-pattern" aria-hidden="true">
+                      <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                    </div>
+                  </div>
+                  <span class="workflow-arrow second-arrow" aria-hidden="true">→</span>
+                  <div class="workflow-card palette-card">
+                    <span class="workflow-card-label">真实色号</span>
+                    <div class="palette-swatches" aria-hidden="true"><b>H5</b><b>H6</b><b>F10</b><b>M12</b></div>
+                  </div>
+                  <span class="workflow-arrow third-arrow" aria-hidden="true">→</span>
+                  <div class="workflow-card board-card">
+                    <span class="workflow-card-label">104 分板</span>
+                    <div class="board-grid" aria-hidden="true"><span>01</span><span>02</span><span>03</span><span>04</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <section class="quick-start-section" id="quick-start" aria-labelledby="quick-start-title">
+                <div class="homepage-section-heading">
+                  <p>快速开始</p>
+                  <h2 id="quick-start-title">选择你的创作方式</h2>
+                </div>
+                <div class="start-panel homepage-start-panel">
                 <label
                   class="start-card upload-zone"
                   id="upload-zone"
@@ -71,21 +115,61 @@
                   tabindex="0"
                 >
                   <img id="source-preview" alt="已上传图片预览" hidden />
-                  <span class="upload-icon" aria-hidden="true"></span>
+                  <span class="start-card-number" aria-hidden="true">01</span>
                   <span class="start-title">图片转拼豆</span>
-                  <span class="start-meta">PNG / JPG / WebP · 10 MB</span>
+                  <span class="start-meta">上传照片、动漫、插画等</span>
+                  <span class="start-link">开始上传 <span aria-hidden="true">→</span></span>
                 </label>
 
                 <button class="start-card blank-start-card" id="blank-board-button" type="button">
+                  <span class="start-card-number" aria-hidden="true">02</span>
                   <span class="start-title">＋ 新建空白图纸</span>
-                  <span class="start-meta">选择常用板规格或输入独立宽高，直接绘制拼豆图纸。</span>
+                  <span class="start-meta">从零开始设计作品</span>
+                  <span class="start-link">新建图纸 <span aria-hidden="true">→</span></span>
                 </button>
                 <button class="start-card" id="open-project-button" type="button">
+                  <span class="start-card-number" aria-hidden="true">03</span>
                   <span class="start-title">打开工程</span>
-                  <span class="start-meta">LIBMS Project / Pixler · 继续上次编辑</span>
+                  <span class="start-meta">继续 LIBMS / Pixler 项目</span>
+                  <span class="start-link">打开工程 <span aria-hidden="true">→</span></span>
                 </button>
                 <input id="landing-project-input" class="file-input-hidden" type="file" accept="application/json,.json,.pixler" />
-              </div>
+                </div>
+              </section>
+
+              <section class="homepage-workflow" id="workflow" aria-labelledby="workflow-title">
+                <div class="homepage-section-heading">
+                  <p>完整工作流</p>
+                  <h2 id="workflow-title">从灵感到施工，一条路径完成</h2>
+                </div>
+                <ol class="workflow-steps">
+                  <li><span>01</span><strong>生成</strong><small>图片智能转图纸</small></li>
+                  <li><span>02</span><strong>优化</strong><small>细节与色块整理</small></li>
+                  <li><span>03</span><strong>精修</strong><small>专业工具逐格调整</small></li>
+                  <li><span>04</span><strong>材料</strong><small>色号与颗数统计</small></li>
+                  <li><span>05</span><strong>施工</strong><small>大图分板与定位</small></li>
+                  <li><span>06</span><strong>输出</strong><small>高清图纸与工程文件</small></li>
+                </ol>
+              </section>
+
+              <section class="homepage-capabilities" id="capabilities" aria-labelledby="capabilities-title">
+                <div class="homepage-section-heading">
+                  <p>专业能力</p>
+                  <h2 id="capabilities-title">为真正落地的拼豆作品而设计</h2>
+                </div>
+                <div class="capability-grid">
+                  <article><span class="capability-index">01</span><h3>生成更准</h3><p>真实色号 · 细节保护 · 色块整理 · 边缘净化</p></article>
+                  <article><span class="capability-index">02</span><h3>专业精修</h3><p>改色 · 替换 · 智能修复 · 参考底图 · 对称绘制 · 自动描边 · 明暗工具</p></article>
+                  <article><span class="capability-index">03</span><h3>真正施工</h3><p>色号统计 · 颗数统计 · 104×104 分板 · 超高清施工图 · 邻板提示</p></article>
+                  <article><span class="capability-index">04</span><h3>专业输出</h3><p>PNG · PDF · Pixler · ZIP · 作品海报</p></article>
+                </div>
+              </section>
+
+              <section class="homepage-closing" id="updates">
+                <p>LIBMS Studio V3</p>
+                <h2>把复杂留给工具，<br />把创作留给你。</h2>
+                <a href="#quick-start">开始创作</a>
+              </section>
             </section>
 
             <div class="preview-column">
@@ -406,26 +490,25 @@
 
       <footer class="site-footer">
         <div class="footer-container">
-          <strong>里白造物拼豆图纸生成器 © 2026</strong>
-          <p class="disclaimer">本站为纯前端公益工具，您的图片仅在本地浏览器处理，本站不收集、不存储任何用户隐私与图片，请放心使用。</p>
-          <p>本站与 Perler®、Hama® 等品牌无任何官方关联，相关商标版权归其各自所有者所有。</p>
-          <div class="donation-wrapper">
-            <button id="btn-open-donate" class="btn-donate" type="button">
-              <span class="donate-icon" aria-hidden="true">奶茶</span>
-              请作者喝一杯奶茶
-            </button>
+          <div class="footer-main">
+            <div class="footer-brand">
+              <img src="./assets/brand/shiliber-mark-256.png" alt="时里白造物四色圆环标志" width="72" height="72" loading="lazy" />
+              <div>
+                <strong>LIBMS Studio</strong>
+                <span>专业拼豆设计与制作工作台</span>
+                <p>LIBMS Studio 是时里白造物推出的专业拼豆设计与制作工作台。</p>
+              </div>
+            </div>
+            <nav class="footer-nav" aria-label="页脚导航" id="feedback">
+              <a href="#capabilities">功能</a>
+              <a href="#workflow">教程</a>
+              <a href="#feedback">反馈</a>
+              <a href="#updates">更新日志</a>
+            </nav>
           </div>
-          <div class="friend-links">
-            <span class="link-title">友情链接：</span>
-            <a
-              href="https://julebu.co/aff/AXHCDRPW"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="aff-link"
-            >
-              <img src="./libai-logo-pixel.svg" alt="" class="link-logo" />
-              <span class="link-text">句乐部</span>
-            </a>
+          <div class="footer-meta">
+            <span>© 2026 时里白造物</span>
+            <span>图片仅在本地浏览器处理，不上传、不存储。</span>
           </div>
           <details class="compliance-disclosure">
             <summary>网站免责与合规声明</summary>
