@@ -284,13 +284,12 @@ export function mountWorkspace(bridge) {
         <button type="button" class="ws-size-chip" data-size="78">78</button>
         <button type="button" class="ws-size-chip" data-size="104">104</button>
       </div>
-      <div class="ws-size-stepper" role="group" aria-label="手动调整图纸尺寸">
-        <button type="button" data-size-step="-1" aria-label="尺寸减小">−</button>
-        <input id="ws-size-input" type="number" min="10" max="500" step="1" value="104" aria-label="图纸尺寸（豆）">
-        <button type="button" data-size-step="1" aria-label="尺寸增大">+</button>
+      <div class="ws-size-slider" role="group" aria-label="按宽度调整图纸尺寸">
+        <output id="ws-size-value" for="ws-size-input" aria-live="polite"><strong>104</strong><span>×</span><strong>104</strong></output>
+        <input id="ws-size-input" type="range" min="10" max="500" step="1" value="104" aria-label="图纸宽度（豆）">
       </div>
       <div class="ws-multiple" role="group" aria-label="像素倍数识别">
-        <span class="ws-multiple-label" title="倍数识别用于判断原图中每一个像素格由多少个图像像素组成。">倍数</span>
+        <span class="ws-multiple-label" title="原图中每个逻辑像素包含多少个图像像素；调整后会重新计算图纸尺寸。">倍数</span>
         <div class="ws-multiple-stepper">
           <button type="button" data-multiple-step="-1" aria-label="倍数减小">−</button>
           <output id="ws-multiple-value" title="自动识别结果">1×</output>
@@ -1110,7 +1109,7 @@ export function mountWorkspace(bridge) {
       extendedToolbar.setToolDisabled(tool, !hasPattern);
     }
     extendedToolbar.setToolDisabled("source-eyedropper", !hasSource);
-    topControls.querySelectorAll("[data-size], [data-size-step], [data-multiple-step]").forEach((control) => { control.disabled = !hasSource; });
+    topControls.querySelectorAll("[data-size], [data-multiple-step]").forEach((control) => { control.disabled = !hasSource; });
     $("#ws-size-input").disabled = !hasSource;
     syncReferenceUi(state);
     if (patch.editor?.selectedColor || patch.editor?.paletteCategory || patch.stats || patch.ui?.activePanel === "edit") renderPicker();
@@ -1475,8 +1474,8 @@ export function mountWorkspace(bridge) {
   });
   // ── 图纸尺寸 · 像素倍数 ───────────────────────────────────────────────
   // 倍数 = 原图里一个逻辑像素由多少真实像素组成（导入时自动识别，可手动覆盖）。
-  // 「自动」= 用倍数推出逻辑尺寸（源图 ÷ 倍数）；52/78/104 = 方形边长；
-  // 尺寸步进器 = 按当前比例手动缩放；倍数步进器 = 覆盖倍数后反推尺寸。
+  // 「自动」= 用倍数推出逻辑尺寸（源图 ÷ 倍数）；52/78/104 与滑杆控制宽度；
+  // 高度始终按原图比例自动计算；倍数步进器 = 覆盖倍数后反推尺寸。
   // 尺寸真正落到 bridge/store 的链路仍由 generationPanel 的 onChange 负责，这里只喂入参。
   const effectiveMultiple = () => (manualMultiple ?? detectedMultiple) || 1;
   // 识别原图的像素倍数：像素画里 1 个逻辑像素由 k×k 个真实像素组成。
@@ -1511,34 +1510,35 @@ export function mountWorkspace(bridge) {
     // 出图后必须重新适配，否则用户看到的是一角，还得自己找 Fit。
     fitOnNextResult = true;
     generationPanel.setState({ width, height });
+    return { width, height };
   }
   const applySize = (value) => {
     if (value === "auto") { manualMultiple = null; manualSize = false; syncMultipleReadout(); applyLogicalSize(); return; }
-    const size = Number(value);
-    manualSize = true;
-    generationPanel.setState({ width: size, height: size });
+    applyManualWidth(value);
   };
   topControls.querySelectorAll("[data-size]").forEach((chip) => chip.addEventListener("click", () => applySize(chip.dataset.size)));
-  // 手动尺寸步进器：以当前比例缩放（输入框显示最长边）。
+  // 手动尺寸滑杆：宽度为唯一主控，高度按原图比例自动计算。
   const sizeInput = $("#ws-size-input");
-  const applyManualSize = (value) => {
-    const target = clamp(Math.round(Number(value)) || 104, 10, 500);
-    const { width, height } = get().canvas;
-    const longest = Math.max(width, height) || target;
-    const ratio = target / longest;
+  function applyManualWidth(value) {
+    const width = clamp(Math.round(Number(value)) || 104, 10, 500);
+    const height = clamp(Math.round(width * sourceRatio()), 10, 500);
     manualSize = true;
-    generationPanel.setState({ width: clamp(Math.round(width * ratio), 10, 500), height: clamp(Math.round(height * ratio), 10, 500) });
-  };
-  topControls.querySelectorAll("[data-size-step]").forEach((button) => button.addEventListener("click", () => {
-    applyManualSize((Number(sizeInput.value) || Math.max(get().canvas.width, get().canvas.height) || 104) + Number(button.dataset.sizeStep));
-  }));
-  sizeInput.addEventListener("change", () => applyManualSize(sizeInput.value));
+    generationPanel.setState({ width, height });
+  }
+  sizeInput.addEventListener("input", () => applyManualWidth(sizeInput.value));
   // 手动倍数步进器：覆盖识别结果，按新倍数反推逻辑尺寸（尺寸仍由自动流程推导）。
   topControls.querySelectorAll("[data-multiple-step]").forEach((button) => button.addEventListener("click", () => {
     manualMultiple = clamp(Math.round(effectiveMultiple() + Number(button.dataset.multipleStep)), 1, 64);
     manualSize = false;
     syncMultipleReadout();
-    applyLogicalSize();
+    const before = get().canvas;
+    const next = applyLogicalSize();
+    if (next) {
+      const limited = (next.width === 500 && bridge.getResult().sourceWidth / effectiveMultiple() > 500)
+        || (next.height === 500 && bridge.getResult().sourceHeight / effectiveMultiple() > 500);
+      $("#ws-status").textContent = `倍数 ${effectiveMultiple()}× · ${next.width} × ${next.height}${limited ? " · 已到尺寸上限" : ""}`;
+      if (before.width === next.width && before.height === next.height && limited) $("#ws-status").title = "继续增加倍数后，图纸尺寸会在低于 500 格时开始变化";
+    }
   }));
   // 「自动」chip = 尺寸由倍数识别推导；52/78/104 = 手动指定方形边长。
   // 用函数声明（会提升）而非 const 箭头，避免 paint() 早于定义执行时踩 TDZ。
@@ -1546,12 +1546,12 @@ export function mountWorkspace(bridge) {
     const { width, height } = get().canvas;
     topControls.querySelectorAll("[data-size]").forEach((chip) => {
       const value = chip.dataset.size;
-      const active = value === "auto"
-        ? !manualSize
-        : manualSize && width === height && Number(value) === width;
+      const active = value === "auto" ? !manualSize : manualSize && Number(value) === width;
       chip.classList.toggle("is-active", active);
     });
-    if (sizeInput && document.activeElement !== sizeInput) sizeInput.value = String(Math.max(width, height));
+    if (sizeInput && document.activeElement !== sizeInput) sizeInput.value = String(width);
+    const sizeValue = $("#ws-size-value");
+    if (sizeValue) sizeValue.innerHTML = `<strong>${width}</strong><span>×</span><strong>${height}</strong>`;
     syncMultipleReadout();
   }
   // 选区相关的动作统一走这里：按钮、方向键、快捷键三处共用，避免逻辑分叉。

@@ -229,15 +229,14 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .phase2-workspace .ws-size-chip-auto { min-width: 52px; }
 .phase2-workspace .ws-top-zoom { display: flex; align-items: center; }
 
-/* 手动尺寸步进器：− [最长边] +，按当前比例缩放 */
-.phase2-workspace .ws-size-stepper { display: flex; align-items: center; gap: 2px; }
-.phase2-workspace .ws-size-stepper button,
+/* 手动尺寸滑杆：宽度为主控，高度按原图比例自动计算 */
+.phase2-workspace .ws-size-slider { display: grid; grid-template-columns: 96px 132px; align-items: center; gap: 8px; }
+.phase2-workspace .ws-size-slider output { display: flex; align-items: center; justify-content: center; gap: 8px; height: 30px; padding: 0 10px; border: 1px solid var(--ws-border); border-radius: 10px; background: var(--ws-accent-soft); color: var(--ws-text); font-size: 12px; font-variant-numeric: tabular-nums; }
+.phase2-workspace .ws-size-slider output strong { min-width: 24px; text-align: center; font-size: 13px; }
+.phase2-workspace .ws-size-slider output span { color: var(--ws-text-tertiary); }
+.phase2-workspace .ws-size-slider input[type="range"] { width: 132px; accent-color: var(--ws-accent); cursor: pointer; }
 .phase2-workspace .ws-multiple-stepper button { width: 28px; height: 30px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface); color: var(--ws-text-secondary); font-size: 15px; line-height: 1; cursor: pointer; }
-.phase2-workspace .ws-size-stepper button:hover,
 .phase2-workspace .ws-multiple-stepper button:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
-.phase2-workspace .ws-size-stepper input { width: 62px; height: 30px; padding: 0 6px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface); color: var(--ws-text); font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; text-align: center; }
-.phase2-workspace .ws-size-stepper input::-webkit-outer-spin-button,
-.phase2-workspace .ws-size-stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 /* 像素倍数识别：读数 + 手动 −/+ 覆盖 */
 .phase2-workspace .ws-multiple { display: flex; align-items: center; gap: 6px; }
