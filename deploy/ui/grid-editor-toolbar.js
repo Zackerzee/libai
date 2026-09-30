@@ -93,6 +93,7 @@ export class GridEditorToolbar {
     // 底栏主区：画笔类主工具 + 镜像菜单 + 历史。镜像统一收在一个入口，
     // 避免左右、上下两个方向分别占据工具栏位置。
     if (this.variant === "extended") { this.renderExtended(); return; }
+    if (this.variant === "rail") { this.renderRail(); return; }
     const primary = PRIMARY_ORDER.map((id) => GRID_TOOLS.find((tool) => tool.id === id)).filter(Boolean);
     this.root.innerHTML = `<div class="sl-grid-toolbar" role="toolbar" aria-label="画布工具"><div class="sl-toolbar-primary">
       ${primary.map((tool) => this.toolButton(tool)).join("")}
@@ -105,6 +106,20 @@ export class GridEditorToolbar {
       <button type="button" class="sl-history-button" data-panel="undo" aria-label="撤销" title="撤销" disabled>${icons.undo}</button>
       <button type="button" class="sl-history-button" data-panel="redo" aria-label="重做" title="重做" disabled>${icons.redo}</button>
     </div></div>`;
+    this.sync();
+  }
+  renderRail() {
+    const direct = ["brush", "eyedropper", "eraser", "fill", "pan"]
+      .map((id) => GRID_TOOLS.find((tool) => tool.id === id)).filter(Boolean);
+    const menu = (label, icon, tools) => `<details class="sl-rail-menu"><summary class="sl-tool-button" title="${label}" aria-label="${label}"><span class="sl-tool-icon">${icon}</span><span class="sl-tool-label">${label}</span></summary><div class="sl-tool-menu" role="menu" aria-label="${label}">${tools.map((id) => this.toolButton(GRID_TOOLS.find((tool) => tool.id === id), true)).join("")}</div></details>`;
+    this.root.innerHTML = `<div class="sl-grid-toolbar sl-grid-toolbar-rail" role="toolbar" aria-label="专业编辑工具">
+      ${direct.slice(0,4).map((tool) => this.toolButton(tool)).join("")}
+      ${menu("形状", icons.rect, ["line","rect","ellipse"])}
+      ${menu("选择", icons.wand, ["region","wand","same","connected"])}
+      ${direct.slice(4).map((tool) => this.toolButton(tool)).join("")}
+      <details class="sl-rail-menu sl-mirror-menu"><summary class="sl-tool-button" title="镜像" aria-label="镜像"><span class="sl-tool-icon">${icons.mirror}</span><span class="sl-tool-label">镜像</span></summary><div class="sl-tool-menu" role="menu" aria-label="镜像方向"><button type="button" class="sl-tool-button sl-tool-button-secondary" data-panel="mirror-horizontal" role="menuitem"><span class="sl-tool-label">左右镜像</span></button><button type="button" class="sl-tool-button sl-tool-button-secondary" data-panel="mirror-vertical" role="menuitem"><span class="sl-tool-label">上下镜像</span></button></div></details>
+      <button type="button" class="sl-history-button sl-rail-help" data-panel="help" aria-label="功能说明与快捷键" title="功能说明与快捷键">${icons.help}</button>
+    </div>`;
     this.sync();
   }
   // 顶栏扩展区只保留选择类工具与帮助。换色、描边、镜像、辅助线和原图对照
@@ -164,7 +179,7 @@ export class GridEditorToolbar {
     this.helpDialog = dialog;
   }
   openHelp() { this.helpDialog?.showModal(); }
-  closeMore() { this.root.querySelector(".sl-tool-more")?.removeAttribute("open"); }
+  closeMore() { this.root.querySelectorAll("details[open]").forEach((details) => details.removeAttribute("open")); }
   setTool(tool) {
     // 合并/删除最后一个文字图层后，工具仍可能保持 text。再次点击必须新建图层，
     // 不能因为按钮已经高亮就静默无响应。

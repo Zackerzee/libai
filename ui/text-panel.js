@@ -11,7 +11,8 @@
  *   · sync() 负责回灌数值，且**跳过正在聚焦的控件**（输入框、滑块），
  *     否则拖滑块时会被自己的回灌顶回去。
  */
-import { TEXT_FONTS, TEXT_SCALE_RANGE, TEXT_ROTATION_RANGE, layerLabel } from "../services/text-layer-service.js?v=20260924-text";
+import { TEXT_FONTS, TEXT_SCALE_RANGE, layerLabel } from "../services/text-layer-service.js?v=20261001-stage-a";
+import { paletteIdOf } from "../services/palette-identity.js";
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 
@@ -43,6 +44,7 @@ export class TextPanel {
     this.root.addEventListener("click", (event) => {
       const action = event.target.closest("[data-text-action]")?.dataset.textAction;
       if (action === "add") { this.onAdd(); return; }
+      if (action === "delete-object") { this.onDelete(event.target.closest("[data-text-layer]")?.dataset.textLayer); return; }
       const layerRow = event.target.closest("[data-text-layer]");
       if (layerRow) { this.onSelect(layerRow.dataset.textLayer); return; }
       if (action === "delete") { this.onDelete(this._activeId); return; }
@@ -50,7 +52,7 @@ export class TextPanel {
       if (action === "use-current-color") { this.onUseCurrentColor(this._activeId); return; }
       if (action === "add-color") { this.onAddCurrentColor(); return; }
       const swatch = event.target.closest("[data-text-color]");
-      if (swatch) { this.onPatch(this._activeId, { color: swatch.dataset.textColor }); return; }
+      if (swatch) { this.onPatch(this._activeId, { color: swatch.dataset.textColor, paletteId: swatch.dataset.textPaletteId || "" }); return; }
       const toggle = event.target.closest("[data-text-toggle]");
       if (toggle) {
         const key = toggle.dataset.textToggle;
@@ -61,11 +63,14 @@ export class TextPanel {
       const target = event.target;
       if (target.id === "ws-text-content") { this.onPatch(this._activeId, { text: target.value }); return; }
       if (target.id === "ws-text-scale") { this.onPatch(this._activeId, { scale: Number(target.value) }); return; }
-      if (target.id === "ws-text-rotation") { this.onPatch(this._activeId, { rotation: Number(target.value) }); return; }
+      if (target.id === "ws-text-spacing") { this.onPatch(this._activeId, { spacing: Number(target.value) }); return; }
+      if (target.id === "ws-text-x") { this.onPatch(this._activeId, { x: Number(target.value) }); return; }
+      if (target.id === "ws-text-y") { this.onPatch(this._activeId, { y: Number(target.value) }); return; }
     });
     this.root.addEventListener("change", (event) => {
       const target = event.target;
       if (target.id === "ws-text-font") this.onPatch(this._activeId, { font: target.value });
+      if (target.id === "ws-text-direction") this.onPatch(this._activeId, { rotation: Number(target.value) });
     });
   }
 
@@ -89,17 +94,19 @@ export class TextPanel {
     const swatches = recent.map((code) => {
       const color = palette.find((item) => item.code === code);
       const hex = color?.hex || "#cccccc";
-      return `<button type="button" class="ws-text-swatch" data-text-color="${esc(code)}" title="${esc(code)}" aria-label="文字颜色 ${esc(code)}"><i style="background:${esc(hex)}"></i><span>${esc(code)}</span></button>`;
+      return `<button type="button" class="ws-text-swatch" data-text-color="${esc(code)}" data-text-palette-id="${esc(color ? paletteIdOf(color) : "")}" title="${esc(code)}" aria-label="文字颜色 ${esc(code)}"><i style="background:${esc(hex)}"></i><span>${esc(code)}</span></button>`;
     }).join("");
 
     this.root.innerHTML = `
       <div class="ws-text-layers">
         <div class="ws-text-layers-head">浮动图层 <b>(${layers.length})</b></div>
         ${layers.length
-          ? layers.map((layer, index) => `<button type="button" class="ws-text-layer${layer.id === view.activeId ? " is-active" : ""}" data-text-layer="${esc(layer.id)}">
+          ? layers.map((layer, index) => `<div class="ws-text-layer${layer.id === view.activeId ? " is-active" : ""}" data-text-layer="${esc(layer.id)}" role="button" tabindex="0">
               <span class="ws-text-layer-name">${esc(layerLabel(layer, index))}</span>
+              <button type="button" class="ws-text-object-delete" data-text-action="delete-object" aria-label="删除文字 ${esc(layerLabel(layer,index))}" title="删除文字">×</button>
+              <small>${esc(layer.font || "system")} · ${esc(layer.scale || 100)}% · ${Math.abs(Number(layer.rotation)||0)%180===90?"竖排":"横排"} · 间距 ${esc(layer.spacing || 0)} · ${esc(layer.color||"未选色")} · (${Math.round(layer.x)}, ${Math.round(layer.y)})</small>
               ${layer.id === view.activeId ? '<span class="ws-text-layer-badge">编辑中</span>' : ""}
-            </button>`).join("")
+            </div>`).join("")
           : '<p class="ws-note">还没有文字图层。用顶部「文字」工具在画布上点一下，或点下面的按钮。</p>'}
         <button type="button" class="ws-button ws-wide" data-text-action="add">+ 添加文字</button>
       </div>
@@ -108,6 +115,7 @@ export class TextPanel {
         <div class="ws-section-title">编辑文字素材</div>
         <label class="ws-field">文字内容<input id="ws-text-content" type="text" maxlength="60" value="${esc(active.text)}" placeholder="输入要拼的文字"></label>
         <label class="ws-field">选用字体<select id="ws-text-font">${TEXT_FONTS.map((font) => `<option value="${esc(font.id)}"${font.id === active.font ? " selected" : ""}>${esc(font.label)}</option>`).join("")}</select></label>
+        <label class="ws-field">方向<select id="ws-text-direction"><option value="0"${Math.abs(Number(active.rotation)||0)%180!==90?" selected":""}>横排</option><option value="90"${Math.abs(Number(active.rotation)||0)%180===90?" selected":""}>竖排</option></select></label>
         <div class="ws-text-label">贴纸颜色</div>
         <div class="ws-text-colors">
           <button type="button" class="ws-text-swatch ws-text-swatch-pick" data-text-action="use-current-color" title="用当前选中色（画布上右键可取色）" aria-label="用当前选中色">⌾</button>
@@ -119,7 +127,8 @@ export class TextPanel {
           <button type="button" class="ws-text-toggle" data-text-toggle="italic" aria-label="倾斜"><i>I</i></button>
         </div>
         <label class="ws-source-slider">字号缩放<span id="ws-text-scale-value">${active.scale}%</span><input id="ws-text-scale" type="range" min="${TEXT_SCALE_RANGE.min}" max="${TEXT_SCALE_RANGE.max}" step="${TEXT_SCALE_RANGE.step}" value="${active.scale}"></label>
-        <label class="ws-source-slider">旋转方向<span id="ws-text-rotation-value">${active.rotation}°</span><input id="ws-text-rotation" type="range" min="${TEXT_ROTATION_RANGE.min}" max="${TEXT_ROTATION_RANGE.max}" step="${TEXT_ROTATION_RANGE.step}" value="${active.rotation}"></label>
+        <label class="ws-source-slider">字间距<span id="ws-text-spacing-value">${active.spacing || 0}</span><input id="ws-text-spacing" type="range" min="-2" max="8" step="1" value="${active.spacing || 0}"></label>
+        <div class="ws-selection-actions"><label>位置 X<input id="ws-text-x" type="number" step="0.5" value="${active.x}"></label><label>位置 Y<input id="ws-text-y" type="number" step="0.5" value="${active.y}"></label></div>
         <div class="ws-readout" id="ws-text-impact">—</div>
         <div class="ws-text-actions">
           <button type="button" class="ws-button ws-text-delete" data-text-action="delete">删除</button>
@@ -150,11 +159,14 @@ export class TextPanel {
     setValue("ws-text-content", active.text);
     setValue("ws-text-font", active.font);
     setValue("ws-text-scale", active.scale);
-    setValue("ws-text-rotation", active.rotation);
+    setValue("ws-text-spacing", active.spacing || 0);
+    setValue("ws-text-x", active.x);
+    setValue("ws-text-y", active.y);
+    setValue("ws-text-direction", Math.abs(Number(active.rotation) || 0) % 180 === 90 ? 90 : 0);
     const scaleValue = this.root.querySelector("#ws-text-scale-value");
     if (scaleValue) scaleValue.textContent = `${active.scale}%`;
-    const rotationValue = this.root.querySelector("#ws-text-rotation-value");
-    if (rotationValue) rotationValue.textContent = `${active.rotation}°`;
+    const spacingValue = this.root.querySelector("#ws-text-spacing-value");
+    if (spacingValue) spacingValue.textContent = String(active.spacing || 0);
     this.root.querySelectorAll("[data-text-toggle]").forEach((button) => {
       button.classList.toggle("is-on", Boolean(active[button.dataset.textToggle]));
     });

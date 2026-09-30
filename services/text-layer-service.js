@@ -54,9 +54,11 @@ export function createTextLayer(overrides = {}) {
     text: "新文字素材",
     font: "system",
     color: "",
+    paletteId: "",
     bold: false,
     italic: false,
     scale: 100,
+    spacing: 0,
     rotation: 0,
     x: 0,
     y: 0,
@@ -118,6 +120,7 @@ export function rasterizeText(layer, gridWidth, gridHeight, options = {}) {
   ctx.translate(Number(layer.x) || 0, Number(layer.y) || 0);
   if (Number(layer.rotation)) ctx.rotate((Number(layer.rotation) || 0) * Math.PI / 180);
   ctx.font = fontCss(layer, size);
+  if ("letterSpacing" in ctx) ctx.letterSpacing = `${Number(layer.spacing) || 0}px`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#000000";
@@ -148,7 +151,7 @@ const CACHE_LIMIT = 48;
 export function rasterizeTextCached(layer, gridWidth, gridHeight) {
   if (!layer) return { cells: [], width: 0, height: 0 };
   const key = [
-    layer.text, layer.font, layer.bold, layer.italic, layer.scale, layer.rotation,
+    layer.text, layer.font, layer.bold, layer.italic, layer.scale, layer.spacing, layer.rotation,
     layer.x, layer.y, gridWidth, gridHeight,
   ].join("\u0001");
   const hit = cache.get(key);

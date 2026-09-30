@@ -22,9 +22,8 @@ test("top size controls keep all presets visible without horizontal scrolling", 
   assert.match(topRules, /\.ws-top-size[\s\S]+margin-left: 0/);
 });
 
-test("pixel multiple controls expose the recalculated size and limit feedback", () => {
-  assert.match(workspace, /data-multiple-step="-1"/);
-  assert.match(workspace, /data-multiple-step="1"/);
-  assert.match(workspace, /倍数 \$\{effectiveMultiple\(\)\}× · \$\{next\.width\} × \$\{next\.height\}/);
-  assert.match(workspace, /已到尺寸上限/);
+test("legacy pixel-multiple buttons are removed from the primary workspace", () => {
+  assert.doesNotMatch(workspace, /data-multiple-step=/);
+  assert.doesNotMatch(workspace, /class="ws-multiple"/);
+  assert.match(workspace, /detectPixelMultiple/);
 });

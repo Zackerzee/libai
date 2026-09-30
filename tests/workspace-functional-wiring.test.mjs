@@ -29,7 +29,7 @@ test("文字工具首次和重复点击都会创建图层", () => {
 test("需要颜色的绘图工具会自动获得可用颜色，描边会校验选区", () => {
   assert.match(workspace, /\["bead", "brush", "fill", "line", "rect", "ellipse", "text"\]/);
   assert.match(workspace, /\$\("#ws-apply-outline"\)\.disabled = !hasPattern \|\| !hasSelection \|\| !state\.editor\.selectedColor/);
-  assert.match(workspace, /extendedToolbar\.setToolDisabled\("source-eyedropper", !hasSource\)/);
+  assert.match(workspace, /\$\("#ws-source-pick-mode"\)\.disabled = !hasSource/);
   assert.match(toolbar, /setToolDisabled\(tool, disabled\)/);
 });
 

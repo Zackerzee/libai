@@ -1,5 +1,5 @@
 import { BASE_CELL } from "../services/viewport-service.js?v=20260924-text";
-import { rasterizeTextCached, cellsBox } from "../services/text-layer-service.js?v=20260924-text";
+import { rasterizeTextCached, cellsBox } from "../services/text-layer-service.js?v=20261001-stage-a";
 import { resolveScreenRenderPolicy } from "../smart-preprocessing/render-policy.mjs?v=20260928-v3";
 import { paletteIdOf } from "../services/palette-identity.js";
 import { symmetryBrushCells } from "../services/symmetry-service.js";

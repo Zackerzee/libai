@@ -33,8 +33,9 @@ test("workspace is marked ready only after its initial paint completes", () => {
 
 test("render policy has one canonical browser module identity", () => {
   const canonical = "render-policy.mjs?v=20260928-v3";
-  assert.match(index, new RegExp(canonical.replace("?", "\\?")));
+  assert.match(app, new RegExp(canonical.replace("?", "\\?")));
   assert.match(workspace, new RegExp(canonical.replace("?", "\\?")));
   assert.match(renderer, new RegExp(canonical.replace("?", "\\?")));
   assert.doesNotMatch(index, /render-policy\.mjs\?v=20260915/);
+  assert.doesNotMatch(index, /<script[^>]+render-policy\.mjs/);
 });

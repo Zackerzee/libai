@@ -14,8 +14,8 @@ import { detectPixelMultiple, loadImageData, logicalSize } from "./pixel-multipl
 import { ZoomControls } from "./zoom-controls.js?v=20260930-lazy-b1";
 import { Navigator } from "./navigator.js?v=20260929-editor-phase3";
 import { createInspectionState, currentInspectionIssue, setInspectionIssues, startInspection, stopInspection, nextInspectionIssue, previousInspectionIssue, nextInspectionCell, previousInspectionCell } from "../services/inspection-service.js?v=20260929-editor-phase3";
-import { TextPanel } from "./text-panel.js?v=20260924-text";
-import { createTextLayer, rasterizeTextCached, layerContainsCell } from "../services/text-layer-service.js?v=20260924-text";
+import { TextPanel } from "./text-panel.js?v=20261001-stage-a";
+import { createTextLayer, rasterizeTextCached, layerContainsCell } from "../services/text-layer-service.js?v=20261001-stage-a";
 import { createInventoryService } from "../services/inventory-service.js?v=20260917-inventory";
 import { moveReference } from "../services/reference-layer-service.js";
 import { buildRamp, createPaletteMetricCache } from "../services/color-ramp-service.js";
@@ -29,6 +29,9 @@ import { buildStructuralDiagnostics } from "../services/structural-diagnostics.j
 import { stableIssueKey, deriveRepairSuggestions, createRepairQueue, createRepairPreview } from "../services/repair-suggestion.js?v=20260929-editor-phase5";
 import { membershipService } from "../services/membership-service.js?v=20260930-membership-v1";
 import { createExportV2Service } from "../services/export-v2-service.js?v=20260930-export-cjk";
+import { resizeCanvasGrid, scalePatternNearest, createGridResizeCommand, clampSelectionToBounds } from "../services/grid-resize-service.js";
+import { createAutoDraftService } from "../services/auto-draft-service.js";
+import { createEditorCommand } from "../services/editor-command.js";
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
@@ -72,30 +75,26 @@ export function mountWorkspace(bridge) {
   // 原先「更多现有工具与参数」折叠里装的是旧顶/左/右栏的控件，现已全部迁到工作台上方
   // 的 #ws-top-controls（扩展工具条 + 色号选择 + 生成参数），不再保留这个重复入口。
 
-  // 顶栏收成一条紧凑工具带：作品名 + 状态 + 引擎/算法 + 生成主操作。
-  // 原先 8 个平铺药丸按钮按用途重新分配 —— 视图/缩放/勾选下沉到底部工具坞，
-  // 「开始拼 / 导出」也下沉到工具坞右侧，顶栏只留「生成」这一个主操作。
+  // 顶栏只承担项目身份、历史和项目级动作。编辑工具统一放左侧工具栏。
   top.className = "ws-topbar";
-  top.innerHTML = `<input class="ws-name" id="ws-project-name" aria-label="作品名称" value="未命名作品" maxlength="40">
-    <span class="ws-status" id="ws-status">未开始</span>
+  top.innerHTML = `<div class="ws-brand"><img src="./assets/brand/shiliber-mark-256.png" alt="" width="34" height="34"><span><strong>LIBMS Studio</strong><small>by 时里白造物</small></span></div>
+    <div class="ws-project-identity"><input class="ws-name" id="ws-project-name" aria-label="作品名称" value="未命名作品" maxlength="40" title="点击编辑作品名称"><span id="ws-project-meta">尚未创建图纸</span><span class="ws-status" id="ws-status">未开始</span></div>
     <span class="ws-topbar-spacer"></span>
-    <span class="ws-membership-status" id="ws-membership-status" title="Membership Foundation V1 · Free Access Mode">全部功能免费开放</span>
-    <label class="ws-engine-label">引擎<select id="ws-engine"><option value="v2.5">智能 V2.5</option><option value="legacy">Legacy</option></select></label>
-    <span class="ws-smart-status">智能优化已开启</span>
-    <button type="button" class="ws-button" id="ws-source-open">图片调整</button>
-    <button type="button" class="ws-button" id="ws-import-again">换图</button>
+    <div class="ws-history-actions" aria-label="编辑历史"><button type="button" id="ws-undo" aria-label="撤销" title="撤销 · Ctrl/Cmd+Z" disabled>↶</button><button type="button" id="ws-redo" aria-label="重做" title="重做 · Ctrl/Cmd+Shift+Z" disabled>↷</button></div>
+    <details class="ws-project-menu"><summary class="ws-button" aria-label="新建或导入项目">新建 / 导入</summary><div class="ws-project-popover" role="menu"><button type="button" id="ws-new-blank" role="menuitem">新建空白图纸<small>从空白画布开始</small></button><button type="button" id="ws-import-again" role="menuitem">导入图片<small>生成新的拼豆图纸</small></button><button type="button" id="ws-import-pattern" role="menuitem">导入现成图纸<small>识别已有色号图</small></button><button type="button" id="ws-project-import" role="menuitem">打开工程<small>LIBMS / Pixler</small></button></div></details>
+    <input type="file" id="ws-project-file" accept="application/json,.json,.pixler" hidden>
+    <button type="button" class="ws-button" id="ws-save-project">保存</button>
+    <button type="button" class="ws-button ws-button-primary" id="ws-export" disabled>导出</button>
+    <select id="ws-engine" hidden aria-label="生成引擎"><option value="v2.5">智能 V2.5</option><option value="legacy">Legacy</option></select>
+    <span class="ws-membership-status" id="ws-membership-status" hidden>全部功能免费开放</span>
+    <button type="button" id="ws-source-open" hidden>图片调整</button>
     <button type="button" class="ws-button ws-button-primary" id="ws-generate" hidden>重新生成</button>
     <button type="button" class="ws-button" id="ws-legacy-retry" hidden>Legacy 重试</button>`;
 
-  // 左轨只留两个模式入口（对齐 Pixler 编辑器 IA）。
-  // 原 6 个面板（作品/图片调整/色彩/编辑/检查/库存）移到右栏顶部做 tab。
+  // 左轨是唯一一级编辑工具入口；施工模式保留为独立工作模式。
   left.className = "ws-rail";
-  left.setAttribute("aria-label", "工作模式");
-  left.innerHTML = `<span class="ws-rail-brand" aria-hidden="true">白</span>
-    <button type="button" class="ws-rail-mode" data-ws-mode="edit" aria-label="编辑模式" title="编辑 · 改图、生成、调色">
-      <span class="ws-rail-icon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M2.5 13.5l1-3.6 7.6-7.6 2.6 2.6-7.6 7.6-3.6 1z"/></svg></span>
-      <small>编辑</small>
-    </button>
+  left.setAttribute("aria-label", "专业编辑工具");
+  left.innerHTML = `<button type="button" class="ws-rail-collapse" id="ws-rail-collapse" aria-label="收起工具栏" title="收起工具栏">‹</button><div id="gridEditorToolbar" class="ws-grid-toolbar-host"></div>
     <button type="button" class="ws-rail-mode" data-ws-mode="build" aria-label="施工模式" title="施工 · 按区块拼豆，暗色护眼">
       <span class="ws-rail-icon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="2" width="12" height="12"/><path d="M6 2v12M10 2v12M2 6h12M2 10h12" stroke-width=".8"/></svg></span>
       <small>施工</small>
@@ -130,14 +129,12 @@ export function mountWorkspace(bridge) {
   // 底部工具坞：左=画布工具，中=视图与缩放，右=主操作。严格单行不换行。
   // 原先浮在画布上方 top:12px 的工具条会盖住画布抢点击，这里改为常驻底栏。
   const dock = document.createElement("nav"); dock.className = "ws-dock"; dock.setAttribute("aria-label", "画布工具坞");
-  dock.innerHTML = `<div class="ws-dock-tools" id="ws-dock-tools"></div>
-    <div class="ws-dock-view" id="ws-dock-view">
+  dock.innerHTML = `<div class="ws-dock-view" id="ws-dock-view">
       <div class="ws-view-modes">${[["original","原图"],["blocks","色块"],["beads","拼豆"],["pattern","图纸"]].map(([id,name])=>`<button type="button" data-ws-view="${id}">${name}</button>`).join("")}<button type="button" id="ws-compare" title="按住临时看原图">对照</button></div>
       <div class="ws-view-toggles"><label><input type="checkbox" id="ws-grid">网格</label><label><input type="checkbox" id="ws-codes">色号</label></div>
     </div>
     <div class="ws-dock-actions">
       <button type="button" class="ws-button" id="ws-making" disabled>开始拼</button>
-      <button type="button" class="ws-button ws-button-primary" id="ws-export" disabled>导出图纸</button>
     </div>`;
   wrap.append(dock);
   const viewBar = dock.querySelector("#ws-dock-view");
@@ -195,19 +192,15 @@ export function mountWorkspace(bridge) {
         <p class="ws-note" id="ws-replace-impact">选择来源色后显示影响颗数。</p>
         <button type="button" class="ws-button ws-wide" id="ws-replace-confirm">确认替换</button>
       </section>
-      <section class="ws-panel" data-ws-inspector="edit"><div class="ws-section-title">当前工具</div><div id="ws-tool-details" class="ws-cell-details">选择工具 · 点击查看单豆</div><div class="ws-section-title">选中拼豆 / 区域</div><div id="ws-cell-details" class="ws-cell-details">用选择工具点击画布中的一颗豆。</div><div class="ws-section-title">工具选项</div><label class="ws-source-slider">笔宽<span id="ws-brush-size-value">1</span><input type="range" id="ws-brush-size" min="1" max="9" step="2" value="1" aria-label="画笔大小（格）"></label><label class="ws-switch-row"><input type="checkbox" id="ws-shape-filled"> 形状实心（矩形 / 圆形）</label><label class="ws-source-slider">魔棒容差<span id="ws-wand-tolerance-value">12</span><input type="range" id="ws-wand-tolerance" min="0" max="100" value="12"></label><div class="ws-selection-actions"><button type="button" id="ws-erase-selection">擦除选区</button><button type="button" id="ws-clear-selection">清除选择</button></div><div class="ws-selection-actions"><button type="button" id="ws-copy-selection">复制</button><button type="button" id="ws-cut-selection">剪切</button><button type="button" id="ws-paste-selection">粘贴</button></div><div class="ws-selection-actions"><button type="button" id="ws-invert-selection">反选</button><button type="button" id="ws-select-all">全选</button></div><div class="ws-outline-options"><label><input id="ws-outline-diagonal" type="checkbox">描边包含对角</label><button type="button" id="ws-apply-outline">外描边</button></div><div class="ws-editor-actions"><button type="button" id="ws-undo" disabled>撤销</button><button type="button" id="ws-redo" disabled>重做</button></div><div id="ws-history-label" class="ws-note"></div><div class="ws-section-title">文字素材</div><div id="textPanel" class="ws-text-panel"></div><div class="ws-section-title">参考图</div><p class="ws-note">独立底层，只供对照，不参与网格、色卡、诊断或导出。</p><div class="ws-source-buttons"><button type="button" id="ws-ref-pick">添加 / 替换</button><button type="button" id="ws-ref-clear">移除</button></div><input type="file" id="ws-ref-file" accept="image/*" hidden><label class="ws-switch-row"><input type="checkbox" id="ws-ref-visible" checked> 显示参考图</label><label class="ws-source-slider">透明度<span id="ws-ref-opacity-value">40%</span><input type="range" id="ws-ref-opacity" min="0" max="100" value="40"></label><label class="ws-field">显示<select id="ws-ref-display"><option value="normal">正常</option><option value="reference-only">只看原图</option><option value="grid-only">只看图纸</option></select></label><label class="ws-field">适配<select id="ws-ref-fit"><option value="contain">Fit · 完整适应</option><option value="cover">Cover · 铺满裁切</option></select></label><label class="ws-field">质量<select id="ws-ref-smoothing"><option value="smooth">平滑</option><option value="pixelated">像素</option></select></label><label class="ws-source-slider">参考图缩放<span id="ws-ref-scale-value">100%</span><input type="range" id="ws-ref-scale" min="25" max="200" value="100"></label><div class="ws-selection-actions"><button type="button" id="ws-ref-adjust">调整位置</button><button type="button" id="ws-ref-reset">重新适配</button></div><div class="ws-section-title">旧画板高级工具</div><button type="button" class="ws-button ws-wide" id="ws-open-editor" disabled>打开原画板</button></section>
+      <section class="ws-panel" data-ws-inspector="edit"><div class="ws-editor-group"><div class="ws-section-title">工具属性</div><div id="ws-tool-details" class="ws-cell-details">选择工具 · 点击查看单豆</div><label class="ws-source-slider">笔宽<span id="ws-brush-size-value">1</span><input type="range" id="ws-brush-size" min="1" max="9" step="2" value="1" aria-label="画笔大小（格）"></label><label class="ws-switch-row"><input type="checkbox" id="ws-shape-filled"> 形状实心（矩形 / 圆形）</label><label class="ws-source-slider">魔棒容差<span id="ws-wand-tolerance-value">12</span><input type="range" id="ws-wand-tolerance" min="0" max="100" value="12"></label></div><div class="ws-editor-group"><div class="ws-section-title">选中对象</div><div id="ws-cell-details" class="ws-cell-details">点击画布或对象列表进行选择。</div><div id="ws-text-objects" class="ws-text-objects"></div><div id="textPanel" class="ws-text-panel"></div></div><div class="ws-editor-group"><div class="ws-section-title">选区动作</div><div class="ws-selection-actions"><button type="button" id="ws-erase-selection">擦除选区</button><button type="button" id="ws-clear-selection">清除选择</button></div><div class="ws-selection-actions"><button type="button" id="ws-copy-selection">复制</button><button type="button" id="ws-cut-selection">剪切</button><button type="button" id="ws-paste-selection">粘贴</button></div><div class="ws-selection-actions"><button type="button" id="ws-invert-selection">反选</button><button type="button" id="ws-select-all">全选</button></div><div class="ws-outline-options"><label><input id="ws-outline-diagonal" type="checkbox">描边包含对角</label><button type="button" id="ws-apply-outline">外描边</button></div><div id="ws-history-label" class="ws-note"></div></div><div class="ws-editor-group"><div class="ws-section-title">对称绘制</div><label class="ws-field">模式<select id="ws-symmetry-mode"><option value="none">关闭</option><option value="vertical">左右对称</option><option value="horizontal">上下对称</option><option value="both">双向对称</option></select></label><div class="ws-selection-actions"><label>左右轴<input id="ws-symmetry-axis-x" type="number" step="0.5"></label><label>上下轴<input id="ws-symmetry-axis-y" type="number" step="0.5"></label></div></div><div class="ws-editor-group"><div class="ws-section-title">参考底图</div><p class="ws-note">独立参考对象，不写入图纸与导出。</p><div class="ws-source-buttons"><button type="button" id="ws-ref-pick">添加 / 替换</button><button type="button" id="ws-ref-clear">删除</button></div><input type="file" id="ws-ref-file" accept="image/*" hidden><label class="ws-switch-row"><input type="checkbox" id="ws-ref-visible" checked> 显示参考图</label><label class="ws-source-slider">透明度<span id="ws-ref-opacity-value">40%</span><input type="range" id="ws-ref-opacity" min="0" max="100" value="40"></label><label class="ws-field">显示<select id="ws-ref-display"><option value="normal">正常</option><option value="reference-only">只看原图</option><option value="grid-only">只看图纸</option></select></label><label class="ws-field">适配<select id="ws-ref-fit"><option value="contain">完整适应</option><option value="cover">铺满裁切</option></select></label><label class="ws-field">质量<select id="ws-ref-smoothing"><option value="smooth">平滑</option><option value="pixelated">像素</option></select></label><label class="ws-source-slider">参考图缩放<span id="ws-ref-scale-value">100%</span><input type="range" id="ws-ref-scale" min="25" max="200" value="100"></label><div class="ws-selection-actions"><button type="button" id="ws-ref-adjust">调整位置</button><button type="button" id="ws-ref-reset">重新适配</button></div></div><button type="button" class="ws-button ws-wide" id="ws-open-editor" disabled hidden>打开原画板</button></section>
       <section class="ws-panel" data-ws-inspector="check"><div class="ws-section-title">真实检查结果</div><div id="ws-check-results" class="ws-check-results">生成后显示可验证的尺寸、色数与结构报告。</div></section>
       <section class="ws-panel" data-ws-inspector="inventory"><div id="inventoryPanel"></div></section>
     </div>`;
   const editPanel = right.querySelector('[data-ws-inspector="edit"]');
-  const symmetryControls = document.createElement("div");
-  symmetryControls.className = "ws-symmetry-controls";
-  symmetryControls.innerHTML = `<div class="ws-section-title">对称绘制</div>
-    <label class="ws-field">模式<select id="ws-symmetry-mode"><option value="none">关闭</option><option value="vertical">左右镜像</option><option value="horizontal">上下镜像</option><option value="both">四向镜像</option></select></label>
-    <div class="ws-selection-actions"><label>X 轴 <input id="ws-symmetry-axis-x" type="number" min="0" step="0.5" inputmode="decimal"></label><label>Y 轴 <input id="ws-symmetry-axis-y" type="number" min="0" step="0.5" inputmode="decimal"></label></div>
-    <label class="ws-switch-row"><input id="ws-symmetry-guides" type="checkbox" checked> 显示对称轴</label>
-    <p class="ws-note">仅作用于画笔和橡皮擦。104×104 默认中心轴为 51.5。</p>`;
-  editPanel?.querySelector("#ws-cell-details")?.previousElementSibling?.before(symmetryControls);
+  const projectPanel = right.querySelector('[data-ws-inspector="project"]');
+  projectPanel?.insertAdjacentHTML("beforeend", `<div class="ws-editor-group ws-resize-panel"><div class="ws-section-title">调整工程尺寸</div><div class="ws-selection-actions"><label>宽<input id="ws-resize-width" type="number" min="1" max="1000" value="104"></label><label>高<input id="ws-resize-height" type="number" min="1" max="1000" value="104"></label></div><label class="ws-field">方式<select id="ws-resize-mode"><option value="canvas">调整画布</option><option value="scale">缩放图案</option></select></label><label class="ws-field">锚点<select id="ws-resize-anchor"><option value="top-left">左上</option><option value="top">上中</option><option value="top-right">右上</option><option value="left">左中</option><option value="center" selected>居中</option><option value="right">右中</option><option value="bottom-left">左下</option><option value="bottom">下中</option><option value="bottom-right">右下</option></select></label><p class="ws-note" id="ws-resize-summary">调整画布不会重新匹配颜色。</p><button type="button" class="ws-button ws-wide" id="ws-resize-apply">预览并应用</button></div><div class="ws-editor-group"><div class="ws-section-title">崩溃恢复</div><p class="ws-note" id="ws-draft-status">编辑后自动保存本地草稿。</p><div class="ws-selection-actions" id="ws-draft-actions" hidden><button type="button" id="ws-draft-restore">恢复</button><button type="button" id="ws-draft-discard">放弃</button></div></div>`);
+  const symmetryControls = editPanel?.querySelector("#ws-symmetry-mode")?.closest(".ws-editor-group");
+  symmetryControls?.insertAdjacentHTML("beforeend", `<label class="ws-switch-row"><input id="ws-symmetry-guides" type="checkbox" checked> 显示对称轴</label><p class="ws-note">对称绘制只影响新的画笔与橡皮笔画；镜像是对已有内容执行即时变换。</p>`);
   const outlineControls=document.createElement("div");outlineControls.className="ws-outline-controls";
   outlineControls.innerHTML=`<div class="ws-section-title">结构描边</div>
     <label class="ws-field">来源<select id="ws-outline-source"><option value="component">当前连通区域</option><option value="palette">全图当前颜色</option><option value="selection">选区内容</option></select></label>
@@ -216,7 +209,7 @@ export function mountWorkspace(bridge) {
     <label class="ws-switch-row"><input id="ws-outline-holes" type="checkbox"> 包含内部孔洞</label>
     <button type="button" class="ws-button ws-wide" id="ws-outline-preview">预览描边</button><p class="ws-note" id="ws-outline-summary">选择来源和真实色号后预览。</p>
     <div class="ws-selection-actions"><button type="button" id="ws-outline-apply" disabled>应用</button><button type="button" id="ws-outline-cancel" disabled>取消</button></div>`;
-  symmetryControls.before(outlineControls);
+  symmetryControls?.before(outlineControls);
   const colorInspector = document.createElement("div");
   colorInspector.className = "ws-current-color";
   colorInspector.innerHTML = `<div class="ws-section-title">当前颜色</div>
@@ -264,7 +257,7 @@ export function mountWorkspace(bridge) {
       <div class="ws-repair-actions"><button type="button" id="ws-repair-review-high">审核高置信</button><button type="button" id="ws-repair-review-all">逐项审核</button></div>
       <button type="button" class="ws-button ws-wide" id="ws-repair-apply-high">应用全部高置信建议</button>
     </div>`;
-  symmetryControls.before(colorInspector);
+  symmetryControls?.before(colorInspector);
   let activeRampIndex = -1;
   let rampCachePalette = null, rampMetricCache = null;
   const rampCache = () => {
@@ -287,9 +280,7 @@ export function mountWorkspace(bridge) {
   topControls.className = "ws-top-controls";
   topControls.id = "ws-top-controls";
   topControls.setAttribute("aria-label", "选择工具、图纸尺寸与视图缩放");
-  topControls.innerHTML = `
-    <div class="ws-top-tools" id="ws-top-tools" aria-label="选择工具"></div>
-    <div class="ws-top-size">
+  topControls.innerHTML = `<div class="ws-top-size">
       <span class="ws-top-size-label">图纸尺寸</span>
       <div class="ws-size-chips" id="ws-size-chips" role="group" aria-label="图纸尺寸预设">
         <button type="button" class="ws-size-chip ws-size-chip-auto" data-size="auto">自动</button>
@@ -301,20 +292,11 @@ export function mountWorkspace(bridge) {
         <output id="ws-size-value" for="ws-size-input" aria-live="polite"><strong>104</strong><span>×</span><strong>104</strong></output>
         <input id="ws-size-input" type="range" min="10" max="500" step="1" value="104" aria-label="图纸宽度（豆）">
       </div>
-      <div class="ws-multiple" role="group" aria-label="像素倍数识别">
-        <span class="ws-multiple-label" title="原图中每个逻辑像素包含多少个图像像素；调整后会重新计算图纸尺寸。">倍数</span>
-        <div class="ws-multiple-stepper">
-          <button type="button" data-multiple-step="-1" aria-label="倍数减小">−</button>
-          <output id="ws-multiple-value" title="自动识别结果">1×</output>
-          <button type="button" data-multiple-step="1" aria-label="倍数增大">+</button>
-        </div>
-      </div>
       <div id="zoomControls" class="ws-top-zoom"></div>
     </div>`;
   grid.before(topControls);
 
-  const toolRail = document.createElement("div"); toolRail.className = "ws-grid-toolbar-host"; toolRail.id = "gridEditorToolbar"; toolRail.setAttribute("aria-label", "画布编辑工具");
-  dock.querySelector("#ws-dock-tools").append(toolRail);
+  const toolRail = left.querySelector("#gridEditorToolbar");
 
   const drawer = document.createElement("aside"); drawer.className = "ws-export-drawer"; drawer.id = "ws-export-drawer";
   drawer.setAttribute("aria-label", "导出作品");
@@ -329,8 +311,7 @@ export function mountWorkspace(bridge) {
     <button type="button" class="ws-export-choice" data-export-v2="poster"><strong>作品海报 · PNG</strong><small>canonical grid 干净预览与自动同色系背景</small></button>
     <div class="ws-export-options"><strong>大型作品 · 104×104 板型分割</strong><span id="ws-board-summary">当前作品无需分板</span><label><input type="checkbox" id="ws-board-codes" checked>色号</label><label><input type="checkbox" id="ws-board-grid" checked>网格</label></div>
     <button type="button" class="ws-export-choice" data-export-v2="boards" id="ws-boards-choice"><strong>导出板型 ZIP</strong><small>零重叠、零重采样、尾板保持真实尺寸</small></button>
-    <button type="button" class="ws-export-choice" data-ws-export="usage-csv"><strong>用豆清单 · CSV</strong></button>
-    <div class="ws-export-options"><strong>继续编辑</strong><button type="button" id="ws-project-import">载入工程存档 / Pixler…</button><input type="file" id="ws-project-file" accept="application/json,.json,.pixler" hidden></div><p class="ws-note" id="ws-export-message"></p>`;
+    <button type="button" class="ws-export-choice" data-ws-export="usage-csv"><strong>用豆清单 · CSV</strong></button><p class="ws-note" id="ws-export-message"></p>`;
   wrap.append(drawer);
   const exportV2 = createExportV2Service({
     getGrid: () => bridge.getResult().grid || [],
@@ -576,6 +557,21 @@ export function mountWorkspace(bridge) {
     bridge.importImage({ overwriteApproved: true });
   });
   $("#ws-source-open").addEventListener("click", () => store.setState({ ui: { activePanel: "source" } }));
+  $("#ws-new-blank").addEventListener("click", () => document.querySelector("#blank-board-modal")?.showModal());
+  $("#ws-import-pattern").addEventListener("click", () => document.querySelector("#direct-pattern-file-input")?.click());
+  $("#ws-save-project").addEventListener("click", () => { if (get().status.hasPattern) bridge.downloadProjectJson(); });
+  const railPreferenceKey = "libms.workspace.toolRail.collapsed";
+  const setRailCollapsed = (collapsed) => {
+    left.classList.toggle("is-collapsed", collapsed);
+    $("#ws-rail-collapse").textContent = collapsed ? "›" : "‹";
+    $("#ws-rail-collapse").setAttribute("aria-label", collapsed ? "展开工具栏" : "收起工具栏");
+    $("#ws-rail-collapse").title = collapsed ? "展开工具栏" : "收起工具栏";
+    try { localStorage.setItem(railPreferenceKey, collapsed ? "1" : "0"); } catch {}
+    requestAnimationFrame(() => { viewport?.fitToViewport?.(); navigator?.requestDraw?.(); });
+  };
+  try { setRailCollapsed(localStorage.getItem(railPreferenceKey) === "1"); } catch { setRailCollapsed(false); }
+  $("#ws-rail-collapse").addEventListener("click", () => setRailCollapsed(!left.classList.contains("is-collapsed")));
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") top.querySelector(".ws-project-menu")?.removeAttribute("open"); });
   $("#ws-open-editor").addEventListener("click", () => bridge.openEditor());
   $("#ws-making").addEventListener("click", () => bridge.openMaking());
   // 旧页面曾在同一按钮上绑定“直接打开图纸预览”。捕获阶段截断它，统一只进入 Export V2。
@@ -698,7 +694,7 @@ export function mountWorkspace(bridge) {
   function addTextLayer(at = textDropPoint()) {
     if (!get().status.hasPattern) { notify("先生成图纸，再添加文字。"); return null; }
     const color = get().editor.selectedColor || editorService.getPaletteColors()[0]?.code || "";
-    const layer = createTextLayer({ x: at.x, y: at.y, color });
+    const layer = createTextLayer({ x: at.x, y: at.y, color, paletteId: get().editor.selectedPaletteId || "" });
     setTextLayers([...currentTextLayers(), layer], layer.id);
     store.setState({ editor: { tool: "text" }, ui: { activePanel: "edit" }, view: { mode: "blocks" } });
     renderer.requestDraw();
@@ -816,7 +812,7 @@ export function mountWorkspace(bridge) {
       }
       const selected = get().editor.selectedColor;
       if (!selected) { store.setState({ ui: { activePanel: "edit" } }); notify("先在「色彩」里选一个色号，再在画布上放文字。"); return; }
-      const layer = createTextLayer({ x: Math.round(at.x), y: Math.round(at.y), color: selected });
+      const layer = createTextLayer({ x: Math.round(at.x), y: Math.round(at.y), color: selected, paletteId: get().editor.selectedPaletteId || "" });
       setTextLayers([...currentTextLayers(), layer], layer.id);
       store.setState({ ui: { activePanel: "edit" } });
       well.setPointerCapture(event.pointerId);
@@ -907,7 +903,6 @@ export function mountWorkspace(bridge) {
     $("#ws-engine").value = state.generation.engine || "v2.5";
     $("#ws-source-open").hidden = !hasSource;
     right.querySelector('.ws-side-tabs [data-ws-panel="source"]').disabled = !hasSource;
-    $("#ws-import-again").hidden = !hasSource;
     $("#ws-making").disabled = !hasPattern; $("#ws-export").disabled = !hasPattern; $("#ws-open-editor").disabled = !hasPattern;
     $("#ws-bead-size").disabled = !hasPattern;
     $("#ws-replace-confirm").disabled = !hasPattern;
@@ -915,6 +910,10 @@ export function mountWorkspace(bridge) {
     $("#ws-status").textContent = state.status.generationError ? `生成失败：${state.status.generationError}` : state.status.generating ? "正在生成" : bridge.getResult().manualEdited ? "已手动编辑" : state.status.dirty ? "参数待更新" : hasPattern ? "已生成" : hasSource ? "图片已导入" : "未开始";
     $("#ws-legacy-retry").hidden = !state.status.generationError;
     if (document.activeElement !== top.querySelector("#ws-project-name")) top.querySelector("#ws-project-name").value = state.project.name;
+    const activePalette = palettes.getActivePalette();
+    $("#ws-project-meta").textContent = hasPattern
+      ? `${state.canvas.width}×${state.canvas.height} · ${state.stats.usedColors}色 · ${state.stats.totalBeads.toLocaleString("zh-CN", { useGrouping: false })}颗 · ${activePalette.key}`
+      : hasSource ? "图片已导入 · 等待生成" : "尚未创建图纸";
     right.querySelector(".ws-side-tabs").querySelectorAll("[data-ws-panel]").forEach((button) => { button.classList.toggle("active", button.dataset.wsPanel === state.ui.activePanel); button.disabled = button.dataset.wsPanel === "source" && !hasSource; });
     right.querySelectorAll("[data-ws-inspector]").forEach((panel) => { panel.hidden = panel.dataset.wsInspector !== state.ui.activePanel; });
     const titles = { project: "作品", source: "图片调整", color: "色彩", edit: "编辑", check: "检查", inventory: "库存", build: "施工" }; $("#ws-inspector-title").textContent = titles[state.ui.activePanel] || "";
@@ -960,7 +959,6 @@ export function mountWorkspace(bridge) {
     zoomControls.setZoom(Math.round(state.view.zoom * 100), false);
     gridToolbar.setActiveTool(state.editor.tool);
     // 顶栏扩展工具条与底栏画笔工具栏同源同步高亮，避免两边选中态不一致。
-    extendedToolbar?.setActiveTool(state.editor.tool);
     // 顶栏图纸尺寸预设高亮跟随当前画布尺寸。
     syncSizeChips();
     // 取色按钮的色块跟随当前色：右键取色 / 调色板选色 / 取色工具点选都会更新这里。
@@ -1143,11 +1141,10 @@ export function mountWorkspace(bridge) {
     // 不满足前置条件的工具直接禁用，避免出现“按钮能点、画布却毫无反应”的假功能。
     for (const tool of ["select", "bead", "text", "brush", "eraser", "fill", "line", "rect", "ellipse", "region", "wand", "same", "connected", "eyedropper", "pan"]) {
       gridToolbar.setToolDisabled(tool, !hasPattern);
-      extendedToolbar.setToolDisabled(tool, !hasPattern);
     }
-    extendedToolbar.setToolDisabled("source-eyedropper", !hasSource);
     topControls.querySelectorAll("[data-size], [data-multiple-step]").forEach((control) => { control.disabled = !hasSource; });
     $("#ws-size-input").disabled = !hasSource;
+    $("#ws-source-pick-mode").disabled = !hasSource;
     syncReferenceUi(state);
     if (patch.editor?.selectedColor || patch.editor?.paletteCategory || patch.stats || patch.ui?.activePanel === "edit") renderPicker();
     // 文字面板：字体/颜色/加粗倾斜/字号/旋转/落豆数都要每次状态变化回灌一次。
@@ -1388,6 +1385,20 @@ export function mountWorkspace(bridge) {
   $("#ws-clear-selection").addEventListener("click", () => store.setState({ editor: { selectedCell: null, selectedPaletteId: null, highlightedPaletteId: null, selection: null, shapePreview: null } }));
   $("#ws-apply-outline").addEventListener("click", () => editorService.outline(get().editor.selection, get().editor.selectedColor, $("#ws-outline-diagonal").checked));
   $("#ws-undo").addEventListener("click", () => editorService.undo()); $("#ws-redo").addEventListener("click", () => editorService.redo());
+  const syncResizeInputs = () => { const result=bridge.getResult(); $("#ws-resize-width").value=String(result.width||104); $("#ws-resize-height").value=String(result.height||104); };
+  syncResizeInputs();
+  $("#ws-resize-apply").addEventListener("click", () => {
+    const result=bridge.getResult(), targetWidth=clamp(Math.round(Number($("#ws-resize-width").value)||0),1,1000), targetHeight=clamp(Math.round(Number($("#ws-resize-height").value)||0),1,1000);
+    if (!result.grid?.length) return;
+    const mode=$("#ws-resize-mode").value,anchor=$("#ws-resize-anchor").value;
+    const cropColumns=Math.max(0,result.width-targetWidth),cropRows=Math.max(0,result.height-targetHeight);
+    const message=`当前 ${result.width}×${result.height}\n目标 ${targetWidth}×${targetHeight}\n方式：${mode==="canvas"?"调整画布":"缩放图案"}${mode==="canvas"?`\n锚点：${$("#ws-resize-anchor").selectedOptions[0].textContent}`:""}${cropColumns||cropRows?`\n将裁掉 ${cropRows} 行 / ${cropColumns} 列`:""}\n\n确认应用？`;
+    if (!window.confirm(message)) return;
+    const command=createGridResizeCommand(bridge,{grid:result.grid,width:result.width,height:result.height,targetWidth,targetHeight,mode,anchor});
+    if (!editorService.executeCommand(command)) return;
+    store.setState({canvas:{width:targetWidth,height:targetHeight},editor:{selection:clampSelectionToBounds(get().editor.selection,targetWidth,targetHeight),selectedCell:null},status:{dirty:true,hasPattern:true}});
+    viewport.fitToViewport();navigator.requestDraw();syncResizeInputs();
+  });
 
   const referenceInput = $("#ws-ref-file");
   const syncReferenceUi = (state = get()) => {
@@ -1472,11 +1483,22 @@ export function mountWorkspace(bridge) {
       const isPixler = await isPixlerFile(file);
       const payload = isPixler ? await loadPixlerProject(file) : await file.text();
       applyLoadedProject(payload);
+      await autoDraft?.discard?.();
       if (pixlerNote) $("#ws-export-message").textContent = pixlerNote;
     } catch (error) {
       $("#ws-export-message").textContent = error.message;
     }
   });
+  let autoDraft = null;
+  try { autoDraft=createAutoDraftService(); } catch (error) { $("#ws-draft-status").textContent="当前浏览器不支持自动草稿"; }
+  const draftSnapshot = () => { const result=bridge.getResult(); return {projectTitle:get().project.name||result.sourceName||"未命名作品",width:result.width,height:result.height,grid:result.grid,paletteId:result.paletteKey,projectSource:{type:result.sourceName==="blank-board"?"blank":result.sourceUrl?"image":"project"},metadata:{usedColors:result.usedColors,totalBeads:result.totalBeads}}; };
+  const scheduleDraft = () => { if (autoDraft && bridge.getResult().grid?.length) autoDraft.scheduleSave(draftSnapshot()); };
+  window.addEventListener("libms:grid-edited",scheduleDraft);
+  top.querySelector("#ws-project-name").addEventListener("change",scheduleDraft);
+  $("#ws-save-project").addEventListener("click",()=>{ void autoDraft?.discard?.(); });
+  autoDraft?.getRecoveryMetadata().then((metadata)=>{ if(!metadata)return;$("#ws-draft-status").textContent=`检测到未保存的作品：${metadata.projectTitle} · ${metadata.width}×${metadata.height} · ${new Date(metadata.savedAt).toLocaleString()}`;$("#ws-draft-actions").hidden=false; });
+  $("#ws-draft-restore").addEventListener("click",async()=>{const record=await autoDraft?.load();if(!record)return;const draft=record.project;const grid=draft.grid.map(row=>row.map(cell=>cell?editorService.resolveColor(cell.paletteId):null));bridge.replaceGridStructure({grid,width:draft.width,height:draft.height});store.setState({project:{name:draft.projectTitle},canvas:{width:draft.width,height:draft.height},status:{hasPattern:true,dirty:true},ui:{activePanel:"project"}});editorService.clearHistory();viewport.fitToViewport();$("#ws-draft-actions").hidden=true;$("#ws-draft-status").textContent="已恢复本地草稿";});
+  $("#ws-draft-discard").addEventListener("click",async()=>{await autoDraft?.discard();$("#ws-draft-actions").hidden=true;$("#ws-draft-status").textContent="已放弃本地草稿";});
   let compareMode = null;
   const endCompare = () => { if (compareMode) { store.setState({ view: { mode: compareMode } }); compareMode = null; } };
   const toggleCompare = () => { if (!get().status.hasSource) return; if (compareMode) endCompare(); else { compareMode = get().view.mode; store.setState({ view: { mode: "original" } }); } };
@@ -1485,6 +1507,7 @@ export function mountWorkspace(bridge) {
   $("#ws-compare").addEventListener("pointerup", endCompare); $("#ws-compare").addEventListener("pointercancel", endCompare);
   const gridToolbar = new GridEditorToolbar({
     root: toolRail,
+    variant: "rail",
     activeTool: get().editor.tool,
     brushSize: get().editor.brushSize,
     shapeFilled: get().editor.shapeFilled,
@@ -1505,16 +1528,6 @@ export function mountWorkspace(bridge) {
       if (action === "mirror-horizontal") { editorService.flip("horizontal"); return; }
       if (action === "mirror-vertical") { editorService.flip("vertical"); return; }
     },
-  });
-  // 顶栏扩展工具条：复用同一套 onToolChange / onPanelAction（与底栏画笔工具栏同源），
-  // 只把 variant 设为 "extended" 渲染不同的控件集合。键盘快捷键仍由底栏主区实例统一处理，
-  // 这里不重复绑定，避免一次按键触发两次。
-  const extendedToolbar = new GridEditorToolbar({
-    root: "#ws-top-tools",
-    variant: "extended",
-    activeTool: get().editor.tool,
-    onToolChange: gridToolbar.onToolChange,
-    onPanelAction: gridToolbar.onPanelAction,
   });
   // ── 图纸尺寸 · 像素倍数 ───────────────────────────────────────────────
   // 倍数 = 原图里一个逻辑像素由多少真实像素组成（导入时自动识别，可手动覆盖）。
@@ -1757,9 +1770,8 @@ export function mountWorkspace(bridge) {
     onSelect: (id) => { store.setState({ editor: { activeTextLayerId: id, tool: "text" } }); renderer.requestDraw(); },
     onDelete: (id) => {
       if (!id) return;
-      const rest = currentTextLayers().filter((layer) => layer.id !== id);
-      setTextLayers(rest, rest.at(-1)?.id || null);
-      renderer.requestDraw();
+      const before=currentTextLayers().map(layer=>({...layer})),rest=before.filter((layer)=>layer.id!==id),beforeActive=get().editor.activeTextLayerId,afterActive=rest.at(-1)?.id||null;
+      editorService.executeCommand(createEditorCommand({kind:"object",type:"TEXT_DELETE",label:`删除文字：${before.find(layer=>layer.id===id)?.text||"文字"}`,execute:()=>{setTextLayers(rest,afterActive);renderer.requestDraw();return true;},undo:()=>{setTextLayers(before,beforeActive);renderer.requestDraw();return true;},redo:()=>{setTextLayers(rest,afterActive);renderer.requestDraw();return true;}}));
     },
     onMerge: (id) => {
       const layer = currentTextLayers().find((item) => item.id === id);
@@ -1767,8 +1779,8 @@ export function mountWorkspace(bridge) {
       const { w, h } = gridSize();
       const { cells } = rasterizeTextCached(layer, w, h);
       if (!cells.length) { notify("这段文字落在图纸范围内没有豆格：先调小字号，或把它拖回画布内。"); return; }
-      const code = layer.color || get().editor.selectedColor;
-      const color = code ? editorService.resolveColor(code) : null;
+      const identity = layer.paletteId || layer.color || get().editor.selectedPaletteId || get().editor.selectedColor;
+      const color = identity ? editorService.resolveColor(identity) : null;
       if (!color) { notify("先给文字选一个色号，再向下合并。"); return; }
       // 合并 = 把整块文字一次性写成豆格。走 applyCells → commit，所以是一步可撤销的历史。
       const applied = editorService.applyCells(cells, color.code, "TEXT_MERGE", `文字合并：${(layer.text || "").trim().slice(0, 12) || "空文字"} · ${cells.length} 豆`);
@@ -1780,10 +1792,10 @@ export function mountWorkspace(bridge) {
       notify(applied ? `已合并 ${cells.length} 颗豆，可撤销` : "文字与图纸现有颜色一致，没有需要写入的豆格。");
     },
     onUseCurrentColor: (id) => {
-      const code = get().editor.selectedColor;
+      const code = get().editor.selectedColor, paletteId = get().editor.selectedPaletteId;
       if (!code) { notify("先在「色彩」里选一个色号。"); return; }
       if (!id) return;
-      setTextLayers(currentTextLayers().map((layer) => (layer.id === id ? { ...layer, color: code } : layer)), id);
+      setTextLayers(currentTextLayers().map((layer) => (layer.id === id ? { ...layer, color: code, paletteId: paletteId || "" } : layer)), id);
       renderer.requestDraw();
     },
     // 「+」把当前色加进色块行。要与当前显示的候选色**连续**，所以从「已有的最近用色，

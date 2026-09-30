@@ -862,9 +862,41 @@ let workspaceLoaded = false;
 let workspaceMounted = false;
 let workspaceController = null;
 let workspaceRuntimeInitialized = false;
+let generationRuntimePromise = null;
+let qrRuntimePromise = null;
 const workspaceEntryQueue = [];
 let workspaceDrainPromise = null;
 const parkedWorkspaceNodes = [];
+
+function ensureGenerationRuntime() {
+  if (!generationRuntimePromise) {
+    generationRuntimePromise = Promise.all([
+      import("./smart-preprocessing/palette-engine.mjs"),
+      import("./smart-preprocessing/pixel-ready-stylizer.mjs"),
+      import("./smart-preprocessing/render-policy.mjs?v=20260928-v3"),
+      import("./smart-preprocessing/structural-transition-analyzer.mjs?v=20260915-detection-only"),
+      import("./smart-preprocessing/regional-block-v2.mjs?v=20260915-regional-v2"),
+      import("./smart-preprocessing/region-aware-quantizer.mjs?v=20260915-contour-aware"),
+      import("./smart-preprocessing/portrait-preprocessor.mjs"),
+      import("./smart-preprocessing/structure-analyzer.mjs"),
+      import("./smart-preprocessing/pattern-optimizer.mjs"),
+      import("./smart-preprocessing/pattern-quality.mjs"),
+    ]).catch((error) => { generationRuntimePromise = null; throw error; });
+  }
+  return generationRuntimePromise;
+}
+
+function ensureQrRuntime() {
+  if (typeof window.qrcode === "function") return Promise.resolve();
+  if (!qrRuntimePromise) qrRuntimePromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "./vendor/qrcode.js";
+    script.onload = resolve;
+    script.onerror = () => { qrRuntimePromise = null; reject(new Error("二维码组件加载失败")); };
+    document.head.append(script);
+  });
+  return qrRuntimePromise;
+}
 
 function parkWorkspaceDomForLanding() {
   const nodes = [
@@ -936,8 +968,8 @@ async function loadWorkspaceOnce() {
   if (workspaceMounted) return workspaceController;
   if (!workspaceLoadPromise) {
     setWorkspaceLoading("正在打开工作台…");
-    workspaceLoadPromise = import("./ui/workspace-bootstrap.js?v=20260930-lazy-b1")
-      .then(({ bootstrapWorkspace }) => {
+    workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261001-stage-a"), ensureGenerationRuntime()])
+      .then(([{ bootstrapWorkspace }]) => {
         workspaceLoaded = true;
         initializeWorkspaceRuntime();
         const mounted = bootstrapWorkspace({ bridge: window.LibmsWorkspaceBridge, prepareLegacyShell: prepareCompatibilityShell });
@@ -7603,7 +7635,7 @@ function setExportFormat(fmt) {
   renderExportPreview();
 }
 
-function openExportSettingsModal() {
+async function openExportSettingsModal() {
   const modal = document.getElementById("export-settings-modal");
   if (!modal) return;
   bindExportSettingsOnce();
@@ -7611,6 +7643,7 @@ function openExportSettingsModal() {
     try { modal.showModal(); } catch (err) { console.warn("导出设置弹窗不可用", err); }
   }
   if (!exportShareCode) exportShareCode = genShareCode();
+  ensureQrRuntime().then(renderExportPreview).catch((error) => console.warn(error.message));
   renderExportPreview();
   document.getElementById("export-settings-close")?.focus();
 }
