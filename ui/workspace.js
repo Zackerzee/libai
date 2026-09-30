@@ -9,7 +9,7 @@ import { rectangularSelection, sameColorSelection, connectedSelection, selection
 import { magicWandSelection, fitSelectionBox, invertSelection as invertSelectionMask, selectAll as selectAllCells, translateSelection } from "../services/shapes-service.js?v=20260918-usage2";
 import { renderSourceTransform, defaultSourceTransform, cropFromDrag, sourceOutputGeometry } from "../services/source-editor-service.js?v=20260916-phase35-5";
 import { GenerationPanel } from "./generation-panel.js?v=20260930-generation-consolidation";
-import { GridEditorToolbar, SHAPE_TOOLS } from "./grid-editor-toolbar.js?v=20260928-functional-audit";
+import { GridEditorToolbar, SHAPE_TOOLS } from "./grid-editor-toolbar.js?v=20260930-top-toolbar-cleanup";
 import { detectPixelMultiple, loadImageData, logicalSize } from "./pixel-multiple.js?v=20260923-pixelmultiple";
 import { ZoomControls } from "./zoom-controls.js?v=20260924-text";
 import { Navigator } from "./navigator.js?v=20260929-editor-phase3";
@@ -279,16 +279,16 @@ export function mountWorkspace(bridge) {
   const gallery = document.querySelector(".gallery-section"); if (gallery) right.querySelector(".ws-project-gallery-slot").append(gallery);
 
   // 工作台上方的参数条，只保留两件事：
-  //   1) 编辑工具与变换（从「更多」菜单拉出来、画笔坞里没有的那批）
+  //   1) 不与编辑区重复的选择工具
   //   2) 图纸尺寸一行 —— 三个常用预设 52 / 78 / 104 加「自动」（按源图比例拟合到 104），
   //      右侧紧邻视图缩放（缩放从底部 viewbar 挪上来，避免两处重复）。
   // 色号选择、生成方式/算法等生成参数一律不进这里，统一收到右栏「色彩」面板。
   const topControls = document.createElement("section");
   topControls.className = "ws-top-controls";
   topControls.id = "ws-top-controls";
-  topControls.setAttribute("aria-label", "编辑工具、图纸尺寸与视图缩放");
+  topControls.setAttribute("aria-label", "选择工具、图纸尺寸与视图缩放");
   topControls.innerHTML = `
-    <div class="ws-top-tools" id="ws-top-tools" aria-label="编辑工具与变换"></div>
+    <div class="ws-top-tools" id="ws-top-tools" aria-label="选择工具"></div>
     <div class="ws-top-size">
       <span class="ws-top-size-label">图纸尺寸</span>
       <div class="ws-size-chips" id="ws-size-chips" role="group" aria-label="图纸尺寸预设">
@@ -1134,16 +1134,12 @@ export function mountWorkspace(bridge) {
     $("#ws-history-label").textContent = editorService.getHistory().at(-1)?.label || "";
     $("#ws-undo").disabled = !state.editor.history.canUndo; $("#ws-redo").disabled = !state.editor.history.canRedo;
     gridToolbar.setHistory(state.editor.history.canUndo, state.editor.history.canRedo);
-    // 变换类动作按钮需要图纸（或原图）才可用；底栏画笔坞与顶栏扩展条两处都要同步禁用。
+    // 镜像统一收在底栏一个菜单里，两个方向共享同一套 editorService 历史。
     const setActionDisabled = (action, disabled) => {
       const inDock = toolRail.querySelector(`[data-panel="${action}"]`);
       if (inDock) inDock.disabled = disabled;
-      const inTop = extendedToolbar?.root.querySelector(`[data-panel="${action}"]`);
-      if (inTop) inTop.disabled = disabled;
     };
-    ["mirror", "mirror-vertical", "rotate-cw", "rotate-ccw", "replace"].forEach((action) => setActionDisabled(action, !hasPattern));
-    setActionDisabled("outline", !hasPattern || !hasSelection || !state.editor.selectedColor);
-    setActionDisabled("compare", !hasSource);
+    ["mirror-horizontal", "mirror-vertical"].forEach((action) => setActionDisabled(action, !hasPattern));
     // 不满足前置条件的工具直接禁用，避免出现“按钮能点、画布却毫无反应”的假功能。
     for (const tool of ["select", "bead", "text", "brush", "eraser", "fill", "line", "rect", "ellipse", "region", "wand", "same", "connected", "eyedropper", "pan"]) {
       gridToolbar.setToolDisabled(tool, !hasPattern);
@@ -1393,18 +1389,6 @@ export function mountWorkspace(bridge) {
   $("#ws-apply-outline").addEventListener("click", () => editorService.outline(get().editor.selection, get().editor.selectedColor, $("#ws-outline-diagonal").checked));
   $("#ws-undo").addEventListener("click", () => editorService.undo()); $("#ws-redo").addEventListener("click", () => editorService.redo());
 
-  const rotateGridAction = async (turns) => {
-    if (!get().status.hasPattern) return;
-    if (!editorService.canRotate()) { $("#ws-history-label").textContent = "当前页面不支持整幅旋转。"; return; }
-    const { width, height } = bridge.getResult();
-    // 90°/270° 会交换宽高，按旧宽高记录的豆格级历史坐标不再可信，需要用户知情。
-    if (turns % 2 === 1 && width !== height) {
-      const accepted = await askConfirmation(`旋转后画布由 ${width} × ${height} 变为 ${height} × ${width}，按旧宽高记录的编辑历史会被清除（旋转本身仍可撤销）。继续吗？`);
-      if (!accepted) return;
-    }
-    if (!editorService.rotate(turns)) $("#ws-history-label").textContent = "旋转未执行。";
-  };
-
   const referenceInput = $("#ws-ref-file");
   const syncReferenceUi = (state = get()) => {
     const hasReference = Boolean(state.reference.url||(state.reference.useSource!==false&&state.source.image));
@@ -1518,18 +1502,8 @@ export function mountWorkspace(bridge) {
       if (action === "undo") { editorService.undo(); return; }
       if (action === "redo") { editorService.redo(); return; }
       if (action === "help") { gridToolbar.openHelp(); return; }
-      if (action === "mirror") { editorService.flip("horizontal"); return; }
+      if (action === "mirror-horizontal") { editorService.flip("horizontal"); return; }
       if (action === "mirror-vertical") { editorService.flip("vertical"); return; }
-      if (action === "rotate-cw") { rotateGridAction(1); return; }
-      if (action === "rotate-ccw") { rotateGridAction(3); return; }
-      if (action === "replace") { store.setState({ editor: { tool: "replace" }, ui: { activePanel: "color" } }); return; }
-      if (action === "outline") {
-        if (!get().editor.selection) { notify("先用框选、魔棒、同色或连通工具选择一个区域。"); return; }
-        if (!get().editor.selectedColor) { notify("先在「色彩」里选择描边色号。"); return; }
-        editorService.outline(get().editor.selection, get().editor.selectedColor, $("#ws-outline-diagonal").checked); return;
-      }
-      if (action === "guides") { store.setState({ view: { showGrid: !get().view.showGrid } }); return; }
-      if (action === "compare") { toggleCompare(); return; }
     },
   });
   // 顶栏扩展工具条：复用同一套 onToolChange / onPanelAction（与底栏画笔工具栏同源），

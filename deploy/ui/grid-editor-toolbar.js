@@ -24,8 +24,6 @@ export const SHAPE_TOOLS = { line: "line", rect: "rect", ellipse: "ellipse" };
 export const PRIMARY_ORDER = ["brush", "eyedropper", "eraser", "fill", "line", "rect", "ellipse"];
 // 顶栏「扩展」区：编辑/选择类工具（取色已在主区，不放这里避免重复）。
 export const EXTENDED_TOOL_IDS = ["select", "bead", "text", "region", "wand", "same", "connected", "pan", "source-eyedropper"];
-// 顶栏「操作」区：与底栏画笔工具栏不重叠的变换/批量动作。
-export const EXTENDED_ACTION_IDS = [["replace", "换色"], ["outline", "描边"], ["rotate-ccw", "逆时针 90°"], ["rotate-cw", "顺时针 90°"], ["mirror-vertical", "上下镜像"], ["guides", "辅助线"], ["compare", "原图对比"]];
 // 笔宽固定为奇数格：偶数笔宽没有对称中心，实际落笔位置会偏移半格。
 export const BRUSH_SIZES = [1, 3, 5, 7, 9];
 
@@ -92,14 +90,16 @@ export class GridEditorToolbar {
     return `<button type="button" class="sl-tool-button${secondary ? " sl-tool-button-secondary" : ""}${tool.id === "eyedropper" ? " sl-tool-button-eyedrop" : ""}" data-tool="${tool.id}" title="${tool.label}${tool.shortcut ? ` (${tool.shortcut})` : ""}" aria-label="${tool.label}">${swatch}<span class="sl-tool-icon">${icons[tool.id] || `<span class="sl-tool-glyph">${smallGlyph[tool.id]}</span>`}</span><span class="sl-tool-label">${tool.label}</span></button>`;
   }
   render() {
-    // 底栏主区：画笔类主工具 + 左右镜像 + 历史。不再有「更多」菜单——
-    // 选择 / 框选 / 魔棒 / 同色 / 连通 / 移动 / 原图取色以及换色、描边、旋转、上下镜像、
-    // 辅助线、原图对比等动作，已全部迁到顶栏的扩展工具条（variant="extended"），避免重复。
+    // 底栏主区：画笔类主工具 + 镜像菜单 + 历史。镜像统一收在一个入口，
+    // 避免左右、上下两个方向分别占据工具栏位置。
     if (this.variant === "extended") { this.renderExtended(); return; }
     const primary = PRIMARY_ORDER.map((id) => GRID_TOOLS.find((tool) => tool.id === id)).filter(Boolean);
     this.root.innerHTML = `<div class="sl-grid-toolbar" role="toolbar" aria-label="画布工具"><div class="sl-toolbar-primary">
       ${primary.map((tool) => this.toolButton(tool)).join("")}
-      <button type="button" class="sl-tool-button" data-panel="mirror" title="左右镜像整个图纸，可撤销" aria-label="左右镜像"><span class="sl-tool-icon">${icons.mirror}</span><span class="sl-tool-label">镜像</span></button>
+      <details class="sl-tool-more sl-mirror-menu"><summary class="sl-tool-button" title="镜像整个图纸，可撤销" aria-label="镜像"><span class="sl-tool-icon">${icons.mirror}</span><span class="sl-tool-label">镜像</span></summary><div class="sl-tool-menu" role="menu" aria-label="镜像方向">
+        <button type="button" class="sl-tool-button sl-tool-button-secondary" data-panel="mirror-horizontal" role="menuitem"><span class="sl-tool-label">左右镜像</span></button>
+        <button type="button" class="sl-tool-button sl-tool-button-secondary" data-panel="mirror-vertical" role="menuitem"><span class="sl-tool-label">上下镜像</span></button>
+      </div></details>
     </div><div class="sl-toolbar-history" aria-label="编辑历史">
       <button type="button" class="sl-history-button" data-panel="help" aria-label="功能说明与快捷键" title="功能说明与快捷键">${icons.help}</button>
       <button type="button" class="sl-history-button" data-panel="undo" aria-label="撤销" title="撤销" disabled>${icons.undo}</button>
@@ -107,17 +107,13 @@ export class GridEditorToolbar {
     </div></div>`;
     this.sync();
   }
-  // 顶栏扩展区：编辑/选择类工具 + 变换/批量动作 + 帮助。不使用浮层，横向排布，
-  // 内容随顶栏容器横向滚动；与底栏画笔工具栏互不重叠、互不重复。
+  // 顶栏扩展区只保留选择类工具与帮助。换色、描边、镜像、辅助线和原图对照
+  // 都由各自唯一的编辑/视图入口负责，不在这里重复暴露状态或动作。
   renderExtended() {
     const tools = EXTENDED_TOOL_IDS.map((id) => GRID_TOOLS.find((tool) => tool.id === id)).filter(Boolean);
-    const actions = EXTENDED_ACTION_IDS.map(([id, label]) => `<button type="button" class="sl-tool-button" data-panel="${id}" title="${label}" aria-label="${label}"><span class="sl-tool-label">${label}</span></button>`).join("");
-    this.root.innerHTML = `<div class="sl-grid-toolbar sl-grid-toolbar-extended" role="toolbar" aria-label="编辑工具与变换"><div class="sl-toolbar-primary">
+    this.root.innerHTML = `<div class="sl-grid-toolbar sl-grid-toolbar-extended" role="toolbar" aria-label="选择工具"><div class="sl-toolbar-primary">
       ${tools.map((tool) => this.toolButton(tool)).join("")}
-      <span class="sl-tool-sep" aria-hidden="true"></span>
-      ${actions}
-      <button type="button" class="sl-tool-button" data-panel="help" title="功能说明与快捷键" aria-label="功能说明与快捷键">${icons.help}</button>
-    </div></div>`;
+    </div><div class="sl-toolbar-help"><button type="button" class="sl-history-button" data-panel="help" title="功能说明与快捷键" aria-label="功能说明与快捷键">${icons.help}</button></div></div>`;
     this.sync();
   }
   bindEvents() {

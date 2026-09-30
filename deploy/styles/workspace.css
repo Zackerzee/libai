@@ -194,11 +194,12 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 @media (prefers-reduced-motion: reduce) { .ws-export-drawer { transition: visibility 0s, opacity .12s; transform: none; opacity: 0; }.ws-export-drawer.open { opacity: 1; } .ws-button:active,.ws-rail-button:active { transform: none; } }
 @media (prefers-contrast: more) { .ws-rail-button.active,.ws-color-row.active { border-color: var(--ws-accent); } }
 
-/* ───────── 顶栏参数条：编辑工具与变换 + 图纸尺寸（单行） + 视图缩放 ─────────
+/* ───────── 顶栏参数条：选择工具 + 图纸尺寸 + 视图缩放 ─────────
    作为 .workspace-wrap 网格第 2 行（auto），横贯整宽，位于工作台上方、底部画笔坞之上。
    色号选择与生成参数一律不在这里，统一收在右栏「色彩」面板，避免与画笔坞重复、也不再压住画布。 */
 .phase2-workspace .ws-top-controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   min-width: 0;
@@ -206,20 +207,19 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
   padding: 6px 12px;
   border-bottom: 1px solid var(--ws-border);
   background: var(--ws-surface);
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
 }
-.phase2-workspace .ws-top-controls::-webkit-scrollbar { height: 8px; }
-.phase2-workspace .ws-top-controls::-webkit-scrollbar-thumb { background: #d6d3cf; border-radius: 8px; }
-.phase2-workspace .ws-top-tools { flex: 0 0 auto; display: flex; align-items: center; }
+.phase2-workspace .ws-top-tools { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; }
 
-/* 图纸尺寸：一行预设 52 / 78 / 104 / 自动，右侧紧邻缩放；靠 auto 外边距贴右 */
+/* 图纸尺寸紧跟选择工具，优先保留四个常用预设；空间不足时整组自然换行。 */
 .phase2-workspace .ws-top-size {
-  flex: 0 0 auto;
+  flex: 1 1 720px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  margin-left: auto;
+  min-width: 0;
+  margin-left: 0;
   padding-left: 12px;
   border-left: 1px solid var(--ws-border);
 }
@@ -259,9 +259,18 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .phase2-workspace .ws-multiple-stepper output { display: grid; place-items: center; min-width: 48px; height: 30px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface-soft); color: var(--ws-text); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .phase2-workspace .ws-multiple.is-manual .ws-multiple-stepper output { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
 
-/* 扩展工具条：单行不换行；工具与变换动作之间用分隔线分组 */
+/* 扩展工具条：帮助是独立尾项，不参与主要尺寸设置区的宽度竞争。 */
 .phase2-workspace .sl-grid-toolbar-extended { flex-wrap: nowrap; }
-.phase2-workspace .sl-grid-toolbar-extended .sl-tool-sep { width: 1px; align-self: stretch; margin: 4px 6px; background: var(--ws-border); }
+.phase2-workspace .sl-toolbar-help { flex: 0 0 auto; margin-left: 4px; padding-left: 4px; border-left: 1px solid var(--ws-border); }
+
+/* 镜像菜单属于底部工具坞，向上展开，避免被视口底边截断。 */
+.phase2-workspace .ws-dock .sl-mirror-menu .sl-tool-menu {
+  top: auto;
+  right: 0;
+  bottom: calc(100% + 8px);
+  grid-template-columns: 1fr;
+  width: 150px;
+}
 
 /* ───────── 右栏「色彩」面板：色卡 + 生成参数 + 色号选择 ─────────
    GenerationPanel 从顶栏搬进窄右栏，撤掉横向卡片布局、回归竖排；预设网格压成 2 列。 */
@@ -325,4 +334,6 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
   /* 小屏：顶栏改为纵向堆叠，尺寸组不再贴右 */
   .phase2-workspace .ws-top-controls { flex-direction: column; align-items: stretch; gap: 8px; }
   .phase2-workspace .ws-top-size { margin-left: 0; padding-left: 0; border-left: 0; }
+  .phase2-workspace .ws-size-slider { grid-template-columns: 86px minmax(120px,1fr); flex: 1 1 260px; }
+  .phase2-workspace .ws-size-slider input[type="range"] { width: 100%; }
 }
