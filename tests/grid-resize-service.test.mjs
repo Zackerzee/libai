@@ -6,6 +6,7 @@ import {
   clampSelectionToBounds,
   createGridResizeCommand,
   resizeCanvasGrid,
+  resizeCropInsets,
   scalePatternNearest,
 } from "../services/grid-resize-service.js";
 
@@ -20,6 +21,12 @@ test("canvas resize supports production 222x295 to 220x300 dimensions", () => {
   assert.equal(resized[0].length, 220);
   assert.equal(resized[149][110].paletteId, "brand:MID");
   assert.equal(resized[0][0], null, "expanded canvas uses canonical null");
+});
+
+test("crop warning reports every side for all anchors", () => {
+  assert.deepEqual(resizeCropInsets(222, 295, 220, 300, { anchor: "center" }), { top: 0, bottom: 0, left: 1, right: 1 });
+  assert.deepEqual(resizeCropInsets(220, 300, 104, 104, { anchor: "top-left" }), { top: 0, bottom: 196, left: 0, right: 116 });
+  assert.deepEqual(resizeCropInsets(220, 300, 104, 104, { anchor: "bottom-right" }), { top: 196, bottom: 0, left: 116, right: 0 });
 });
 
 test("all nine anchors keep their corresponding corner or edge stable", () => {

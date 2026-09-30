@@ -29,7 +29,7 @@ import { buildStructuralDiagnostics } from "../services/structural-diagnostics.j
 import { stableIssueKey, deriveRepairSuggestions, createRepairQueue, createRepairPreview } from "../services/repair-suggestion.js?v=20260929-editor-phase5";
 import { membershipService } from "../services/membership-service.js?v=20260930-membership-v1";
 import { createExportV2Service } from "../services/export-v2-service.js?v=20260930-export-cjk";
-import { resizeCanvasGrid, scalePatternNearest, createGridResizeCommand, clampSelectionToBounds } from "../services/grid-resize-service.js";
+import { resizeCanvasGrid, scalePatternNearest, createGridResizeCommand, clampSelectionToBounds, resizeCropInsets } from "../services/grid-resize-service.js?v=20261001-hotfix";
 import { createAutoDraftService } from "../services/auto-draft-service.js";
 import { createEditorCommand } from "../services/editor-command.js";
 
@@ -198,7 +198,11 @@ export function mountWorkspace(bridge) {
     </div>`;
   const editPanel = right.querySelector('[data-ws-inspector="edit"]');
   const projectPanel = right.querySelector('[data-ws-inspector="project"]');
-  projectPanel?.insertAdjacentHTML("beforeend", `<div class="ws-editor-group ws-resize-panel"><div class="ws-section-title">调整工程尺寸</div><div class="ws-selection-actions"><label>宽<input id="ws-resize-width" type="number" min="1" max="1000" value="104"></label><label>高<input id="ws-resize-height" type="number" min="1" max="1000" value="104"></label></div><label class="ws-field">方式<select id="ws-resize-mode"><option value="canvas">调整画布</option><option value="scale">缩放图案</option></select></label><label class="ws-field">锚点<select id="ws-resize-anchor"><option value="top-left">左上</option><option value="top">上中</option><option value="top-right">右上</option><option value="left">左中</option><option value="center" selected>居中</option><option value="right">右中</option><option value="bottom-left">左下</option><option value="bottom">下中</option><option value="bottom-right">右下</option></select></label><p class="ws-note" id="ws-resize-summary">调整画布不会重新匹配颜色。</p><button type="button" class="ws-button ws-wide" id="ws-resize-apply">预览并应用</button></div><div class="ws-editor-group"><div class="ws-section-title">崩溃恢复</div><p class="ws-note" id="ws-draft-status">编辑后自动保存本地草稿。</p><div class="ws-selection-actions" id="ws-draft-actions" hidden><button type="button" id="ws-draft-restore">恢复</button><button type="button" id="ws-draft-discard">放弃</button></div></div>`);
+  projectPanel?.insertAdjacentHTML("beforeend", `<div class="ws-editor-group ws-resize-panel"><div class="ws-section-title">画布尺寸</div><div class="ws-resize-current"><strong id="ws-resize-current">104 × 104</strong><span id="ws-resize-kind">自定义</span></div><button type="button" class="ws-button ws-wide" id="ws-resize-open">调整尺寸</button></div><div class="ws-editor-group"><div class="ws-section-title">崩溃恢复</div><p class="ws-note" id="ws-draft-status">编辑后自动保存本地草稿。</p><div class="ws-selection-actions" id="ws-draft-actions" hidden><button type="button" id="ws-draft-restore">恢复</button><button type="button" id="ws-draft-discard">放弃</button></div></div>`);
+  const resizeDialog=document.createElement("dialog");resizeDialog.className="ws-resize-dialog";resizeDialog.id="ws-resize-dialog";
+  const resizeAnchors=["top-left","top","top-right","left","center","right","bottom-left","bottom","bottom-right"],resizeAnchorLabels=["左上","上中","右上","左中","居中","右中","左下","下中","右下"];
+  resizeDialog.innerHTML=`<form method="dialog" class="ws-resize-card"><div class="ws-resize-head"><div><strong>调整画布尺寸</strong><small id="ws-resize-from">当前：104 × 104</small></div><button value="cancel" aria-label="关闭">×</button></div><div class="ws-resize-body"><div class="ws-section-title">目标尺寸</div><div class="ws-selection-actions"><label>宽<input id="ws-resize-width" type="number" min="1" max="1000" value="104"></label><span>×</span><label>高<input id="ws-resize-height" type="number" min="1" max="1000" value="104"></label></div><div class="ws-resize-presets"><button type="button" data-resize-preset="52">52×52</button><button type="button" data-resize-preset="78">78×78</button><button type="button" data-resize-preset="104">104×104</button><span>自定义</span></div><fieldset class="ws-resize-modes"><legend>模式</legend><label><input type="radio" name="ws-resize-mode" value="canvas" checked> 调整画布</label><label><input type="radio" name="ws-resize-mode" value="pattern"> 缩放图案</label></fieldset><div id="ws-resize-anchor-wrap"><div class="ws-section-title">锚点</div><div class="ws-anchor-grid" role="radiogroup" aria-label="九宫格锚点">${resizeAnchors.map((anchor,index)=>`<label title="${resizeAnchorLabels[index]}"><input type="radio" name="ws-resize-anchor" value="${anchor}"${anchor==="center"?" checked":""}><span></span></label>`).join("")}</div></div><p class="ws-resize-warning" id="ws-resize-summary">调整画布不会重新匹配颜色。</p></div><div class="ws-resize-foot"><button value="cancel">取消</button><button type="button" class="ws-button-primary" id="ws-resize-apply">确认调整</button></div></form>`;
+  wrap.append(resizeDialog);
   const symmetryControls = editPanel?.querySelector("#ws-symmetry-mode")?.closest(".ws-editor-group");
   symmetryControls?.insertAdjacentHTML("beforeend", `<label class="ws-switch-row"><input id="ws-symmetry-guides" type="checkbox" checked> 显示对称轴</label><p class="ws-note">对称绘制只影响新的画笔与橡皮笔画；镜像是对已有内容执行即时变换。</p>`);
   const outlineControls=document.createElement("div");outlineControls.className="ws-outline-controls";
@@ -563,6 +567,7 @@ export function mountWorkspace(bridge) {
   const railPreferenceKey = "libms.workspace.toolRail.collapsed";
   const setRailCollapsed = (collapsed) => {
     left.classList.toggle("is-collapsed", collapsed);
+    grid.style.setProperty("--ws-rail-width", collapsed ? "58px" : "102px");
     $("#ws-rail-collapse").textContent = collapsed ? "›" : "‹";
     $("#ws-rail-collapse").setAttribute("aria-label", collapsed ? "展开工具栏" : "收起工具栏");
     $("#ws-rail-collapse").title = collapsed ? "展开工具栏" : "收起工具栏";
@@ -1385,19 +1390,30 @@ export function mountWorkspace(bridge) {
   $("#ws-clear-selection").addEventListener("click", () => store.setState({ editor: { selectedCell: null, selectedPaletteId: null, highlightedPaletteId: null, selection: null, shapePreview: null } }));
   $("#ws-apply-outline").addEventListener("click", () => editorService.outline(get().editor.selection, get().editor.selectedColor, $("#ws-outline-diagonal").checked));
   $("#ws-undo").addEventListener("click", () => editorService.undo()); $("#ws-redo").addEventListener("click", () => editorService.redo());
-  const syncResizeInputs = () => { const result=bridge.getResult(); $("#ws-resize-width").value=String(result.width||104); $("#ws-resize-height").value=String(result.height||104); };
+  const resizeValue=(name)=>resizeDialog.querySelector(`[name="${name}"]:checked`)?.value;
+  const syncResizeSummary=()=>{
+    const result=bridge.getResult(),targetWidth=clamp(Math.round(Number($("#ws-resize-width").value)||0),1,1000),targetHeight=clamp(Math.round(Number($("#ws-resize-height").value)||0),1,1000),mode=resizeValue("ws-resize-mode")||"canvas",anchor=resizeValue("ws-resize-anchor")||"center";
+    $("#ws-resize-anchor-wrap").hidden=mode!=="canvas";
+    if(mode==="pattern"){ $("#ws-resize-summary").textContent="使用最近邻缩放图案；保留原 paletteId，不重新匹配颜色。";return; }
+    const crop=resizeCropInsets(result.width||1,result.height||1,targetWidth,targetHeight,{anchor}),hasCrop=Object.values(crop).some(Boolean);
+    $("#ws-resize-summary").textContent=hasCrop?`将裁掉：上 ${crop.top} · 下 ${crop.bottom} · 左 ${crop.left} · 右 ${crop.right}`:"扩大区域将填充真正空豆（null），现有色号保持不变。";
+  };
+  const syncResizeInputs = () => { const result=bridge.getResult(),width=result.width||104,height=result.height||104,preset=width===height&&[52,78,104].includes(width); $("#ws-resize-width").value=String(width); $("#ws-resize-height").value=String(height); $("#ws-resize-current").textContent=`${width} × ${height}`; $("#ws-resize-kind").textContent=preset?`${width}×${height}`:"自定义"; $("#ws-resize-from").textContent=`当前：${width} × ${height}`; syncResizeSummary(); };
   syncResizeInputs();
+  $("#ws-resize-open").addEventListener("click",()=>{syncResizeInputs();resizeDialog.showModal();});
+  resizeDialog.querySelectorAll("[data-resize-preset]").forEach((button)=>button.addEventListener("click",()=>{$("#ws-resize-width").value=button.dataset.resizePreset;$("#ws-resize-height").value=button.dataset.resizePreset;syncResizeSummary();}));
+  resizeDialog.addEventListener("input",syncResizeSummary);resizeDialog.addEventListener("change",syncResizeSummary);
   $("#ws-resize-apply").addEventListener("click", () => {
     const result=bridge.getResult(), targetWidth=clamp(Math.round(Number($("#ws-resize-width").value)||0),1,1000), targetHeight=clamp(Math.round(Number($("#ws-resize-height").value)||0),1,1000);
     if (!result.grid?.length) return;
-    const mode=$("#ws-resize-mode").value,anchor=$("#ws-resize-anchor").value;
-    const cropColumns=Math.max(0,result.width-targetWidth),cropRows=Math.max(0,result.height-targetHeight);
-    const message=`当前 ${result.width}×${result.height}\n目标 ${targetWidth}×${targetHeight}\n方式：${mode==="canvas"?"调整画布":"缩放图案"}${mode==="canvas"?`\n锚点：${$("#ws-resize-anchor").selectedOptions[0].textContent}`:""}${cropColumns||cropRows?`\n将裁掉 ${cropRows} 行 / ${cropColumns} 列`:""}\n\n确认应用？`;
+    const mode=resizeValue("ws-resize-mode")||"canvas",anchor=resizeValue("ws-resize-anchor")||"center",crop=resizeCropInsets(result.width,result.height,targetWidth,targetHeight,{anchor});
+    const cropLine=mode==="canvas"&&Object.values(crop).some(Boolean)?`\n将裁掉：上 ${crop.top} / 下 ${crop.bottom} / 左 ${crop.left} / 右 ${crop.right}`:"";
+    const message=`当前 ${result.width}×${result.height}\n目标 ${targetWidth}×${targetHeight}\n方式：${mode==="canvas"?"调整画布":"缩放图案"}${mode==="canvas"?`\n锚点：${resizeAnchorLabels[resizeAnchors.indexOf(anchor)]}`:""}${cropLine}\n\n确认应用？`;
     if (!window.confirm(message)) return;
     const command=createGridResizeCommand(bridge,{grid:result.grid,width:result.width,height:result.height,targetWidth,targetHeight,mode,anchor});
     if (!editorService.executeCommand(command)) return;
     store.setState({canvas:{width:targetWidth,height:targetHeight},editor:{selection:clampSelectionToBounds(get().editor.selection,targetWidth,targetHeight),selectedCell:null},status:{dirty:true,hasPattern:true}});
-    viewport.fitToViewport();navigator.requestDraw();syncResizeInputs();
+    viewport.fitToViewport();navigator.requestDraw();syncResizeInputs();resizeDialog.close("applied");
   });
 
   const referenceInput = $("#ws-ref-file");
@@ -1470,6 +1486,7 @@ export function mountWorkspace(bridge) {
       editor: { tool: "select", selectedCell: null, selectedPaletteId: null, selection: null, hoveredCell: null, highlightedColor: null, highlightedPaletteId: null, textLayers: [], activeTextLayerId: null },
       ui: { exportDrawerOpen: false },
     });
+    syncResizeInputs();
     viewport.fitToViewport();
   };
   $("#ws-project-import").addEventListener("click", () => projectFileInput.click());

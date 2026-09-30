@@ -37,6 +37,20 @@ function anchorOffset(oldSize, newSize, factor) {
   return Math.floor((newSize - oldSize) * factor);
 }
 
+/** 返回画布缩小时四边会丢失的格数，供确认 UI 精确提示。 */
+export function resizeCropInsets(width, height, targetWidth, targetHeight, { anchor = "center" } = {}) {
+  const oldWidth = dimension(width, "width"), oldHeight = dimension(height, "height");
+  const nextWidth = dimension(targetWidth, "targetWidth"), nextHeight = dimension(targetHeight, "targetHeight");
+  const factors = anchorFactors[anchor];
+  if (!factors) throw new RangeError(`未知画板锚点：${anchor}`);
+  const offsetX = anchorOffset(oldWidth, nextWidth, factors[0]);
+  const offsetY = anchorOffset(oldHeight, nextHeight, factors[1]);
+  return {
+    top: Math.max(0, -offsetY), bottom: Math.max(0, oldHeight - (nextHeight - offsetY)),
+    left: Math.max(0, -offsetX), right: Math.max(0, oldWidth - (nextWidth - offsetX)),
+  };
+}
+
 /**
  * 改变画板尺寸：内容不缩放，只按九宫格锚点扩展或裁切。
  * 新增区域永远是 canonical null。

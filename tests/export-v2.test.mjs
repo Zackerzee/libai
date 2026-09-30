@@ -8,6 +8,7 @@ import { POSTER_LAYOUTS, POSTER_FONT_STYLES, analyzeArtworkBackground, posterArt
 import { buildPatternPdfBlob } from "../services/export-v2-service.js";
 import { buildPixlerProject } from "../services/pixler-exporter.js";
 import { importPixlerProject } from "../importers/pixler.mjs";
+import { resizeCanvasGrid } from "../services/grid-resize-service.js";
 import { CJK_FONT_URL, containsCjk, resolvePdfFont, resetPdfFontCache } from "../services/pdf-font-provider.js";
 
 const color=(id,rgb=[120,80,60])=>({paletteId:id,code:id,rgb});
@@ -103,4 +104,16 @@ test("Pixler export round-trips dimensions, nulls and real palette codes",async(
   const {project}=await importPixlerProject(data);
   assert.equal(project.projectName,"韩立");assert.deepEqual(project.canvas,{width:2,height:2});
   assert.equal(project.grid[0][1],null);assert.equal(project.grid[0][0],"A01");
+});
+
+test("imported 222x295 resize chain remains Pixler round-trip safe",async()=>{
+  const a={...color("mard:A01",[80,40,20]),code:"A01"};
+  let source=Array.from({length:295},()=>Array(222).fill(null));source[147][111]=a;
+  source=resizeCanvasGrid(source,220,300,{anchor:"center"});
+  source=resizeCanvasGrid(source,104,104,{anchor:"center"});
+  source=resizeCanvasGrid(source,222,295,{anchor:"center"});
+  const data=await buildPixlerProject(source,{title:"Resize Roundtrip"}),{project}=await importPixlerProject(data);
+  assert.deepEqual(project.canvas,{width:222,height:295});
+  assert.equal(project.grid.flat().filter(Boolean).length,1);
+  assert.equal(project.grid.flat().find(Boolean),"A01");
 });
