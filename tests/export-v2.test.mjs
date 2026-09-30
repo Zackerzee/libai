@@ -1,12 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { sanitizeExportFilename, exportFilename } from "../services/export-filename.js";
 import { splitPatternGrid, countValidCells } from "../services/pattern-split-service.js";
 import { PATTERN_QUALITY, codeTextColor, fitCodeFont, patternPixelSize, usageFromGrid } from "../services/pattern-export-renderer.js";
-import { POSTER_LAYOUTS, analyzeArtworkBackground, posterArtworkBox } from "../services/poster-export-service.js";
+import { POSTER_LAYOUTS, POSTER_FONT_STYLES, analyzeArtworkBackground, posterArtworkBox, signatureDisplayText, posterFont } from "../services/poster-export-service.js";
 import { buildPatternPdfBlob } from "../services/export-v2-service.js";
 import { buildPixlerProject } from "../services/pixler-exporter.js";
 import { importPixlerProject } from "../importers/pixler.mjs";
+import { CJK_FONT_URL, containsCjk, resolvePdfFont, resetPdfFontCache } from "../services/pdf-font-provider.js";
 
 const color=(id,rgb=[120,80,60])=>({paletteId:id,code:id,rgb});
 const grid=(w,h)=>Array.from({length:h},(_,y)=>Array.from({length:w},(_,x)=>(x+y)%7?color("A01"):null));
@@ -44,7 +46,7 @@ test("long palette codes shrink to remain inside the cell",()=>{
 });
 
 test("PDF uses vector rectangles, lines and text instead of a raster screenshot",async()=>{
-  const text=await buildPatternPdfBlob([[color("C12",[20,30,40])]],{cellSize:32}).text();
+  const text=await buildPatternPdfBlob([[color("C12",[20,30,40])]],{title:"Pattern",cellSize:32}).text();
   assert.match(text,/ re f/);assert.match(text,/ re S/);assert.match(text,/\(C12\) Tj/);assert.doesNotMatch(text,/\/Subtype \/Image/);
 });
 
@@ -56,6 +58,38 @@ test("poster layouts are independent and keep artwork aspect ratio",()=>{
   assert.deepEqual([POSTER_LAYOUTS["3x4"].width,POSTER_LAYOUTS["3x4"].height],[1500,2000]);
   assert.deepEqual([POSTER_LAYOUTS["1x1"].width,POSTER_LAYOUTS["1x1"].height],[1800,1800]);
   const box=posterArtworkBox(grid(200,100),{ratio:"3x4"}); assert.ok(Math.abs(box.width/box.height-2)<1e-9);
+});
+
+test("poster signature prefix and four typography styles are deterministic",()=>{
+  assert.equal(signatureDisplayText({signatureText:"时里白",signaturePrefix:"none"}),"时里白");
+  assert.equal(signatureDisplayText({signatureText:"时里白",signaturePrefix:"at"}),"@时里白");
+  assert.equal(signatureDisplayText({signatureText:"时里白",signaturePrefix:"copyright"}),"© 时里白");
+  assert.deepEqual(Object.keys(POSTER_FONT_STYLES),["minimal","artistic","handwritten","modern"]);
+  for(const style of Object.keys(POSTER_FONT_STYLES)){const font=posterFont({signatureStyle:style,signatureSize:"medium"});assert.match(font,/32px/);assert.match(font,/PingFang|Songti|Kaiti|Noto/);}
+});
+
+test("PDF rejects Chinese title explicitly instead of corrupting it into question marks",()=>{
+  assert.throws(()=>buildPatternPdfBlob([[color("C12")]],{title:"时里白"}),/PDF 中文字体资源尚未接入/);
+});
+test("PDF font provider keeps ASCII built-in and lazy-loads CJK",async()=>{
+  assert.equal(containsCjk("LIBMS C12"),false);assert.equal(containsCjk("LIBMS 韩立"),true);
+  let calls=0;const fetchFn=async(url)=>{calls++;assert.equal(url,CJK_FONT_URL);return{ok:true,arrayBuffer:async()=>new Uint8Array([1,2,3]).buffer};};
+  resetPdfFontCache();const ascii=await resolvePdfFont("Pattern",{fetchFn});assert.equal(ascii.fontId,"Helvetica");assert.equal(calls,0);
+  const cjk=await resolvePdfFont("韩立测试图",{fetchFn});assert.equal(cjk.supportsCJK,true);assert.equal(calls,1);
+  await resolvePdfFont("中英 Mixed",{fetchFn});assert.equal(calls,1,"font bytes are cached after the first PDF-only load");
+});
+test("PDF font provider reports an explicit load failure",async()=>{
+  resetPdfFontCache();await assert.rejects(resolvePdfFont("中文",{fetchFn:async()=>({ok:false,status:404})}),/PDF 中文字体加载失败/);
+});
+
+test("V3 export control is not intercepted by the legacy preview modal",async()=>{
+  const [app,workspace]=await Promise.all([
+    readFile(new URL("../app.js",import.meta.url),"utf8"),
+    readFile(new URL("../ui/workspace.js",import.meta.url),"utf8"),
+  ]);
+  assert.doesNotMatch(app,/previewStage\.addEventListener\(["']click["']/);
+  assert.doesNotMatch(workspace,/id="ws-export"[^>]*onclick=/);
+  assert.match(workspace,/exportButton\.addEventListener\(["']click["']/);
 });
 
 test("automatic background is lighter and desaturated toward white",()=>{

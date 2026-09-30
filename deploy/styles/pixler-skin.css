@@ -283,7 +283,7 @@ body.ws-mode-build { background: var(--page) !important; color: var(--body); }
 .ws-wide { width: 100%; }
 
 /* ---- 8.4 底部工具坞 ---- */
-.ws-dock { display: flex; align-items: center; gap: 8px; height: var(--ws-viewbar-height); min-width: 0; padding: 0 8px; border-top: 1px solid var(--line); background: var(--surface); }
+.ws-dock { position:relative; z-index:2000; isolation:isolate; pointer-events:auto; display: flex; align-items: center; gap: 8px; height: var(--ws-viewbar-height); min-width: 0; padding: 0 8px; border-top: 1px solid var(--line); background: var(--surface); }
 .ws-dock-tools { display: flex; align-items: center; min-width: 0; }
 .ws-dock-view { display: flex; align-items: center; gap: 8px; min-width: 0; margin-left: auto; }
 .ws-dock-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }

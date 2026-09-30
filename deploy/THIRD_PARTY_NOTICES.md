@@ -42,6 +42,12 @@
 
 ### 5. 字体
 
+- **`vendor/source-han-sans/SourceHanSansSC-VF.ttf` — Source Han Sans SC / 思源黑体简体中文**
+  - 来源：Adobe 官方 `adobe-fonts/source-han-sans` release 分支
+  - 版本：2.005R
+  - 许可：SIL Open Font License 1.1（全文见 [`vendor/source-han-sans/LICENSE.txt`](vendor/source-han-sans/LICENSE.txt)）
+  - 用途：仅在导出包含中文标题的 PDF 时延迟加载并嵌入；不进入首页或工作台初始 bundle
+
 - **`vendor/fusion-pixel/` — 缝合像素字体 / Fusion Pixel Font**
   - 许可：**SIL Open Font License 1.1**（全文见 [`vendor/fusion-pixel/LICENSE-OFL.txt`](vendor/fusion-pixel/LICENSE-OFL.txt)）
   - 版权：`Copyright (c) 2022, TakWolf (https://takwolf.com)`

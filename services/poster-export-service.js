@@ -22,3 +22,11 @@ export function posterArtworkBox(grid, config={}) {
 }
 export function defaultPosterConfig(){return{ratio:"3x4",background:"auto",solidColor:"#F1EEE8",artworkSize:"standard",backing:"standard",brand:"libms",showLogo:true,signatureText:"",signaturePrefix:"none",signatureStyle:"minimal",signatureSize:"medium",showTitle:false,showMetadata:false};}
 
+export const POSTER_FONT_STYLES=Object.freeze({
+  minimal:Object.freeze({label:"简约",latin:'system-ui, sans-serif',cjk:'"PingFang SC", "Noto Sans CJK SC", sans-serif',weight:400}),
+  artistic:Object.freeze({label:"文艺",latin:'Georgia, serif',cjk:'"Songti SC", "Noto Serif CJK SC", serif',weight:400}),
+  handwritten:Object.freeze({label:"手写",latin:'"Bradley Hand", cursive',cjk:'"Kaiti SC", "STKaiti", "Noto Serif CJK SC", serif',weight:400}),
+  modern:Object.freeze({label:"现代",latin:'Avenir, "Helvetica Neue", sans-serif',cjk:'"PingFang SC", "Noto Sans CJK SC", sans-serif',weight:500}),
+});
+export function signatureDisplayText(config,brandSignature="") { const text=config.signatureText||brandSignature,prefix=config.signaturePrefix==="at"?"@":config.signaturePrefix==="copyright"?"© ":"";return `${prefix}${text}`; }
+export function posterFont(config){const style=POSTER_FONT_STYLES[config.signatureStyle]||POSTER_FONT_STYLES.minimal;return `${style.weight} ${config.signatureSize==="large"?38:config.signatureSize==="small"?26:32}px ${style.latin}, ${style.cjk}`;}

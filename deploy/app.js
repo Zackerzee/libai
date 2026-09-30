@@ -878,7 +878,7 @@ function init() {
   renderEditorLibraryOptions();
   bindEvents();
   updateResultUi();
-  import("./ui/workspace-bootstrap.js?v=20260930-generation-consolidation")
+  import("./ui/workspace-bootstrap.js?v=20260930-export-cjk")
     .then(({ bootstrapWorkspace }) => bootstrapWorkspace({
       bridge: window.LibmsWorkspaceBridge,
       prepareLegacyShell: prepareCompatibilityShell,
@@ -1179,7 +1179,9 @@ function bindEvents() {
   });
 
   els.processButton.addEventListener("click", processImage);
-  els.previewStage.addEventListener("click", openPreview);
+  // The V3 workspace owns preview and export interactions. Keeping the legacy
+  // stage click handler active here caused bottom-dock controls to reopen the
+  // obsolete full-screen preview because that stage spans the workspace.
   els.previewDownloadButton?.addEventListener("click", downloadPreviewImage);
   enableMiddleButtonPan(els.previewStage);
   enableMiddleButtonPan(els.previewViewport);
