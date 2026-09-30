@@ -146,6 +146,14 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
       return commit(selection ? "REGION_CHANGE" : "COLOR_REPLACE", `替换：${colorFor(fromPaletteId)?.code || fromPaletteId} → ${after.code}`, changes);
     },
     replaceColorInSelection(fromCode, toCode, selection) { return this.replaceColor(fromCode, toCode, selection); },
+    mergePaletteColors(sourcePaletteIds, targetPaletteId) {
+      const after=colorFor(targetPaletteId), targetId=paletteIdOf(after);
+      const sources=new Set((sourcePaletteIds||[]).map((id)=>paletteIdOf(colorFor(id))||String(id)).filter((id)=>id&&id!==targetId));
+      if(!after||!sources.size)return false;
+      const changes=[];
+      result().grid.forEach((row,y)=>row.forEach((before,x)=>{if(sources.has(paletteIdOf(before)))changes.push({x,y,before:clone(before),after:clone(after)});}));
+      return commit("COLOR_MERGE",`合并 ${sources.size} 种颜色 → ${after.code}：${changes.length} 颗`,changes);
+    },
     applyRepairChanges(repairs, label = "采用修复建议") {
       const map = new Map();
       for (const repair of repairs || []) {

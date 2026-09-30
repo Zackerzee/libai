@@ -8,7 +8,7 @@ import { createCanvasRenderer } from "./canvas-renderer.js?v=20260929-editor-pha
 import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20260916-phase35-5";
 import { magicWandSelection, fitSelectionBox, invertSelection as invertSelectionMask, selectAll as selectAllCells, translateSelection } from "../services/shapes-service.js?v=20260918-usage2";
 import { renderSourceTransform, defaultSourceTransform, cropFromDrag, sourceOutputGeometry } from "../services/source-editor-service.js?v=20260916-phase35-5";
-import { GenerationPanel } from "./generation-panel.js?v=20260929-v3-stable";
+import { GenerationPanel } from "./generation-panel.js?v=20260930-generation-consolidation";
 import { GridEditorToolbar, SHAPE_TOOLS } from "./grid-editor-toolbar.js?v=20260928-functional-audit";
 import { detectPixelMultiple, loadImageData, logicalSize } from "./pixel-multiple.js?v=20260923-pixelmultiple";
 import { ZoomControls } from "./zoom-controls.js?v=20260924-text";
@@ -81,7 +81,7 @@ export function mountWorkspace(bridge) {
     <span class="ws-topbar-spacer"></span>
     <span class="ws-membership-status" id="ws-membership-status" title="Membership Foundation V1 · Free Access Mode">全部功能免费开放</span>
     <label class="ws-engine-label">引擎<select id="ws-engine"><option value="v2.5">智能 V2.5</option><option value="legacy">Legacy</option></select></label>
-    <label class="ws-engine-label" title="选择生成算法">算法<select id="ws-algorithm"><option value="current">现有算法</option><option value="bgs">BGS 算法</option><option value="pindou-workbench">PW 算法</option><option value="hybrid-pw">HYBRID-PW 混合</option></select></label>
+    <span class="ws-smart-status">智能优化已开启</span>
     <button type="button" class="ws-button" id="ws-source-open">图片调整</button>
     <button type="button" class="ws-button" id="ws-import-again">换图</button>
     <button type="button" class="ws-button ws-button-primary" id="ws-generate" hidden>重新生成</button>
@@ -177,6 +177,18 @@ export function mountWorkspace(bridge) {
         <div class="ws-readout" id="ws-used-colors">尚未生成</div>
         <div class="ws-section-title">当前使用色</div>
         <div class="ws-color-list" id="ws-color-list"></div>
+        <div class="ws-section-title">色彩优化</div>
+        <div class="ws-color-optimization" role="group" aria-label="色彩优化">
+          <button type="button" id="ws-color-auto-optimize">自动优化</button>
+          <button type="button" id="ws-color-manual-merge">手动合并</button>
+          <button type="button" id="ws-color-cleanup">清理杂点</button>
+        </div>
+        <div id="ws-manual-merge-panel" hidden>
+          <label class="ws-field">选择来源色（可多选）<select id="ws-merge-sources" multiple size="5"></select></label>
+          <label class="ws-field">合并为<select id="ws-merge-target"></select></label>
+          <p class="ws-note" id="ws-merge-impact">请选择来源色和目标色。</p>
+          <button type="button" class="ws-button ws-wide" id="ws-merge-confirm">确认合并</button>
+        </div>
         <div class="ws-section-title">全局换色</div>
         <label class="ws-field">来源色号<input id="ws-replace-from" type="text" placeholder="H07"></label>
         <label class="ws-field">替换为<input id="ws-replace-to" type="text" placeholder="A03"></label>
@@ -544,12 +556,6 @@ export function mountWorkspace(bridge) {
     store.setState({ generation: { engine }, status: { dirty: true } });
     scheduleAutoGenerate(0);
   });
-  // 算法引擎：与「引擎」正交。默认 current，选 bgs 才会走新算法模块。
-  $("#ws-algorithm").addEventListener("change", (event) => {
-    const algorithm = bridge.setAlgorithmEngine(event.target.value);
-    store.setState({ generation: { algorithm }, status: { dirty: true } });
-    scheduleAutoGenerate(0);
-  });
   $("#ws-legacy-retry").addEventListener("click", async () => {
     $("#ws-engine").value = "legacy";
     bridge.setGenerationEngine("legacy");
@@ -891,7 +897,6 @@ export function mountWorkspace(bridge) {
     $("#ws-generate").hidden = !(hasSource && manualEdited);
     $("#ws-generate").disabled = !hasSource || state.status.generating;
     $("#ws-engine").value = state.generation.engine || "v2.5";
-    $("#ws-algorithm").value = state.generation.algorithm || "current";
     $("#ws-source-open").hidden = !hasSource;
     right.querySelector('.ws-side-tabs [data-ws-panel="source"]').disabled = !hasSource;
     $("#ws-import-again").hidden = !hasSource;
@@ -928,7 +933,14 @@ export function mountWorkspace(bridge) {
     // 施工模式：图纸变了要重算区块与颜色，视图变了要重定位叠加层
     if (buildActive()) { if (patch.stats || patch.status) { renderBlockMap(); renderBlockColors(); } updateBuildOverlay(); }
     navigator.requestDraw();
-    if (patch.stats || patch.status || patch.editor?.highlightedColor) $("#ws-color-list").innerHTML = state.stats.colors.map((color) => `<button type="button" data-ws-color="${esc(color.code)}" class="ws-color-row ${state.editor.highlightedColor === color.code ? "active" : ""}"><span class="ws-swatch" style="background:${esc(color.hex)}"></span><span>${esc(color.code)}</span><small>${color.count.toLocaleString("zh-CN", { useGrouping: false })}</small></button>`).join("") || '<p class="ws-note">生成图纸后显示色号与数量。</p>';
+    if (patch.stats || patch.status || patch.editor?.highlightedColor) {
+      $("#ws-color-list").innerHTML = state.stats.colors.map((color) => `<button type="button" data-ws-color="${esc(color.code)}" class="ws-color-row ${state.editor.highlightedColor === color.code ? "active" : ""}"><span class="ws-swatch" style="background:${esc(color.hex)}"></span><span>${esc(color.code)}</span><small>${color.count.toLocaleString("zh-CN", { useGrouping: false })}</small></button>`).join("") || '<p class="ws-note">生成图纸后显示色号与数量。</p>';
+      const priorSources=new Set([...$("#ws-merge-sources").selectedOptions].map((option)=>option.value)),priorTarget=$("#ws-merge-target").value;
+      const mergeOptions=state.stats.colors.map((color)=>{const resolved=editorService.resolveColor(color.code),id=paletteIdOf(resolved);return `<option value="${esc(id)}" ${priorSources.has(id)?"selected":""}>${esc(color.code)} · ${color.count}颗</option>`;}).join("");
+      $("#ws-merge-sources").innerHTML=mergeOptions;
+      $("#ws-merge-target").innerHTML='<option value="">选择目标色</option>'+editorService.getPaletteColors().map((color)=>`<option value="${esc(paletteIdOf(color))}">${esc(color.code)}</option>`).join("");
+      if([...$("#ws-merge-target").options].some((option)=>option.value===priorTarget))$("#ws-merge-target").value=priorTarget;
+    }
     const checks = bridge.getChecks(); $("#ws-check-results").innerHTML = hasPattern ? `<p>尺寸：${state.canvas.width} × ${state.canvas.height}</p><p>颜色：${state.stats.usedColors} 色${checks.validation?.valid === false ? " · 超出当前上限" : " · 已校验"}</p>${checks.structural ? `<p>结构检测：${esc(JSON.stringify(checks.structural))}</p>` : ""}` : "生成后显示可验证的尺寸、色数与结构报告。";
     viewBar.querySelectorAll("[data-ws-view]").forEach((button) => {
       button.classList.toggle("active", button.dataset.wsView === state.view.mode);
@@ -1160,6 +1172,26 @@ export function mountWorkspace(bridge) {
       if (color?.code === code && selectionContains(selection, x, y)) count++;
     })); return count;
   };
+  const mergeSelection=()=>[...$("#ws-merge-sources").selectedOptions].map((option)=>option.value);
+  const updateMergeImpact=()=>{
+    const sources=mergeSelection(),target=$("#ws-merge-target").value;
+    const total=sources.reduce((sum,id)=>sum+editorService.getColorUsage(id),0);
+    const targetColor=editorService.resolveColor(target);
+    $("#ws-merge-impact").textContent=sources.length&&targetColor?`${sources.length} 种来源色 → ${targetColor.code} · 共影响 ${total} 颗` : "请选择来源色和目标色。";
+    $("#ws-merge-confirm").disabled=!sources.length||!targetColor||!total;
+  };
+  $("#ws-color-manual-merge").addEventListener("click",()=>{const panel=$("#ws-manual-merge-panel");panel.hidden=!panel.hidden;if(!panel.hidden)updateMergeImpact();});
+  $("#ws-merge-sources").addEventListener("change",updateMergeImpact);$("#ws-merge-target").addEventListener("change",updateMergeImpact);
+  $("#ws-merge-confirm").addEventListener("click",()=>{
+    const sources=mergeSelection(),target=$("#ws-merge-target").value,total=sources.reduce((sum,id)=>sum+editorService.getColorUsage(id),0),targetColor=editorService.resolveColor(target);
+    if(!sources.length||!targetColor||!total)return;
+    askConfirmation(`将 ${sources.length} 种颜色共 ${total} 颗合并为 ${targetColor.code}？`).then((accepted)=>{if(accepted)editorService.mergePaletteColors(sources,target);});
+  });
+  $("#ws-color-auto-optimize").addEventListener("click",()=>{
+    const {changes,conflicts}=repairQueue.highPlan;if(!changes.length){$("#ws-merge-impact").textContent="当前没有可自动处理的高置信问题。";return;}
+    askConfirmation(`自动优化将保守处理 ${changes.length} 颗拼豆${conflicts.length?`，并跳过 ${conflicts.length} 个冲突位置`:""}。继续吗？`).then((accepted)=>{if(!accepted)return;editorService.applyRepairChanges(changes.map((change)=>({sourcePaletteId:change.sourcePaletteId,targetPaletteId:change.targetPaletteId,cells:[{x:change.x,y:change.y}]})),"自动优化");});
+  });
+  $("#ws-color-cleanup").addEventListener("click",()=>{$("#ws-diagnostic-category").value="all";store.setState({ui:{activePanel:"edit"}});paint(get(),{editor:{selectedPaletteId:get().editor.selectedPaletteId}});});
   $("#ws-color-list").addEventListener("click", (event) => { const row = event.target.closest("[data-ws-color]"); if (!row) return;
     const code = row.dataset.wsColor; $("#ws-replace-from").value = code; $("#ws-replace-impact").textContent = `影响 ${affectedCount(code).toLocaleString("zh-CN", { useGrouping: false })} 颗`;
     store.setState({ editor: { highlightedColor: get().editor.highlightedColor === code ? null : code } }); });

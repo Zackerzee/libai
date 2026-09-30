@@ -878,7 +878,7 @@ function init() {
   renderEditorLibraryOptions();
   bindEvents();
   updateResultUi();
-  import("./ui/workspace-bootstrap.js?v=20260930-export-v2g")
+  import("./ui/workspace-bootstrap.js?v=20260930-generation-consolidation")
     .then(({ bootstrapWorkspace }) => bootstrapWorkspace({
       bridge: window.LibmsWorkspaceBridge,
       prepareLegacyShell: prepareCompatibilityShell,
@@ -2027,14 +2027,9 @@ function buildV25Options(options = {}, maxColors = 0) {
 async function processImageV2(image, palette, { width, height, maxColors, options = {}, saveGallery = true }) {
   const startedAt = performance.now();
   const sourceImageData = imageToImageData(image);
-  const { generateV2 } = await import("./smart-preprocessing/generation-engine-v2.mjs?v=20260918-usage2");
-  const result = generateV2({
-    source: sourceImageData,
-    width,
-    height,
-    palette,
-    options: buildV25Options(options, maxColors),
-  });
+  const { runGenerationPipeline } = await import("./services/generation-pipeline.mjs?v=20260930-pipeline");
+  const resolved=buildV25Options(options,maxColors);
+  const result = runGenerationPipeline({ image:sourceImageData, mode:resolved.preset, size:{width,height}, palette, maxColors, overrides:{...options,sampling:resolved.sampling,detailProtection:resolved.detailProtection*100,edgeProtection:resolved.edgeProtection*100} });
   state.grid = result.grid.map((row) => row.map((cell) => {
     if (!cell) return null;
     const rgbValue = Array.isArray(cell.rgb) ? cell.rgb : [cell.rgb?.[0] ?? 0, cell.rgb?.[1] ?? 0, cell.rgb?.[2] ?? 0];

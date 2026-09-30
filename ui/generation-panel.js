@@ -1,3 +1,5 @@
+import { GENERATION_MODE_PRESETS } from "../services/generation-pipeline.mjs";
+
 /**
  * Shiliba Studio
  * Generation Settings Panel V2
@@ -552,7 +554,8 @@ export class GenerationPanel {
   }
 
   applyPreset(preset) {
-    const presets = {
+    const presets = /* legacy fallback removed: centralized below */ null;
+    /*
       // 小白一键：面向新手的一步到位。除参数档位偏保守外，四个智能辅助开关一次全开。
       beginner: {
         sampling: "auto",
@@ -665,11 +668,12 @@ export class GenerationPanel {
         strokeProtection: false,
         accentProtection: false
       }
-    };
+    }; */
 
+    const centralized = GENERATION_MODE_PRESETS[preset];
     this.setState({
       preset,
-      ...presets[preset]
+      ...(centralized ? { ...centralized, sampling: ({ "edge-aware":"edge", "linear-mean":"mean" })[centralized.sampling] || centralized.sampling } : {})
     });
   }
 

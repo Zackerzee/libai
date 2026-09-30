@@ -93,6 +93,10 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .ws-repair-actions { display: flex; gap: 6px; }
 .ws-repair-actions button, #ws-repair-cancel-preview { flex: 1; min-height: 30px; padding: 5px 7px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); color: var(--ws-text); cursor: pointer; }
 .ws-repair-actions button:disabled, #ws-repair-cancel-preview:disabled { opacity: .45; cursor: default; }
+.ws-smart-status { color: var(--ws-text-secondary); font-size: 12px; white-space: nowrap; }
+.ws-color-optimization { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin:8px 0; }
+.ws-color-optimization button { min-height:34px; padding:6px; border:1px solid var(--ws-border); border-radius:6px; background:var(--ws-surface); color:var(--ws-text); cursor:pointer; }
+#ws-merge-sources { min-height:108px; }
 .ws-repair-counts { color: var(--ws-text-secondary); font-size: 12px; }
 .ws-bead-picker { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 4px; max-height: 220px; margin-top: 8px; overflow-y: auto; }
 .ws-bead-picker button { display: grid; justify-items: center; gap: 3px; padding: 4px 2px; border: 1px solid var(--ws-border); border-radius: 5px; background: var(--ws-surface); color: var(--ws-text-secondary); cursor: pointer; }
