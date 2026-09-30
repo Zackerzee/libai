@@ -682,6 +682,8 @@ const els = {
   donateQrcode: document.querySelector("#donate-qrcode"),
   downloadButtonTop: document.querySelector("#download-button-top"),
   blankBoardButton: document.querySelector("#blank-board-button"),
+  openProjectButton: document.querySelector("#open-project-button"),
+  landingProjectInput: document.querySelector("#landing-project-input"),
   granularityInput: document.querySelector("#granularity-input"),
   granularityOutput: document.querySelector("#granularity-output"),
   granularityNumber: document.querySelector("#granularity-number"),
@@ -855,7 +857,57 @@ function rgbToHex(rgbValue) {
     .toUpperCase()}`;
 }
 
-function init() {
+let workspaceLoadPromise = null;
+let workspaceLoaded = false;
+let workspaceMounted = false;
+let workspaceController = null;
+let workspaceRuntimeInitialized = false;
+const workspaceEntryQueue = [];
+let workspaceDrainPromise = null;
+const parkedWorkspaceNodes = [];
+
+function parkWorkspaceDomForLanding() {
+  const nodes = [
+    ...document.querySelectorAll(".studio-main > .preview-column, .studio-main > .settings-grid, .studio-main > .smart-tools-panel"),
+    ...document.querySelectorAll(".workspace-grid > .side-panel, .gallery-section"),
+    ...[...document.querySelectorAll("body > dialog")].filter((node) => node.id !== "blank-board-modal"),
+  ];
+  for (const node of [...new Set(nodes)]) {
+    if (!node.isConnected) continue;
+    const marker = document.createComment(`lazy:${node.id || node.className || node.tagName}`);
+    node.before(marker);
+    node.remove();
+    parkedWorkspaceNodes.push({ node, marker });
+  }
+}
+
+function restoreWorkspaceDom() {
+  while (parkedWorkspaceNodes.length) {
+    const { node, marker } = parkedWorkspaceNodes.shift();
+    marker.replaceWith(node);
+  }
+}
+
+function setWorkspaceLoading(message, failed = false) {
+  let status = document.querySelector("#workspace-entry-status");
+  if (!status) {
+    status = document.createElement("div");
+    status.id = "workspace-entry-status";
+    status.className = "workspace-entry-status";
+    status.setAttribute("role", "status");
+    document.body.append(status);
+  }
+  status.classList.toggle("is-failed", failed);
+  status.innerHTML = failed
+    ? '<span>工作台加载失败</span><button type="button" id="workspace-entry-retry">重新加载</button>'
+    : `<span class="workspace-entry-spinner" aria-hidden="true"></span><span>${message}</span>`;
+  if (failed) status.querySelector("#workspace-entry-retry")?.addEventListener("click", drainWorkspaceEntries);
+}
+
+function initializeWorkspaceRuntime() {
+  if (workspaceRuntimeInitialized) return;
+  workspaceRuntimeInitialized = true;
+  restoreWorkspaceDom();
   setupProfessionalEditorLayout();
   validateMardPalette();
   loadExternalBrandPalettes();
@@ -878,15 +930,71 @@ function init() {
   renderEditorLibraryOptions();
   bindEvents();
   updateResultUi();
-  import("./ui/workspace-bootstrap.js?v=20260930-export-cjk")
-    .then(({ bootstrapWorkspace }) => bootstrapWorkspace({
-      bridge: window.LibmsWorkspaceBridge,
-      prepareLegacyShell: prepareCompatibilityShell,
-    }))
-    .catch((error) => {
-      document.body.dataset.workspaceState = "failed";
-      console.error("Workspace bootstrap module failed", error);
-    });
+}
+
+async function loadWorkspaceOnce() {
+  if (workspaceMounted) return workspaceController;
+  if (!workspaceLoadPromise) {
+    setWorkspaceLoading("正在打开工作台…");
+    workspaceLoadPromise = import("./ui/workspace-bootstrap.js?v=20260930-lazy-b1")
+      .then(({ bootstrapWorkspace }) => {
+        workspaceLoaded = true;
+        initializeWorkspaceRuntime();
+        const mounted = bootstrapWorkspace({ bridge: window.LibmsWorkspaceBridge, prepareLegacyShell: prepareCompatibilityShell });
+        if (!mounted) throw new Error("工作台挂载失败");
+        workspaceController = mounted;
+        workspaceMounted = true;
+        document.querySelector("#workspace-entry-status")?.remove();
+        return mounted;
+      })
+      .catch((error) => {
+        workspaceLoadPromise = null;
+        document.body.dataset.workspaceState = "failed";
+        setWorkspaceLoading("工作台加载失败", true);
+        console.error("Workspace bootstrap module failed", error);
+        throw error;
+      });
+  }
+  return workspaceLoadPromise;
+}
+
+async function applyWorkspaceEntry(entry) {
+  const controller = await loadWorkspaceOnce();
+  if (entry.reason === "image-upload") return loadFile(entry.payload.file);
+  if (entry.reason === "blank-canvas") return createBlankBoard(entry.payload);
+  if (entry.reason === "open-project") return controller.openProjectFile?.(entry.payload.file);
+  throw new Error(`未知工作台入口：${entry.reason}`);
+}
+
+function drainWorkspaceEntries() {
+  if (workspaceDrainPromise) return workspaceDrainPromise;
+  workspaceDrainPromise = (async () => {
+    try {
+      while (workspaceEntryQueue.length) {
+        await applyWorkspaceEntry(workspaceEntryQueue[0]);
+        workspaceEntryQueue.shift();
+      }
+    } catch (_) {
+      // 队首 payload 保留，点击“重新加载”后从同一项继续。
+    } finally {
+      workspaceDrainPromise = null;
+    }
+  })();
+  return workspaceDrainPromise;
+}
+
+function enterWorkspace(reason, payload = {}) {
+  workspaceEntryQueue.push({ reason, payload });
+  drainWorkspaceEntries();
+  return workspaceLoadPromise;
+}
+
+function init() {
+  updateVisitCount();
+  updateBlankBoardSummary();
+  bindLandingCreationEvents();
+  parkWorkspaceDomForLanding();
+  document.body.dataset.workspaceState = "landing";
 }
 
 function prepareCompatibilityShell() {
@@ -1048,6 +1156,48 @@ function preloadPixelFont() {
   });
 }
 
+function bindLandingCreationEvents() {
+  els.fileInput?.addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) enterWorkspace("image-upload", { file });
+  });
+  els.fileInput?.addEventListener("cancel", () => { state.importApproved = false; });
+  els.uploadZone?.addEventListener("click", (event) => {
+    event.preventDefault(); state.importMode = "photo"; state.autoProcessAfterLoad = true;
+    state.restoreAutoSizePending = false; els.fileInput.value = ""; els.fileInput.click();
+  });
+  els.uploadZone?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault(); state.importMode = "photo"; state.autoProcessAfterLoad = true; els.fileInput.click();
+  });
+  ["dragenter", "dragover"].forEach((name) => els.uploadZone?.addEventListener(name, (event) => {
+    event.preventDefault(); els.uploadZone.classList.add("drag-over");
+  }));
+  els.uploadZone?.addEventListener("dragleave", () => els.uploadZone.classList.remove("drag-over"));
+  els.uploadZone?.addEventListener("drop", (event) => {
+    event.preventDefault(); els.uploadZone.classList.remove("drag-over"); state.importMode = "photo";
+    state.autoProcessAfterLoad = true; const file = event.dataTransfer?.files?.[0];
+    if (file) enterWorkspace("image-upload", { file });
+  });
+  els.blankBoardButton?.addEventListener("click", openBlankBoardDialog);
+  els.blankBoardPresets.forEach((button) => button.addEventListener("click", () => {
+    const [width, height] = String(button.dataset.size || "52,52").split(",").map(Number);
+    els.blankBoardWidth.value = String(width); els.blankBoardHeight.value = String(height); updateBlankBoardSummary();
+  }));
+  els.blankBoardWidth?.addEventListener("input", updateBlankBoardSummary);
+  els.blankBoardHeight?.addEventListener("input", updateBlankBoardSummary);
+  els.createBlankBoardButton?.addEventListener("click", () => {
+    const width = parseBlankBoardSize(els.blankBoardWidth.value), height = parseBlankBoardSize(els.blankBoardHeight.value);
+    if (width !== null && height !== null) { els.blankBoardModal?.close(); enterWorkspace("blank-canvas", { width, height }); }
+  });
+  els.openProjectButton?.addEventListener("click", () => { els.landingProjectInput.value = ""; els.landingProjectInput.click(); });
+  els.landingProjectInput?.addEventListener("change", (event) => {
+    const file = event.target.files?.[0]; event.target.value = "";
+    if (file) enterWorkspace("open-project", { file });
+  });
+}
+
 function bindEvents() {
   els.resetButton?.addEventListener("click", resetAll);
   els.importButton?.addEventListener("click", startManualImport);
@@ -1074,19 +1224,6 @@ function bindEvents() {
   els.gallerySearch?.addEventListener("input", renderGeneratedGallery);
   els.galleryClearButton?.addEventListener("click", clearGeneratedGallery);
   els.downloadButtonTop?.addEventListener("click", downloadPattern);
-  els.blankBoardButton?.addEventListener("click", openBlankBoardDialog);
-  els.blankBoardPresets.forEach((button) => button.addEventListener("click", () => {
-    const [width, height] = String(button.dataset.size || "52,52").split(",").map(Number);
-    els.blankBoardWidth.value = String(width);
-    els.blankBoardHeight.value = String(height);
-    updateBlankBoardSummary();
-  }));
-  els.blankBoardWidth?.addEventListener("input", updateBlankBoardSummary);
-  els.blankBoardHeight?.addEventListener("input", updateBlankBoardSummary);
-  els.createBlankBoardButton?.addEventListener("click", () => createBlankBoard({
-    width: els.blankBoardWidth.value,
-    height: els.blankBoardHeight.value,
-  }));
   els.maxColorsInput?.addEventListener("change", () => {
     updateMaxColorPresetUi();
     scheduleLivePreview("颜色数量已更新");
@@ -1128,56 +1265,6 @@ function bindEvents() {
   els.mirrorSelect?.addEventListener("change", updateResultUi);
   els.printLayoutSelect?.addEventListener("change", updateResultUi);
   els.printMarginInput?.addEventListener("change", updateResultUi);
-  els.fileInput.addEventListener("change", (event) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      loadFile(file);
-      event.target.value = "";
-      return;
-    }
-    state.autoProcessAfterLoad = false;
-    state.restoreAutoSizePending = false;
-  });
-  els.fileInput.addEventListener("cancel", () => { state.importApproved = false; });
-
-  ["dragenter", "dragover"].forEach((name) => {
-    els.uploadZone.addEventListener(name, (event) => {
-      event.preventDefault();
-      els.uploadZone.classList.add("drag-over");
-    });
-  });
-
-  ["dragleave", "drop"].forEach((name) => {
-    els.uploadZone.addEventListener(name, () => {
-      els.uploadZone.classList.remove("drag-over");
-    });
-  });
-
-  els.uploadZone.addEventListener("drop", (event) => {
-    event.preventDefault();
-    state.importMode = "photo";
-    state.autoProcessAfterLoad = true;
-    state.restoreAutoSizePending = false;
-    const file = event.dataTransfer?.files?.[0];
-    if (file) loadFile(file);
-  });
-  els.uploadZone.addEventListener("click", (event) => {
-    event.preventDefault();
-    state.importMode = "photo";
-    state.autoProcessAfterLoad = true;
-    state.restoreAutoSizePending = false;
-    els.fileInput.value = "";
-    els.fileInput.click();
-  });
-  els.uploadZone.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();
-    state.importMode = "photo";
-    state.autoProcessAfterLoad = true;
-    state.restoreAutoSizePending = false;
-    els.fileInput.click();
-  });
-
   els.processButton.addEventListener("click", processImage);
   // The V3 workspace owns preview and export interactions. Keeping the legacy
   // stage click handler active here caused bottom-dock controls to reopen the

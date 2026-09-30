@@ -11,7 +11,7 @@ import { renderSourceTransform, defaultSourceTransform, cropFromDrag, sourceOutp
 import { GenerationPanel } from "./generation-panel.js?v=20260930-generation-consolidation";
 import { GridEditorToolbar, SHAPE_TOOLS } from "./grid-editor-toolbar.js?v=20260930-top-toolbar-cleanup";
 import { detectPixelMultiple, loadImageData, logicalSize } from "./pixel-multiple.js?v=20260923-pixelmultiple";
-import { ZoomControls } from "./zoom-controls.js?v=20260924-text";
+import { ZoomControls } from "./zoom-controls.js?v=20260930-lazy-b1";
 import { Navigator } from "./navigator.js?v=20260929-editor-phase3";
 import { createInspectionState, currentInspectionIssue, setInspectionIssues, startInspection, stopInspection, nextInspectionIssue, previousInspectionIssue, nextInspectionCell, previousInspectionCell } from "../services/inspection-service.js?v=20260929-editor-phase3";
 import { TextPanel } from "./text-panel.js?v=20260924-text";
@@ -1978,5 +1978,16 @@ export function mountWorkspace(bridge) {
   }
   delete grid.dataset.workspaceMounting;
   grid.dataset.workspaceReady = "true";
-  return { mounted: true, reused: false };
+  return {
+    mounted: true,
+    reused: false,
+    openProjectFile: async (file) => {
+      if (!file) return false;
+      const isPixler = await isPixlerFile(file);
+      const payload = isPixler ? await loadPixlerProject(file) : await file.text();
+      applyLoadedProject(payload);
+      if (pixlerNote) $("#ws-export-message").textContent = pixlerNote;
+      return true;
+    },
+  };
 }

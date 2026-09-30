@@ -1,4 +1,4 @@
-import { mountWorkspace } from "./workspace.js?v=20260930-export-cjk";
+import { mountWorkspace } from "./workspace.js?v=20260930-lazy-b1";
 import { markLegacyUi } from "./legacy-ui-policy.js?v=20260928-v3";
 
 const ERROR_ID = "workspace-bootstrap-error";
@@ -16,7 +16,10 @@ function showFailure(error) {
   banner.textContent = "工作台启动失败：" + (error?.message || "未知错误") + "。旧版界面仍可使用，请刷新后重试。";
 }
 
+let mountedResult = null;
+
 export function bootstrapWorkspace({ bridge, prepareLegacyShell }) {
+  if (mountedResult) return mountedResult;
   document.body.dataset.workspaceState = "preparing";
   try {
     prepareLegacyShell?.();
@@ -24,7 +27,8 @@ export function bootstrapWorkspace({ bridge, prepareLegacyShell }) {
     const result = mountWorkspace(bridge);
     document.body.dataset.workspaceState = "ready";
     document.getElementById(ERROR_ID)?.remove();
-    return result;
+    mountedResult = result;
+    return mountedResult;
   } catch (error) {
     const shell = document.querySelector(".workspace-grid");
     if (shell) {

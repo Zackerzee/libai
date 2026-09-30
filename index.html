@@ -11,7 +11,7 @@
     <link rel="icon" href="./libai-logo-pixel.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./styles.css?v=20260922-pixler" />
     <link rel="stylesheet" href="./styles/tokens.css?v=20260922-pixler" />
-    <link rel="stylesheet" href="./styles/workspace.css?v=20260930-export-cjk" />
+    <link rel="stylesheet" href="./styles/workspace.css?v=20260930-lazy-b1" />
     <link rel="stylesheet" href="./styles/generation-editor.css?v=20260922-pixler" />
     <link rel="stylesheet" href="./vendor/fusion-pixel/fusion-pixel.css?v=20260922" />
     <link rel="stylesheet" href="./styles/pixler-skin.css?v=20260930-export-cjk5" />
@@ -80,6 +80,11 @@
                   <span class="start-title">＋ 新建空白图纸</span>
                   <span class="start-meta">选择常用板规格或输入独立宽高，直接绘制拼豆图纸。</span>
                 </button>
+                <button class="start-card" id="open-project-button" type="button">
+                  <span class="start-title">打开工程</span>
+                  <span class="start-meta">LIBMS Project / Pixler · 继续上次编辑</span>
+                </button>
+                <input id="landing-project-input" class="file-input-hidden" type="file" accept="application/json,.json,.pixler" />
               </div>
             </section>
 
@@ -914,6 +919,6 @@
 
     <script src="./vendor/qrcode.js" defer></script>
     <script src="./state/store.js" defer></script>
-    <script src="./app.js?v=20260930-export-cjk5" defer></script>
+    <script src="./app.js?v=20260930-lazy-b1" defer></script>
   </body>
 </html>

@@ -46,8 +46,10 @@ export class ZoomControls {
           type="button"
           data-action="fit"
           class="sl-zoom-fit"
+          title="自动缩放并居中，完整显示整张图纸"
+          aria-label="适应窗口"
         >
-          Fit
+          适应窗口
         </button>
 
         <span class="sl-toolbar-divider"></span>
