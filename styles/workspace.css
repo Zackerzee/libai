@@ -13,6 +13,12 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .ws-name:hover,.ws-name:focus { border-color: var(--ws-border); background: var(--ws-surface-soft); outline: none; }
 .ws-status { margin-left: auto; color: var(--ws-text-tertiary); font-size: 11px; white-space: nowrap; }
 .ws-membership-status { flex: 0 0 auto; padding: 4px 8px; border: 1px solid var(--ws-border); border-radius: 999px; background: var(--ws-surface); color: var(--ws-text-secondary); font-size: 11px; white-space: nowrap; }
+.ws-export-drawer { width: min(430px, 94vw); overflow-y: auto; }
+.ws-export-drawer .ws-field { display: grid; gap: 6px; }
+.ws-export-drawer input[type="text"], .ws-export-drawer input:not([type]), .ws-export-drawer select { min-height: 34px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface); color: var(--ws-text); padding: 0 9px; }
+.ws-export-drawer .ws-export-options { display: grid; gap: 8px; }
+.ws-export-drawer .ws-export-options label { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--ws-text-secondary); font-size: 12px; }
+.ws-export-drawer .ws-export-options small, .ws-export-drawer #ws-board-summary { color: var(--ws-text-tertiary); font-size: 11px; line-height: 1.45; }
 .ws-button { min-height: 34px; padding: 0 12px; border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); background: var(--ws-surface); color: var(--ws-text); font-size: 12px; font-weight: 620; white-space: nowrap; cursor: pointer; }
 .ws-button:hover:not(:disabled) { border-color: var(--ws-border-strong); background: var(--ws-surface-soft); }
 .ws-button:active:not(:disabled),.ws-rail-button:active { transform: scale(.98); }

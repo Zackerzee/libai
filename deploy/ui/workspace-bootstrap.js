@@ -1,4 +1,4 @@
-import { mountWorkspace } from "./workspace.js?v=20260930-size-slider";
+import { mountWorkspace } from "./workspace.js?v=20260930-export-v2g";
 import { markLegacyUi } from "./legacy-ui-policy.js?v=20260928-v3";
 
 const ERROR_ID = "workspace-bootstrap-error";

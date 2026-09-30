@@ -28,6 +28,7 @@ import { paletteIdOf } from "../services/palette-identity.js";
 import { buildStructuralDiagnostics } from "../services/structural-diagnostics.js?v=20260929-editor-phase4d";
 import { stableIssueKey, deriveRepairSuggestions, createRepairQueue, createRepairPreview } from "../services/repair-suggestion.js?v=20260929-editor-phase5";
 import { membershipService } from "../services/membership-service.js?v=20260930-membership-v1";
+import { createExportV2Service } from "../services/export-v2-service.js?v=20260930-export-v2";
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
@@ -136,7 +137,7 @@ export function mountWorkspace(bridge) {
     </div>
     <div class="ws-dock-actions">
       <button type="button" class="ws-button" id="ws-making" disabled>开始拼</button>
-      <button type="button" class="ws-button ws-button-primary" id="ws-export" disabled>导出图纸</button>
+      <button type="button" class="ws-button ws-button-primary" id="ws-export" onclick="document.getElementById('ws-export-drawer')?.classList.add('open')" disabled>导出图纸</button>
     </div>`;
   wrap.append(dock);
   const viewBar = dock.querySelector("#ws-dock-view");
@@ -305,8 +306,25 @@ export function mountWorkspace(bridge) {
 
   const drawer = document.createElement("aside"); drawer.className = "ws-export-drawer"; drawer.id = "ws-export-drawer";
   drawer.setAttribute("aria-label", "导出作品");
-  drawer.innerHTML = `<div class="ws-drawer-head"><strong>导出作品</strong><button type="button" id="ws-export-close" aria-label="关闭导出">×</button></div><p class="ws-note">导出设置与屏幕色号开关相互独立。</p><button type="button" class="ws-export-choice" data-ws-export="preview-png"><strong>成品预览 · PNG</strong><small>默认无色号、无网格</small></button><div class="ws-export-options"><strong>图纸内容</strong><label><input type="checkbox" id="ws-export-grid" checked>网格</label><label><input type="checkbox" id="ws-export-codes" checked>色号</label><label><input type="checkbox" id="ws-export-coords" checked>坐标</label></div><button type="button" class="ws-export-choice" data-ws-export="pattern-png"><strong>拼豆图纸 · PNG</strong><small>使用上方独立的图纸设置</small></button><button type="button" class="ws-export-choice" data-ws-export="pattern-jpg"><strong>拼豆图纸 · JPG</strong><small>含表头与色块 / 色号 / 颗数图例，便于分享打印</small></button><button type="button" class="ws-export-choice" data-ws-export="usage-csv"><strong>用豆清单 · CSV</strong><small>色号、名称、HEX、RGB 与颗数，可用 Excel 打开</small></button><button type="button" class="ws-export-choice" data-ws-export="project-json"><strong>工程存档 · JSON</strong><small>保存画布尺寸、色卡与整幅矩阵，可再次载入继续编辑</small></button><button type="button" class="ws-export-choice" data-ws-export="boards-zip" id="ws-boards-choice"><strong>分板图 · ZIP</strong><small>按现有板规格导出各板 PNG</small></button><div class="ws-export-options"><strong>继续编辑</strong><button type="button" id="ws-project-import">载入工程存档 / Pixler…</button><input type="file" id="ws-project-file" accept="application/json,.json,.pixler" hidden></div><p class="ws-note" id="ws-export-message"></p>`;
+  drawer.innerHTML = `<div class="ws-drawer-head"><strong>导出</strong><button type="button" id="ws-export-close" aria-label="关闭导出" onclick="this.closest('#ws-export-drawer')?.classList.remove('open')">×</button></div>
+    <label class="ws-field">作品名称<input id="ws-export-title" maxlength="60" placeholder="未命名作品"></label>
+    <div class="ws-export-options"><strong>图纸</strong><label>清晰度<select id="ws-export-quality"><option value="standard">标准 · 16px/格</option><option value="high">高清 · 24px/格</option><option value="ultra" selected>超高清 · 32px/格</option></select></label><label><input type="checkbox" id="ws-export-grid" checked>网格</label><label><input type="checkbox" id="ws-export-codes" checked>色号</label><label><input type="checkbox" id="ws-export-coords" checked>坐标</label><small id="ws-export-pixels"></small></div>
+    <button type="button" class="ws-export-choice" data-export-v2="png"><strong>PNG 图纸</strong><small>按目标分辨率直接绘制，色号不经过低清放大</small></button>
+    <button type="button" class="ws-export-choice" data-export-v2="pdf"><strong>PDF 图纸</strong><small>网格与色号使用 PDF 矢量命令</small></button>
+    <button type="button" class="ws-export-choice" data-export-v2="pixler"><strong>Pixler 工程</strong><small>结构化网格、真实色号与透明空格</small></button>
+    <button type="button" class="ws-export-choice" data-ws-export="project-json"><strong>工程存档</strong><small>保存并继续编辑</small></button>
+    <div class="ws-export-options"><strong>分享海报</strong><label>比例<select id="ws-poster-ratio"><option value="3x4">3:4 · 1500×2000</option><option value="1x1">1:1 · 1800×1800</option></select></label><label>作品大小<select id="ws-poster-size"><option value="small">小</option><option value="standard" selected>标准</option><option value="large">大</option></select></label><label>衬纸<select id="ws-poster-backing"><option value="none">无</option><option value="narrow">窄边</option><option value="standard" selected>标准</option></select></label><label>品牌<select id="ws-poster-brand"><option value="libms">libms Studio</option><option value="shiliber">时里白造物</option><option value="custom">自定义</option></select></label><label><input type="checkbox" id="ws-poster-logo" checked>显示 Logo</label><label>署名<input id="ws-poster-signature" placeholder="署名"></label><label><input type="checkbox" id="ws-poster-title-toggle">显示作品名称</label><label><input type="checkbox" id="ws-poster-meta">显示作品信息</label></div>
+    <button type="button" class="ws-export-choice" data-export-v2="poster"><strong>作品海报 · PNG</strong><small>canonical grid 干净预览与自动同色系背景</small></button>
+    <div class="ws-export-options"><strong>大型作品 · 104×104 板型分割</strong><span id="ws-board-summary">当前作品无需分板</span><label><input type="checkbox" id="ws-board-codes" checked>色号</label><label><input type="checkbox" id="ws-board-grid" checked>网格</label></div>
+    <button type="button" class="ws-export-choice" data-export-v2="boards" id="ws-boards-choice"><strong>导出板型 ZIP</strong><small>零重叠、零重采样、尾板保持真实尺寸</small></button>
+    <button type="button" class="ws-export-choice" data-ws-export="usage-csv"><strong>用豆清单 · CSV</strong></button>
+    <div class="ws-export-options"><strong>继续编辑</strong><button type="button" id="ws-project-import">载入工程存档 / Pixler…</button><input type="file" id="ws-project-file" accept="application/json,.json,.pixler" hidden></div><p class="ws-note" id="ws-export-message"></p>`;
   wrap.append(drawer);
+  const exportV2 = createExportV2Service({
+    getGrid: () => bridge.getResult().grid || [],
+    getTitle: () => get().project.name || "未命名作品",
+    getPaletteLabel: () => bridge.getResult().paletteLabel || get().palette.id || "MARD 221",
+  });
   const confirmDialog = document.createElement("dialog"); confirmDialog.className = "ws-confirm-dialog";
   confirmDialog.innerHTML = `<p id="ws-confirm-text"></p><div><button type="button" id="ws-confirm-cancel">取消</button><button type="button" id="ws-confirm-ok">确认</button></div>`;
   wrap.append(confirmDialog);
@@ -554,9 +572,12 @@ export function mountWorkspace(bridge) {
   $("#ws-source-open").addEventListener("click", () => store.setState({ ui: { activePanel: "source" } }));
   $("#ws-open-editor").addEventListener("click", () => bridge.openEditor());
   $("#ws-making").addEventListener("click", () => bridge.openMaking());
-  $("#ws-export").addEventListener("click", () => store.setState({ ui: { exportDrawerOpen: true } }));
-  $("#ws-export-close").addEventListener("click", () => store.setState({ ui: { exportDrawerOpen: false } }));
+  $("#ws-export").addEventListener("click", () => { store.setState({ ui: { exportDrawerOpen: true } }); setTimeout(() => drawer.classList.add("open"), 0); });
+  $("#ws-export-close").addEventListener("click", () => { store.setState({ ui: { exportDrawerOpen: false } }); drawer.classList.remove("open"); });
   drawer.addEventListener("click", async (event) => { const button = event.target.closest("[data-ws-export]"); if (!button) return; try { $("#ws-export-message").textContent = "正在准备导出…"; await exports.export(button.dataset.wsExport); $("#ws-export-message").textContent = "已启动下载"; } catch (error) { $("#ws-export-message").textContent = error.message; } });
+  drawer.addEventListener("click", async (event) => { const button=event.target.closest("[data-export-v2]");if(!button)return;const options={quality:$("#ws-export-quality").value,showGrid:$("#ws-export-grid").checked,showCodes:$("#ws-export-codes").checked};try{$("#ws-export-message").textContent="正在以目标分辨率绘制…";if(button.dataset.exportV2==="png")await exportV2.png(options);else if(button.dataset.exportV2==="pdf")await exportV2.pdf(options);else if(button.dataset.exportV2==="pixler")await exportV2.pixler();else if(button.dataset.exportV2==="poster")await exportV2.poster({ratio:$("#ws-poster-ratio").value,artworkSize:$("#ws-poster-size").value,backing:$("#ws-poster-backing").value,brand:$("#ws-poster-brand").value,showLogo:$("#ws-poster-logo").checked,signatureText:$("#ws-poster-signature").value,showTitle:$("#ws-poster-title-toggle").checked,showMetadata:$("#ws-poster-meta").checked});else await exportV2.boards({showCodes:$("#ws-board-codes").checked,showGrid:$("#ws-board-grid").checked});$("#ws-export-message").textContent="已启动下载";}catch(error){$("#ws-export-message").textContent=error.message;}});
+  $("#ws-export-title").addEventListener("input",event=>store.setState({project:{name:event.target.value},status:{dirty:true}}));
+  $("#ws-export-quality").addEventListener("change",()=>paint(get(),{exportSettings:get().exportSettings}));
   [["#ws-export-grid","showGrid"],["#ws-export-codes","showCodes"],["#ws-export-coords","showCoordinates"]].forEach(([selector, field]) => $(selector).addEventListener("change", (event) => store.setState({ exportSettings: { pattern: { ...get().exportSettings.pattern, [field]: event.target.checked } } })));
   $("#ws-grid").addEventListener("change", (event) => store.setState({ view: { showGrid: event.target.checked } }));
   $("#ws-codes").addEventListener("change", (event) => store.setState({ view: { showCodes: event.target.checked } }));
@@ -1116,7 +1137,16 @@ export function mountWorkspace(bridge) {
     // 文字面板：字体/颜色/加粗倾斜/字号/旋转/落豆数都要每次状态变化回灌一次。
     // 面板内部用「结构签名」自己判断该不该重建 DOM，所以这里无条件调用是安全的。
     renderTextPanel(state);
-    drawer.classList.toggle("open", state.ui.exportDrawerOpen); const tileSize = bridge.getTileSize() || 52; $("#ws-boards-choice").hidden = !hasPattern || (state.canvas.width <= tileSize && state.canvas.height <= tileSize);
+    // 打开状态由按钮直接控制；普通 canvas/state repaint 不应意外把导出中心关掉。
+    if (state.ui.exportDrawerOpen) drawer.classList.add("open");
+    if (document.activeElement !== $("#ws-export-title")) $("#ws-export-title").value = state.project.name || "";
+    if (hasPattern) {
+      const estimate = exportV2.estimate($("#ws-export-quality").value);
+      $("#ws-export-pixels").textContent = `预计 ${estimate.width} × ${estimate.height}px`;
+      const split = exportV2.split();
+      $("#ws-board-summary").textContent = split.needsSplit ? `${state.canvas.width}×${state.canvas.height} · ${split.columns}列 × ${split.rows}行 · 共${split.total}块` : "当前作品无需分板";
+      $("#ws-boards-choice").disabled = !split.needsSplit;
+    } else { $("#ws-export-pixels").textContent = ""; $("#ws-board-summary").textContent = "请先创建图纸"; $("#ws-boards-choice").disabled = true; }
     drawer.querySelectorAll("[data-ws-export]").forEach((button) => { button.disabled = !exports.isAvailable(button.dataset.wsExport); });
     if (patch.view || patch.editor || patch.stats || patch.status || patch.source || patch.reference) renderer.requestDraw();
     // 库存面板只在图纸/项目状态变化时重建；库存自身的变更由它自己订阅，避免每次鼠标移动都重排表格

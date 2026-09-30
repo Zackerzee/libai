@@ -878,7 +878,7 @@ function init() {
   renderEditorLibraryOptions();
   bindEvents();
   updateResultUi();
-  import("./ui/workspace-bootstrap.js?v=20260930-size-slider")
+  import("./ui/workspace-bootstrap.js?v=20260930-export-v2g")
     .then(({ bootstrapWorkspace }) => bootstrapWorkspace({
       bridge: window.LibmsWorkspaceBridge,
       prepareLegacyShell: prepareCompatibilityShell,
