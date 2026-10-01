@@ -30,10 +30,17 @@ const now = () => (typeof performance !== "undefined" && typeof performance.now 
  * 引擎运行期失败 → 返回 GenerationError 信封（可预期的运行时故障，不抛）。
  *
  * @param {object} request GenerationRequest
+ * @param {{onPhase?: (phase:string)=>void}} [hooks]
+ *   阶段钩子。**必须与 request 分开传**：request 要能结构化克隆，
+ *   函数进不去。Worker 里由 generation.worker.mjs 转成 postMessage 进度。
  * @returns {object} GenerationResult | GenerationError
  */
-export function executeGenerationJob(request) {
+export function executeGenerationJob(request, hooks = {}) {
   validateGenerationRequest(request);
+  // `hooks = {}` 只对 undefined 生效，显式传 null 会在这里炸。
+  // 钩子是可选的旁路，不该让「没传钩子」变成一次生成失败。
+  const safeHooks = hooks && typeof hooks === "object" ? hooks : {};
+  const onPhase = typeof safeHooks.onPhase === "function" ? safeHooks.onPhase : null;
   const startedAt = now();
   try {
     const pipeline = runGenerationPipeline({
@@ -43,6 +50,7 @@ export function executeGenerationJob(request) {
       palette: request.palette,
       maxColors: request.maxColors,
       overrides: request.overrides,
+      onPhase,
     });
     return createGenerationResult({
       requestId: request.requestId,

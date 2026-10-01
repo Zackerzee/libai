@@ -94,6 +94,7 @@ export function mountWorkspace(bridge) {
     <span class="ws-membership-status" id="ws-membership-status" hidden>全部功能免费开放</span>
     <button type="button" id="ws-source-open" hidden>图片调整</button>
     <button type="button" class="ws-button ws-button-primary" id="ws-generate" hidden>重新生成</button>
+    <button type="button" class="ws-button ws-button-danger" id="ws-cancel-generate" hidden>取消生成</button>
     <button type="button" class="ws-button" id="ws-legacy-retry" hidden>Legacy 重试</button>`;
 
   // 左轨是唯一一级编辑工具入口；施工模式保留为独立工作模式。
@@ -450,7 +451,13 @@ export function mountWorkspace(bridge) {
       activateBlankCanvas();
     }
   });
-  window.addEventListener("libms:generation-error", (event) => store.setState({ status: { generating: false, generationError: event.detail } }));
+  window.addEventListener("libms:generation-error", (event) => store.setState({ status: { generating: false, generationError: event.detail, notice: "", generationPhase: "" } }));
+  // 生成阶段进度（B3 §30）：Worker 上报的真实阶段，翻成中文后写进 state。
+  // 走 state 而不是直接改 DOM —— paint() 随时可能重绘，直接改会被覆盖。
+  window.addEventListener("libms:generation-phase", (event) => {
+    const label = event.detail?.label;
+    if (label) store.setState({ status: { generationPhase: label } });
+  });
   window.addEventListener("libms:grid-edited", (event) => {
     editorService.invalidateUsageCounts();
     gridRevision += 1;
@@ -509,14 +516,14 @@ export function mountWorkspace(bridge) {
     if (!get().status.hasSource) return;
     if (autoGenRunning) { autoGenQueued = true; return; }
     if (bridge.getResult().manualEdited) {
-      $("#ws-status").textContent = "参数已改 · 手动编辑未覆盖，点「重新生成」覆盖";
+      store.setState({ status: { notice: "参数已改 · 手动编辑未覆盖，点「重新生成」覆盖" } });
       return;
     }
     autoGenRunning = true;
     try {
       await generation.generate({ overwriteApproved: true });
     } catch (error) {
-      $("#ws-status").textContent = error.message;
+      store.setState({ status: { notice: error.message } });
     } finally {
       autoGenRunning = false;
       if (autoGenQueued) { autoGenQueued = false; scheduleAutoGenerate(60); }
@@ -546,7 +553,7 @@ export function mountWorkspace(bridge) {
     },
     onGenerate: async () => {
       if (bridge.getResult().manualEdited && !await askConfirmation("重新生成会覆盖当前手动修改。继续吗？")) return;
-      try { await generation.generate({ overwriteApproved: true }); } catch (error) { $("#ws-status").textContent = error.message; }
+      try { await generation.generate({ overwriteApproved: true }); } catch (error) { store.setState({ status: { notice: error.message } }); }
     },
   });
   $("#ws-engine").addEventListener("change", (event) => {
@@ -567,7 +574,22 @@ export function mountWorkspace(bridge) {
   $("#ws-palette-size").addEventListener("change", (event) => { palettes.setActivePalette($("#ws-brand").value, Number(event.target.value)); refreshPaletteOptions(); scheduleAutoGenerate(0); });
   // 「重新生成」平时隐藏：只有存在手动编辑、自动生成主动让路时才出现，作为显式覆盖出口。
   $("#ws-generate").addEventListener("click", async () => { if (bridge.getResult().manualEdited && !await askConfirmation("重新生成会覆盖当前手动修改。继续吗？")) return;
-    try { await generation.generate({ overwriteApproved: true }); } catch (error) { $("#ws-status").textContent = error.message; } });
+    try { await generation.generate({ overwriteApproved: true }); } catch (error) { store.setState({ status: { notice: error.message } }); } });
+  // 取消生成（B3 §29）：真 terminate Worker。被取消的那次以 AbortError 结束，
+  // 不会写成「生成失败」，所以这里不需要额外压错误状态。
+  //
+  // 提示文案必须走 store 而不是直接写 #ws-status：直接写会被 setState 触发的
+  // paint() 立刻覆盖成「已生成」，用户根本看不到自己那一下的结果（实测踩过）。
+  $("#ws-cancel-generate").addEventListener("click", () => {
+    const cancelled = bridge.cancelGeneration?.() === true;
+    store.setState({
+      status: {
+        generating: false,
+        generationError: null,
+        notice: cancelled ? "已取消生成" : "当前没有正在进行的生成",
+      },
+    });
+  });
   $("#ws-import-again").addEventListener("click", () => {
     // 必须在这次 click 的同步用户手势里打开文件选择器。经过异步 dialog/await 后，
     // Safari 与部分 Chromium 会把 input.click() 当成非用户触发并直接拦截。
@@ -919,6 +941,9 @@ export function mountWorkspace(bridge) {
     const manualEdited = Boolean(bridge.getResult().manualEdited);
     $("#ws-generate").hidden = !(hasSource && manualEdited);
     $("#ws-generate").disabled = !hasSource || state.status.generating;
+    // 「取消生成」只在真的在跑时出现（B3 §31）：大尺寸生成期间界面必须能操作。
+    const cancelButton = $("#ws-cancel-generate");
+    if (cancelButton) cancelButton.hidden = !state.status.generating;
     $("#ws-engine").value = state.generation.engine || "v2.5";
     $("#ws-source-open").hidden = !hasSource;
     right.querySelector('.ws-side-tabs [data-ws-panel="source"]').disabled = !hasSource;
@@ -926,7 +951,17 @@ export function mountWorkspace(bridge) {
     $("#ws-bead-size").disabled = !hasPattern;
     $("#ws-replace-confirm").disabled = !hasPattern;
     $("#ws-ref-pick").disabled = !hasPattern;
-    $("#ws-status").textContent = state.status.generationError ? `生成失败：${state.status.generationError}` : state.status.generating ? "正在生成" : bridge.getResult().manualEdited ? "已手动编辑" : state.status.dirty ? "参数待更新" : hasPattern ? "已生成" : hasSource ? "图片已导入" : "未开始";
+    // 状态栏文案优先级（Stage B3）：
+    //   失败 > 最近一次提示（notice）> 生成中（含真实阶段文案）> 常规状态
+    // notice / generationPhase 都从 state 读，**不再直接写 DOM** ——
+    // 直接写会被紧接着的一次 paint 覆盖（实测「点了取消 → 显示已生成」）。
+    $("#ws-status").textContent = state.status.generationError
+      ? `生成失败：${state.status.generationError}`
+      : state.status.notice
+        ? state.status.notice
+        : state.status.generating
+          ? (state.status.generationPhase || "正在生成")
+          : bridge.getResult().manualEdited ? "已手动编辑" : state.status.dirty ? "参数待更新" : hasPattern ? "已生成" : hasSource ? "图片已导入" : "未开始";
     $("#ws-legacy-retry").hidden = !state.status.generationError;
     if (document.activeElement !== top.querySelector("#ws-project-name")) top.querySelector("#ws-project-name").value = state.project.name;
     const activePalette = palettes.getActivePalette();

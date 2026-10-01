@@ -893,6 +893,11 @@ function ensureGenerationRuntime() {
       // Stage B0.1：尺寸权威链。结构化工程 / 人工标定 / 网格识别给出的尺寸是绝对值，
       // 不允许被长边、裁剪比例或像素倍数再算一遍。
       import("./services/source-dimensions.mjs?v=20261001-stage-b01").then((mod) => { window.LibmsSourceDimensions = mod; }),
+      // Stage B3：紧凑结果契约 + 生成 Worker 客户端。
+      // worker 的 URL 在 generation-worker-client.mjs 里，必须与这里同一份（含 query），
+      // 否则 Worker 会加载到第二份模块图。
+      import("./services/generation-result-codec.mjs?v=20261002-stage-b3").then((mod) => { window.LibmsGenerationResultCodec = mod; }),
+      import("./services/generation-worker-client.mjs?v=20261002-stage-b3").then((mod) => { window.LibmsGenerationWorkerClient = mod; }),
     ]).catch((error) => { generationRuntimePromise = null; throw error; });
   }
   return generationRuntimePromise;
@@ -2249,6 +2254,12 @@ async function processProductionV2(options = {}) {
       options: state.productionGenerationOptions || {}, saveGallery: options.saveGallery !== false,
     });
   } catch (error) {
+    // 主动取消 / 被更新的请求取代 —— 都是**预期结局**，不是失败。
+    // 不能写 lastGenerationError，否则界面上会出现一个用户没犯过的「生成失败」。
+    // 但也不能只 return false：适配层会把 false 读成「链路没返回结果」并抛错。
+    // 所以这里留下标记，由 bridge.generate() 转成带正确 name 的错误。
+    if (error?.name === "AbortError") { markExpectedGenerationOutcome("cancelled"); setStatus("已取消生成"); return false; }
+    if (error?.name === "StaleGenerationError") { markExpectedGenerationOutcome("stale"); return false; }
     state.lastGenerationError = error.message || String(error);
     setStatus(`V2.5 失败：${state.lastGenerationError}。可选择 Legacy 重试`);
     window.dispatchEvent(new CustomEvent("libms:generation-error", { detail: state.lastGenerationError }));
@@ -3191,6 +3202,8 @@ function resolveGenerationDimensions(longEdge) {
 function deferGenerationForUnresolvedSize() {
   setStatus("等待源图比例，暂不生成");
   window.dispatchEvent(new CustomEvent("libms:generation-deferred", { detail: { reason: "unresolved-ratio" } }));
+  // 「延后」也是一种预期结局：上层不该把它读成链路故障。
+  markExpectedGenerationOutcome("deferred");
   return false;
 }
 
@@ -3235,15 +3248,110 @@ function isStaleGenerationRequest(requestId) {
   return Number(requestId) !== (Number(state.generationRequestId) || 0);
 }
 
+/* ── 「预期结局」与「真失败」必须分开（Stage B3 §29 / §31）────────────────
+ *
+ * 取消、过期、延后**都不是错误**。但它们在链路上都表现为「这次没有产出图纸」，
+ * 与「算法炸了」长得一模一样。上一版代码就是在这里栽的：
+ * processProductionV2 把取消咽下去、返回 false，适配层看见 false 就抛
+ * 「现有生成链路未返回结果」—— 用户主动点了取消，界面却报了一条他没犯过的错。
+ *
+ * 所以这里用一个模块级标记，把「为什么没结果」从深层函数带回到
+ * bridge.generate() 的出口，再由它抛**带正确 name 的**错误：
+ *   AbortError            → 用户取消 / Worker 被 terminate
+ *   StaleGenerationError  → 已被更新的请求取代
+ *   GenerationDeferred    → 尺寸还没解析，本轮不该生成
+ * 上层（generation-service / runAutoGenerate）按 name 识别，只提示、不报错。
+ */
+const GENERATION_OUTCOME_ERROR_NAMES = Object.freeze({
+  cancelled: "AbortError",
+  stale: "StaleGenerationError",
+  deferred: "GenerationDeferredError",
+});
+
+const GENERATION_OUTCOME_MESSAGES = Object.freeze({
+  cancelled: "生成已取消",
+  stale: "已丢弃过期结果",
+  deferred: "等待源图比例，暂不生成",
+});
+
+let expectedGenerationOutcome = null;
+
+function markExpectedGenerationOutcome(outcome) { expectedGenerationOutcome = outcome; }
+
+/** 取走并清空标记。必须「取走」：残留会让下一次真实失败被误判成取消。 */
+function takeExpectedGenerationOutcome() {
+  const outcome = expectedGenerationOutcome;
+  expectedGenerationOutcome = null;
+  return outcome;
+}
+
+function generationOutcomeError(outcome) {
+  const error = new Error(GENERATION_OUTCOME_MESSAGES[outcome] || "生成未产出结果");
+  error.name = GENERATION_OUTCOME_ERROR_NAMES[outcome] || "GenerationOutcomeError";
+  return error;
+}
+
+/** 取消 / 过期 / 延后是不是「预期结局」。上层据此决定提示还是报错。 */
+function isExpectedGenerationOutcome(error) {
+  return Object.values(GENERATION_OUTCOME_ERROR_NAMES).includes(error?.name);
+}
+
+/**
+ * 阶段 → 用户可见文案（Stage B3 §30）。
+ * **不暴露内部算法名**：用户看到的是「正在匹配真实色号…」，不是「palette matching」。
+ */
+const GENERATION_PHASE_LABELS = Object.freeze({
+  analyze: "正在分析图片…",
+  sampling: "正在分析图片…",
+  matching: "正在匹配真实色号…",
+  cleanup: "正在整理色块…",
+  finalize: "正在完成图纸…",
+});
+
+/** 生成 Worker 客户端单例。懒创建：没走到生成就不起 Worker。 */
+let generationWorkerClient = null;
+function getGenerationWorkerClient() {
+  const api = window.LibmsGenerationWorkerClient;
+  if (!api) return null;
+  if (!generationWorkerClient) generationWorkerClient = api.createGenerationWorkerClient();
+  return generationWorkerClient;
+}
+
+/**
+ * 取消当前生成（Stage B3 §29 / §31）。
+ *
+ * 真 terminate Worker，不是在跑完之后再丢弃结果 —— 500×375 要跑几分钟，
+ * 「假装取消、其实还在算」既浪费电又占着 CPU。
+ * 被取消的那次以 AbortError 结束，processProductionV2 把它当正常结局处理。
+ *
+ * 主线程兜底路径（Worker 不可用 / 还没起）没有 terminate 可杀，退而求其次：
+ * 推进 `generationRequestId` 让这一轮**作废** —— 链路上每个 await 边界都会
+ * 把它判为过期，结果照常算完但绝不提交。同时留下 cancelled 标记，
+ * 让上层显示「已取消」而不是「过期」。
+ *
+ * @returns {boolean} 是否真有任务被取消
+ */
+function cancelGeneration(reason = "生成已取消") {
+  if (generationWorkerClient?.cancel(reason)) return true;
+  if (state.isProcessingImage) {
+    state.generationRequestId = (Number(state.generationRequestId) || 0) + 1;
+    markExpectedGenerationOutcome("cancelled");
+    return true;
+  }
+  return false;
+}
+
 /**
  * 走 Worker-ready 契约执行一次生成。
  *
- * 这是主线程与未来 Worker 之间的**同一条缝**：请求 / 结果 / 错误都是纯数据
- * （见 services/generation-request.mjs，含 validate / structured-clone 断言）。
- * 把这里的 executeGenerationJob 换成 `worker.postMessage(request)` +
- * `await once(worker, "message")` 即可平移，调用方一行不用改。
+ * 请求 / 结果 / 错误都是纯数据（见 services/generation-request.mjs）。
+ * B3 之后默认走**真实 Web Worker**：主线程只组装请求、转发进度、提交结果，
+ * 不再跑 generateV2 —— 300/400/500 档位下界面仍然可滚动、可取消。
  *
- * 契约模块尚未加载时退回直接调用流水线：保证非工作台入口（预载没跑过）不会因此不可用。
+ * 三级降级，保证「优化坏了也不丢功能」：
+ *   ① 契约模块未加载（非工作台入口）→ 直调流水线
+ *   ② Worker 不可用 / 起不来         → 主线程 executeGenerationJob
+ *   ③ Worker 跑到一半真失败          → 原样抛，由上层报可读原因
  */
 async function runGenerationJob({ image, mode, size, palette, maxColors, overrides, requestId }) {
   const job = window.LibmsGenerationJob;
@@ -3256,6 +3364,28 @@ async function runGenerationJob({ image, mode, size, palette, maxColors, overrid
     requestId: Number(requestId) > 0 ? Number(requestId) : 1,
     image, size, mode, palette, maxColors, overrides,
   });
+
+  const client = getGenerationWorkerClient();
+  if (client?.supported) {
+    try {
+      return await client.run(request, {
+        onProgress: (phase) => {
+          const label = GENERATION_PHASE_LABELS[phase] || "正在生成…";
+          setStatus(label);
+          // 工作台顶栏的状态位由 ui/workspace.js 渲染。它只认 store，
+          // 所以进度必须**同时**以事件广播出去 —— 只写 legacy 状态栏的话，
+          // 用户在工作台上完全看不到阶段变化（B3 实测：只有「正在生成 → 已生成」）。
+          window.dispatchEvent(new CustomEvent("libms:generation-phase", { detail: { phase, label } }));
+        },
+      });
+    } catch (error) {
+      // 取消 / 被新请求取代：这是**预期结局**，绝不能退回主线程重跑一遍
+      // —— 那等于「点了取消反而又开始算」。
+      if (error?.name === "AbortError" || error?.name === "StaleGenerationError") throw error;
+      console.warn("生成 Worker 失败，退回主线程执行", error);
+    }
+  }
+
   const envelope = job.executeGenerationJob(request);
   if (!envelope.ok) throw new Error(envelope.message);
   return {
@@ -7372,7 +7502,11 @@ window.LibmsWorkspaceBridge = {
     if (maxColors != null && els.maxColorsInput) els.maxColorsInput.value = String(maxColors);
     try {
       const generated = await processImage({ overwriteApproved, requestId });
-      if (isStaleGenerationRequest(requestId)) return null; // 已被更新的请求取代
+      // 先看深层留下的「为什么没结果」：取消 / 过期必须原样上抛（带 name），
+      // 绝不能被下面的 `!generated` 分支误判成算法失败。
+      const outcome = takeExpectedGenerationOutcome();
+      if (outcome) throw generationOutcomeError(outcome);
+      if (isStaleGenerationRequest(requestId)) throw generationOutcomeError("stale");
       if (!generated && state.lastGenerationError) {
         // 独立算法失败时保留原算法选择，不静默回退。
         if (state.algorithmEngine === "bgs") throw new Error(`BGS 算法失败：${state.lastGenerationError}`);
@@ -7390,6 +7524,20 @@ window.LibmsWorkspaceBridge = {
       }
     }
   },
+  /**
+   * 取消当前生成（Stage B3 §29 / §31）。
+   *
+   * 真 terminate Worker，不是在跑完之后再丢弃结果 —— 500×375 要跑几分钟，
+   * 「假装取消、其实还在算」既浪费电又占着 CPU。
+   * 被取消的那次会以 AbortError 结束，processProductionV2 把它当正常结局处理。
+   *
+   * @returns {boolean} 是否真有任务被取消
+   */
+  cancelGeneration(reason = "生成已取消") { return cancelGeneration(reason); },
+  /** 生成是否正在跑（Worker 或主线程都算）。UI 据此决定「取消」按钮的可用性。 */
+  isGenerating() { return Boolean(generationWorkerClient?.busy) || Boolean(state.isProcessingImage); },
+  /** 这个错误是不是「预期结局」（取消 / 过期 / 延后）。适配层据此只提示、不报错。 */
+  isExpectedGenerationOutcome(error) { return isExpectedGenerationOutcome(error); },
   setGenerationEngine(engine) { state.generationEngine = engine === "legacy" ? "legacy" : "v2.5"; },
   // ===== 算法引擎开关（Batch E + F）=====
   // current = 现有链路；bgs = src/algorithms/bgs；

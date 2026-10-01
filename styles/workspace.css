@@ -34,6 +34,8 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .ws-button:disabled { opacity: .45; cursor: default; }
 .ws-button-primary { border-color: var(--ws-accent); background: var(--ws-accent); color: #fff; }
 .ws-button-primary:hover:not(:disabled) { border-color: #c95f1b; background: #c95f1b; }
+.ws-button-danger { border-color: #d9483b; background: #d9483b; color: #fff; }
+.ws-button-danger:hover:not(:disabled) { border-color: #b93a2e; background: #b93a2e; }
 .ws-wide { width: 100%; }
 .ws-rail { min-width: 0; padding: 10px 6px; display: flex; flex-direction: column; gap: 4px; overflow: auto; border-right: 1px solid var(--ws-border); background: var(--ws-surface-soft); }
 .ws-rail-button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 100%; min-height: 58px; padding: 5px 0; border: 1px solid transparent; border-radius: var(--ws-radius-sm); background: transparent; color: var(--ws-text-secondary); cursor: pointer; }

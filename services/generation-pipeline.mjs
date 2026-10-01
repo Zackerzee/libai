@@ -61,9 +61,11 @@ export function resolveGenerationPipeline(mode="auto", imageAnalysis=null, overr
 }
 
 // 唯一生产 runner：模式只注入配置，所有模式仍调用同一个 Generation Engine V2。
-export function runGenerationPipeline({ image, mode="auto", size, palette, maxColors=0, overrides={} }) {
+export function runGenerationPipeline({ image, mode="auto", size, palette, maxColors=0, overrides={}, onPhase=null }) {
+  if (typeof onPhase === "function") onPhase("analyze");
   const analysis=analyzeGenerationImage(image);
   const config=resolveGenerationPipeline(mode,analysis,overrides);
-  const result=generateV2({ source:image, width:size.width, height:size.height, palette, options:{...config,detailProtection:config.detailProtection/100,edgeProtection:config.edgeProtection/100,highlightProtection:config.preserveHighlights?0.8:0,eyeProtection:config.preserveEyes?1:0,microDetailProtection:config.preserveMicroDetails?0.8:0,maxColors} });
+  // onPhase 单独传，**不放进 config** —— 它是函数，config 要能结构化克隆。
+  const result=generateV2({ source:image, width:size.width, height:size.height, palette, options:{...config,detailProtection:config.detailProtection/100,edgeProtection:config.edgeProtection/100,highlightProtection:config.preserveHighlights?0.8:0,eyeProtection:config.preserveEyes?1:0,microDetailProtection:config.preserveMicroDetails?0.8:0,maxColors,onPhase:onPhase||undefined} });
   return { ...result, pipeline:{ mode:config.mode, routedMode:config.routedMode, sampling:config.sampling, analysis } };
 }

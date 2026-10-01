@@ -101,6 +101,11 @@ export function generateV2({ source, width, height, palette, options = {} }) {
   if (!Array.isArray(palette) || !palette.length) throw new Error("generateV2: palette required");
 
   const cfg = resolveOptions(options);
+  // 阶段上报（Stage B3）：给 Worker 用的进度钩子。
+  // **刻意从 options.onPhase 单独读**，不进 cfg —— 它是函数，不能混进要结构化克隆的配置里。
+  // 主线程直跑时传 undefined，零开销、行为逐位不变。
+  const reportPhase = typeof options.onPhase === "function" ? options.onPhase : null;
+  const phase = (name) => { if (reportPhase) reportPhase(name); };
   const timing = {};
   const t0 = performance.now();
   const paletteEngine = createPaletteEngine(palette);
@@ -132,6 +137,7 @@ export function generateV2({ source, width, height, palette, options = {} }) {
   timing.subjectCrop = Math.round(performance.now() - tCrop);
 
   // 1. Sampling（AUTO 用 Region-Adaptive，manual 全图单 mode）
+  phase("sampling");
   const tSampling = performance.now();
   const sampled = cfg.sampling === SamplingMode.AUTO
     ? sampleGridAdaptive(samplingSource, width, height, { preset: options.preset || "photo", autoProfile: (options.preset || "photo") === "auto", ...samplingConfig })
@@ -140,6 +146,7 @@ export function generateV2({ source, width, height, palette, options = {} }) {
   const resolvedMode = sampled.resolvedMode;
 
   // 2. Palette Matching（复用 palette-engine）
+  phase("matching");
   const tMatch = performance.now();
   const grid = [];
   for (let y = 0; y < height; y++) {
@@ -222,6 +229,7 @@ export function generateV2({ source, width, height, palette, options = {} }) {
   }
 
   // 4. Smart Cleanup（sampling-aware + tier 分层）
+  phase("cleanup");
   const tCleanup = performance.now();
   const colorsBeforeCleanup = countGridColors(grid, getColorKey).size;
   const cleanupResult = smartCleanup({
@@ -284,6 +292,8 @@ export function generateV2({ source, width, height, palette, options = {} }) {
     }
   }
   timing.paletteBudget = Math.round(performance.now() - tBudget);
+
+  phase("finalize");
 
   // 6. cleanupMap（被修改的 cell）
   const cleanupMap = new Float32Array(width * height);

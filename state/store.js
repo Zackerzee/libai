@@ -283,6 +283,14 @@
       hasPattern: false,       // projectStore.status.hasPattern
       // 注：generationError 故意【不】给默认值 —— 在 projectStore 里它是运行时动态字段，
       // 默认必须"不存在该键"（行为快照已冻结）。写入后才出现。
+      //
+      // notice / generationPhase 是 Stage B3 新增的**瞬态提示位**。
+      // 为什么必须进 store 而不是直接写 DOM：#ws-status 的文案由 paint() 统一渲染，
+      // 直接 `textContent = ...` 会被紧接着的一次 paint 立刻覆盖 ——
+      // 实测「点了取消 → 显示已生成」，用户永远看不到自己刚才那一下的结果。
+      // 放进 state 之后，文案就是状态的一部分，谁渲染都不会丢。
+      notice: "",              // 最近一次用户可见提示（已取消生成 / 参数已改 …）
+      generationPhase: "",     // 生成中的阶段文案（正在分析图片… 等），空闲时为空
       // app.js 侧的瞬态标志
       livePreviewTimer: 0,        // state.livePreviewTimer
       livePreviewPending: false,  // state.livePreviewPending

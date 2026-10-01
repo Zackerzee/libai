@@ -47,6 +47,12 @@ function snapshot(store) {
   if (s.statusState.generationError !== undefined) {
     status.generationError = s.statusState.generationError;
   }
+  // notice / generationPhase（Stage B3）：同样是运行时动态字段，默认不出现。
+  // 默认就写 `notice: ""` 会让默认快照多出两个 own key，deepStrictEqual 立刻变红。
+  // 而它们**必须**能穿过 snapshot —— 否则 workspace 写的提示文案读不回来，
+  // 又退化成「直接写 DOM、被下一次 paint 覆盖」的老问题。
+  if (s.statusState.notice) status.notice = s.statusState.notice;
+  if (s.statusState.generationPhase) status.generationPhase = s.statusState.generationPhase;
 
   // 文字图层是"运行时动态字段"：默认不存在该键，写入后才出现。
   // 与 status.generationError 同样的条件展开 —— 直接写 textLayers: undefined 会让
