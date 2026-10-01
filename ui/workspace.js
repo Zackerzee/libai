@@ -363,7 +363,11 @@ export function mountWorkspace(bridge) {
     store.setState({
       project: { name: result.sourceName?.replace(/\.[^.]+$/, "") || get().project.name },
       source: { image: result.sourceUrl || null, width: result.sourceWidth || 0, height: result.sourceHeight || 0 },
-      canvas: { width: result.width || Number(document.querySelector("#granularity-input")?.value || 50), height: result.height || get().canvas.height || 50 },
+      // 画布宽高**只从 state 取**，不读任何 DOM。
+      // 这里以前是 `result.width || Number(#granularity-input.value || 50)`：
+      // 一旦去读那个 input，它就又成了尺寸真源（B0.1 §8 要拆的正是这条）。
+      // 而且它只给宽度留了退路、高度走 state，两轴不对称 —— 高度那份才是对的做法。
+      canvas: { width: result.width || get().canvas.width || 50, height: result.height || get().canvas.height || 50 },
       palette: { id: result.paletteKey, maxColors: result.maxColors, usedColors: result.usedColors },
       stats: { totalBeads: result.totalBeads, usedColors: result.usedColors, colors: result.colors },
       status: { hasSource: Boolean(result.sourceUrl), hasPattern: Boolean(result.grid?.length), generating: false, dirty: Boolean(result.manualEdited), generationError: null },

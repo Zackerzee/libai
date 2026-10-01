@@ -135,6 +135,23 @@ test("getGenerationSize 绝对权威优先，并回报 authority / source 便于
   assert.match(body, /source: dims\.source/);
 });
 
+test("§8 granularity DOM 彻底降级为投影：全仓不得再被读作尺寸真源", () => {
+  // 写是允许的（投影必须落到 DOM 上），读不行 —— 读它就是把 DOM 当尺寸真源。
+  // 只看代码行：注释里引用旧写法是正常的（本文件的说明性注释就引用了）。
+  const codeReads = (source) => source.split("\n")
+    .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+    .filter((line) => /granularityInput\.value|#granularity-input["')\]]*\)?\??\.value/.test(line))
+    .map((line) => line.trim());
+  assert.deepEqual(codeReads(app), [], "app.js 不得读 granularity 的值");
+  assert.deepEqual(codeReads(workspace), [], "ui/workspace.js 不得读 granularity 的值");
+});
+
+test("§5 画布宽高只从 state 取，两轴对称", () => {
+  const sync = fnBody(workspace, "const syncLegacy = (result = bridge.getResult()) => {");
+  assert.match(sync, /canvas: \{ width: result\.width \|\| get\(\)\.canvas\.width \|\| 50, height: result\.height \|\| get\(\)\.canvas\.height \|\| 50 \}/);
+  assert.doesNotMatch(sync, /querySelector\("#granularity-input"\)/, "画布尺寸不得回读 legacy DOM");
+});
+
 /* ──────────────────────────── ui/workspace.js ──────────────────────────── */
 
 test("§6 工作台挂载用 ensureGenerationLongEdge，不再无条件写 104", () => {
