@@ -20,7 +20,8 @@ test('production generation sends V2.5 settings separately and retains canonical
   const result = await createGenerationService(bridge, store).generate();
   assert.equal(selected.engine, 'v2.5');
   assert.equal(selected.generationOptions.sampling, 'auto');
-  assert.deepEqual(request, { width: 104, height: 131, maxColors: 0, overwriteApproved: false });
+  // 尺寸不进 request：store.canvas 是回写命名空间，当入参用会让上一版图纸尺寸污染下一版。
+  assert.deepEqual(request, { maxColors: 0, overwriteApproved: false });
   assert.equal(result.grid, cells);
   assert.equal(store.getState().status.hasPattern, true);
 });

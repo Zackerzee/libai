@@ -91,8 +91,11 @@
       importMode: "photo",            // state.importMode
       autoProcessAfterLoad: false,    // state.autoProcessAfterLoad
       restoreAutoSizePending: false,  // state.restoreAutoSizePending
-      targetHeight: 50,               // state.targetHeight
-      aspectRatioLocked: false,       // state.aspectRatioLocked
+      // 生成尺寸 = 长边格数 + 有效裁剪比例派生。
+      // 0 表示「尚未解析」；解析失败时生成必须延后，不得回退成方图。
+      generationLongEdge: 0,          // state.generationLongEdge
+      // 生成请求号：单调递增，用于丢弃陈旧结果（后续异步 Worker 时是硬需求）。
+      generationRequestId: 0,         // state.generationRequestId
       importApproved: false,          // state.importApproved
       manualEdited: false,            // state.manualEdited
       backgroundDecision: "",         // state.backgroundDecision
@@ -348,8 +351,8 @@
     importMode: ["processingState", "importMode"],
     autoProcessAfterLoad: ["processingState", "autoProcessAfterLoad"],
     restoreAutoSizePending: ["processingState", "restoreAutoSizePending"],
-    targetHeight: ["processingState", "targetHeight"],
-    aspectRatioLocked: ["processingState", "aspectRatioLocked"],
+    generationLongEdge: ["processingState", "generationLongEdge"],
+    generationRequestId: ["processingState", "generationRequestId"],
     importApproved: ["processingState", "importApproved"],
     manualEdited: ["processingState", "manualEdited"],
     backgroundDecision: ["processingState", "backgroundDecision"],

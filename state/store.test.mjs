@@ -55,7 +55,7 @@ test("旧 state 读取正常：典型字段经 Proxy 可读且类型正确", () 
   assert.equal(state.selectedBrand, "mard");
   assert.equal(state.editorTool, "pencil");
   assert.equal(state.previewZoom, 1);
-  assert.equal(state.targetHeight, 50);
+  assert.equal(state.generationLongEdge, 0);
   assert.deepEqual(state.editorPrefs, { showGrid: true, showCodes: true, showCoords: true, snap: true, toolbarPosition: "left" });
   assert.ok(state.playCompletedBeads instanceof Set);
   assert.equal(state.playCompletedBeads.size, 0);
@@ -79,11 +79,11 @@ test("旧 state 写入能反映到新 store（单一数据源）", () => {
 test("新 store 写入能被旧调用方读取（双向可见）", () => {
   const { state, store } = fresh();
   store.patchState("patternState", { width: 100, height: 75 });
-  store.patchState("processingState", { targetHeight: 120 });
+  store.patchState("processingState", { generationLongEdge: 120 });
   store.patchState("editorState", { tool: "eraser" });
   assert.equal(state.width, 100);
   assert.equal(state.height, 75);
-  assert.equal(state.targetHeight, 120);
+  assert.equal(state.generationLongEdge, 120);
   assert.equal(state.editorTool, "eraser");
 });
 

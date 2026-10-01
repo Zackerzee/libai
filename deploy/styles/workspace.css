@@ -248,21 +248,42 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .phase2-workspace .ws-size-chip-auto { min-width: 52px; }
 .phase2-workspace .ws-top-zoom { display: flex; align-items: center; }
 
-/* 手动尺寸滑杆：宽度为主控，高度按原图比例自动计算 */
-.phase2-workspace .ws-size-slider { display: grid; grid-template-columns: 96px 132px; align-items: center; gap: 8px; }
+/* 生成尺寸：长边是唯一自由度（滑杆 / 数字框 / 滚轮 / 方向键），
+   宽高由长边 + 有效裁剪比例派生。滑杆与数字框只改草稿，点「应用尺寸」才提交。 */
+.phase2-workspace .ws-size-slider { display: grid; grid-template-columns: 96px 132px 62px; align-items: center; gap: 8px; }
 .phase2-workspace .ws-size-slider output { display: flex; align-items: center; justify-content: center; gap: 8px; height: 30px; padding: 0 10px; border: 1px solid var(--ws-border); border-radius: 10px; background: var(--ws-accent-soft); color: var(--ws-text); font-size: 12px; font-variant-numeric: tabular-nums; }
 .phase2-workspace .ws-size-slider output strong { min-width: 24px; text-align: center; font-size: 13px; }
 .phase2-workspace .ws-size-slider output span { color: var(--ws-text-tertiary); }
 .phase2-workspace .ws-size-slider input[type="range"] { width: 132px; accent-color: var(--ws-accent); cursor: pointer; }
-.phase2-workspace .ws-multiple-stepper button { width: 28px; height: 30px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface); color: var(--ws-text-secondary); font-size: 15px; line-height: 1; cursor: pointer; }
-.phase2-workspace .ws-multiple-stepper button:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
+.phase2-workspace .ws-size-slider input[type="number"] {
+  width: 62px;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--ws-border);
+  border-radius: 8px;
+  background: var(--ws-surface);
+  color: var(--ws-text);
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.phase2-workspace .ws-size-slider input[type="number"]:focus { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+.phase2-workspace .ws-size-slider input[type="number"]:disabled { opacity: .5; }
+.phase2-workspace .ws-size-apply { height: 30px; padding: 0 12px; white-space: nowrap; }
+.phase2-workspace .ws-size-apply:disabled { opacity: .5; cursor: not-allowed; }
 
-/* 像素倍数识别：读数 + 手动 −/+ 覆盖 */
-.phase2-workspace .ws-multiple { display: flex; align-items: center; gap: 6px; }
-.phase2-workspace .ws-multiple-label { color: var(--ws-text-tertiary); font-size: 11px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; }
-.phase2-workspace .ws-multiple-stepper { display: flex; align-items: center; gap: 2px; }
-.phase2-workspace .ws-multiple-stepper output { display: grid; place-items: center; min-width: 48px; height: 30px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface-soft); color: var(--ws-text); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.phase2-workspace .ws-multiple.is-manual .ws-multiple-stepper output { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
+/* 大尺寸分档提示（B0 §8）：301–400 提示大尺寸，>400 提示超大尺寸，都必须显式点「应用尺寸」。 */
+.phase2-workspace .ws-size-tier {
+  padding: 3px 8px;
+  border: 1px solid var(--ws-border-strong);
+  border-radius: 8px;
+  color: var(--ws-text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.phase2-workspace .ws-size-tier[data-tier="large"] { border-color: #d9a441; color: #8a6415; background: #fdf5e4; }
+.phase2-workspace .ws-size-tier[data-tier="xlarge"] { border-color: #d1663f; color: #8f2f11; background: #fdeee7; }
 
 /* 扩展工具条：帮助是独立尾项，不参与主要尺寸设置区的宽度竞争。 */
 .phase2-workspace .sl-grid-toolbar-extended { flex-wrap: nowrap; }
@@ -342,7 +363,7 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
   /* 小屏：顶栏改为纵向堆叠，尺寸组不再贴右 */
   .phase2-workspace .ws-top-controls { flex-direction: column; align-items: stretch; gap: 8px; }
   .phase2-workspace .ws-top-size { margin-left: 0; padding-left: 0; border-left: 0; }
-  .phase2-workspace .ws-size-slider { grid-template-columns: 86px minmax(120px,1fr); flex: 1 1 260px; }
+  .phase2-workspace .ws-size-slider { grid-template-columns: 86px minmax(120px,1fr) 62px; flex: 1 1 260px; }
   .phase2-workspace .ws-size-slider input[type="range"] { width: 100%; }
 }
 

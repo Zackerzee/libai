@@ -86,8 +86,8 @@
 | `state.importMode` | processingState | importMode | Proxy getter/setter | NO | "photo" |
 | `state.autoProcessAfterLoad` | processingState | autoProcessAfterLoad | Proxy getter/setter | NO | false |
 | `state.restoreAutoSizePending` | processingState | restoreAutoSizePending | Proxy getter/setter | NO | false |
-| `state.targetHeight` | processingState | targetHeight | Proxy getter/setter | NO | 50 |
-| `state.aspectRatioLocked` | processingState | aspectRatioLocked | Proxy getter/setter | NO | false |
+| `state.generationLongEdge` | processingState | generationLongEdge | Proxy getter/setter | NO | 0（0 = 未解析） |
+| `state.generationRequestId` | processingState | generationRequestId | Proxy getter/setter | NO | 0 |
 | `state.importApproved` | processingState | importApproved | Proxy getter/setter | NO | false |
 | `state.manualEdited` | processingState | manualEdited | Proxy getter/setter | NO | false |
 | `state.backgroundDecision` | processingState | backgroundDecision | Proxy getter/setter | NO | "" |

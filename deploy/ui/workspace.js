@@ -67,8 +67,9 @@ export function mountWorkspace(bridge) {
   if (missing.length) throw new Error("工作台骨架不完整：" + missing.join(", "));
   grid.dataset.workspaceMounting = "true";
   grid.dataset.workspaceShell = "v3";
-  bridge.setLockAspectRatio(false);
-  bridge.setWidth(104); bridge.setHeight(104);
+  // 生成尺寸的唯一自由度是「长边格数」。宽高由 长边 + 有效裁剪比例 派生，
+  // 所以这里只推一个数，不推 width/height（推两个数就必然有人不守比例）。
+  bridge.setGenerationLongEdge(104);
   store.setState({ canvas: { width: 104, height: 104, lockAspectRatio: false }, generation: { engine: "v2.5", algorithm: "current" } });
   document.body.classList.add("phase2-workspace");
 
@@ -277,25 +278,29 @@ export function mountWorkspace(bridge) {
 
   // 工作台上方的参数条，只保留两件事：
   //   1) 不与编辑区重复的选择工具
-  //   2) 图纸尺寸一行 —— 三个常用预设 52 / 78 / 104 加「自动」（按源图比例拟合到 104），
+  //   2) 生成尺寸一行 —— 唯一自由度是「长边格数」：预设 / 滑杆 / 数字框 / 滚轮 / 方向键
+  //      都只改草稿，点「应用尺寸」才提交并生成一次（B0 §7）。
   //      右侧紧邻视图缩放（缩放从底部 viewbar 挪上来，避免两处重复）。
   // 色号选择、生成方式/算法等生成参数一律不进这里，统一收到右栏「色彩」面板。
   const topControls = document.createElement("section");
   topControls.className = "ws-top-controls";
   topControls.id = "ws-top-controls";
-  topControls.setAttribute("aria-label", "选择工具、图纸尺寸与视图缩放");
+  topControls.setAttribute("aria-label", "选择工具、生成尺寸与视图缩放");
   topControls.innerHTML = `<div class="ws-top-size">
-      <span class="ws-top-size-label">图纸尺寸</span>
-      <div class="ws-size-chips" id="ws-size-chips" role="group" aria-label="图纸尺寸预设">
-        <button type="button" class="ws-size-chip ws-size-chip-auto" data-size="auto">自动</button>
-        <button type="button" class="ws-size-chip" data-size="52">52</button>
-        <button type="button" class="ws-size-chip" data-size="78">78</button>
-        <button type="button" class="ws-size-chip" data-size="104">104</button>
+      <span class="ws-top-size-label">图纸长边</span>
+      <div class="ws-size-chips" id="ws-size-chips" role="group" aria-label="图纸长边预设（格）">
+        <button type="button" class="ws-size-chip ws-size-chip-auto" data-size="auto" title="按像素倍数识别结果自动定长边">自动</button>
+        <button type="button" class="ws-size-chip" data-size="52" title="长边 52 格">52</button>
+        <button type="button" class="ws-size-chip" data-size="78" title="长边 78 格">78</button>
+        <button type="button" class="ws-size-chip" data-size="104" title="长边 104 格">104</button>
       </div>
-      <div class="ws-size-slider" role="group" aria-label="按宽度调整图纸尺寸">
-        <output id="ws-size-value" for="ws-size-input" aria-live="polite"><strong>104</strong><span>×</span><strong>104</strong></output>
-        <input id="ws-size-input" type="range" min="10" max="500" step="1" value="104" aria-label="图纸宽度（豆）">
+      <div class="ws-size-slider" id="ws-size-controls" role="group" aria-label="图纸长边（格）：滑杆、数字输入、滚轮、方向键">
+        <output id="ws-size-value" for="ws-size-range" aria-live="polite" title="派生尺寸（宽 × 高）"><strong>—</strong><span>×</span><strong>—</strong></output>
+        <input id="ws-size-range" type="range" min="10" max="500" step="1" value="104" aria-label="图纸长边（格）">
+        <input id="ws-size-number" type="number" min="10" max="500" step="1" value="104" aria-label="图纸长边格数（可直接输入）">
       </div>
+      <button type="button" class="ws-button ws-size-apply" id="ws-size-apply">应用尺寸</button>
+      <span class="ws-size-tier" id="ws-size-tier" role="status" hidden></span>
       <div id="zoomControls" class="ws-top-zoom"></div>
     </div>`;
   grid.before(topControls);
@@ -361,13 +366,20 @@ export function mountWorkspace(bridge) {
   };
   // 像素倍数：识别结果 + 手动覆盖值。声明放在最前，保证导入事件先于尺寸逻辑就绪。
   let detectedMultiple = 1;
-  let manualMultiple = null;
-  // 尺寸是否被手动指定（点了 52/78/104 或用了尺寸步进器）。
-  // 为 false 时「自动」chip 高亮，表示尺寸由倍数识别结果推导。
-  let manualSize = false;
+  // 生成尺寸草稿：**唯一自由度是长边格数**。
+  // 滑杆 / 数字框 / 滚轮 / 方向键 / 预设都只改这个草稿，点「应用尺寸」才写进 bridge。
+  // 声明必须早于 paint()：paint 会调 syncSizeUi()，晚声明会踩 TDZ。
+  let longEdgeDraft = 104;
+  // 草稿来源："auto"（像素倍数识别推导）| "manual"（用户显式指定）。
+  // 只用于预设 chip 的高亮，不参与任何计算。
+  let sizeOrigin = "auto";
   // 已经识别过的源图 URL，避免 paint 每次触发都重跑识别。
   let detectedForUrl = null;
   let detecting = false;
+  // 当前源图的识别 Promise。首帧生成要等它 settle，否则会先按默认尺寸出一版、
+  // 识别完再出一版 —— 那就是一次实打实的「触发风暴」。
+  let multipleDetection = null;
+  let multipleDetectionUrl = null;
   // 自动尺寸流程改过尺寸后，等下一次出图再适配窗口。
   // 不能在改尺寸的当下 fit：那一刻 getSize() 拿到的还是旧网格，会按旧尺寸算缩放。
   let fitOnNextResult = false;
@@ -392,8 +404,9 @@ export function mountWorkspace(bridge) {
       editor: { selectedCell: null, selectedPaletteId: null, highlightedPaletteId: null, selection: null, hoveredCell: null },
     });
     // 像素倍数识别由 paint() 里的 detectMultipleFor() 统一驱动（覆盖导入与恢复会话两条路径）。
-    // 图片导入后直接出一版默认图纸，省掉「再点一次生成」。
-    scheduleAutoGenerate(500);
+    // 首帧生成必须**等识别落地**：识别是异步的，先按默认尺寸出一版、识别完再出一版，
+    // 就是一次实打实的「触发风暴」。成功与失败都要 settle，不能因为识别挂了就不出图。
+    scheduleInitialGeneration();
   });
   window.addEventListener("libms:source-transform-changed", () => { store.setState({ status: { dirty: true } }); });
   window.addEventListener("libms:project-result", (event) => { const first = !get().status.hasPattern;
@@ -473,7 +486,6 @@ export function mountWorkspace(bridge) {
   left.querySelectorAll("[data-ws-mode]").forEach((button) => button.addEventListener("click", () => setWorkspaceMode(button.dataset.wsMode)));
   dock.addEventListener("click", (event) => { const button = event.target.closest("[data-ws-view]"); if (button) store.setState({ view: { mode: button.dataset.wsView } }); });
   $("#ws-project-name").addEventListener("input", (event) => store.setState({ project: { name: event.target.value }, status: { dirty: true } }));
-  const sourceRatio = () => { const result = bridge.getResult(); return result.sourceWidth && result.sourceHeight ? result.sourceHeight / result.sourceWidth : 1; };
 
   // ── 全自动生成 ─────────────────────────────────────────────────────────
   // 改参数 / 算法 / 引擎 / 尺寸 / 色卡都直接触发重新生成，不再需要点「生成 / 更新」。
@@ -503,31 +515,21 @@ export function mountWorkspace(bridge) {
     autoGenTimer = setTimeout(runAutoGenerate, delay);
   }
 
-  let generationPanel;
-  generationPanel = new GenerationPanel({
+  // 面板实例只用于「渲染出右栏色彩面板」这一个副作用；尺寸已不经过它，
+  // 所以不再需要向外暴露 setState 入口。
+  const generationPanel = new GenerationPanel({
     root: "#generationPanel",
-    initialState: { width: get().canvas.width || 104, height: get().canvas.height || 104, maxColors: get().palette.maxColors || 0 },
+    initialState: { maxColors: get().palette.maxColors || 0 },
+    // 这里只处理**非尺寸**参数。尺寸已经和这条链路彻底分开：
+    // 它由顶栏草稿 +「应用尺寸」显式提交（见下方「生成尺寸」一节），
+    // 所以拖尺寸滑杆不会走到 onChange，也就不会触发生成（B0 §5 / §7）。
     onChange: (settings) => {
-      const rawW = clamp(Math.round(Number(settings.width)) || 104, 10, 500);
-      const rawH = clamp(Math.round(Number(settings.height)) || 104, 10, 500);
-      const lock = Boolean(settings.lockAspectRatio);
-      const prev = get().canvas;
-      let w = rawW, h = rawH;
-      if (lock) {
-        if (rawW !== prev.width) { w = rawW; h = clamp(Math.round(rawW * sourceRatio()), 10, 500); }
-        else if (rawH !== prev.height) { h = rawH; w = clamp(Math.round(rawH / sourceRatio()), 10, 500); }
-      }
-      if (w !== prev.width) bridge.setWidth(w);
-      if (h !== prev.height) bridge.setHeight(h);
-      bridge.setLockAspectRatio(lock);
       if (Number(settings.maxColors) !== get().palette.maxColors) palettes.setMaxColors(Number(settings.maxColors) || 0);
       store.setState({
-        canvas: { width: w, height: h, lockAspectRatio: lock },
         generation: { engine: get().generation.engine, algorithm: get().generation.algorithm || "current", preset: settings.preset, sampling: ({ edge: "edge-aware", mean: "linear-mean" })[settings.sampling] || settings.sampling, detailProtection: settings.detailProtection, edgeProtection: settings.edgeProtection, cleanupStrength: settings.cleanupStrength, preserveHighlights: settings.preserveHighlights, preserveEyes: settings.preserveEyes, preserveMicroDetails: settings.preserveMicroDetails, backgroundRemoval: settings.backgroundRemoval, subjectCrop: Boolean(settings.subjectCrop), autoBackground: Boolean(settings.autoBackground), strokeProtection: Boolean(settings.strokeProtection), accentProtection: Boolean(settings.accentProtection), brightness: settings.brightness, contrast: settings.contrast, saturation: settings.saturation },
         status: { dirty: true },
       });
-      if (w !== rawW || h !== rawH) generationPanel.setState({ width: w, height: h }, false);
-      // 任何生成参数变化都直接重算，不再等用户点按钮。
+      // 生成参数变化都直接重算，不再等用户点按钮。
       scheduleAutoGenerate();
     },
     onGenerate: async () => {
@@ -963,9 +965,8 @@ export function mountWorkspace(bridge) {
     $("#ws-grid").checked = state.view.showGrid; $("#ws-codes").checked = state.view.showCodes;
     zoomControls.setZoom(Math.round(state.view.zoom * 100), false);
     gridToolbar.setActiveTool(state.editor.tool);
-    // 顶栏扩展工具条与底栏画笔工具栏同源同步高亮，避免两边选中态不一致。
-    // 顶栏图纸尺寸预设高亮跟随当前画布尺寸。
-    syncSizeChips();
+    // 顶栏生成尺寸栏高亮 / 派生读数 / 大尺寸分档提示跟随当前草稿。
+    syncSizeUi();
     // 取色按钮的色块跟随当前色：右键取色 / 调色板选色 / 取色工具点选都会更新这里。
     gridToolbar.setEyedropperColor(state.editor.selectedColor ? (editorService.resolveColor(state.editor.selectedColor)?.hex || null) : null);
     // 只在值真的变了才写 DOM：paint 会在每次状态变化时被调用，无条件赋值会白刷控件。
@@ -1147,8 +1148,9 @@ export function mountWorkspace(bridge) {
     for (const tool of ["select", "bead", "text", "brush", "eraser", "fill", "line", "rect", "ellipse", "region", "wand", "same", "connected", "eyedropper", "pan"]) {
       gridToolbar.setToolDisabled(tool, !hasPattern);
     }
-    topControls.querySelectorAll("[data-size], [data-multiple-step]").forEach((control) => { control.disabled = !hasSource; });
-    $("#ws-size-input").disabled = !hasSource;
+    topControls.querySelectorAll("[data-size]").forEach((control) => { control.disabled = !hasSource; });
+    // 「应用尺寸」的可用性由 syncSizeUi() 决定（还要看比例是否已解析），这里不重复写。
+    for (const id of ["#ws-size-range", "#ws-size-number"]) { const node = $(id); if (node) node.disabled = !hasSource; }
     $("#ws-source-pick-mode").disabled = !hasSource;
     syncReferenceUi(state);
     if (patch.editor?.selectedColor || patch.editor?.paletteCategory || patch.stats || patch.ui?.activePanel === "edit") renderPicker();
@@ -1546,87 +1548,194 @@ export function mountWorkspace(bridge) {
       if (action === "mirror-vertical") { editorService.flip("vertical"); return; }
     },
   });
-  // ── 图纸尺寸 · 像素倍数 ───────────────────────────────────────────────
-  // 倍数 = 原图里一个逻辑像素由多少真实像素组成（导入时自动识别，可手动覆盖）。
-  // 「自动」= 用倍数推出逻辑尺寸（源图 ÷ 倍数）；52/78/104 与滑杆控制宽度；
-  // 高度始终按原图比例自动计算；倍数步进器 = 覆盖倍数后反推尺寸。
-  // 尺寸真正落到 bridge/store 的链路仍由 generationPanel 的 onChange 负责，这里只喂入参。
-  const effectiveMultiple = () => (manualMultiple ?? detectedMultiple) || 1;
-  // 识别原图的像素倍数：像素画里 1 个逻辑像素由 k×k 个真实像素组成。
-  // 识别结果决定「自动」的推荐尺寸；识别失败退化为 1×（即按原图像素）。
+  // ── 生成尺寸（Generation Size）─────────────────────────────────────────
+  //
+  // 唯一自由度是**长边格数**。宽高一律由「长边 + 有效裁剪比例」派生
+  // （services/generation-size.mjs），所以这里不提供「只改宽」或「只改高」的入口 ——
+  // 那必然破坏比例。编辑器画布调整（允许 222×295 → 220×300 宽高独立）走
+  // services/grid-resize-service.js，是另一条链路，不经过这里。
+  //
+  // 触发纪律（B0 §7）：预设 / 滑杆 / 数字框 / 滚轮 / 方向键**只改草稿**，
+  // generation 调用次数必须为 0；只有点「应用尺寸」才提交并生成一次。
+  // 导入时的首帧生成不在此列 —— 它由 scheduleInitialGeneration() 显式发起。
+  const sizeApi = () => window.LibmsGenerationSize;
+  const clampLongEdge = (value) => {
+    const api = sizeApi();
+    if (api) return api.clampLongEdge(value);
+    const number = Math.round(Number(value));
+    return Number.isFinite(number) ? Math.min(500, Math.max(10, number)) : null;
+  };
+
+  /** 有效裁剪比例（height / width）。**未知时返回 null** —— 不返回 1，那会预览/生成一张方图。 */
+  function effectiveSourceRatio() {
+    return bridge.getEffectiveSourceRatio?.() ?? null;
+  }
+
+  /** 草稿对应的派生尺寸；比例未知时为 null（= unresolved，不是方图）。 */
+  function draftSize() {
+    const api = sizeApi();
+    if (!api) return null;
+    return api.deriveGenerationSize(longEdgeDraft, effectiveSourceRatio());
+  }
+
+  /**
+   * 把草稿写进 bridge。**不生成** —— 生成一律由调用方显式发起，
+   * 这样「拖滑杆」和「出图」在代码里就是两件不可能混淆的事。
+   */
+  function pushDraftToBridge() {
+    bridge.setGenerationLongEdge(longEdgeDraft);
+  }
+
+  /** 草稿变更入口：只改数、只刷 UI，绝不触发生成。 */
+  function setLongEdgeDraft(value) {
+    const next = clampLongEdge(value);
+    if (next == null) return null;
+    longEdgeDraft = next;
+    syncSizeUi();
+    return next;
+  }
+
+  /** 步进（滚轮 / 方向键）。步长由调用方给：±1，Shift 时 ±10。 */
+  function stepLongEdgeDraft(delta) {
+    const api = sizeApi();
+    sizeOrigin = "manual";
+    setLongEdgeDraft(api ? api.stepLongEdge(longEdgeDraft, delta) : longEdgeDraft + delta);
+  }
+
+  /** 「应用尺寸」= 提交草稿 + 生成一次。这是尺寸链路上唯一的生成入口。 */
+  function commitSize() {
+    pushDraftToBridge();
+    // 尺寸可能变化很大，出图后要重新适配窗口，否则用户看到的是一角。
+    fitOnNextResult = true;
+    syncSizeUi();
+    scheduleAutoGenerate(0);
+  }
+
+  /**
+   * 识别原图的像素倍数：像素画里 1 个逻辑像素由 k×k 个真实像素组成。
+   *
+   * 保留 detectPixelMultiple + logicalSize 的理由：它们不是旧倍数 UI 的残留，
+   * 而是「自动」这一档的**唯一依据** —— 像素画被放大 k 倍后，逻辑尺寸 = 原图 ÷ k。
+   * 删掉它们，「自动」就只剩猜。识别失败退化为 1×（即按原图像素）。
+   *
+   * 识别结果只写草稿，不触发生成。
+   */
+  function ensureMultipleDetection(url) {
+    if (!url) return Promise.resolve(null);
+    if (multipleDetectionUrl === url && multipleDetection) return multipleDetection;
+    multipleDetectionUrl = url;
+    multipleDetection = loadImageData(url)
+      .then(({ imageData }) => { detectedMultiple = detectPixelMultiple(imageData); })
+      .catch(() => { detectedMultiple = 1; })
+      // 成功与失败都要走一次 applyLogicalSize()：识别挂了也得把尺寸定下来，
+      // 否则首帧生成会一直等下去（B0 §2）。
+      .then(() => { applyLogicalSize(); return detectedMultiple; });
+    return multipleDetection;
+  }
+
+  /**
+   * 由倍数推导逻辑尺寸并写进草稿。
+   * 倍数识别出的尺寸常常远大于当前视口（180 豆在默认缩放下是 3600px），
+   * 所以提交后要重新适配窗口（fitOnNextResult 在 commitSize / 首帧结果里消费）。
+   */
+  function applyLogicalSize() {
+    const result = bridge.getResult();
+    if (!result.sourceWidth || !result.sourceHeight) return null;
+    const { width, height } = logicalSize(result.sourceWidth, result.sourceHeight, detectedMultiple || 1);
+    sizeOrigin = "auto";
+    longEdgeDraft = clampLongEdge(Math.max(width, height));
+    pushDraftToBridge();
+    syncSizeUi();
+    return { width, height };
+  }
+
+  /** 识别源图的像素倍数。paint 每次都会调，靠 detectedForUrl / detecting 去重。 */
   function detectMultipleFor(url) {
     if (!url || url === detectedForUrl || detecting) return;
     detectedForUrl = url;
     detecting = true;
-    manualMultiple = null;
-    manualSize = false;
-    syncMultipleReadout();
-    loadImageData(url)
-      .then(({ imageData }) => { detectedMultiple = detectPixelMultiple(imageData); syncMultipleReadout(); applyLogicalSize(); })
-      .catch(() => { detectedMultiple = 1; syncMultipleReadout(); })
-      .finally(() => {
-        detecting = false;
-        // 识别期间若又换了源图（连着导入两张），这里补跑一次，避免新图被跳过。
-        const current = get().source.image;
-        if (current && current !== detectedForUrl) detectMultipleFor(current);
-      });
+    ensureMultipleDetection(url).finally(() => {
+      detecting = false;
+      // 识别期间若又换了源图（连着导入两张），这里补跑一次，避免新图被跳过。
+      const current = get().source.image;
+      if (current && current !== detectedForUrl) detectMultipleFor(current);
+    });
   }
-  function syncMultipleReadout() {
-    const output = $("#ws-multiple-value");
-    if (output) output.textContent = `${effectiveMultiple()}×`;
-    topControls.querySelector(".ws-multiple")?.classList.toggle("is-manual", manualMultiple !== null);
+
+  /**
+   * 导入后的首帧生成：等倍数识别 settle 再跑，全程只跑一次。
+   *
+   * 出图前**再提交一次草稿**是刻意的：识别回调（applyLogicalSize）与这里的
+   * 生成是两个独立的异步链，靠「谁先谁后」维持一致太脆。显式提交一次，
+   * 首帧尺寸就恒等于顶栏读数，不会出现「读数 100、图纸 104」这种分叉。
+   */
+  function scheduleInitialGeneration() {
+    const url = get().source.image;
+    const settled = url ? ensureMultipleDetection(url) : Promise.resolve(null);
+    settled.catch(() => {}).then(() => { pushDraftToBridge(); scheduleAutoGenerate(0); });
   }
-  function applyLogicalSize() {
-    const result = bridge.getResult();
-    if (!result.sourceWidth || !result.sourceHeight) { generationPanel.setState({ width: 104, height: 104 }); return; }
-    const { width, height } = logicalSize(result.sourceWidth, result.sourceHeight, effectiveMultiple());
-    // 倍数识别出的尺寸常常远大于当前视口（180 豆在默认缩放下是 3600px），
-    // 出图后必须重新适配，否则用户看到的是一角，还得自己找 Fit。
-    fitOnNextResult = true;
-    generationPanel.setState({ width, height });
-    return { width, height };
-  }
-  const applySize = (value) => {
-    if (value === "auto") { manualMultiple = null; manualSize = false; syncMultipleReadout(); applyLogicalSize(); return; }
-    applyManualWidth(value);
-  };
-  topControls.querySelectorAll("[data-size]").forEach((chip) => chip.addEventListener("click", () => applySize(chip.dataset.size)));
-  // 手动尺寸滑杆：宽度为唯一主控，高度按原图比例自动计算。
-  const sizeInput = $("#ws-size-input");
-  function applyManualWidth(value) {
-    const width = clamp(Math.round(Number(value)) || 104, 10, 500);
-    const height = clamp(Math.round(width * sourceRatio()), 10, 500);
-    manualSize = true;
-    generationPanel.setState({ width, height });
-  }
-  sizeInput.addEventListener("input", () => applyManualWidth(sizeInput.value));
-  // 手动倍数步进器：覆盖识别结果，按新倍数反推逻辑尺寸（尺寸仍由自动流程推导）。
-  topControls.querySelectorAll("[data-multiple-step]").forEach((button) => button.addEventListener("click", () => {
-    manualMultiple = clamp(Math.round(effectiveMultiple() + Number(button.dataset.multipleStep)), 1, 64);
-    manualSize = false;
-    syncMultipleReadout();
-    const before = get().canvas;
-    const next = applyLogicalSize();
-    if (next) {
-      const limited = (next.width === 500 && bridge.getResult().sourceWidth / effectiveMultiple() > 500)
-        || (next.height === 500 && bridge.getResult().sourceHeight / effectiveMultiple() > 500);
-      $("#ws-status").textContent = `倍数 ${effectiveMultiple()}× · ${next.width} × ${next.height}${limited ? " · 已到尺寸上限" : ""}`;
-      if (before.width === next.width && before.height === next.height && limited) $("#ws-status").title = "继续增加倍数后，图纸尺寸会在低于 500 格时开始变化";
-    }
+
+  // 预设 chip：只改草稿。**大尺寸不会因为点了个预设就悄悄跑起来**，
+  // 必须再点一次「应用尺寸」（B0 §8）。
+  topControls.querySelectorAll("[data-size]").forEach((chip) => chip.addEventListener("click", () => {
+    if (chip.dataset.size === "auto") { applyLogicalSize(); return; }
+    sizeOrigin = "manual";
+    setLongEdgeDraft(chip.dataset.size);
   }));
-  // 「自动」chip = 尺寸由倍数识别推导；52/78/104 = 手动指定方形边长。
-  // 用函数声明（会提升）而非 const 箭头，避免 paint() 早于定义执行时踩 TDZ。
-  function syncSizeChips() {
-    const { width, height } = get().canvas;
+  $("#ws-size-range")?.addEventListener("input", (event) => { sizeOrigin = "manual"; setLongEdgeDraft(event.target.value); });
+  $("#ws-size-number")?.addEventListener("input", (event) => { sizeOrigin = "manual"; setLongEdgeDraft(event.target.value); });
+  // 滚轮：±1；Shift+滚轮：±10。只改草稿。
+  $("#ws-size-controls")?.addEventListener("wheel", (event) => {
+    if (!get().status.hasSource) return;
+    event.preventDefault();
+    const step = event.shiftKey ? 10 : 1;
+    stepLongEdgeDraft(event.deltaY < 0 ? step : -step);
+  }, { passive: false });
+  // 方向键：↑/↓ ±1；Shift+↑/↓ ±10。只改草稿。
+  // 左右键不拦，交给 range 的原生行为（同样只走 input → 只改草稿）。
+  $("#ws-size-controls")?.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    stepLongEdgeDraft(event.key === "ArrowUp" ? (event.shiftKey ? 10 : 1) : (event.shiftKey ? -10 : -1));
+  });
+  $("#ws-size-apply")?.addEventListener("click", commitSize);
+
+  /**
+   * 刷新尺寸栏。用函数声明（会提升）而非 const 箭头，避免 paint() 早于定义执行时踩 TDZ。
+   * 节点一律现查现用，不闭包捕获 const —— 同样是躲 TDZ。
+   * 注意这里**不读画布尺寸**：生成尺寸与编辑器画布尺寸是两条独立链路（B0 §5）。
+   */
+  function syncSizeUi() {
+    const derived = draftSize();
+    const range = $("#ws-size-range"), number = $("#ws-size-number");
+    if (range && document.activeElement !== range) range.value = String(longEdgeDraft);
+    if (number && document.activeElement !== number) number.value = String(longEdgeDraft);
+    const sizeValue = $("#ws-size-value");
+    if (sizeValue) {
+      sizeValue.innerHTML = derived
+        ? `<strong>${derived.width}</strong><span>×</span><strong>${derived.height}</strong>`
+        : `<strong>—</strong><span>×</span><strong>—</strong>`;
+      sizeValue.title = derived
+        ? `长边 ${derived.longEdge} 格 · ${derived.width} × ${derived.height}`
+        : "等待源图比例，暂不能定尺寸";
+    }
     topControls.querySelectorAll("[data-size]").forEach((chip) => {
       const value = chip.dataset.size;
-      const active = value === "auto" ? !manualSize : manualSize && Number(value) === width;
+      const active = value === "auto" ? sizeOrigin === "auto" : sizeOrigin === "manual" && Number(value) === longEdgeDraft;
       chip.classList.toggle("is-active", active);
     });
-    if (sizeInput && document.activeElement !== sizeInput) sizeInput.value = String(width);
-    const sizeValue = $("#ws-size-value");
-    if (sizeValue) sizeValue.innerHTML = `<strong>${width}</strong><span>×</span><strong>${height}</strong>`;
-    syncMultipleReadout();
+    // 分档提示（B0 §8）：301–400 提示大尺寸，>400 提示超大尺寸，都必须显式点「应用尺寸」。
+    const tierNode = $("#ws-size-tier");
+    if (tierNode) {
+      const tier = sizeApi()?.sizeWarningTier(longEdgeDraft) || "normal";
+      tierNode.hidden = tier === "normal";
+      tierNode.dataset.tier = tier;
+      tierNode.textContent = tier === "xlarge"
+        ? "超大尺寸：生成可能要很久，确认后点「应用尺寸」"
+        : tier === "large" ? "大尺寸：生成会明显变慢" : "";
+    }
+    const apply = $("#ws-size-apply");
+    if (apply) apply.disabled = !derived || !get().status.hasSource;
   }
   // 选区相关的动作统一走这里：按钮、方向键、快捷键三处共用，避免逻辑分叉。
   const selectionActions = {

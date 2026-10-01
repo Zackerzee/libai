@@ -19,8 +19,9 @@ test("V2 generation params are config state only and never reach the legacy brid
     getResult() { return null; },
   };
   await createGenerationService(bridge, store).generate();
-  // 正式生成只接收 width/height/maxColors/overwriteApproved，任何 V2 参数都不得透传。
-  assert.deepEqual(calledWith, { width: 78, height: 74, maxColors: 38, overwriteApproved: false });
+  // 正式生成只接收 maxColors/overwriteApproved（尺寸由 bridge 自己按长边+比例派生），
+  // 任何 V2 参数都不得透传。
+  assert.deepEqual(calledWith, { maxColors: 38, overwriteApproved: false });
   for (const key of ["preset", "sampling", "detailProtection", "edgeProtection", "preserveHighlights", "preserveEyes", "preserveMicroDetails", "mode", "highlightProtection", "eyeProtection", "microDetailProtection"]) {
     assert.ok(!(key in calledWith), `${key} must not leak into legacy generate`);
   }

@@ -881,6 +881,15 @@ function ensureGenerationRuntime() {
       import("./smart-preprocessing/structure-analyzer.mjs"),
       import("./smart-preprocessing/pattern-optimizer.mjs"),
       import("./smart-preprocessing/pattern-quality.mjs"),
+      // Stage B0：尺寸模型 / Worker-ready 生成契约。
+      // app.js 是 classic script，不能静态 import，所以沿用本仓库既有的
+      // 「动态 import 后挂 window.Libms*」约定。
+      import("./services/generation-size.mjs?v=20261001-stage-b0").then((mod) => { window.LibmsGenerationSize = mod; }),
+      // query 必须与 processImage / processProductionV2 里的动态 import 完全一致，
+      // 否则同一个模块会被实例化两份（两份模块级状态），这是很难查的隐性分叉。
+      import("./services/source-editor-service.js?v=20260916-phase35-source1").then((mod) => { window.LibmsSourceEditor = mod; }),
+      import("./services/generation-request.mjs?v=20261001-stage-b0").then((mod) => { window.LibmsGenerationRequest = mod; }),
+      import("./services/generation-job.mjs?v=20261001-stage-b0").then((mod) => { window.LibmsGenerationJob = mod; }),
     ]).catch((error) => { generationRuntimePromise = null; throw error; });
   }
   return generationRuntimePromise;
@@ -1989,9 +1998,11 @@ async function loadFile(file) {
     setStatus(uploadStatus);
     if (state.autoProcessAfterLoad) {
       state.autoProcessAfterLoad = false;
-      requestAnimationFrame(() => {
-        processImage();
-      });
+      // 工作台已挂载时，出图由工作台的「等像素倍数识别落地 → 只跑一次」流程接管
+      // （ui/workspace.js scheduleInitialGeneration）。
+      // 这里再调一次 processImage() 就是**绕过 single-flight 漏斗的第二次生成**：
+      // 一次导入出两版图（先按挂载默认尺寸、再按识别尺寸），500 档下等于白烧几分钟。
+      if (!workspaceMounted) requestAnimationFrame(() => { processImage(); });
     }
   } catch (error) {
     console.error(error);
@@ -2152,9 +2163,18 @@ function buildV25Options(options = {}, maxColors = 0) {
 async function processImageV2(image, palette, { width, height, maxColors, options = {}, saveGallery = true }) {
   const startedAt = performance.now();
   const sourceImageData = imageToImageData(image);
-  const { runGenerationPipeline } = await import("./services/generation-pipeline.mjs?v=20260930-pipeline");
   const resolved=buildV25Options(options,maxColors);
-  const result = runGenerationPipeline({ image:sourceImageData, mode:resolved.preset, size:{width,height}, palette, maxColors, overrides:{...options,sampling:resolved.sampling,detailProtection:resolved.detailProtection*100,edgeProtection:resolved.edgeProtection*100} });
+  const result = await runGenerationJob({
+    image: sourceImageData,
+    mode: resolved.preset,
+    size: { width, height },
+    palette,
+    maxColors,
+    overrides: { ...options, sampling: resolved.sampling, detailProtection: resolved.detailProtection * 100, edgeProtection: resolved.edgeProtection * 100 },
+    requestId: options.requestId,
+  });
+  // 执行体是一个 await 边界（未来换成 Worker 后更是），回来时可能已经有更新的请求在跑。
+  if (isStaleGenerationRequest(options.requestId)) return false;
   state.grid = result.grid.map((row) => row.map((cell) => {
     if (!cell) return null;
     const rgbValue = Array.isArray(cell.rgb) ? cell.rgb : [cell.rgb?.[0] ?? 0, cell.rgb?.[1] ?? 0, cell.rgb?.[2] ?? 0];
@@ -2201,15 +2221,20 @@ async function processProductionV2(options = {}) {
   els.processButton.disabled = true;
   try {
     const original = await loadImage(state.sourceDataUrl);
-    const sourceEditor = await import("./services/source-editor-service.js?v=20260916-phase35-source1");
+    const sourceEditor = await loadSourceEditor();
+    if (isStaleGenerationRequest(options.requestId)) return false;
     state.processedSourceDataUrl = sourceEditor.hasSourceTransform(state.sourceTransform)
       ? sourceEditor.renderSourceTransform(original, state.sourceTransform).toDataURL("image/png") : state.sourceDataUrl;
     const image = state.processedSourceDataUrl === state.sourceDataUrl ? original : await loadImage(state.processedSourceDataUrl);
+    if (isStaleGenerationRequest(options.requestId)) return false;
     state.sourceNaturalWidth = image.naturalWidth;
     state.sourceNaturalHeight = image.naturalHeight;
     const palette = getCurrentPalette();
+    // 尺寸只由「长边 + 有效比例」派生；比例未就绪就延后，不猜方图。
+    const size = resolveGenerationDimensions(getGenerationLongEdge());
+    if (!size) return deferGenerationForUnresolvedSize();
     return await processImageV2(image, palette, {
-      width: getGranularity(), height: getGenerationTargetHeight(image, getGranularity()),
+      width: size.width, height: size.height, requestId: options.requestId,
       maxColors: clamp(Number(els.maxColorsInput?.value || 0), 0, palette.length),
       options: state.productionGenerationOptions || {}, saveGallery: options.saveGallery !== false,
     });
@@ -2263,7 +2288,7 @@ function bgsProtectionOptions() {
 async function loadProductionRaster() {
   if (!state.sourceDataUrl) throw new Error("请先上传图片");
   const original = await loadImage(state.sourceDataUrl);
-  const sourceEditor = await import("./services/source-editor-service.js?v=20260916-phase35-source1");
+  const sourceEditor = await loadSourceEditor();
   state.processedSourceDataUrl = sourceEditor.hasSourceTransform(state.sourceTransform)
     ? sourceEditor.renderSourceTransform(original, state.sourceTransform).toDataURL("image/png") : state.sourceDataUrl;
   const image = state.processedSourceDataUrl === state.sourceDataUrl ? original : await loadImage(state.processedSourceDataUrl);
@@ -2338,9 +2363,9 @@ async function processProductionBgs(options = {}) {
     const { convertImageToBeads } = await import(`./src/algorithms/bgs/index.mjs${BGS_MODULE_QUERY}`);
     const { image, imageData } = await loadProductionRaster();
     const palette = getCurrentPalette();
-    const width = getGranularity();
-    // 与 V2.5 同一条高度规则：按原图比例（锁定时）或用户指定高度。
-    const height = getGenerationTargetHeight(image, width);
+    const size = resolveGenerationDimensions(getGenerationLongEdge());
+    if (!size) throw new Error("源图比例尚未就绪，暂不能生成");
+    const width = size.width, height = size.height;
     const maxColors = clamp(Number(els.maxColorsInput?.value || 0), 0, palette.length);
     const protection = bgsProtectionOptions();
 
@@ -2360,6 +2385,7 @@ async function processProductionBgs(options = {}) {
     });
 
     const { grid, unknown } = gridFromBgsMatrix(result.matrix, palette);
+    if (isStaleGenerationRequest(options.requestId)) return false;
     applyBgsResult({ ...result, grid }, { maxColors, startedAt, unknownCodes: unknown });
     if (options.saveGallery !== false) saveCurrentToGallery();
     setStatus(getGeneratedStatus());
@@ -2458,8 +2484,9 @@ async function processProductionPw(options = {}) {
   try {
     const { image, imageData } = await loadProductionRaster();
     const palette = getCurrentPalette();
-    const width = getGranularity();
-    const height = getGenerationTargetHeight(image, width);
+    const size = resolveGenerationDimensions(getGenerationLongEdge());
+    if (!size) throw new Error("源图比例尚未就绪，暂不能生成");
+    const width = size.width, height = size.height;
     const maxColors = clamp(Number(els.maxColorsInput?.value || 0), 0, palette.length);
 
     const shared = {
@@ -2483,6 +2510,7 @@ async function processProductionPw(options = {}) {
     }
 
     const { grid, unknown } = gridFromPwMatrix(result.matrix, palette);
+    if (isStaleGenerationRequest(options.requestId)) return false;
     applyPwResult({ ...result, grid }, { engine, maxColors, startedAt, unknownCodes: unknown });
     if (options.saveGallery !== false) saveCurrentToGallery();
     setStatus(getGeneratedStatus());
@@ -2532,11 +2560,14 @@ async function processImage(options = {}) {
       }
       state.sourceSafetyChecked = true;
     }
+    if (isStaleGenerationRequest(options.requestId)) return false;
     const originalImage = await loadImage(state.sourceDataUrl);
-    const sourceEditor = await import("./services/source-editor-service.js?v=20260916-phase35-source1");
+    const sourceEditor = await loadSourceEditor();
+    if (isStaleGenerationRequest(options.requestId)) return false;
     state.processedSourceDataUrl = sourceEditor.hasSourceTransform(state.sourceTransform)
       ? sourceEditor.renderSourceTransform(originalImage, state.sourceTransform).toDataURL("image/png") : state.sourceDataUrl;
     const image = state.processedSourceDataUrl === state.sourceDataUrl ? originalImage : await loadImage(state.processedSourceDataUrl);
+    if (isStaleGenerationRequest(options.requestId)) return false;
     state.sourceNaturalWidth = image.naturalWidth;
     state.sourceNaturalHeight = image.naturalHeight;
     applyRestoreSizing(image);
@@ -2545,7 +2576,9 @@ async function processImage(options = {}) {
     const portraitPremium = els.modeSelect?.value === "portrait-premium" || regionalBlockV2;
     const startedAt = performance.now();
     const rawMaxColors = clamp(Number(els.maxColorsInput?.value || 0), 0, palette.length);
-    const targetHeight = getGenerationTargetHeight(image, getGranularity());
+    const size = resolveGenerationDimensions(getGenerationLongEdge());
+    if (!size) return deferGenerationForUnresolvedSize();
+    const targetHeight = size.height;
     const result = portraitPremium ? rasterizePortraitPremium(image, palette, {
       targetHeight,
       maxColors: rawMaxColors || null,
@@ -2577,6 +2610,12 @@ async function processImage(options = {}) {
       state.generationOptimizedGrid = cloneGrid(optimized.grid);
       state.optimizerReport = optimized;
       generatedGrid = optimized.grid;
+    }
+    // 陈旧结果保护：这一路已经过了多个 await（安全审查 / 加载图片 / 动态 import），
+    // 期间可能有更新的请求发出。只有仍是最新请求才允许写回 state。
+    if (options.requestId != null && Number(options.requestId) !== Number(state.generationRequestId)) {
+      setStatus("已放弃过期的生成结果");
+      return false;
     }
     state.grid = cloneGrid(generatedGrid);
     state.manualEdited = false;
@@ -2985,9 +3024,119 @@ function isNearWhiteRgb(pixel) {
   return red >= 248 && green >= 248 && blue >= 248;
 }
 
-function getGenerationTargetHeight(image, width) {
-  if (state.aspectRatioLocked && image.naturalWidth) return clamp(Math.round(width * image.naturalHeight / image.naturalWidth), 10, 500);
-  return clamp(Math.round(state.targetHeight || width), 10, 500);
+/**
+ * 有效生成比例 = 输出几何的 height / width。
+ *
+ * 优先取「裁剪 / 旋转 / 扩展」之后的真实输出尺寸（sourceOutputGeometry），
+ * 退化到源图自然尺寸。**拿不到就返回 null**，绝不返回 1。
+ *
+ * 为什么必须有 null：历史上这里没有「未解析」这个状态，调用方只好拿 width 兜底，
+ * 于是任何尚未确定比例的时刻都会生成一张方图。null 让这种错误在类型层面不可能。
+ */
+function resolveEffectiveSourceRatio() {
+  const ratioApi = window.LibmsGenerationSize;
+  if (!ratioApi) return null;
+  const width = Number(state.sourceNaturalWidth) || 0;
+  const height = Number(state.sourceNaturalHeight) || 0;
+  if (!width || !height) return null;
+  const geometry = window.LibmsSourceEditor?.sourceOutputGeometry?.(width, height, state.sourceTransform);
+  if (geometry && geometry.width > 0 && geometry.height > 0) {
+    return ratioApi.ratioFromDimensions(geometry.width, geometry.height);
+  }
+  return ratioApi.ratioFromDimensions(width, height);
+}
+
+/**
+ * 由长边格数派生生成尺寸。
+ *
+ * @returns {{longEdge:number,width:number,height:number}|null}
+ *   **null = 比例尚不可用**。调用方必须延后生成，不得回退成 width（那会出方图）。
+ */
+function resolveGenerationDimensions(longEdge) {
+  const ratioApi = window.LibmsGenerationSize;
+  if (!ratioApi) return null;
+  const edge = ratioApi.clampLongEdge(longEdge);
+  if (edge == null) return null;
+  const size = ratioApi.deriveGenerationSize(edge, resolveEffectiveSourceRatio());
+  if (size) state.generationLongEdge = size.longEdge;
+  return size;
+}
+
+/** 尺寸尚未解析时统一走这里：只提示，不生成。 */
+function deferGenerationForUnresolvedSize() {
+  setStatus("等待源图比例，暂不生成");
+  window.dispatchEvent(new CustomEvent("libms:generation-deferred", { detail: { reason: "unresolved-ratio" } }));
+  return false;
+}
+
+/**
+ * 生成用的长边格数。
+ *
+ * 以 `state.generationLongEdge` 为唯一事实源（工作台顶栏 / bridge 只写这一处），
+ * 只有它还是「未解析」（<= 0）时才退回旧滑杆，保证非工作台入口行为不变。
+ */
+function getGenerationLongEdge() {
+  const api = window.LibmsGenerationSize;
+  const raw = Number(state.generationLongEdge) || 0;
+  if (api && raw > 0) return api.clampLongEdge(raw);
+  return getGranularity();
+}
+
+/**
+ * 源图编辑器模块。
+ *
+ * 优先取启动时预载的那一份：模块单例由 ensureGenerationRuntime() 保证，
+ * 这里再按需 import 会拿到第二个实例（两份模块级状态），所以 query 必须一致。
+ */
+async function loadSourceEditor() {
+  if (window.LibmsSourceEditor) return window.LibmsSourceEditor;
+  const mod = await import("./services/source-editor-service.js?v=20260916-phase35-source1");
+  window.LibmsSourceEditor = mod;
+  return mod;
+}
+
+/**
+ * 陈旧请求判定。
+ *
+ * `generate()` 每次调用都会推进 `state.generationRequestId`，而生成链路上有多个
+ * await 边界（内容审查 / 读图 / 动态 import / 流水线）。任何 await 之后都必须重新
+ * 比对，否则旧任务的结果会覆盖新任务 —— 现在同步执行时这只是「慢一步的脏写」，
+ * 一旦把生成挪进 Worker 就会变成确定的错图。
+ *
+ * requestId 为 null/undefined 表示调用方不参与竞态（工具、测试直调），一律视为最新。
+ */
+function isStaleGenerationRequest(requestId) {
+  if (requestId == null) return false;
+  return Number(requestId) !== (Number(state.generationRequestId) || 0);
+}
+
+/**
+ * 走 Worker-ready 契约执行一次生成。
+ *
+ * 这是主线程与未来 Worker 之间的**同一条缝**：请求 / 结果 / 错误都是纯数据
+ * （见 services/generation-request.mjs，含 validate / structured-clone 断言）。
+ * 把这里的 executeGenerationJob 换成 `worker.postMessage(request)` +
+ * `await once(worker, "message")` 即可平移，调用方一行不用改。
+ *
+ * 契约模块尚未加载时退回直接调用流水线：保证非工作台入口（预载没跑过）不会因此不可用。
+ */
+async function runGenerationJob({ image, mode, size, palette, maxColors, overrides, requestId }) {
+  const job = window.LibmsGenerationJob;
+  const contract = window.LibmsGenerationRequest;
+  if (!job || !contract) {
+    const { runGenerationPipeline } = await import("./services/generation-pipeline.mjs?v=20260930-pipeline");
+    return runGenerationPipeline({ image, mode, size, palette, maxColors, overrides });
+  }
+  const request = contract.createGenerationRequest({
+    requestId: Number(requestId) > 0 ? Number(requestId) : 1,
+    image, size, mode, palette, maxColors, overrides,
+  });
+  const envelope = job.executeGenerationJob(request);
+  if (!envelope.ok) throw new Error(envelope.message);
+  return {
+    grid: envelope.grid, width: envelope.width, height: envelope.height,
+    diagnostics: envelope.diagnostics, pipeline: envelope.pipeline,
+  };
 }
 
 function rasterizePortraitPremium(image, palette, regionOptions = {}) {
@@ -7058,21 +7207,58 @@ window.LibmsWorkspaceBridge = {
     state.generationEngine = engine;
     state.productionGenerationOptions = generationOptions;
   },
+  /**
+   * 生成一次。
+   *
+   * 尺寸只有两个合法来源：
+   *   1. 调用方显式给 width/height（工具 / 测试直调）—— 本次调用**一次性**取
+   *      `max(width, height)` 当长边，调用结束立刻还原，不污染工作台顶栏的用户选择；
+   *   2. 否则由「长边格数 + 有效裁剪比例」派生；比例不可用时**不生成**。
+   *
+   * 两条来源都保持源图/裁剪比例 —— 这是 Generation Size 的硬不变量。
+   * 「宽高独立」（222×295 → 220×300）是编辑器画布调整，走另一条链路，不经过这里。
+   *
+   * 显式尺寸为什么必须是一次性的：工作台每次自动生成都会经过
+   * `services/generation-service.js`，只要那里把 `store.canvas` 的快照当尺寸传下来，
+   * 就会在**用户毫不知情**的情况下把顶栏刚算好的长边冲掉（B0 实测 100×75 → 出图 104×78）。
+   * 回写用的 `canvas.*` 绝不能反向变成入参，所以这里既不再信任传入值，也不再把它写回 state。
+   *
+   * 每次调用都会推进 `state.generationRequestId`。所有 await 边界之后都会重新比对，
+   * 陈旧请求的结果直接丢弃 —— 这是后续把生成挪进 Web Worker 的前置条件。
+   */
   async generate({ width, height, maxColors, overwriteApproved = false } = {}) {
     state.lastGenerationError = "";
-    if (width != null) syncRangeControls("granularity", width, 10, 500);
-    if (height != null) state.targetHeight = clamp(Math.round(Number(height) || 50), 10, 500);
-    if (maxColors != null && els.maxColorsInput) els.maxColorsInput.value = String(maxColors);
-    const generated = await processImage({ overwriteApproved });
-    if (!generated && state.lastGenerationError) {
-      // 独立算法失败时保留原算法选择，不静默回退。
-      if (state.algorithmEngine === "bgs") throw new Error(`BGS 算法失败：${state.lastGenerationError}`);
-      if (state.algorithmEngine === "pindou-workbench" || state.algorithmEngine === "hybrid-pw") {
-        throw new Error(`PW 算法失败：${state.lastGenerationError}`);
-      }
-      throw new Error(`V2.5 失败：${state.lastGenerationError}。请选择 Legacy 重试。`);
+    state.generationRequestId = (Number(state.generationRequestId) || 0) + 1;
+    const requestId = state.generationRequestId;
+    const previousLongEdge = Number(state.generationLongEdge) || 0;
+    let scopedLongEdge = null;
+    if (width != null || height != null) {
+      const explicitWidth = clamp(Math.round(Number(width) || 0), 10, 500);
+      const explicitHeight = clamp(Math.round(Number(height) || 0), 10, 500);
+      scopedLongEdge = Math.max(explicitWidth, explicitHeight);
+      syncRangeControls("granularity", scopedLongEdge, 10, 500);
+      state.generationLongEdge = scopedLongEdge;
     }
-    return generated ? this.getResult() : null;
+    if (maxColors != null && els.maxColorsInput) els.maxColorsInput.value = String(maxColors);
+    try {
+      const generated = await processImage({ overwriteApproved, requestId });
+      if (isStaleGenerationRequest(requestId)) return null; // 已被更新的请求取代
+      if (!generated && state.lastGenerationError) {
+        // 独立算法失败时保留原算法选择，不静默回退。
+        if (state.algorithmEngine === "bgs") throw new Error(`BGS 算法失败：${state.lastGenerationError}`);
+        if (state.algorithmEngine === "pindou-workbench" || state.algorithmEngine === "hybrid-pw") {
+          throw new Error(`PW 算法失败：${state.lastGenerationError}`);
+        }
+        throw new Error(`V2.5 失败：${state.lastGenerationError}。请选择 Legacy 重试。`);
+      }
+      return generated ? this.getResult() : null;
+    } finally {
+      // 一次性覆盖用完就还原。期间用户若自己改过长边（值已经不同）就不动它 ——
+      // 谁的值新听谁的，异步生成回来时不能把用户的最新选择倒回去。
+      if (scopedLongEdge != null && Number(state.generationLongEdge) === scopedLongEdge) {
+        state.generationLongEdge = previousLongEdge;
+      }
+    }
   },
   setGenerationEngine(engine) { state.generationEngine = engine === "legacy" ? "legacy" : "v2.5"; },
   // ===== 算法引擎开关（Batch E + F）=====
@@ -7114,8 +7300,9 @@ window.LibmsWorkspaceBridge = {
     ]);
     const { image, imageData } = await loadProductionRaster();
     const palette = getCurrentPalette();
-    const width = getGranularity();
-    const height = getGenerationTargetHeight(image, width);
+    const size = resolveGenerationDimensions(getGenerationLongEdge());
+    if (!size) throw new Error("源图比例尚未就绪，暂不能对比");
+    const width = size.width, height = size.height;
     const maxColors = clamp(Number(els.maxColorsInput?.value || 0), 0, palette.length);
     const protection = bgsProtectionOptions();
 
@@ -7169,7 +7356,8 @@ window.LibmsWorkspaceBridge = {
     const { image, imageData } = await loadProductionRaster();
     const palette = getCurrentPalette();
     const cols = clamp(Math.round(Number(width) || getGranularity()), 10, 500);
-    const rows = clamp(Math.round(Number(height) || getGenerationTargetHeight(image, cols)), 10, 500);
+    const derived = resolveGenerationDimensions(cols);
+    const rows = clamp(Math.round(Number(height) || derived?.height || 0), 10, 500);
     const limit = clamp(Number(maxColors ?? els.maxColorsInput?.value ?? 0), 0, palette.length);
 
     const report = await runAlgorithmLab({
@@ -7187,9 +7375,45 @@ window.LibmsWorkspaceBridge = {
     report.markdown = renderLabReport(report);
     return report;
   },
-  setWidth(value) { return syncRangeControls("granularity", value, 10, 500); },
-  setHeight(value) { state.targetHeight = clamp(Math.round(Number(value) || 50), 10, 500); return state.targetHeight; },
-  setLockAspectRatio(value) { state.aspectRatioLocked = Boolean(value); return state.aspectRatioLocked; },
+  // ===== 生成尺寸（Generation Size）=====
+  // 只暴露「长边」这一个自由度。宽高由长边 + 有效裁剪比例派生，
+  // 调用方拿不到、也设不了「只改宽度」这种会破坏比例的入口。
+  // 编辑器画布调整（允许 222×295 → 220×300 宽高独立）走另一条链路，不经过这里。
+  setGenerationLongEdge(value) {
+    const ratioApi = window.LibmsGenerationSize;
+    const longEdge = ratioApi ? ratioApi.clampLongEdge(value) : null;
+    if (longEdge == null) return this.getGenerationSize();
+    syncRangeControls("granularity", longEdge, 10, 500);
+    state.generationLongEdge = longEdge;
+    return this.getGenerationSize();
+  },
+  /**
+   * @returns {{longEdge:number|null, width:number|null, height:number|null, ratio:number|null,
+   *            resolved:boolean, tier:"normal"|"large"|"xlarge"}}
+   *   resolved=false 表示比例尚不可用，此时 width/height 为 null —— 生成必须延后。
+   */
+  getGenerationSize() {
+    const ratioApi = window.LibmsGenerationSize;
+    const longEdge = ratioApi ? ratioApi.clampLongEdge(state.generationLongEdge) : null;
+    const ratio = resolveEffectiveSourceRatio();
+    const size = longEdge == null ? null : ratioApi?.deriveGenerationSize(longEdge, ratio) ?? null;
+    return {
+      longEdge: size?.longEdge ?? longEdge ?? null,
+      width: size?.width ?? null,
+      height: size?.height ?? null,
+      ratio: size ? ratio : null,
+      resolved: Boolean(size),
+      tier: ratioApi ? ratioApi.sizeWarningTier(size?.longEdge ?? longEdge ?? 0) : "normal",
+    };
+  },
+  /**
+   * 有效裁剪比例（height / width），与生成链路用的是同一个函数。
+   *
+   * 暴露出来是为了让顶栏的尺寸预览和真正生成时的尺寸**用同一个数**：
+   * 各算一份迟早会分叉（预览 4:3、生成 1:1 这种）。
+   * 返回 null = 比例尚不可用（源图未导入 / 尺寸无效），调用方不得当成 1。
+   */
+  getEffectiveSourceRatio: () => resolveEffectiveSourceRatio(),
   getSourceTransform: () => ({ ...state.sourceTransform, crop: state.sourceTransform.crop ? { ...state.sourceTransform.crop } : null, expand: { ...state.sourceTransform.expand } }),
   setSourceTransform(patch) {
     state.sourceTransform = { ...state.sourceTransform, ...patch,

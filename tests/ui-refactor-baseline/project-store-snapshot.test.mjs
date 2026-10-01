@@ -256,7 +256,8 @@ test("snapshot: canvas.width / height / beadSize 读写往返（注意 width/hei
   assert.equal(c.beadSize, 5);
   assert.equal(c.width, 104, "改 beadSize 不影响逻辑尺寸");
   // 语义钉死：canvas.width/height 是【豆图逻辑格数】，不是像素尺寸、不是视口尺寸。
-  // generation-service 把它当 width/height 传给 bridge.generate（见 services/generation-service.js:11-12）。
+  // 方向也钉死：generation-service 只用 result.width/height **回写**它，
+  // 绝不把它当生成入参传给 bridge.generate（否则上一版尺寸会污染下一版）。
 });
 
 test("snapshot: palette（含 maxColors 语义）读写往返", () => {

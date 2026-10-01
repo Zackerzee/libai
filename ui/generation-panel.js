@@ -34,9 +34,11 @@ export class GenerationPanel {
     this.state = {
       preset: "auto",
 
-      width: 104,
-      height: 104,
-      lockAspectRatio: false,
+      // 注意：**尺寸不在这里**。
+      // 生成尺寸的唯一自由度是「长边格数」，由顶栏尺寸栏 + bridge.setGenerationLongEdge()
+      // 单独持有（见 services/generation-size.mjs）。把它放回面板会让
+      // 「拖尺寸 = 立刻重算」这条风暴重新长出来，也会和「编辑器画布调整」串成一条链路。
+      // 编辑器画布的 width/height 仍然独立存在（store 的 canvas 命名空间），允许宽高各自变化。
 
       sampling: "auto",
 
