@@ -26,11 +26,11 @@ import { UsageDialog } from "./usage-dialog.js?v=20260917-inventory";
 import { resolveScreenRenderPolicy } from "../smart-preprocessing/render-policy.mjs?v=20260928-v3";
 import { paletteIdOf } from "../services/palette-identity.js";
 // Stage B1：系列的唯一真源（不再用 code.match(/^[A-Z]+/) 现猜系列）。
-import { PALETTE_SERIES_ALL, filterPaletteColors, listPaletteSeries } from "../services/palette-series.mjs?v=20261003-stage-b1";
+import { PALETTE_SERIES_ALL, filterPaletteColors, listPaletteSeries } from "../services/palette-series.mjs?v=20261002-stage-b1";
 // Stage B1 §6/§7/§8：当前颜色的唯一真源。写 currentPaletteId 只能走这两个 patch 构造器。
-import { buildActivateColorPatch, buildClearPalettePatch, buildCurrentPalettePatch, buildHighlightOnlyPatch, readCurrentPaletteId } from "../services/current-palette.mjs?v=20261003-stage-b1";
+import { buildActivateColorPatch, buildClearPalettePatch, buildCurrentPalettePatch, buildHighlightOnlyPatch, readCurrentPaletteId } from "../services/current-palette.mjs?v=20261002-stage-b1";
 // Stage B1 §12：用色统计条的数据整形（排序 / 汇总 / 选中项是否仍在图上）。
-import { buildUsageEntries, formatUsageSummary, isUsageEntryPresent, USAGE_SORT_DEFAULT } from "../services/palette-usage-strip.mjs?v=20261003-stage-b1";
+import { buildUsageEntries, formatUsageSummary, isUsageEntryPresent, USAGE_SORT_DEFAULT } from "../services/palette-usage-strip.mjs?v=20261002-stage-b1";
 import { buildStructuralDiagnostics } from "../services/structural-diagnostics.js?v=20260929-editor-phase4d";
 import { stableIssueKey, deriveRepairSuggestions, createRepairQueue, createRepairPreview } from "../services/repair-suggestion.js?v=20260929-editor-phase5";
 import { membershipService } from "../services/membership-service.js?v=20260930-membership-v1";
