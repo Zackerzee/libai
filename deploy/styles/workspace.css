@@ -285,6 +285,21 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .phase2-workspace .ws-size-tier[data-tier="large"] { border-color: #d9a441; color: #8a6415; background: #fdf5e4; }
 .phase2-workspace .ws-size-tier[data-tier="xlarge"] { border-color: #d1663f; color: #8f2f11; background: #fdeee7; }
 
+/* 尺寸权威来源（B0.1）：绝对权威在位时长边不再是自由度，必须说清是谁定的尺寸，
+   否则用户会以为滑杆坏了。工程文件 / 人工标定 / 网格识别用同一套中性色。 */
+.phase2-workspace .ws-size-authority {
+  padding: 3px 8px;
+  border: 1px solid var(--ws-border-strong);
+  border-radius: 8px;
+  color: var(--ws-text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.phase2-workspace .ws-size-authority[data-authority="structured-project"] { border-color: #6b8fd1; color: #2c4f8f; background: #eef3fd; }
+.phase2-workspace .ws-size-authority[data-authority="manual-calibration"] { border-color: #6fae86; color: #24603c; background: #eaf6ef; }
+.phase2-workspace .ws-size-authority[data-authority="grid-detection"] { border-color: #7f9fb5; color: #2f5566; background: #eef5f8; }
+
 /* 扩展工具条：帮助是独立尾项，不参与主要尺寸设置区的宽度竞争。 */
 .phase2-workspace .sl-grid-toolbar-extended { flex-wrap: nowrap; }
 .phase2-workspace .sl-toolbar-help { flex: 0 0 auto; margin-left: 4px; padding-left: 4px; border-left: 1px solid var(--ws-border); }

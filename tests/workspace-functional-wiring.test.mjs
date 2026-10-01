@@ -50,7 +50,10 @@ test("没有图纸或原图时，依赖内容的视图与参数控件会禁用",
   assert.match(workspace, /button\.dataset\.wsView === "original" \? !hasSource : !hasPattern/);
   assert.match(workspace, /\$\("#ws-compare"\)\.disabled = !hasSource/);
   assert.match(workspace, /\$\("#ws-apply-outline"\)\.disabled = !hasPattern \|\| !hasSelection/);
-  assert.match(workspace, /control\.disabled = !hasSource/);
+  // 尺寸控件的可用性已收归 syncSizeUi() 一处（B0.1）：拆在 paint() 里会漏掉
+  // libms:source-dimensions 那条路径，出现「已锁定但滑杆还能拖」的半锁定态。
+  assert.match(workspace, /const sizeControlsDisabled = Boolean\(locked\) \|\| !get\(\)\.status\.hasSource;/);
+  assert.match(workspace, /chip\.disabled = sizeControlsDisabled;/);
 });
 
 test("专业画笔复用统一工具分发并接入补线、Pixel Perfect 与临时吸管",()=>{

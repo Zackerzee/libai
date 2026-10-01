@@ -1,18 +1,25 @@
 #!/usr/bin/env node
 /**
- * Stage B0 真机探针：生成尺寸链路的「触发纪律」取证。
+ * Stage B0 / B0.1 真机探针：生成尺寸链路的「触发纪律 + 尺寸权威」取证。
  *
  * 为什么必须在真机跑：静态测试只能证明「代码里没有把 scheduleAutoGenerate 写进滑杆」，
  * 证明不了「拖到 500 真的不出图」。而 B0 要修的头号问题恰恰是
  * **拖到 500 会把主线程锁死几分钟**（实测 400×200 单次 >200s，500 更长）。
  * 所以这里数的是真机上的 `bridge.generate` 调用次数。
  *
- * 验收口径（对应 B0 §7 / §8 / §11）：
+ * B0 验收口径（§7 / §8 / §11）：
  *   · 滑杆 / 数字框 / 滚轮 / Shift+滚轮 / 方向键 → generation count = 0
  *   · 点「应用尺寸」                            → generation count = 1
  *   · 4:3 源图 + 长边 500                       → 派生尺寸必须 = 500×375（不是 500×500）
  *   · 无源图                                    → resolved=false，宽高为 null（不是 500×500）
  *   · 编辑器画布调整（宽高独立）不受影响，且不触发重新生成
+ *
+ * B0.1 验收口径（§1–§8）：
+ *   · 工程文件 222×295 → 原样恢复；**挂载写 104 也冲不掉它**（104 泄漏回归）
+ *   · 像素倍数（弱）不得覆盖工程文件（强）—— 被拒且原样退回
+ *   · OCR 78×104 → 原样恢复，长边取 104
+ *   · 锁定态：滑杆 / 数字框 / 应用全部禁用，且说明尺寸来源
+ *   · reset 之后回到 unresolved，不是 104×104
  *
  * 用法：
  *   node tools/b0-size-probe.mjs                 # 自动起带生产 CSP 头的服务器
@@ -483,7 +490,126 @@ try {
     check("编辑器画布调整回归（§5）", false, `卡在「${resizePhase}」：${error.message}`);
   }
 
-  /* ── 8. 控制台无未捕获异常 ─────────────────────────────────────────── */
+  /* ── 8. Stage B0.1：尺寸权威链真机取证 ────────────────────────────────
+   *
+   * 为什么非要在真机跑这一段：B0.1 修的是**跨模块的时序问题** ——
+   *   loadFile/loadProjectJson 写尺寸 → 工作台挂载 → mount 无条件写 104 → 尺寸被冲掉
+   * 单测能证明「adoptSourceDimensions 拒绝弱证据」，证明不了「挂载那次写真的没生效」，
+   * 因为挂载发生在 ui/workspace.js，而尺寸真源在 app.js 的 state 里。
+   *
+   * 所以这里直接调**真实的 bridge API**（挂载路径用的就是它），看尺寸会不会被冲掉。
+   * ─────────────────────────────────────────────────────────────────── */
+  const authorityProbe = async (expression) => JSON.parse(await evalJs(`JSON.stringify(${expression})`, 20000));
+
+  const b01BeforeLock = await authorityProbe(`({
+    size: window.LibmsWorkspaceBridge.getGenerationSize(),
+    authority: window.LibmsWorkspaceBridge.getSourceDimensions().authority,
+    rangeDisabled: document.querySelector('#ws-size-range').disabled,
+  })`);
+  check("B0.1 基线：普通图片的尺寸不是绝对权威（滑杆可用）",
+    b01BeforeLock.rangeDisabled === false
+      && ["pixel-multiple", "logical-heuristic", "unresolved"].includes(b01BeforeLock.authority),
+    `authority=${b01BeforeLock.authority} rangeDisabled=${b01BeforeLock.rangeDisabled}`);
+
+  // §2：结构化工程的 222×295 必须原样恢复。
+  const b01Applied = await authorityProbe(`(() => {
+    const out = window.LibmsWorkspaceBridge.applySourceDimensions({
+      width: 222, height: 295, authority: 'structured-project', source: 'b01-probe',
+    });
+    return { applied: out.applied, blockedBy: out.blockedBy, size: window.LibmsWorkspaceBridge.getGenerationSize() };
+  })()`);
+  check("B0.1 §2 工程文件尺寸写入成功", b01Applied.applied === true, `blockedBy=${b01Applied.blockedBy}`);
+  check("B0.1 §2 222×295 原样恢复（不经过长边 / 比例 / 104）",
+    b01Applied.size.width === 222 && b01Applied.size.height === 295 && b01Applied.size.resolved === true,
+    `${b01Applied.size.width}×${b01Applied.size.height} resolved=${b01Applied.size.resolved} longEdge=${b01Applied.size.longEdge}`);
+  check("B0.1 §2 长边是 W/H 的较大者 295，不是用户选的 104",
+    b01Applied.size.longEdge === 295, `longEdge=${b01Applied.size.longEdge}`);
+
+  // ★ 头号回归：工作台挂载无条件写 104，正是 B0.1 之前把 222×295 冲掉的元凶。
+  //   ensureGenerationLongEdge 是挂载专用入口，绝对权威在位时必须**什么都不做**。
+  const b01AfterRemount = await authorityProbe(`(() => {
+    window.LibmsWorkspaceBridge.ensureGenerationLongEdge(104);   // 模拟工作台挂载
+    window.LibmsWorkspaceBridge.setGenerationLongEdge(104);      // 更狠：直接调强制入口
+    return window.LibmsWorkspaceBridge.getGenerationSize();
+  })()`);
+  check("B0.1 ★104 默认值不再泄漏：挂载 / 强制写 104 都冲不掉 222×295",
+    b01AfterRemount.width === 222 && b01AfterRemount.height === 295,
+    `${b01AfterRemount.width}×${b01AfterRemount.height} longEdge=${b01AfterRemount.longEdge} authority=${b01AfterRemount.authority}`);
+
+  const b01LockedUi = await authorityProbe(`({
+    readout: document.querySelector('#ws-size-value').textContent.replace(/\\s+/g, ''),
+    authorityText: document.querySelector('#ws-size-authority').textContent,
+    authorityHidden: document.querySelector('#ws-size-authority').hidden,
+    authorityTag: document.querySelector('#ws-size-authority').dataset.authority,
+    applyDisabled: document.querySelector('#ws-size-apply').disabled,
+    rangeDisabled: document.querySelector('#ws-size-range').disabled,
+    numberDisabled: document.querySelector('#ws-size-number').disabled,
+    tierHidden: document.querySelector('#ws-size-tier').hidden,
+  })`);
+  check("B0.1 §5 顶栏读数 = 222×295（UI 投影跟着真源走）",
+    b01LockedUi.readout === "222×295", `readout=${b01LockedUi.readout}`);
+  check("B0.1 §5 锁定态说明来源（工程文件），且已显示",
+    b01LockedUi.authorityHidden === false && b01LockedUi.authorityTag === "structured-project"
+      && b01LockedUi.authorityText.includes("222 × 295") && b01LockedUi.authorityText.includes("工程文件"),
+    `hidden=${b01LockedUi.authorityHidden} tag=${b01LockedUi.authorityTag} text="${b01LockedUi.authorityText}"`);
+  check("B0.1 §5 锁定态：滑杆 / 数字框 / 应用尺寸全部禁用",
+    b01LockedUi.rangeDisabled === true && b01LockedUi.numberDisabled === true && b01LockedUi.applyDisabled === true,
+    `range=${b01LockedUi.rangeDisabled} number=${b01LockedUi.numberDisabled} apply=${b01LockedUi.applyDisabled}`);
+  check("B0.1 §5 锁定态不再提示尺寸分档", b01LockedUi.tierHidden === true);
+  await shot("05-b01-locked-222x295");
+
+  // §1：更弱的证据不得覆盖更强的证据。像素倍数（rank 3）< 工程文件（rank 5）。
+  const b01Blocked = await authorityProbe(`(() => {
+    const out = window.LibmsWorkspaceBridge.applySourceDimensions({
+      width: 104, height: 78, authority: 'pixel-multiple', source: 'b01-probe-weak',
+    });
+    return { applied: out.applied, blockedBy: out.blockedBy, size: window.LibmsWorkspaceBridge.getGenerationSize() };
+  })()`);
+  check("B0.1 §1 像素倍数不得覆盖工程文件（被拒且原样退回）",
+    b01Blocked.applied === false && b01Blocked.blockedBy === "structured-project"
+      && b01Blocked.size.width === 222 && b01Blocked.size.height === 295,
+    `applied=${b01Blocked.applied} blockedBy=${b01Blocked.blockedBy} size=${b01Blocked.size.width}×${b01Blocked.size.height}`);
+
+  // §3：OCR / 已有图纸识别出的 W×H 同样直接使用，不换算成长边。
+  const b01Ocr = await authorityProbe(`(() => {
+    window.LibmsWorkspaceBridge.resetSourceDimensions('b01-probe');
+    // 必须在**紧接着**读，不能放到 return 里 —— 后面那次 grid-detection 写入会把它覆盖掉。
+    const cleared = window.LibmsWorkspaceBridge.getGenerationSize();
+    const clearedAuthority = window.LibmsWorkspaceBridge.getSourceDimensions().authority;
+    const out = window.LibmsWorkspaceBridge.applySourceDimensions({
+      width: 78, height: 104, authority: 'grid-detection', source: 'cell-spacing:8',
+    });
+    return { clearedAuthority, clearedResolved: cleared.resolved,
+             clearedWidth: cleared.width, clearedHeight: cleared.height,
+             applied: out.applied, size: window.LibmsWorkspaceBridge.getGenerationSize(),
+             readout: document.querySelector('#ws-size-value').textContent.replace(/\\s+/g, '') };
+  })()`);
+  // §7 的实质是「**不得** fallback 成 width × width」。reset 只清权威，不清用户选的长边；
+  // 源图仍是 4:3，所以正确的回落是 104×78 —— 方图才是 bug。
+  check("B0.1 §7 resetSourceDimensions 清空权威，且不得回退成 104×104 方图",
+    b01Ocr.clearedAuthority === "unresolved"
+      && !(b01Ocr.clearedWidth === 104 && b01Ocr.clearedHeight === 104)
+      && b01Ocr.clearedHeight === 78,
+    `authority=${b01Ocr.clearedAuthority} ${b01Ocr.clearedWidth}×${b01Ocr.clearedHeight}`);
+  check("B0.1 §3 OCR 78×104 原样恢复，长边取 104",
+    b01Ocr.applied === true && b01Ocr.size.width === 78 && b01Ocr.size.height === 104 && b01Ocr.size.longEdge === 104,
+    `${b01Ocr.size.width}×${b01Ocr.size.height} longEdge=${b01Ocr.size.longEdge}`);
+  check("B0.1 §3 顶栏读数 = 78×104", b01Ocr.readout === "78×104", `readout=${b01Ocr.readout}`);
+
+  // §1 收尾：清掉绝对权威后，普通图片那条链路必须完好（长边重新成为自由度）。
+  const b01Restored = await authorityProbe(`(() => {
+    window.LibmsWorkspaceBridge.resetSourceDimensions('b01-probe-done');
+    return { authority: window.LibmsWorkspaceBridge.getSourceDimensions().authority,
+             size: window.LibmsWorkspaceBridge.getGenerationSize(),
+             rangeDisabled: document.querySelector('#ws-size-range').disabled,
+             numberDisabled: document.querySelector('#ws-size-number').disabled };
+  })()`);
+  check("B0.1 §1 清除权威后长边重新成为自由度（滑杆解禁），且尺寸不是硬编码方图",
+    b01Restored.authority === "unresolved" && b01Restored.rangeDisabled === false && b01Restored.numberDisabled === false
+      && !(b01Restored.size.width === 104 && b01Restored.size.height === 104),
+    `authority=${b01Restored.authority} rangeDisabled=${b01Restored.rangeDisabled} size=${b01Restored.size.width}×${b01Restored.size.height}`);
+
+  /* ── 9. 控制台无未捕获异常 ─────────────────────────────────────────── */
   //
   // 生产 CSP 的 script-src 只给了 'wasm-unsafe-eval'，tfjs / nsfwjs 内部用
   // `new Function` 编译算子必然抛 EvalError。那是**第三方库**的行为，不是本站代码

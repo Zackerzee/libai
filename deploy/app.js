@@ -890,6 +890,9 @@ function ensureGenerationRuntime() {
       import("./services/source-editor-service.js?v=20260916-phase35-source1").then((mod) => { window.LibmsSourceEditor = mod; }),
       import("./services/generation-request.mjs?v=20261001-stage-b0").then((mod) => { window.LibmsGenerationRequest = mod; }),
       import("./services/generation-job.mjs?v=20261001-stage-b0").then((mod) => { window.LibmsGenerationJob = mod; }),
+      // Stage B0.1：尺寸权威链。结构化工程 / 人工标定 / 网格识别给出的尺寸是绝对值，
+      // 不允许被长边、裁剪比例或像素倍数再算一遍。
+      import("./services/source-dimensions.mjs?v=20261001-stage-b01").then((mod) => { window.LibmsSourceDimensions = mod; }),
     ]).catch((error) => { generationRuntimePromise = null; throw error; });
   }
   return generationRuntimePromise;
@@ -1977,10 +1980,17 @@ async function loadFile(file) {
     state.sourceTransform = { crop: null, cropRatio: "free", rotation: 0, flipX: false, flipY: false,
       brightness: 0, contrast: 0, saturation: 0, sharpen: 0,
       expand: { top: 0, bottom: 0, left: 0, right: 0 }, background: "#ffffff" };
+    // 换图 = 换尺寸。先把尺寸打回未解析，新图的新证据才写得进来；
+    // 否则上一张图的绝对权威（例如 222×295 的工程）会把新图的弱证据全部挡掉。
+    resetSourceDimensions("source-replaced");
     const loadedSource = await loadImage(prepared.dataUrl);
     state.sourceNaturalWidth = loadedSource.naturalWidth;
     state.sourceNaturalHeight = loadedSource.naturalHeight;
     state.sourceName = file.name;
+    // restore / OCR：源图一落地就把识别结果交给权威链，**早于** libms:source-loaded
+    // 触发的工作台首帧流程。这样工作台的像素倍数识别（pixel-multiple）会被
+    // grid-detection 挡下，不会拿一个更弱的证据把图纸尺寸改掉。
+    applyRestoreSizing(loadedSource);
     window.dispatchEvent(new CustomEvent("libms:source-loaded", { detail: { name: file.name, url: prepared.dataUrl, width: state.sourceNaturalWidth, height: state.sourceNaturalHeight } }));
     state.sourceSafetyChecked = true;
     els.sourcePreview.src = state.sourceDataUrl;
@@ -2570,7 +2580,10 @@ async function processImage(options = {}) {
     if (isStaleGenerationRequest(options.requestId)) return false;
     state.sourceNaturalWidth = image.naturalWidth;
     state.sourceNaturalHeight = image.naturalHeight;
-    applyRestoreSizing(image);
+    // 尺寸恢复**不在这里**做：它属于「载入源图」这一步，与生成引擎无关。
+    // 留在这里等于只有选 legacy 引擎时才恢复尺寸（v2.5 默认走 processProductionV2，
+    // 根本不经过本函数）—— 这正是 B0.1 之前 restore/OCR 尺寸失效的第二个原因。
+    // 现在统一由 loadFile() 在源图落地时提交给尺寸权威链。
     const palette = getCurrentPalette();
     const regionalBlockV2 = els.modeSelect?.value === "regional-block-v2";
     const portraitPremium = els.modeSelect?.value === "portrait-premium" || regionalBlockV2;
@@ -2729,22 +2742,53 @@ function isImageFile(file) {
   return /\.(jpe?g|png|webp|gif|bmp)$/i.test(file.name || "");
 }
 
+/**
+ * restore / OCR 导入：把**识别出的图纸尺寸**交给尺寸权威链。
+ *
+ * 唯一出口是 applySourceDimensions()。这里**不再**直接写 #granularity-input ——
+ * 那个 input 只是尺寸的 UI 投影，写它等于让一个 DOM 控件成为尺寸真源，
+ * 而真正决定生成尺寸的 generationLongEdge 根本读不到它（B0.1 §8 要拆的就是这条）。
+ *
+ * 权威分级：
+ *   · 显式格距检测成功 → grid-detection（绝对）：直接得到 W×H，不再换算成长边
+ *   · 只拿到原图宽度   → logical-heuristic（弱）：仅在没有更强证据时作为初值
+ *
+ * @returns {{applied:boolean, dimensions:object, blockedBy:string|null}|null}
+ */
 function applyRestoreSizing(image) {
-  if (state.importMode !== "restore" && state.importMode !== "ocr") return;
-  if (!state.restoreAutoSizePending) return;
+  if (state.importMode !== "restore" && state.importMode !== "ocr") return null;
+  if (!state.restoreAutoSizePending) return null;
   state.restoreAutoSizePending = false;
   const naturalWidth = Number(image.naturalWidth || 0);
   const naturalHeight = Number(image.naturalHeight || 0);
-  if (naturalWidth < 10 || naturalHeight < 10) return;
-  const detectedWidth = detectPixelArtLogicalWidth(image);
-  if (detectedWidth) {
-    syncRangeControls("granularity", detectedWidth, 10, 500);
-    return;
+  if (naturalWidth < 10 || naturalHeight < 10) return null;
+  const detected = detectPixelArtLogicalSize(image);
+  if (detected) {
+    return applySourceDimensions({
+      width: detected.width, height: detected.height,
+      authority: "grid-detection", source: `cell-spacing:${detected.cell}`,
+    });
   }
-  if (naturalWidth <= 500) syncRangeControls("granularity", naturalWidth, 10, 500);
+  // 原图本身就不大于 500 格宽 → 它很可能已经是 1:1 的图纸，不需要再折算。
+  if (naturalWidth <= 500) {
+    return applySourceDimensions({
+      width: naturalWidth, height: naturalHeight,
+      authority: "logical-heuristic", source: "natural-size",
+    });
+  }
+  return null;
 }
 
-function detectPixelArtLogicalWidth(image) {
+/**
+ * 从位图里检测「一格豆子占多少像素」，并据此还原整幅图纸的格数。
+ *
+ * 与像素倍数识别（ui/pixel-multiple.js 的边界格点判据）是两条独立证据：
+ * 这条走**游程长度**，对「格线细、格内同色」的现成图纸更敏感；
+ * 那条走**边界落格点**，对放大过的像素画更稳。两者都失败才轮到启发式。
+ *
+ * @returns {{width:number, height:number, cell:number}|null}
+ */
+function detectPixelArtLogicalSize(image) {
   const width = Number(image.naturalWidth || 0);
   const height = Number(image.naturalHeight || 0);
   if (width < 48 || height < 48 || width > 1800 || height > 1800) return null;
@@ -2773,9 +2817,15 @@ function detectPixelArtLogicalWidth(image) {
   const bestCellSize = pickLikelyPixelCellSize(runLengths, Math.min(width, height));
   if (!bestCellSize) return null;
   const logicalWidth = Math.round(width / bestCellSize);
-  if (logicalWidth < 10 || logicalWidth > 500) return null;
-  const fitError = Math.abs(width / bestCellSize - logicalWidth);
-  return fitError <= 0.18 ? logicalWidth : null;
+  const logicalHeight = Math.round(height / bestCellSize);
+  if (logicalWidth < 1 || logicalWidth > 500) return null;
+  if (logicalHeight < 1 || logicalHeight > 500) return null;
+  // 两个方向都必须整除得上：只有宽度对得上、高度差得远，说明这不是等方格图纸，
+  // 多半是普通照片被误判，此时应当退回启发式而不是报一个假的 W×H。
+  const widthError = Math.abs(width / bestCellSize - logicalWidth);
+  const heightError = Math.abs(height / bestCellSize - logicalHeight);
+  if (widthError > 0.18 || heightError > 0.18) return null;
+  return { width: logicalWidth, height: logicalHeight, cell: bestCellSize };
 }
 
 function collectPixelRuns(data, width, height, fixed, horizontal, output) {
@@ -2899,6 +2949,12 @@ async function scanReadyMadePattern(file, gridWidth, gridHeight) {
   state.width = gridWidth;
   state.height = gridHeight;
   state.stats = simplified.stats;
+  // 「已有图纸直接拼」：格数是用户在表单里**亲手填的**，属人工标定（权威级 2）。
+  // 任何自动识别（像素倍数 / 网格检测 / 启发式）都不得覆盖它。
+  applySourceDimensions({
+    width: gridWidth, height: gridHeight,
+    authority: "manual-calibration", source: "direct-pattern-form",
+  });
   state.sourceDataUrl = dataUrl;
   state.sourceName = file.name || "direct-pattern";
   state.sourceSafetyChecked = true;
@@ -3046,8 +3102,71 @@ function resolveEffectiveSourceRatio() {
   return ratioApi.ratioFromDimensions(width, height);
 }
 
+/* ─────────────────────────────────────────────────────────────
+ * 尺寸权威链（Stage B0.1）
+ *
+ * 尺寸不是一个裸数字，而是带来源标签的值：
+ *   structured-project > manual-calibration > grid-detection
+ *   > pixel-multiple > logical-heuristic > unresolved
+ *
+ * 前三级是**绝对**的：它们给出的就是图纸格数，生成时直接采用，
+ * 不许经过长边、裁剪比例或像素倍数再算一遍。
+ * 后两级只是「推导出的建议值」，为「普通图片生成」的长边提供初值。
+ *
+ * 唯一写入口是 applySourceDimensions()。#granularity-input 从此只是**投影**：
+ * 从尺寸真源单向推出去，不再被任何人当作尺寸真源读回来。
+ * ───────────────────────────────────────────────────────────── */
+
+/** 当前尺寸是否为「绝对权威」（工程文件 / 人工标定 / 网格识别）。 */
+function isAbsoluteSourceSize(dimensions = state.sourceDimensions) {
+  const api = window.LibmsSourceDimensions;
+  return api ? api.isAbsoluteAuthority(dimensions?.authority) : false;
+}
+
+/** 换图 / 新建时把尺寸打回未解析。**必须**先重置再写新证据，否则上一张图的
+ *  绝对权威会把新图的弱证据全部挡掉（rank 规则的另一面）。
+ *
+ *  必须广播 `libms:source-dimensions`：这是**同一份状态**的写入，
+ *  和 applySourceDimensions() 一样会让 UI 投影失效。不广播的话，
+ *  工作台会停在「222×295 · 已锁定」，滑杆一直禁用 —— 真机探针抓到过。 */
+function resetSourceDimensions(reason = "") {
+  const api = window.LibmsSourceDimensions;
+  state.sourceDimensions = api
+    ? api.createUnresolvedDimensions(reason)
+    : { width: 0, height: 0, authority: "unresolved", source: reason };
+  window.dispatchEvent(new CustomEvent("libms:source-dimensions", { detail: { ...state.sourceDimensions } }));
+  return state.sourceDimensions;
+}
+
+/**
+ * 提交一份尺寸证据。**这是尺寸的唯一写入口。**
+ *
+ * 由 services/source-dimensions.mjs 的权威链裁决：更弱的证据会被拒，
+ * 并把现有尺寸原样退回 —— 调用方必须检查 `applied`，不能假定自己写成功了。
+ *
+ * @param {{width:number, height:number, authority:string, source?:string}} input
+ * @returns {{applied:boolean, dimensions:object, blockedBy:string|null}}
+ */
+function applySourceDimensions(input) {
+  const api = window.LibmsSourceDimensions;
+  if (!api) return { applied: false, dimensions: state.sourceDimensions, blockedBy: null };
+  const next = api.normalizeSourceDimensions(input);
+  if (!next) return { applied: false, dimensions: state.sourceDimensions, blockedBy: null };
+  const outcome = api.adoptSourceDimensions(state.sourceDimensions, next);
+  if (!outcome.applied) return outcome;
+  state.sourceDimensions = outcome.dimensions;
+  // #granularity-input 是 UI 投影，单向：真源 → DOM。
+  // 反过来读它当尺寸真源，就是 B0.1 要拆掉的那条旧链路。
+  syncRangeControls("granularity", Math.max(next.width, next.height), 10, 500);
+  window.dispatchEvent(new CustomEvent("libms:source-dimensions", { detail: outcome.dimensions }));
+  return outcome;
+}
+
 /**
  * 由长边格数派生生成尺寸。
+ *
+ * 绝对权威在位时**直接返回它的 W×H**，不经过长边、不经过裁剪比例。
+ * 否则按「长边 + 有效比例」派生。
  *
  * @returns {{longEdge:number,width:number,height:number}|null}
  *   **null = 比例尚不可用**。调用方必须延后生成，不得回退成 width（那会出方图）。
@@ -3056,10 +3175,16 @@ function resolveGenerationDimensions(longEdge) {
   const ratioApi = window.LibmsGenerationSize;
   if (!ratioApi) return null;
   const edge = ratioApi.clampLongEdge(longEdge);
-  if (edge == null) return null;
-  const size = ratioApi.deriveGenerationSize(edge, resolveEffectiveSourceRatio());
-  if (size) state.generationLongEdge = size.longEdge;
-  return size;
+  const ratio = resolveEffectiveSourceRatio();
+  const derive = (edgeValue, ratioValue) => (edgeValue == null ? null : ratioApi.deriveGenerationSize(edgeValue, ratioValue));
+  const authorityApi = window.LibmsSourceDimensions;
+  const size = authorityApi
+    ? authorityApi.resolveSizeFromEvidence(state.sourceDimensions, { longEdge: edge, ratio, derive })
+    : derive(edge, ratio);
+  if (!size) return null;
+  // 派生出来的长边回写 state；绝对权威不回写 —— 那不是「用户选的长边」。
+  if (!size.absolute) state.generationLongEdge = size.longEdge;
+  return { longEdge: size.longEdge, width: size.width, height: size.height };
 }
 
 /** 尺寸尚未解析时统一走这里：只提示，不生成。 */
@@ -7060,6 +7185,11 @@ function createBlankBoard(options = {}) {
   state.backgroundDecision = "";
   state.paletteBudget = null;
   state.sourceSafetyChecked = true;
+  // 空白画板是**编辑器画布**，不是「源图尺寸」—— 没有源图，也就没有可恢复的尺寸。
+  // 所以这里打回 unresolved 而不是写入 manual-calibration：否则
+  // getGenerationSize() 会开始报一个「已解析」的尺寸，而那个尺寸跟生成毫无关系
+  // （B0 §5 的两条链路分离，在 B0.1 里依然成立）。
+  resetSourceDimensions("blank-board");
   els.fileInput.value = "";
   els.sourcePreview.hidden = true;
   els.sourcePreview.removeAttribute("src");
@@ -7379,6 +7509,9 @@ window.LibmsWorkspaceBridge = {
   // 只暴露「长边」这一个自由度。宽高由长边 + 有效裁剪比例派生，
   // 调用方拿不到、也设不了「只改宽度」这种会破坏比例的入口。
   // 编辑器画布调整（允许 222×295 → 220×300 宽高独立）走另一条链路，不经过这里。
+  //
+  // 例外是「绝对权威尺寸」（结构化工程 / 人工标定 / 网格识别）：那种情况下长边让位，
+  // 尺寸由 sourceDimensions 直接给出。见 resolveGenerationDimensions。
   setGenerationLongEdge(value) {
     const ratioApi = window.LibmsGenerationSize;
     const longEdge = ratioApi ? ratioApi.clampLongEdge(value) : null;
@@ -7388,12 +7521,60 @@ window.LibmsWorkspaceBridge = {
     return this.getGenerationSize();
   },
   /**
+   * 只在「还没有任何尺寸依据」时初始化长边。
+   *
+   * 工作台挂载走这里而不是 setGenerationLongEdge：挂载是**无条件发生**的，
+   * 而尺寸依据是有条件的（可能正等着 restore/OCR 识别落地）。
+   * 无条件写 104 就会把更强的证据冲掉 —— B0.1 要修的头号问题。
+   *
+   * 已有依据的三种情况都不写：
+   *   · 存在绝对权威尺寸（工程文件 / 人工标定 / 网格识别）
+   *   · 长边已经定过（> 0）
+   *   · restore / OCR 识别还没落地（restoreAutoSizePending）
+   */
+  ensureGenerationLongEdge(value) {
+    if (isAbsoluteSourceSize(state.sourceDimensions)) return this.getGenerationSize();
+    if (Number(state.generationLongEdge) > 0) return this.getGenerationSize();
+    if (state.restoreAutoSizePending) return this.getGenerationSize();
+    return this.setGenerationLongEdge(value);
+  },
+  /**
+   * 提交一份尺寸证据，由权威链裁决。**尺寸的唯一写入口。**
+   * @returns {{applied:boolean, dimensions:object, blockedBy:string|null}}
+   */
+  applySourceDimensions(input) { return applySourceDimensions(input); },
+  /** 当前尺寸权威值（副本，改它不会影响 state）。 */
+  getSourceDimensions() { return { ...state.sourceDimensions }; },
+  /** 把尺寸打回未解析。换图 / 新建时调用。 */
+  resetSourceDimensions(reason = "") { return { ...resetSourceDimensions(reason) }; },
+  /**
+   * 生成尺寸。
+   *
+   * 绝对权威在位时直接返回它的 W×H（**不经过长边、不经过裁剪比例**）——
+   * 工程文件说 222×295，读数就必须是 222×295。
+   * 否则按「长边 + 有效裁剪比例」派生。
+   *
    * @returns {{longEdge:number|null, width:number|null, height:number|null, ratio:number|null,
-   *            resolved:boolean, tier:"normal"|"large"|"xlarge"}}
-   *   resolved=false 表示比例尚不可用，此时 width/height 为 null —— 生成必须延后。
+   *            resolved:boolean, tier:"normal"|"large"|"xlarge",
+   *            authority:string, source:string}}
+   *   resolved=false 表示尺寸尚不可用，此时 width/height 为 null —— 生成必须延后。
    */
   getGenerationSize() {
     const ratioApi = window.LibmsGenerationSize;
+    const dims = state.sourceDimensions;
+    if (isAbsoluteSourceSize(dims)) {
+      const longEdge = Math.max(dims.width, dims.height);
+      return {
+        longEdge,
+        width: dims.width,
+        height: dims.height,
+        ratio: dims.width > 0 ? dims.height / dims.width : null,
+        resolved: true,
+        tier: ratioApi ? ratioApi.sizeWarningTier(longEdge) : "normal",
+        authority: dims.authority,
+        source: dims.source,
+      };
+    }
     const longEdge = ratioApi ? ratioApi.clampLongEdge(state.generationLongEdge) : null;
     const ratio = resolveEffectiveSourceRatio();
     const size = longEdge == null ? null : ratioApi?.deriveGenerationSize(longEdge, ratio) ?? null;
@@ -7404,6 +7585,8 @@ window.LibmsWorkspaceBridge = {
       ratio: size ? ratio : null,
       resolved: Boolean(size),
       tier: ratioApi ? ratioApi.sizeWarningTier(size?.longEdge ?? longEdge ?? 0) : "normal",
+      authority: dims?.authority || "unresolved",
+      source: dims?.source || "",
     };
   },
   /**
@@ -7600,6 +7783,16 @@ window.LibmsWorkspaceBridge = {
     state.sourceNaturalHeight = 0;
     state.sourceName = String(payload.projectName || "导入工程");
     if (!this.replaceGridStructure({ grid, width, height })) throw new Error("工程文件无法载入当前画布");
+    // 结构化工程里的 canvas.width/height 是**绝对权威**：文件说 222×295，那就是 222×295。
+    // 不经过 generationLongEdge、不经过裁剪比例、不经过像素倍数，也不接受 104 默认值。
+    // 放在 replaceGridStructure 成功之后：只有矩阵真的载入了，这个尺寸才成立。
+    // （replaceGridStructure 本身是旋转 / 画布调整 / 工程恢复的共用出口，
+    //   权威只能在这里标，不能塞进那个共用函数。）
+    applySourceDimensions({
+      width, height,
+      authority: "structured-project",
+      source: payload.format === "libms-project" ? "libms-project" : String(payload.format || "project"),
+    });
     if (payload.palette?.maxColors != null && els.maxColorsInput) els.maxColorsInput.value = String(payload.palette.maxColors);
     return this.getResult();
   },

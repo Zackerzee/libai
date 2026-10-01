@@ -91,7 +91,13 @@
       importMode: "photo",            // state.importMode
       autoProcessAfterLoad: false,    // state.autoProcessAfterLoad
       restoreAutoSizePending: false,  // state.restoreAutoSizePending
-      // 生成尺寸 = 长边格数 + 有效裁剪比例派生。
+      // 源图尺寸的**权威值**：{ width, height, authority, source }。
+      // authority 见 services/source-dimensions.mjs 的六级链。
+      // 结构化工程 / 人工标定 / 网格识别这三级的尺寸是绝对值，生成时直接采用，
+      // 不经过长边、裁剪比例或像素倍数再算一遍。unresolved 表示还没解析出来。
+      sourceDimensions: { width: 0, height: 0, authority: "unresolved", source: "" },  // state.sourceDimensions
+      // 生成尺寸 = 长边格数 + 有效裁剪比例派生。**只对「普通图片生成」成立**：
+      // 存在绝对权威尺寸时，长边让位（见 app.js resolveGenerationDimensions）。
       // 0 表示「尚未解析」；解析失败时生成必须延后，不得回退成方图。
       generationLongEdge: 0,          // state.generationLongEdge
       // 生成请求号：单调递增，用于丢弃陈旧结果（后续异步 Worker 时是硬需求）。
@@ -351,6 +357,7 @@
     importMode: ["processingState", "importMode"],
     autoProcessAfterLoad: ["processingState", "autoProcessAfterLoad"],
     restoreAutoSizePending: ["processingState", "restoreAutoSizePending"],
+    sourceDimensions: ["processingState", "sourceDimensions"],
     generationLongEdge: ["processingState", "generationLongEdge"],
     generationRequestId: ["processingState", "generationRequestId"],
     importApproved: ["processingState", "importApproved"],

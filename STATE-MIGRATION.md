@@ -86,6 +86,7 @@
 | `state.importMode` | processingState | importMode | Proxy getter/setter | NO | "photo" |
 | `state.autoProcessAfterLoad` | processingState | autoProcessAfterLoad | Proxy getter/setter | NO | false |
 | `state.restoreAutoSizePending` | processingState | restoreAutoSizePending | Proxy getter/setter | NO | false |
+| `state.sourceDimensions` | processingState | sourceDimensions | Proxy getter/setter | NO | `{width:0,height:0,authority:"unresolved",source:""}` |
 | `state.generationLongEdge` | processingState | generationLongEdge | Proxy getter/setter | NO | 0（0 = 未解析） |
 | `state.generationRequestId` | processingState | generationRequestId | Proxy getter/setter | NO | 0 |
 | `state.importApproved` | processingState | importApproved | Proxy getter/setter | NO | false |

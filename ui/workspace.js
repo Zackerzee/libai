@@ -69,7 +69,11 @@ export function mountWorkspace(bridge) {
   grid.dataset.workspaceShell = "v3";
   // 生成尺寸的唯一自由度是「长边格数」。宽高由 长边 + 有效裁剪比例 派生，
   // 所以这里只推一个数，不推 width/height（推两个数就必然有人不守比例）。
-  bridge.setGenerationLongEdge(104);
+  //
+  // 用 ensureGenerationLongEdge 而不是 setGenerationLongEdge：挂载是**无条件发生**的，
+  // 但尺寸依据是有条件的。无条件写 104 会把更强的证据冲掉 ——
+  // 例如「先打开 222×295 的工程、再挂载工作台」会得到 104（B0.1 §6）。
+  bridge.ensureGenerationLongEdge(104);
   store.setState({ canvas: { width: 104, height: 104, lockAspectRatio: false }, generation: { engine: "v2.5", algorithm: "current" } });
   document.body.classList.add("phase2-workspace");
 
@@ -300,6 +304,7 @@ export function mountWorkspace(bridge) {
         <input id="ws-size-number" type="number" min="10" max="500" step="1" value="104" aria-label="图纸长边格数（可直接输入）">
       </div>
       <button type="button" class="ws-button ws-size-apply" id="ws-size-apply">应用尺寸</button>
+      <span class="ws-size-authority" id="ws-size-authority" role="status" hidden></span>
       <span class="ws-size-tier" id="ws-size-tier" role="status" hidden></span>
       <div id="zoomControls" class="ws-top-zoom"></div>
     </div>`;
@@ -408,6 +413,9 @@ export function mountWorkspace(bridge) {
     // 就是一次实打实的「触发风暴」。成功与失败都要 settle，不能因为识别挂了就不出图。
     scheduleInitialGeneration();
   });
+  // 尺寸权威变更（打开工程 / 人工标定 / 网格识别）要立刻反映到尺寸栏：
+  // 锁定态、读数、控件可用性全都在 syncSizeUi() 里，这里只负责把它叫醒。
+  window.addEventListener("libms:source-dimensions", () => { syncSizeUi(); });
   window.addEventListener("libms:source-transform-changed", () => { store.setState({ status: { dirty: true } }); });
   window.addEventListener("libms:project-result", (event) => { const first = !get().status.hasPattern;
     editorService.invalidateUsageCounts();
@@ -1148,9 +1156,8 @@ export function mountWorkspace(bridge) {
     for (const tool of ["select", "bead", "text", "brush", "eraser", "fill", "line", "rect", "ellipse", "region", "wand", "same", "connected", "eyedropper", "pan"]) {
       gridToolbar.setToolDisabled(tool, !hasPattern);
     }
-    topControls.querySelectorAll("[data-size]").forEach((control) => { control.disabled = !hasSource; });
-    // 「应用尺寸」的可用性由 syncSizeUi() 决定（还要看比例是否已解析），这里不重复写。
-    for (const id of ["#ws-size-range", "#ws-size-number"]) { const node = $(id); if (node) node.disabled = !hasSource; }
+    // 尺寸控件的可用性**不在这里**决定 —— 见 syncSizeUi()。
+    // 拆成两处会漏：权威变更走 libms:source-dimensions → syncSizeUi()，那条路径不经过 paint()。
     $("#ws-source-pick-mode").disabled = !hasSource;
     syncReferenceUi(state);
     if (patch.editor?.selectedColor || patch.editor?.paletteCategory || patch.stats || patch.ui?.activePanel === "edit") renderPicker();
@@ -1637,11 +1644,31 @@ export function mountWorkspace(bridge) {
    * 由倍数推导逻辑尺寸并写进草稿。
    * 倍数识别出的尺寸常常远大于当前视口（180 豆在默认缩放下是 3600px），
    * 所以提交后要重新适配窗口（fitOnNextResult 在 commitSize / 首帧结果里消费）。
+   *
+   * 提交前必须过权威链（B0.1 §4 / §5）：像素倍数只是**推导**，不是用户尺寸状态。
+   * 结构化工程 / 人工标定 / 网格识别已经在位时，applySourceDimensions 会原样退回它，
+   * 这时**绝不能**再改草稿 —— 改了就等于用更弱的证据覆盖更强的证据。
+   *
+   * @returns {{width:number,height:number}|null|object} 采纳时返回推导尺寸，
+   *   被否决时返回权威链的现有尺寸（调用方据此判断「这一票没生效」）。
    */
   function applyLogicalSize() {
     const result = bridge.getResult();
     if (!result.sourceWidth || !result.sourceHeight) return null;
     const { width, height } = logicalSize(result.sourceWidth, result.sourceHeight, detectedMultiple || 1);
+    const multiple = detectedMultiple || 1;
+    const outcome = bridge.applySourceDimensions({
+      width, height,
+      // multiple === 1 意味着「没识别出周期」，这不是稳定的倍数证据，
+      // 只能算逻辑尺寸估算（权威链最低一级）。
+      authority: multiple >= 2 ? "pixel-multiple" : "logical-heuristic",
+      source: `pixel-multiple:${multiple}`,
+    });
+    if (!outcome?.applied) {
+      // 被更强的证据否决：只刷 UI（让它显示那个更强的尺寸），不动草稿、不提交。
+      syncSizeUi();
+      return outcome?.dimensions || null;
+    }
     sizeOrigin = "auto";
     longEdgeDraft = clampLongEdge(Math.max(width, height));
     pushDraftToBridge();
@@ -1686,7 +1713,7 @@ export function mountWorkspace(bridge) {
   $("#ws-size-number")?.addEventListener("input", (event) => { sizeOrigin = "manual"; setLongEdgeDraft(event.target.value); });
   // 滚轮：±1；Shift+滚轮：±10。只改草稿。
   $("#ws-size-controls")?.addEventListener("wheel", (event) => {
-    if (!get().status.hasSource) return;
+    if (!get().status.hasSource || lockedAuthority()) return;
     event.preventDefault();
     const step = event.shiftKey ? 10 : 1;
     stepLongEdgeDraft(event.deltaY < 0 ? step : -step);
@@ -1695,6 +1722,7 @@ export function mountWorkspace(bridge) {
   // 左右键不拦，交给 range 的原生行为（同样只走 input → 只改草稿）。
   $("#ws-size-controls")?.addEventListener("keydown", (event) => {
     if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    if (lockedAuthority()) return;
     event.preventDefault();
     stepLongEdgeDraft(event.key === "ArrowUp" ? (event.shiftKey ? 10 : 1) : (event.shiftKey ? -10 : -1));
   });
@@ -1705,11 +1733,25 @@ export function mountWorkspace(bridge) {
    * 节点一律现查现用，不闭包捕获 const —— 同样是躲 TDZ。
    * 注意这里**不读画布尺寸**：生成尺寸与编辑器画布尺寸是两条独立链路（B0 §5）。
    */
+  /**
+   * 当前尺寸权威（结构化工程 / 人工标定 / 网格识别）是否已经锁定了图纸尺寸。
+   * 锁定后长边不再是自由度：滑杆 / 数字框 / 滚轮 / 方向键 / 「应用尺寸」全部让位。
+   */
+  function lockedAuthority() {
+    const dims = bridge.getSourceDimensions?.() || null;
+    const api = window.LibmsSourceDimensions;
+    return api && dims && api.isAbsoluteAuthority(dims.authority) ? dims : null;
+  }
+
   function syncSizeUi() {
-    const derived = draftSize();
+    const locked = lockedAuthority();
+    // 锁定态直接读权威尺寸，不走 draftSize()：那不是「派生」，是**绝对值**。
+    const derived = locked
+      ? { longEdge: Math.max(locked.width, locked.height), width: locked.width, height: locked.height }
+      : draftSize();
     const range = $("#ws-size-range"), number = $("#ws-size-number");
-    if (range && document.activeElement !== range) range.value = String(longEdgeDraft);
-    if (number && document.activeElement !== number) number.value = String(longEdgeDraft);
+    if (range && document.activeElement !== range) range.value = String(derived?.longEdge ?? longEdgeDraft);
+    if (number && document.activeElement !== number) number.value = String(derived?.longEdge ?? longEdgeDraft);
     const sizeValue = $("#ws-size-value");
     if (sizeValue) {
       sizeValue.innerHTML = derived
@@ -1719,23 +1761,45 @@ export function mountWorkspace(bridge) {
         ? `长边 ${derived.longEdge} 格 · ${derived.width} × ${derived.height}`
         : "等待源图比例，暂不能定尺寸";
     }
+    // 控件可用性**只在这里**决定。
+    //
+    // 不能拆到 paint() 里各写一份：权威变更走 libms:source-dimensions → syncSizeUi()，
+    // 那条路径不经过 paint()，于是出现「尺寸已锁定、读数已是 222×295，滑杆却还能拖」
+    // 的半锁定态 —— B0.1 真机探针抓到的就是这个。
+    // 锁定（工程文件 / 人工标定 / 网格识别在位）或没有源图 → 整套长边控件让位。
+    const sizeControlsDisabled = Boolean(locked) || !get().status.hasSource;
     topControls.querySelectorAll("[data-size]").forEach((chip) => {
       const value = chip.dataset.size;
-      const active = value === "auto" ? sizeOrigin === "auto" : sizeOrigin === "manual" && Number(value) === longEdgeDraft;
+      const active = !locked && (value === "auto" ? sizeOrigin === "auto" : sizeOrigin === "manual" && Number(value) === longEdgeDraft);
       chip.classList.toggle("is-active", active);
+      chip.disabled = sizeControlsDisabled;
     });
+    // 权威来源说明：锁定态必须说清「这个尺寸是谁定的」，否则用户会以为滑杆坏了。
+    const authorityNode = $("#ws-size-authority");
+    if (authorityNode) {
+      const api = window.LibmsSourceDimensions;
+      authorityNode.hidden = !locked;
+      authorityNode.dataset.authority = locked ? locked.authority : "";
+      authorityNode.textContent = locked && api
+        ? `${api.describeSourceDimensions(locked)} · 已锁定`
+        : "";
+    }
     // 分档提示（B0 §8）：301–400 提示大尺寸，>400 提示超大尺寸，都必须显式点「应用尺寸」。
     const tierNode = $("#ws-size-tier");
     if (tierNode) {
-      const tier = sizeApi()?.sizeWarningTier(longEdgeDraft) || "normal";
+      const tier = locked ? "normal" : (sizeApi()?.sizeWarningTier(longEdgeDraft) || "normal");
       tierNode.hidden = tier === "normal";
       tierNode.dataset.tier = tier;
       tierNode.textContent = tier === "xlarge"
         ? "超大尺寸：生成可能要很久，确认后点「应用尺寸」"
         : tier === "large" ? "大尺寸：生成会明显变慢" : "";
     }
+    for (const id of ["#ws-size-range", "#ws-size-number"]) {
+      const node = $(id);
+      if (node) node.disabled = sizeControlsDisabled;
+    }
     const apply = $("#ws-size-apply");
-    if (apply) apply.disabled = !derived || !get().status.hasSource;
+    if (apply) apply.disabled = sizeControlsDisabled || !derived;
   }
   // 选区相关的动作统一走这里：按钮、方向键、快捷键三处共用，避免逻辑分叉。
   const selectionActions = {

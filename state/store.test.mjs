@@ -21,11 +21,12 @@ import storeApi from "../state/store.js";
 
 const { createStore, createCompatState, DEFAULTS, LEGACY_MAP, LEGACY_KEYS } = storeApi;
 
-// 旧 app.js `state.xxx` 的顶层字段总数 = 初始字面量 86 个 + 运行时动态赋值 6 个
+// 旧 app.js `state.xxx` 的顶层字段总数 = 初始字面量 87 个 + 运行时动态赋值 6 个
 // （generationMilliseconds / generationQuality / productionGenerationOptions /
 //  smartFeatures / smartReport / lastGenerationError，均在生成流程里赋值，不在初始字面量）。
+// 87 = 86 + sourceDimensions（B0.1 新增：尺寸权威链的载体）。
 // 若此数变化，说明 app.js 的 state 被改过，必须同步更新本测试与 STATE-MIGRATION.md。
-const LEGACY_FIELD_COUNT = 92;
+const LEGACY_FIELD_COUNT = 93;
 
 function fresh() {
   const store = createStore();
@@ -56,6 +57,7 @@ test("旧 state 读取正常：典型字段经 Proxy 可读且类型正确", () 
   assert.equal(state.editorTool, "pencil");
   assert.equal(state.previewZoom, 1);
   assert.equal(state.generationLongEdge, 0);
+  assert.deepEqual(state.sourceDimensions, { width: 0, height: 0, authority: "unresolved", source: "" });
   assert.deepEqual(state.editorPrefs, { showGrid: true, showCodes: true, showCoords: true, snap: true, toolbarPosition: "left" });
   assert.ok(state.playCompletedBeads instanceof Set);
   assert.equal(state.playCompletedBeads.size, 0);
