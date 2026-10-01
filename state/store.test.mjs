@@ -25,8 +25,9 @@ const { createStore, createCompatState, DEFAULTS, LEGACY_MAP, LEGACY_KEYS } = st
 // （generationMilliseconds / generationQuality / productionGenerationOptions /
 //  smartFeatures / smartReport / lastGenerationError，均在生成流程里赋值，不在初始字面量）。
 // 87 = 86 + sourceDimensions（B0.1 新增：尺寸权威链的载体）。
+// 94 = 93 + currentPaletteId（B1 新增：当前颜色的唯一真源）。
 // 若此数变化，说明 app.js 的 state 被改过，必须同步更新本测试与 STATE-MIGRATION.md。
-const LEGACY_FIELD_COUNT = 93;
+const LEGACY_FIELD_COUNT = 94;
 
 function fresh() {
   const store = createStore();
@@ -250,7 +251,7 @@ test("undo/redo 不受影响（状态层）：编辑历史数组字段经 Proxy 
 test("枚举/序列化一致性：JSON.stringify(state) 与 Object.keys 行为同原扁平对象", () => {
   const { state } = fresh();
   const keys = Object.keys(state);
-  assert.equal(keys.length, LEGACY_FIELD_COUNT, "ownKeys 应恰为 86 个旧字段");
+  assert.equal(keys.length, LEGACY_FIELD_COUNT, `ownKeys 应恰为 ${LEGACY_FIELD_COUNT} 个旧字段`);
   for (const k of LEGACY_KEYS) assert.ok(keys.includes(k), `ownKeys 缺少 ${k}`);
   // JSON 序列化不应抛错，且能往返
   const json = JSON.stringify(state);

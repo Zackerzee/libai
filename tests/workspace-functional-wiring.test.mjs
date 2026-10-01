@@ -28,7 +28,9 @@ test("文字工具首次和重复点击都会创建图层", () => {
 
 test("需要颜色的绘图工具会自动获得可用颜色，描边会校验选区", () => {
   assert.match(workspace, /\["bead", "brush", "fill", "line", "rect", "ellipse", "text"\]/);
-  assert.match(workspace, /\$\("#ws-apply-outline"\)\.disabled = !hasPattern \|\| !hasSelection \|\| !state\.editor\.selectedColor/);
+  // Stage B1 §6：可用性判定走真源（readCurrentPaletteId），不再裸读 state.editor.selectedColor。
+  assert.match(workspace, /const selectedPaletteId = readCurrentPaletteId\(state\.editor\);/);
+  assert.match(workspace, /\$\("#ws-apply-outline"\)\.disabled = !hasPattern \|\| !hasSelection \|\| !selectedPaletteId/);
   assert.match(workspace, /\$\("#ws-source-pick-mode"\)\.disabled = !hasSource/);
   assert.match(toolbar, /setToolDisabled\(tool, disabled\)/);
 });
@@ -62,7 +64,10 @@ test("专业画笔复用统一工具分发并接入补线、Pixel Perfect 与临
   assert.match(workspace,/inkMode:tool==="brush"/);
   assert.match(workspace,/rampPaletteIds/);
   assert.match(workspace,/shape:"square"/);
-  assert.match(workspace,/selectedPaletteId:\s*paletteIdOf\(color\)/);
+  // Stage B1 §6：画笔落色不再裸写 selectedPaletteId，改走 buildActivateColorPatch
+  // （真源 currentPaletteId + 镜像 + 高亮，一次写全）。这里同时守住「旧写法不得回流」。
+  assert.match(workspace,/buildActivateColorPatch\(color\s*\?\s*paletteIdOf\(color\)\s*:\s*null\s*,\s*paletteColors\(\)\s*,\s*\{\s*highlight:\s*false\s*\}\)/);
+  assert.doesNotMatch(workspace,/selectedPaletteId:\s*paletteIdOf\(color\)/);
   assert.match(toolbar,/\{ id: "brush", label: "画笔", shortcut: "B" \}/);
   assert.match(toolbar,/\{ id: "eraser", label: "擦除", shortcut: "E" \}/);
   assert.match(toolbar,/\{ id: "eyedropper", label: "取色", shortcut: "I" \}/);

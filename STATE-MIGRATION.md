@@ -98,6 +98,7 @@
 | `state.safetyModelUnavailable` | processingState | safetyModelUnavailable | Proxy getter/setter | NO | false |
 | `state.selectedBrand` | paletteState | brand | Proxy getter/setter | NO | "mard" |
 | `state.selectedColor` | paletteState | selectedColor | Proxy getter/setter | NO | null |
+| `state.currentPaletteId` | editorState | currentPaletteId | Proxy getter/setter | NO | null |
 | `state.currentSelectedColor` | paletteState | currentSelectedColor | Proxy getter/setter | NO | null |
 | `state.paletteLabel` | paletteState | label | Proxy getter/setter | NO | "" |
 | `state.paletteEngine` | paletteState | engine | Proxy getter/setter | NO | null |
@@ -134,6 +135,22 @@
 | `state.lastGenerationError` | metaState | lastGenerationError | Proxy getter/setter | NO | undefined（动态）（运行时赋值） |
 
 ## 3. EXTERNAL：`state/project-store.js`（已知残留双源，待 Phase 3/4 收口）
+
+> **Stage B1 更正（本文档以下两节已过期，保留原文以便对照）：**
+> 1. **`metaState` 已不存在。** Phase 3B 已按 `PROJECT-STORE-AUDIT.md §4.7` 拆成
+>    `statusState` / `uiState`。上表里标 `metaState` 的 4 行 + `lastGenerationError`
+>    实际落在 `statusState`。
+> 2. **`state/project-store.js` 已不再是"独立双源"。** 它在 Phase 3B 就被改成
+>    **纯 adapter**：自身不保存任何状态，`getState/setState/subscribe` 全部代理
+>    `globalThis.libmsStore`。运行时真实状态源数量 = 1。
+>    下面 §3 / §4 的描述是 Phase 2 时期的历史，**不要按它做判断**。
+> 3. **Stage B1 新增 `editorState.currentPaletteId`**（工作台侧"当前颜色"的唯一真源）。
+>    注意它与 `paletteState.selectedColor` 的**真实关系**：adapter 的 `WRITE.editor`
+>    会把 projectStore 的 `editor.selectedColor` 路由到 `paletteState.selectedColor`
+>    —— 也就是 app.js 旧编辑器存**完整颜色对象**的那个槽位。工作台往那儿写字符串
+>    会把旧编辑器弄坏（它读 `.code`，拿到 `undefined`，于是打开旧编辑器就把刚选的色清空）。
+>    所以 B1 之后**工作台一律不读不写 `selectedColor`**，改读 `readCurrentPaletteId()`。
+>    守卫见 `tests/current-palette-id.test.mjs`。
 
 `ui/workspace.js` 使用的是 `state/project-store.js` 导出的 `projectStore` —— 一套与 app.js 旧 state
 **独立、互不通信**的 12 命名空间副本：

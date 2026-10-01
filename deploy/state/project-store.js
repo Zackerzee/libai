@@ -61,6 +61,10 @@ function snapshot(store) {
     tool: s.editorState.wsTool,
     hoveredCell: s.editorState.hoveredCell,
     selectedCell: s.editorState.selectedCell,
+    // Stage B1 §6：工作台侧「当前颜色」的真源必须穿过快照。
+    // 少了这一行，readCurrentPaletteId(get().editor) 永远读不到真源，
+    // 只能一直兜底读 selectedPaletteId 镜像 —— 真源就成了摆设（实测踩过）。
+    currentPaletteId: s.editorState.currentPaletteId,
     selectedPaletteId: s.editorState.selectedPaletteId,
     selectedColor: s.paletteState.selectedColor,
     highlightedColor: s.editorState.highlightedColor,

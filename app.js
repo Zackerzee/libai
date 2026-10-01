@@ -481,6 +481,12 @@ function buildPaletteVariant(colors, count, brand, profile) {
     sourceUrl: profile.sourceUrl || "",
     sourceVersion: profile.sourceVersion || "",
     brand: profile.label,
+    // Stage B1 §3：把官方色卡的**系列**元数据带进运行时条目。
+    // 以前这里只搬运 code/hex/rgb，group 被丢掉 —— 于是 UI 只能靠
+    // `code.match(/^[A-Z]+/)` 猜系列，盼盼 / 咪小窝的纯数字色号猜不出前缀，
+    // 7 个官方中文系列（黄 / 橙棕 / 红粉 / 灰白黑 / 紫 / 绿 / 青蓝）在界面上完全消失。
+    // 内建 5 品牌共用 MARD 色表、本来就没有 group，取 "" 后由色号前缀推导，行为不变。
+    group: typeof color.group === "string" ? color.group : "",
     rgb: [...color.rgb],
   }));
 }

@@ -28,9 +28,16 @@ test("blank canvas is canonical null, source-independent, and enters the V3 work
 });
 
 test("full real palette remains separate from current usage and synchronizes selectedPaletteId",()=>{
-  assert.match(workspace,/>完整真实色盘</);assert.match(workspace,/>当前使用色</);
+  // Stage B1 §11：「当前使用色」竖列面板已删除，由横向「用色统计」条取代。
+  // 删除理由：它的数据源 state.stats.colors 是生成期统计，手动编辑后即陈旧。
+  assert.match(workspace,/>完整真实色盘</);assert.match(workspace,/>用色统计</);
+  assert.doesNotMatch(workspace,/id="ws-color-list"/);
+  assert.match(workspace,/id="ws-usage-strip"/);assert.match(workspace,/id="ws-usage-summary"/);
   assert.match(workspace,/id="ws-color-search"/);assert.match(workspace,/id="ws-bead-picker"/);
-  assert.match(workspace,/selectedPaletteId:color\?paletteIdOf\(color\):null/);
+  // §6：当前颜色只能通过 buildCurrentPalettePatch 写，不再裸写 selectedPaletteId。
+  // 正则允许逗号两侧空白 —— 断言的是「走了 patch 构造器」，不是某种排版。
+  assert.match(workspace,/buildCurrentPalettePatch\(color\s*\?\s*paletteIdOf\(color\)\s*:\s*null\s*,\s*paletteColors\(\)\)/);
+  assert.doesNotMatch(workspace,/selectedPaletteId:color\?paletteIdOf\(color\):null/);
   assert.match(workspace,/paletteCurrentColor=editorService\.resolveColor/);
 });
 

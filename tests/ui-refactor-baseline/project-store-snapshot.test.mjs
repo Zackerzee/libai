@@ -82,7 +82,11 @@ test("snapshot: view / reference 默认值", () => {
 test("snapshot: editor 默认值（workspace.js 最常写的一块）", () => {
   const s = createProjectStore().getState();
   assert.deepEqual(s.editor, {
-    tool: "select", hoveredCell: null, selectedCell: null, selectedPaletteId: null, selectedColor: null,
+    tool: "select", hoveredCell: null, selectedCell: null,
+    // Stage B1 §6：工作台侧「当前颜色」的真源。必须穿过快照，否则
+    // readCurrentPaletteId(get().editor) 只能一直兜底读 selectedPaletteId 镜像。
+    currentPaletteId: null,
+    selectedPaletteId: null, selectedColor: null,
     highlightedColor: null, highlightedPaletteId: null, selection: null, paletteCategory: "all",
     recentColors: [], brushSize: 1, pixelPerfect: true, shapeFilled: false,
     symmetryHorizontal: false, symmetryVertical: false, symmetryMode: "none",

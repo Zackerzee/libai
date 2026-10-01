@@ -179,6 +179,21 @@
     editorState: {
       // —— Phase 3B：承接 projectStore.editor 的字段（workspace.js 写 35 次，此前零测试保护）——
       selectedCell: null,      // projectStore.editor.selectedCell
+      // —— Stage B1 §6：当前颜色的**唯一真源**（工作台编辑器）——
+      // 语义：工作台编辑器正在使用的颜色身份（paletteId；生产网格上等于色号 code）。
+      //   null = 未选色（同时是「橡皮擦」的规范表示，§8）。
+      // 为什么要有它：工作台与旧编辑器（app.js 的 #editor-modal）都写「当前颜色」，
+      // 而 projectStore 适配器的 WRITE.editor 把 `selectedColor` 路由到
+      // **paletteState.selectedColor** —— 也就是旧编辑器存**完整颜色对象**的那个槽位。
+      // 于是同一个槽位被两种类型写：工作台写字符串色号，旧编辑器写 {code,rgb,hex}。
+      // 后果实测：旧编辑器读 `state.selectedColor.code` 得到 undefined，
+      // 判定「该色不在色板里」→ 打开旧编辑器就把工作台刚选的色静默清空。
+      // 现在 currentPaletteId 是工作台自己的真源；工作台**一律不碰**
+      // paletteState.selectedColor，把那个槽位完整归还给旧编辑器。
+      // selectedPaletteId 是工作台侧的兼容镜像，只允许
+      // services/current-palette.mjs 的 buildCurrentPalettePatch() 写入。
+      currentPaletteId: null,
+      // 镜像字段（兼容读；禁止直接写）。由 buildCurrentPalettePatch() 同步。
       selectedPaletteId: null,
       hoveredCell: null,       // projectStore.editor.hoveredCell
       shapePreview: null,      // projectStore.editor.shapePreview
@@ -381,6 +396,15 @@
     currentSelectedColor: ["paletteState", "currentSelectedColor"],
     paletteLabel: ["paletteState", "label"],
     paletteEngine: ["paletteState", "engine"],
+    // Stage B1 §6：当前颜色的唯一真源（工作台编辑器）。
+    // 注意它与 paletteState.selectedColor 是**不同编辑器**的字段，故意不合流：
+    //   paletteState.selectedColor 属 app.js 的 #editor-modal 旧编辑器，存完整颜色对象；
+    //   editorState.currentPaletteId 属工作台编辑器，存 paletteId 字符串。
+    // 更要紧的是：适配器会把 projectStore 的 `editor.selectedColor` 路由到
+    // paletteState.selectedColor（见 state/project-store.js 的 WRITE.editor），
+    // 所以工作台若写 selectedColor，就会和旧编辑器抢同一个槽位、且写进去是字符串。
+    // 工作台侧的读写一律走 currentPaletteId。
+    currentPaletteId: ["editorState", "currentPaletteId"],
 
     previewRenderCell: ["rendererState", "previewRenderCell"],
     previewDetailCodesVisible: ["rendererState", "previewDetailCodesVisible"],

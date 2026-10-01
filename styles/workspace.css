@@ -116,6 +116,31 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .ws-palette-categories button,.ws-recent-colors button,.ws-selection-actions button,.ws-outline-options button { min-height: 27px; padding: 2px 7px; border: 1px solid var(--ws-border); border-radius: 5px; background: var(--ws-surface); color: var(--ws-text-secondary); font-size: 11px; cursor: pointer; }
 .ws-palette-categories button.active,.ws-recent-colors button:hover { color: var(--ws-accent); border-color: var(--ws-accent); background: var(--ws-accent-soft); }
 .ws-recent-colors { font-size: 11px; color: var(--ws-text-tertiary); align-items: center; }.ws-outline-options label { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+/* —— Stage B1 §12：横向用色统计 / 颜色巡检条 ——
+   横向滚动而不是竖列：右栏只有 244px，竖列会把色盘挤到屏幕外。
+   卡片是「色卡 + 色号 + 颗数」三行，最小宽度按最长色号（4 字符）留够。 */
+.ws-usage-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 6px 0 5px; }
+.ws-usage-head > span { font-size: 11px; color: var(--ws-text-secondary); font-variant-numeric: tabular-nums; }
+.ws-usage-sort { display: flex; gap: 3px; }
+.ws-usage-sort button { min-height: 22px; padding: 1px 5px; border: 1px solid var(--ws-border); border-radius: 4px; background: var(--ws-surface); color: var(--ws-text-tertiary); font-size: 10px; cursor: pointer; }
+.ws-usage-sort button.active { color: var(--ws-accent); border-color: var(--ws-accent); background: var(--ws-accent-soft); }
+.ws-usage-strip { display: flex; gap: 4px; margin: 0 0 6px; padding-bottom: 4px; overflow-x: auto; overflow-y: hidden; }
+.ws-usage-strip button.ws-usage-card { flex: 0 0 auto; display: grid; justify-items: center; gap: 2px; min-width: 44px; padding: 4px 3px; border: 1px solid var(--ws-border); border-radius: 5px; background: var(--ws-surface); color: var(--ws-text-secondary); cursor: pointer; }
+.ws-usage-strip button.ws-usage-card.active { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
+.ws-usage-strip .ws-swatch { width: 22px; height: 14px; border: 1px solid #17231b25; border-radius: 3px; }
+.ws-usage-strip small { font-size: 10px; }.ws-usage-strip em { font-size: 10px; font-style: normal; color: var(--ws-text-tertiary); font-variant-numeric: tabular-nums; }
+.ws-usage-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0 0 6px; }
+.ws-usage-actions .ws-usage-current { flex: 1 1 100%; font-size: 11px; color: var(--ws-text-secondary); font-variant-numeric: tabular-nums; }
+.ws-usage-actions button { min-height: 24px; padding: 2px 7px; border: 1px solid var(--ws-border); border-radius: 5px; background: var(--ws-surface); color: var(--ws-text-secondary); font-size: 11px; cursor: pointer; }
+.ws-usage-actions button:hover { color: var(--ws-accent); border-color: var(--ws-accent); }
+.ws-usage-similar { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 6px; }
+.ws-usage-similar button { display: grid; justify-items: center; gap: 2px; min-width: 52px; padding: 4px 3px; border: 1px solid var(--ws-border); border-radius: 5px; background: var(--ws-surface); color: var(--ws-text-secondary); cursor: pointer; }
+.ws-usage-similar button:hover { border-color: var(--ws-accent); color: var(--ws-accent); }
+.ws-usage-similar .ws-swatch { width: 22px; height: 14px; border: 1px solid #17231b25; border-radius: 3px; }
+.ws-usage-similar small { font-size: 10px; }.ws-usage-similar em { font-size: 9px; font-style: normal; color: var(--ws-text-tertiary); font-variant-numeric: tabular-nums; }
+.ws-picker-count { margin: 4px 0 0; font-size: 10px; color: var(--ws-text-tertiary); font-variant-numeric: tabular-nums; }
+.ws-bead-picker .ws-picker-more { grid-column: 1 / -1; min-height: 26px; border: 1px dashed var(--ws-border); border-radius: 5px; background: transparent; color: var(--ws-text-secondary); font-size: 11px; cursor: pointer; }
+.ws-bead-picker .ws-picker-more:hover { color: var(--ws-accent); border-color: var(--ws-accent); }
 .ws-editor-actions { display: flex; gap: 8px; margin: 12px 0; }.ws-editor-actions button { flex: 1; min-height: 30px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); cursor: pointer; }.ws-editor-actions button:disabled { opacity: .45; cursor: default; }
 .ws-canvas-hint { margin: 0; padding: 3px 12px; color: var(--ws-text-tertiary); font-size: 11px; text-align: center; background: var(--ws-canvas); }
 .ws-inspector { min-width: 0; min-height: 0; display: grid; grid-template-rows: 56px minmax(0,1fr); overflow: hidden; border-left: 1px solid var(--ws-border); background: var(--ws-surface); }

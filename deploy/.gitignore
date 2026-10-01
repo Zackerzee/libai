@@ -13,3 +13,7 @@ tests/fixtures/b0-size/
 #   blocks-800x600.png（2 色块状，benchmark 下界）
 #   photo-800x600.png （照片质感，benchmark 上界；确定性伪随机，可复现）
 tests/fixtures/b3-worker/
+
+# 探针夹具：由 tools/b1-palette-probe.mjs 用 zlib 现场生成，不入库
+#   photo-800x600.png（多色 + 分布不均 —— 低频色巡检 / 用量排序必须靠它才有意义）
+tests/fixtures/b1-palette/
