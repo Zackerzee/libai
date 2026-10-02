@@ -28,3 +28,8 @@ tests/fixtures/background/
 #   像素总数必须够大（≥3M）：识别要跑 getImageData + 边界扫描，只有大图才留得住
 #   「用户抢在识别 settle 之前点」的窗口 —— 小图上这个窗口根本不存在
 tests/fixtures/b4-race/
+
+# B4 benchmark 的**渲染产物**（PNG / contact sheet），由 tools/b4-bench.mjs 现场生成，不入库。
+# 注意：`tests/fixtures/b4-bench/baseline.json` **必须入库** —— 它是冻结基线本身，
+# 由 tests/b4-bench-baseline.test.mjs 守着。所以这里只忽略默认输出目录，不忽略那个 json。
+.b4-bench-out/

@@ -1,0 +1,2723 @@
+{
+  "stage": "B4 §4/§5",
+  "pinned": {
+    "paletteId": "artkal197",
+    "paletteLabel": "优肯 C197",
+    "longEdge": 104,
+    "maxColors": 0,
+    "modes": [
+      "auto",
+      "beginner"
+    ],
+    "logicalSize": 64,
+    "rasterScale": 8
+  },
+  "paletteHash": "65c8470b",
+  "paletteSize": 197,
+  "gridSize": {
+    "width": 104,
+    "height": 104
+  },
+  "originals": [
+    {
+      "classId": "A",
+      "classKey": "portrait",
+      "usedColors": 42,
+      "logicalProbeStats": {
+        "eye-left-highlight": {
+          "cells": 1,
+          "colors": 1
+        },
+        "eye-left": {
+          "cells": 20,
+          "colors": 3
+        },
+        "skin-cheek": {
+          "cells": 60,
+          "colors": 3
+        },
+        "hair": {
+          "cells": 160,
+          "colors": 8
+        },
+        "shirt-white": {
+          "cells": 448,
+          "colors": 1
+        }
+      }
+    },
+    {
+      "classId": "B",
+      "classKey": "anime",
+      "usedColors": 6,
+      "logicalProbeStats": {
+        "eye-highlight": {
+          "cells": 1,
+          "colors": 1
+        },
+        "outline-face": {
+          "cells": 720,
+          "colors": 4
+        },
+        "hair": {
+          "cells": 448,
+          "colors": 1
+        }
+      }
+    },
+    {
+      "classId": "C",
+      "classKey": "illustration",
+      "usedColors": 7,
+      "logicalProbeStats": {
+        "sky": {
+          "cells": 364,
+          "colors": 1
+        },
+        "grass": {
+          "cells": 448,
+          "colors": 1
+        },
+        "house-outline": {
+          "cells": 306,
+          "colors": 5
+        }
+      }
+    },
+    {
+      "classId": "D",
+      "classKey": "pixel",
+      "usedColors": 5,
+      "logicalProbeStats": {
+        "palette": {
+          "cells": 4096,
+          "colors": 5
+        },
+        "black-band": {
+          "cells": 144,
+          "colors": 1
+        }
+      }
+    },
+    {
+      "classId": "E",
+      "classKey": "logo",
+      "usedColors": 3,
+      "logicalProbeStats": {
+        "strokes": {
+          "cells": 546,
+          "colors": 2
+        },
+        "ring": {
+          "cells": 484,
+          "colors": 2
+        },
+        "background": {
+          "cells": 4096,
+          "colors": 3
+        }
+      }
+    },
+    {
+      "classId": "F",
+      "classKey": "pattern",
+      "usedColors": 4,
+      "logicalProbeStats": {
+        "gold": {
+          "cells": 4096,
+          "colors": 4
+        },
+        "corner": {
+          "cells": 1024,
+          "colors": 4
+        }
+      }
+    },
+    {
+      "classId": "G",
+      "classKey": "window",
+      "usedColors": 61,
+      "logicalProbeStats": {
+        "frame": {
+          "cells": 4096,
+          "colors": 61
+        },
+        "glass": {
+          "cells": 144,
+          "colors": 12
+        }
+      }
+    },
+    {
+      "classId": "H",
+      "classKey": "white-shirt",
+      "usedColors": 4,
+      "logicalProbeStats": {
+        "shirt": {
+          "cells": 1584,
+          "colors": 2
+        },
+        "tie": {
+          "cells": 228,
+          "colors": 2
+        }
+      }
+    },
+    {
+      "classId": "I",
+      "classKey": "gray-ramp",
+      "usedColors": 18,
+      "logicalProbeStats": {
+        "ramp": {
+          "cells": 2816,
+          "colors": 16
+        },
+        "skin": {
+          "cells": 255,
+          "colors": 2
+        }
+      }
+    },
+    {
+      "classId": "J",
+      "classKey": "photo-noise",
+      "usedColors": 3072,
+      "logicalProbeStats": {
+        "subject": {
+          "cells": 225,
+          "colors": 212
+        },
+        "gradient": {
+          "cells": 252,
+          "colors": 230
+        }
+      }
+    }
+  ],
+  "runs": [
+    {
+      "classId": "A",
+      "classKey": "portrait",
+      "mode": "auto",
+      "framingStable": true,
+      "subjectCropApplied": false,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 6,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "ce15ecdc",
+      "pipeline": {
+        "mode": "auto",
+        "routedMode": "pixel",
+        "sampling": "center",
+        "analysis": {
+          "edgeDensity": 0.024366048732097464,
+          "flatRegionRatio": 0.9661479322958646,
+          "textureScore": 0.02908503433256875,
+          "colorComplexity": 0.029296875,
+          "pixelLikeness": 0.6321297417985461
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "center",
+        "detailProtection": 1,
+        "edgeProtection": 1,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.1,
+        "maxColors": 0,
+        "subjectCrop": false,
+        "autoBackground": false,
+        "strokeProtection": false,
+        "accentProtection": false
+      },
+      "probes": {
+        "eye-left-highlight": {
+          "original": {
+            "cells": 4,
+            "filled": 4,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 235,
+            "topCode": null,
+            "topCount": 4,
+            "topRgb": [
+              250,
+              249,
+              249
+            ]
+          },
+          "output": {
+            "cells": 4,
+            "filled": 4,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 255,
+            "topCode": "C01",
+            "topCount": 4,
+            "topRgb": [
+              255,
+              255,
+              255
+            ]
+          }
+        },
+        "eye-left": {
+          "original": {
+            "cells": 72,
+            "filled": 72,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 7,
+            "meanLuminance": 194,
+            "topCode": null,
+            "topCount": 72,
+            "topRgb": [
+              232,
+              197,
+              172
+            ]
+          },
+          "output": {
+            "cells": 72,
+            "filled": 72,
+            "fillRatio": 1,
+            "distinctColors": 3,
+            "darkCells": 16,
+            "meanLuminance": 182,
+            "topCode": "C01",
+            "topCount": 32,
+            "topRgb": [
+              255,
+              255,
+              255
+            ]
+          }
+        },
+        "skin-cheek": {
+          "original": {
+            "cells": 187,
+            "filled": 187,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 206,
+            "topCode": null,
+            "topCount": 187,
+            "topRgb": [
+              235,
+              197,
+              169
+            ]
+          },
+          "output": {
+            "cells": 187,
+            "filled": 187,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 205,
+            "topCode": "C92",
+            "topCount": 187,
+            "topRgb": [
+              241,
+              198,
+              167
+            ]
+          }
+        },
+        "hair": {
+          "original": {
+            "cells": 476,
+            "filled": 476,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 476,
+            "meanLuminance": 59,
+            "topCode": null,
+            "topCount": 476,
+            "topRgb": [
+              71,
+              48,
+              38
+            ]
+          },
+          "output": {
+            "cells": 476,
+            "filled": 476,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 476,
+            "meanLuminance": 63,
+            "topCode": "C32",
+            "topCount": 476,
+            "topRgb": [
+              104,
+              52,
+              49
+            ]
+          }
+        },
+        "shirt-white": {
+          "original": {
+            "cells": 1288,
+            "filled": 1288,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 250,
+            "topCode": null,
+            "topCount": 1288,
+            "topRgb": [
+              250,
+              250,
+              252
+            ]
+          },
+          "output": {
+            "cells": 1288,
+            "filled": 1288,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 255,
+            "topCode": "C01",
+            "topCount": 1288,
+            "topRgb": [
+              255,
+              255,
+              255
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "A",
+      "classKey": "portrait",
+      "mode": "beginner",
+      "framingStable": false,
+      "subjectCropApplied": true,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 12,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "fcb46d3f",
+      "pipeline": {
+        "mode": "beginner",
+        "routedMode": "beginner",
+        "sampling": "auto",
+        "analysis": {
+          "edgeDensity": 0.024366048732097464,
+          "flatRegionRatio": 0.9661479322958646,
+          "textureScore": 0.02908503433256875,
+          "colorComplexity": 0.029296875,
+          "pixelLikeness": 0.6321297417985461
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "auto",
+        "detailProtection": 0.8,
+        "edgeProtection": 0.9,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.45,
+        "maxColors": 0,
+        "subjectCrop": true,
+        "autoBackground": true,
+        "strokeProtection": true,
+        "accentProtection": true
+      },
+      "probes": {
+        "eye-left-highlight": {
+          "original": {
+            "cells": 4,
+            "filled": 4,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 235,
+            "topCode": null,
+            "topCount": 4,
+            "topRgb": [
+              250,
+              249,
+              249
+            ]
+          },
+          "output": {
+            "cells": 4,
+            "filled": 4,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 205,
+            "topCode": "C92",
+            "topCount": 4,
+            "topRgb": [
+              241,
+              198,
+              167
+            ]
+          }
+        },
+        "eye-left": {
+          "original": {
+            "cells": 72,
+            "filled": 72,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 7,
+            "meanLuminance": 194,
+            "topCode": null,
+            "topCount": 72,
+            "topRgb": [
+              232,
+              197,
+              172
+            ]
+          },
+          "output": {
+            "cells": 72,
+            "filled": 72,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 205,
+            "topCode": "C92",
+            "topCount": 72,
+            "topRgb": [
+              241,
+              198,
+              167
+            ]
+          }
+        },
+        "skin-cheek": {
+          "original": {
+            "cells": 187,
+            "filled": 187,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 206,
+            "topCode": null,
+            "topCount": 187,
+            "topRgb": [
+              235,
+              197,
+              169
+            ]
+          },
+          "output": {
+            "cells": 187,
+            "filled": 187,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 205,
+            "topCode": "C92",
+            "topCount": 187,
+            "topRgb": [
+              241,
+              198,
+              167
+            ]
+          }
+        },
+        "hair": {
+          "original": {
+            "cells": 476,
+            "filled": 476,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 476,
+            "meanLuminance": 59,
+            "topCode": null,
+            "topCount": 476,
+            "topRgb": [
+              71,
+              48,
+              38
+            ]
+          },
+          "output": {
+            "cells": 476,
+            "filled": 476,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 205,
+            "topCode": "C92",
+            "topCount": 476,
+            "topRgb": [
+              241,
+              198,
+              167
+            ]
+          }
+        },
+        "shirt-white": {
+          "original": {
+            "cells": 1288,
+            "filled": 1288,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 250,
+            "topCode": null,
+            "topCount": 1288,
+            "topRgb": [
+              250,
+              250,
+              252
+            ]
+          },
+          "output": {
+            "cells": 1288,
+            "filled": 1288,
+            "fillRatio": 1,
+            "distinctColors": 4,
+            "darkCells": 0,
+            "meanLuminance": 231,
+            "topCode": "C01",
+            "topCount": 670,
+            "topRgb": [
+              255,
+              255,
+              255
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "B",
+      "classKey": "anime",
+      "mode": "auto",
+      "framingStable": true,
+      "subjectCropApplied": false,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 6,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "7ccac13a",
+      "pipeline": {
+        "mode": "auto",
+        "routedMode": "pixel",
+        "sampling": "center",
+        "analysis": {
+          "edgeDensity": 0.06671213342426685,
+          "flatRegionRatio": 0.9332878665757331,
+          "textureScore": 0.06671213342426685,
+          "colorComplexity": 0.01171875,
+          "pixelLikeness": 0.62822854747272
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "center",
+        "detailProtection": 1,
+        "edgeProtection": 1,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.1,
+        "maxColors": 0,
+        "subjectCrop": false,
+        "autoBackground": false,
+        "strokeProtection": false,
+        "accentProtection": false
+      },
+      "probes": {
+        "eye-highlight": {
+          "original": {
+            "cells": 4,
+            "filled": 4,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 168,
+            "topCode": null,
+            "topCount": 4,
+            "topRgb": [
+              127,
+              126,
+              129
+            ]
+          },
+          "output": {
+            "cells": 4,
+            "filled": 4,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 255,
+            "topCode": "C01",
+            "topCount": 4,
+            "topRgb": [
+              255,
+              255,
+              255
+            ]
+          }
+        },
+        "outline-face": {
+          "original": {
+            "cells": 2000,
+            "filled": 2000,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 400,
+            "meanLuminance": 174,
+            "topCode": null,
+            "topCount": 2000,
+            "topRgb": [
+              246,
+              156,
+              62
+            ]
+          },
+          "output": {
+            "cells": 2000,
+            "filled": 2000,
+            "fillRatio": 1,
+            "distinctColors": 5,
+            "darkCells": 400,
+            "meanLuminance": 166,
+            "topCode": "C153",
+            "topCount": 1284,
+            "topRgb": [
+              243,
+              207,
+              179
+            ]
+          }
+        },
+        "hair": {
+          "original": {
+            "cells": 1248,
+            "filled": 1248,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 168,
+            "topCode": null,
+            "topCount": 1248,
+            "topRgb": [
+              246,
+              156,
+              62
+            ]
+          },
+          "output": {
+            "cells": 1248,
+            "filled": 1248,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 174,
+            "topCode": "CE13",
+            "topCount": 1248,
+            "topRgb": [
+              230,
+              166,
+              93
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "B",
+      "classKey": "anime",
+      "mode": "beginner",
+      "framingStable": false,
+      "subjectCropApplied": true,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 16,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "9634dde6",
+      "pipeline": {
+        "mode": "beginner",
+        "routedMode": "beginner",
+        "sampling": "auto",
+        "analysis": {
+          "edgeDensity": 0.06671213342426685,
+          "flatRegionRatio": 0.9332878665757331,
+          "textureScore": 0.06671213342426685,
+          "colorComplexity": 0.01171875,
+          "pixelLikeness": 0.62822854747272
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "auto",
+        "detailProtection": 0.8,
+        "edgeProtection": 0.9,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.45,
+        "maxColors": 0,
+        "subjectCrop": true,
+        "autoBackground": true,
+        "strokeProtection": true,
+        "accentProtection": true
+      },
+      "probes": {
+        "eye-highlight": {
+          "original": {
+            "cells": 4,
+            "filled": 4,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 168,
+            "topCode": null,
+            "topCount": 4,
+            "topRgb": [
+              127,
+              126,
+              129
+            ]
+          },
+          "output": {
+            "cells": 4,
+            "filled": 4,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 213,
+            "topCode": "C153",
+            "topCount": 4,
+            "topRgb": [
+              243,
+              207,
+              179
+            ]
+          }
+        },
+        "outline-face": {
+          "original": {
+            "cells": 2000,
+            "filled": 2000,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 400,
+            "meanLuminance": 174,
+            "topCode": null,
+            "topCount": 2000,
+            "topRgb": [
+              246,
+              156,
+              62
+            ]
+          },
+          "output": {
+            "cells": 2000,
+            "filled": 2000,
+            "fillRatio": 1,
+            "distinctColors": 9,
+            "darkCells": 445,
+            "meanLuminance": 162,
+            "topCode": "C153",
+            "topCount": 1468,
+            "topRgb": [
+              243,
+              207,
+              179
+            ]
+          }
+        },
+        "hair": {
+          "original": {
+            "cells": 1248,
+            "filled": 1248,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 168,
+            "topCode": null,
+            "topCount": 1248,
+            "topRgb": [
+              246,
+              156,
+              62
+            ]
+          },
+          "output": {
+            "cells": 1248,
+            "filled": 1248,
+            "fillRatio": 1,
+            "distinctColors": 2,
+            "darkCells": 156,
+            "meanLuminance": 153,
+            "topCode": "CE13",
+            "topCount": 1092,
+            "topRgb": [
+              230,
+              166,
+              93
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "C",
+      "classKey": "illustration",
+      "mode": "auto",
+      "framingStable": true,
+      "subjectCropApplied": false,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 7,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "575c2506",
+      "pipeline": {
+        "mode": "auto",
+        "routedMode": "pixel",
+        "sampling": "center",
+        "analysis": {
+          "edgeDensity": 0.04426808853617707,
+          "flatRegionRatio": 0.9481058962117924,
+          "textureScore": 0.04807564480128968,
+          "colorComplexity": 0.013671875,
+          "pixelLikeness": 0.629711882275327
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "center",
+        "detailProtection": 1,
+        "edgeProtection": 1,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.1,
+        "maxColors": 0,
+        "subjectCrop": false,
+        "autoBackground": false,
+        "strokeProtection": false,
+        "accentProtection": false
+      },
+      "probes": {
+        "sky": {
+          "original": {
+            "cells": 1032,
+            "filled": 1032,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 210,
+            "topCode": null,
+            "topCount": 1032,
+            "topRgb": [
+              178,
+              216,
+              244
+            ]
+          },
+          "output": {
+            "cells": 1032,
+            "filled": 1032,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 190,
+            "topCode": "C18",
+            "topCount": 1032,
+            "topRgb": [
+              141,
+              200,
+              232
+            ]
+          }
+        },
+        "grass": {
+          "original": {
+            "cells": 1288,
+            "filled": 1288,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 136,
+            "topCode": null,
+            "topCount": 1288,
+            "topRgb": [
+              96,
+              152,
+              92
+            ]
+          },
+          "output": {
+            "cells": 1288,
+            "filled": 1288,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 115,
+            "topCode": "C14",
+            "topCount": 1288,
+            "topRgb": [
+              0,
+              154,
+              68
+            ]
+          }
+        },
+        "house-outline": {
+          "original": {
+            "cells": 870,
+            "filled": 870,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 221,
+            "meanLuminance": 163,
+            "topCode": null,
+            "topCount": 870,
+            "topRgb": [
+              178,
+              216,
+              244
+            ]
+          },
+          "output": {
+            "cells": 870,
+            "filled": 870,
+            "fillRatio": 1,
+            "distinctColors": 5,
+            "darkCells": 298,
+            "meanLuminance": 156,
+            "topCode": "C148",
+            "topCount": 450,
+            "topRgb": [
+              239,
+              219,
+              178
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "C",
+      "classKey": "illustration",
+      "mode": "beginner",
+      "framingStable": false,
+      "subjectCropApplied": true,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 18,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "5a7c0bd9",
+      "pipeline": {
+        "mode": "beginner",
+        "routedMode": "beginner",
+        "sampling": "auto",
+        "analysis": {
+          "edgeDensity": 0.04426808853617707,
+          "flatRegionRatio": 0.9481058962117924,
+          "textureScore": 0.04807564480128968,
+          "colorComplexity": 0.013671875,
+          "pixelLikeness": 0.629711882275327
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "auto",
+        "detailProtection": 0.8,
+        "edgeProtection": 0.9,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.45,
+        "maxColors": 0,
+        "subjectCrop": true,
+        "autoBackground": true,
+        "strokeProtection": true,
+        "accentProtection": true
+      },
+      "probes": {
+        "sky": {
+          "original": {
+            "cells": 1032,
+            "filled": 1032,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 210,
+            "topCode": null,
+            "topCount": 1032,
+            "topRgb": [
+              178,
+              216,
+              244
+            ]
+          },
+          "output": {
+            "cells": 1032,
+            "filled": 1032,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 190,
+            "topCode": "C18",
+            "topCount": 1032,
+            "topRgb": [
+              141,
+              200,
+              232
+            ]
+          }
+        },
+        "grass": {
+          "original": {
+            "cells": 1288,
+            "filled": 1288,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 136,
+            "topCode": null,
+            "topCount": 1288,
+            "topRgb": [
+              96,
+              152,
+              92
+            ]
+          },
+          "output": {
+            "cells": 1288,
+            "filled": 1288,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 115,
+            "topCode": "C14",
+            "topCount": 1288,
+            "topRgb": [
+              0,
+              154,
+              68
+            ]
+          }
+        },
+        "house-outline": {
+          "original": {
+            "cells": 870,
+            "filled": 870,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 221,
+            "meanLuminance": 163,
+            "topCode": null,
+            "topCount": 870,
+            "topRgb": [
+              178,
+              216,
+              244
+            ]
+          },
+          "output": {
+            "cells": 870,
+            "filled": 870,
+            "fillRatio": 1,
+            "distinctColors": 9,
+            "darkCells": 246,
+            "meanLuminance": 162,
+            "topCode": "C148",
+            "topCount": 448,
+            "topRgb": [
+              239,
+              219,
+              178
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "D",
+      "classKey": "pixel",
+      "mode": "auto",
+      "framingStable": true,
+      "subjectCropApplied": false,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 5,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "8d852b5b",
+      "pipeline": {
+        "mode": "auto",
+        "routedMode": "auto",
+        "sampling": "auto",
+        "analysis": {
+          "edgeDensity": 0.10664021328042655,
+          "flatRegionRatio": 0.8933597867195734,
+          "textureScore": 0.10683198121396247,
+          "colorComplexity": 0.009765625,
+          "pixelLikeness": 0.616543092265872
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "auto",
+        "detailProtection": 0.7,
+        "edgeProtection": 0.7,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.5,
+        "maxColors": 0,
+        "subjectCrop": false,
+        "autoBackground": false,
+        "strokeProtection": false,
+        "accentProtection": false
+      },
+      "probes": {
+        "palette": {
+          "original": {
+            "cells": 10816,
+            "filled": 10816,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 5936,
+            "meanLuminance": 83,
+            "topCode": null,
+            "topCount": 10816,
+            "topRgb": [
+              28,
+              28,
+              36
+            ]
+          },
+          "output": {
+            "cells": 10816,
+            "filled": 10816,
+            "fillRatio": 1,
+            "distinctColors": 5,
+            "darkCells": 5789,
+            "meanLuminance": 93,
+            "topCode": "C157",
+            "topCount": 5789,
+            "topRgb": [
+              29,
+              37,
+              45
+            ]
+          }
+        },
+        "black-band": {
+          "original": {
+            "cells": 390,
+            "filled": 390,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 390,
+            "meanLuminance": 29,
+            "topCode": null,
+            "topCount": 390,
+            "topRgb": [
+              28,
+              28,
+              36
+            ]
+          },
+          "output": {
+            "cells": 390,
+            "filled": 390,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 390,
+            "meanLuminance": 36,
+            "topCode": "C157",
+            "topCount": 390,
+            "topRgb": [
+              29,
+              37,
+              45
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "D",
+      "classKey": "pixel",
+      "mode": "beginner",
+      "framingStable": false,
+      "subjectCropApplied": true,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 7,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "ff8f3222",
+      "pipeline": {
+        "mode": "beginner",
+        "routedMode": "beginner",
+        "sampling": "auto",
+        "analysis": {
+          "edgeDensity": 0.10664021328042655,
+          "flatRegionRatio": 0.8933597867195734,
+          "textureScore": 0.10683198121396247,
+          "colorComplexity": 0.009765625,
+          "pixelLikeness": 0.616543092265872
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "auto",
+        "detailProtection": 0.8,
+        "edgeProtection": 0.9,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.45,
+        "maxColors": 0,
+        "subjectCrop": true,
+        "autoBackground": true,
+        "strokeProtection": true,
+        "accentProtection": true
+      },
+      "probes": {
+        "palette": {
+          "original": {
+            "cells": 10816,
+            "filled": 10816,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 5936,
+            "meanLuminance": 83,
+            "topCode": null,
+            "topCount": 10816,
+            "topRgb": [
+              28,
+              28,
+              36
+            ]
+          },
+          "output": {
+            "cells": 10816,
+            "filled": 10816,
+            "fillRatio": 1,
+            "distinctColors": 7,
+            "darkCells": 5364,
+            "meanLuminance": 97,
+            "topCode": "C157",
+            "topCount": 5356,
+            "topRgb": [
+              29,
+              37,
+              45
+            ]
+          }
+        },
+        "black-band": {
+          "original": {
+            "cells": 390,
+            "filled": 390,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 390,
+            "meanLuminance": 29,
+            "topCode": null,
+            "topCount": 390,
+            "topRgb": [
+              28,
+              28,
+              36
+            ]
+          },
+          "output": {
+            "cells": 390,
+            "filled": 390,
+            "fillRatio": 1,
+            "distinctColors": 2,
+            "darkCells": 312,
+            "meanLuminance": 53,
+            "topCode": "C157",
+            "topCount": 312,
+            "topRgb": [
+              29,
+              37,
+              45
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "E",
+      "classKey": "logo",
+      "mode": "auto",
+      "framingStable": true,
+      "subjectCropApplied": false,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 3,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "e860b8ff",
+      "pipeline": {
+        "mode": "auto",
+        "routedMode": "pixel",
+        "sampling": "center",
+        "analysis": {
+          "edgeDensity": 0.05363010726021452,
+          "flatRegionRatio": 0.9463698927397854,
+          "textureScore": 0.05363010726021452,
+          "colorComplexity": 0.005859375,
+          "pixelLikeness": 0.6330320615719356
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "center",
+        "detailProtection": 1,
+        "edgeProtection": 1,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.1,
+        "maxColors": 0,
+        "subjectCrop": false,
+        "autoBackground": false,
+        "strokeProtection": false,
+        "accentProtection": false
+      },
+      "probes": {
+        "strokes": {
+          "original": {
+            "cells": 1505,
+            "filled": 1505,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 588,
+            "meanLuminance": 155,
+            "topCode": null,
+            "topCount": 1505,
+            "topRgb": [
+              177,
+              177,
+              178
+            ]
+          },
+          "output": {
+            "cells": 1505,
+            "filled": 1505,
+            "fillRatio": 1,
+            "distinctColors": 2,
+            "darkCells": 588,
+            "meanLuminance": 169,
+            "topCode": "C01",
+            "topCount": 917,
+            "topRgb": [
+              255,
+              255,
+              255
+            ]
+          }
+        },
+        "ring": {
+          "original": {
+            "cells": 1332,
+            "filled": 1332,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 415,
+            "meanLuminance": 181,
+            "topCode": null,
+            "topCount": 1332,
+            "topRgb": [
+              252,
+              252,
+              252
+            ]
+          },
+          "output": {
+            "cells": 1332,
+            "filled": 1332,
+            "fillRatio": 1,
+            "distinctColors": 2,
+            "darkCells": 558,
+            "meanLuminance": 169,
+            "topCode": "C01",
+            "topCount": 774,
+            "topRgb": [
+              255,
+              255,
+              255
+            ]
+          }
+        },
+        "background": {
+          "original": {
+            "cells": 10816,
+            "filled": 10816,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 1005,
+            "meanLuminance": 230,
+            "topCode": null,
+            "topCount": 10816,
+            "topRgb": [
+              252,
+              252,
+              252
+            ]
+          },
+          "output": {
+            "cells": 10816,
+            "filled": 10816,
+            "fillRatio": 1,
+            "distinctColors": 3,
+            "darkCells": 1149,
+            "meanLuminance": 232,
+            "topCode": "C01",
+            "topCount": 9667,
+            "topRgb": [
+              255,
+              255,
+              255
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "E",
+      "classKey": "logo",
+      "mode": "beginner",
+      "framingStable": false,
+      "subjectCropApplied": true,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 14,
+      "nullCells": 4726,
+      "totalCells": 10816,
+      "gridHash": "e9e0afae",
+      "pipeline": {
+        "mode": "beginner",
+        "routedMode": "beginner",
+        "sampling": "auto",
+        "analysis": {
+          "edgeDensity": 0.05363010726021452,
+          "flatRegionRatio": 0.9463698927397854,
+          "textureScore": 0.05363010726021452,
+          "colorComplexity": 0.005859375,
+          "pixelLikeness": 0.6330320615719356
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "auto",
+        "detailProtection": 0.8,
+        "edgeProtection": 0.9,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.45,
+        "maxColors": 0,
+        "subjectCrop": true,
+        "autoBackground": true,
+        "strokeProtection": true,
+        "accentProtection": true
+      },
+      "probes": {
+        "strokes": {
+          "original": {
+            "cells": 1505,
+            "filled": 1505,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 588,
+            "meanLuminance": 155,
+            "topCode": null,
+            "topCount": 1505,
+            "topRgb": [
+              177,
+              177,
+              178
+            ]
+          },
+          "output": {
+            "cells": 1505,
+            "filled": 1400,
+            "fillRatio": 0.9302,
+            "distinctColors": 2,
+            "darkCells": 315,
+            "meanLuminance": 206,
+            "topCode": "C01",
+            "topCount": 1085,
+            "topRgb": [
+              255,
+              255,
+              255
+            ]
+          }
+        },
+        "ring": {
+          "original": {
+            "cells": 1332,
+            "filled": 1332,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 415,
+            "meanLuminance": 181,
+            "topCode": null,
+            "topCount": 1332,
+            "topRgb": [
+              252,
+              252,
+              252
+            ]
+          },
+          "output": {
+            "cells": 1332,
+            "filled": 1268,
+            "fillRatio": 0.952,
+            "distinctColors": 8,
+            "darkCells": 790,
+            "meanLuminance": 126,
+            "topCode": "C57",
+            "topCount": 784,
+            "topRgb": [
+              213,
+              0,
+              50
+            ]
+          }
+        },
+        "background": {
+          "original": {
+            "cells": 10816,
+            "filled": 10816,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 1005,
+            "meanLuminance": 230,
+            "topCode": null,
+            "topCount": 10816,
+            "topRgb": [
+              252,
+              252,
+              252
+            ]
+          },
+          "output": {
+            "cells": 10816,
+            "filled": 6090,
+            "fillRatio": 0.5631,
+            "distinctColors": 14,
+            "darkCells": 2846,
+            "meanLuminance": 154,
+            "topCode": "C01",
+            "topCount": 3172,
+            "topRgb": [
+              255,
+              255,
+              255
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "F",
+      "classKey": "pattern",
+      "mode": "auto",
+      "framingStable": true,
+      "subjectCropApplied": false,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 5,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "2dc041ec",
+      "pipeline": {
+        "mode": "auto",
+        "routedMode": "illustration",
+        "sampling": "dominant",
+        "analysis": {
+          "edgeDensity": 0.23634447268894537,
+          "flatRegionRatio": 0.658503317006634,
+          "textureScore": 0.2663023374046802,
+          "colorComplexity": 0.0078125,
+          "pixelLikeness": 0.509575846495443
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "dominant",
+        "detailProtection": 0.7,
+        "edgeProtection": 0.85,
+        "highlightProtection": 0.8,
+        "eyeProtection": 0,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.55,
+        "maxColors": 0,
+        "subjectCrop": false,
+        "autoBackground": false,
+        "strokeProtection": false,
+        "accentProtection": false
+      },
+      "probes": {
+        "gold": {
+          "original": {
+            "cells": 10816,
+            "filled": 10816,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 6872,
+            "meanLuminance": 88,
+            "topCode": null,
+            "topCount": 10816,
+            "topRgb": [
+              214,
+              168,
+              62
+            ]
+          },
+          "output": {
+            "cells": 10816,
+            "filled": 10816,
+            "fillRatio": 1,
+            "distinctColors": 5,
+            "darkCells": 7611,
+            "meanLuminance": 93,
+            "topCode": "C30",
+            "topCount": 3995,
+            "topRgb": [
+              147,
+              38,
+              44
+            ]
+          }
+        },
+        "corner": {
+          "original": {
+            "cells": 2704,
+            "filled": 2704,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 1718,
+            "meanLuminance": 88,
+            "topCode": null,
+            "topCount": 2704,
+            "topRgb": [
+              214,
+              168,
+              62
+            ]
+          },
+          "output": {
+            "cells": 2704,
+            "filled": 2704,
+            "fillRatio": 1,
+            "distinctColors": 5,
+            "darkCells": 1915,
+            "meanLuminance": 92,
+            "topCode": "C30",
+            "topCount": 1004,
+            "topRgb": [
+              147,
+              38,
+              44
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "F",
+      "classKey": "pattern",
+      "mode": "beginner",
+      "framingStable": true,
+      "subjectCropApplied": false,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 7,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "e1217a94",
+      "pipeline": {
+        "mode": "beginner",
+        "routedMode": "beginner",
+        "sampling": "auto",
+        "analysis": {
+          "edgeDensity": 0.23634447268894537,
+          "flatRegionRatio": 0.658503317006634,
+          "textureScore": 0.2663023374046802,
+          "colorComplexity": 0.0078125,
+          "pixelLikeness": 0.509575846495443
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "auto",
+        "detailProtection": 0.8,
+        "edgeProtection": 0.9,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.45,
+        "maxColors": 0,
+        "subjectCrop": true,
+        "autoBackground": true,
+        "strokeProtection": true,
+        "accentProtection": true
+      },
+      "probes": {
+        "gold": {
+          "original": {
+            "cells": 10816,
+            "filled": 10816,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 6872,
+            "meanLuminance": 88,
+            "topCode": null,
+            "topCount": 10816,
+            "topRgb": [
+              214,
+              168,
+              62
+            ]
+          },
+          "output": {
+            "cells": 10816,
+            "filled": 10816,
+            "fillRatio": 1,
+            "distinctColors": 7,
+            "darkCells": 7280,
+            "meanLuminance": 98,
+            "topCode": "C30",
+            "topCount": 3800,
+            "topRgb": [
+              147,
+              38,
+              44
+            ]
+          }
+        },
+        "corner": {
+          "original": {
+            "cells": 2704,
+            "filled": 2704,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 1718,
+            "meanLuminance": 88,
+            "topCode": null,
+            "topCount": 2704,
+            "topRgb": [
+              214,
+              168,
+              62
+            ]
+          },
+          "output": {
+            "cells": 2704,
+            "filled": 2704,
+            "fillRatio": 1,
+            "distinctColors": 7,
+            "darkCells": 1820,
+            "meanLuminance": 98,
+            "topCode": "C30",
+            "topCount": 950,
+            "topRgb": [
+              147,
+              38,
+              44
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "G",
+      "classKey": "window",
+      "mode": "auto",
+      "framingStable": true,
+      "subjectCropApplied": false,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 4,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "bd80a094",
+      "pipeline": {
+        "mode": "auto",
+        "routedMode": "illustration",
+        "sampling": "dominant",
+        "analysis": {
+          "edgeDensity": 0.1346022692045384,
+          "flatRegionRatio": 0.845495690991382,
+          "textureScore": 0.1374211790486091,
+          "colorComplexity": 0.01953125,
+          "pixelLikeness": 0.5937533058659868
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "dominant",
+        "detailProtection": 0.7,
+        "edgeProtection": 0.85,
+        "highlightProtection": 0.8,
+        "eyeProtection": 0,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.55,
+        "maxColors": 0,
+        "subjectCrop": false,
+        "autoBackground": false,
+        "strokeProtection": false,
+        "accentProtection": false
+      },
+      "probes": {
+        "frame": {
+          "original": {
+            "cells": 10816,
+            "filled": 10816,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 1040,
+            "meanLuminance": 198,
+            "topCode": null,
+            "topCount": 10816,
+            "topRgb": [
+              62,
+              54,
+              48
+            ]
+          },
+          "output": {
+            "cells": 10816,
+            "filled": 10816,
+            "fillRatio": 1,
+            "distinctColors": 4,
+            "darkCells": 1980,
+            "meanLuminance": 192,
+            "topCode": "CE01",
+            "topCount": 6798,
+            "topRgb": [
+              209,
+              221,
+              230
+            ]
+          }
+        },
+        "glass": {
+          "original": {
+            "cells": 400,
+            "filled": 400,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 206,
+            "topCode": null,
+            "topCount": 400,
+            "topRgb": [
+              186,
+              212,
+              232
+            ]
+          },
+          "output": {
+            "cells": 400,
+            "filled": 400,
+            "fillRatio": 1,
+            "distinctColors": 2,
+            "darkCells": 0,
+            "meanLuminance": 194,
+            "topCode": "CE02",
+            "topCount": 260,
+            "topRgb": [
+              155,
+              184,
+              211
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "G",
+      "classKey": "window",
+      "mode": "beginner",
+      "framingStable": true,
+      "subjectCropApplied": false,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 8,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "a4925fc2",
+      "pipeline": {
+        "mode": "beginner",
+        "routedMode": "beginner",
+        "sampling": "auto",
+        "analysis": {
+          "edgeDensity": 0.1346022692045384,
+          "flatRegionRatio": 0.845495690991382,
+          "textureScore": 0.1374211790486091,
+          "colorComplexity": 0.01953125,
+          "pixelLikeness": 0.5937533058659868
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "auto",
+        "detailProtection": 0.8,
+        "edgeProtection": 0.9,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.45,
+        "maxColors": 0,
+        "subjectCrop": true,
+        "autoBackground": true,
+        "strokeProtection": true,
+        "accentProtection": true
+      },
+      "probes": {
+        "frame": {
+          "original": {
+            "cells": 10816,
+            "filled": 10816,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 1040,
+            "meanLuminance": 198,
+            "topCode": null,
+            "topCount": 10816,
+            "topRgb": [
+              62,
+              54,
+              48
+            ]
+          },
+          "output": {
+            "cells": 10816,
+            "filled": 10816,
+            "fillRatio": 1,
+            "distinctColors": 8,
+            "darkCells": 1900,
+            "meanLuminance": 198,
+            "topCode": "CE01",
+            "topCount": 7032,
+            "topRgb": [
+              209,
+              221,
+              230
+            ]
+          }
+        },
+        "glass": {
+          "original": {
+            "cells": 400,
+            "filled": 400,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 206,
+            "topCode": null,
+            "topCount": 400,
+            "topRgb": [
+              186,
+              212,
+              232
+            ]
+          },
+          "output": {
+            "cells": 400,
+            "filled": 400,
+            "fillRatio": 1,
+            "distinctColors": 2,
+            "darkCells": 0,
+            "meanLuminance": 213,
+            "topCode": "CE01",
+            "topCount": 341,
+            "topRgb": [
+              209,
+              221,
+              230
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "H",
+      "classKey": "white-shirt",
+      "mode": "auto",
+      "framingStable": true,
+      "subjectCropApplied": false,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 3,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "d3b193ec",
+      "pipeline": {
+        "mode": "auto",
+        "routedMode": "pixel",
+        "sampling": "center",
+        "analysis": {
+          "edgeDensity": 0.04755409510819022,
+          "flatRegionRatio": 0.9524459048918098,
+          "textureScore": 0.04256102672205339,
+          "colorComplexity": 0.005859375,
+          "pixelLikeness": 0.6348548652175431
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "center",
+        "detailProtection": 1,
+        "edgeProtection": 1,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.1,
+        "maxColors": 0,
+        "subjectCrop": false,
+        "autoBackground": false,
+        "strokeProtection": false,
+        "accentProtection": false
+      },
+      "probes": {
+        "shirt": {
+          "original": {
+            "cells": 4320,
+            "filled": 4320,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 372,
+            "meanLuminance": 237,
+            "topCode": null,
+            "topCount": 4320,
+            "topRgb": [
+              253,
+              253,
+              253
+            ]
+          },
+          "output": {
+            "cells": 4320,
+            "filled": 4320,
+            "fillRatio": 1,
+            "distinctColors": 2,
+            "darkCells": 372,
+            "meanLuminance": 240,
+            "topCode": "C01",
+            "topCount": 3948,
+            "topRgb": [
+              255,
+              255,
+              255
+            ]
+          }
+        },
+        "tie": {
+          "original": {
+            "cells": 620,
+            "filled": 620,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 372,
+            "meanLuminance": 142,
+            "topCode": null,
+            "topCount": 620,
+            "topRgb": [
+              253,
+              253,
+              253
+            ]
+          },
+          "output": {
+            "cells": 620,
+            "filled": 620,
+            "fillRatio": 1,
+            "distinctColors": 2,
+            "darkCells": 372,
+            "meanLuminance": 153,
+            "topCode": "CP07",
+            "topCount": 372,
+            "topRgb": [
+              62,
+              86,
+              148
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "H",
+      "classKey": "white-shirt",
+      "mode": "beginner",
+      "framingStable": false,
+      "subjectCropApplied": true,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 4,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "9ffd1d34",
+      "pipeline": {
+        "mode": "beginner",
+        "routedMode": "beginner",
+        "sampling": "auto",
+        "analysis": {
+          "edgeDensity": 0.04755409510819022,
+          "flatRegionRatio": 0.9524459048918098,
+          "textureScore": 0.04256102672205339,
+          "colorComplexity": 0.005859375,
+          "pixelLikeness": 0.6348548652175431
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "auto",
+        "detailProtection": 0.8,
+        "edgeProtection": 0.9,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.45,
+        "maxColors": 0,
+        "subjectCrop": true,
+        "autoBackground": true,
+        "strokeProtection": true,
+        "accentProtection": true
+      },
+      "probes": {
+        "shirt": {
+          "original": {
+            "cells": 4320,
+            "filled": 4320,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 372,
+            "meanLuminance": 237,
+            "topCode": null,
+            "topCount": 4320,
+            "topRgb": [
+              253,
+              253,
+              253
+            ]
+          },
+          "output": {
+            "cells": 4320,
+            "filled": 4320,
+            "fillRatio": 1,
+            "distinctColors": 2,
+            "darkCells": 720,
+            "meanLuminance": 227,
+            "topCode": "C01",
+            "topCount": 3600,
+            "topRgb": [
+              255,
+              255,
+              255
+            ]
+          }
+        },
+        "tie": {
+          "original": {
+            "cells": 620,
+            "filled": 620,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 372,
+            "meanLuminance": 142,
+            "topCode": null,
+            "topCount": 620,
+            "topRgb": [
+              253,
+              253,
+              253
+            ]
+          },
+          "output": {
+            "cells": 620,
+            "filled": 620,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 620,
+            "meanLuminance": 85,
+            "topCode": "CP07",
+            "topCount": 620,
+            "topRgb": [
+              62,
+              86,
+              148
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "I",
+      "classKey": "gray-ramp",
+      "mode": "auto",
+      "framingStable": true,
+      "subjectCropApplied": false,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 16,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "f7eb4c9e",
+      "pipeline": {
+        "mode": "auto",
+        "routedMode": "auto",
+        "sampling": "auto",
+        "analysis": {
+          "edgeDensity": 0.007874015748031496,
+          "flatRegionRatio": 0.8796577593155186,
+          "textureScore": 0.037691239382478876,
+          "colorComplexity": 0.03515625,
+          "pixelLikeness": 0.5692600115668982
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "auto",
+        "detailProtection": 0.7,
+        "edgeProtection": 0.7,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.5,
+        "maxColors": 0,
+        "subjectCrop": false,
+        "autoBackground": false,
+        "strokeProtection": false,
+        "accentProtection": false
+      },
+      "probes": {
+        "ramp": {
+          "original": {
+            "cells": 7488,
+            "filled": 7488,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 2808,
+            "meanLuminance": 128,
+            "topCode": null,
+            "topCount": 7488,
+            "topRgb": [
+              255,
+              255,
+              255
+            ]
+          },
+          "output": {
+            "cells": 7488,
+            "filled": 7488,
+            "fillRatio": 1,
+            "distinctColors": 12,
+            "darkCells": 2808,
+            "meanLuminance": 125,
+            "topCode": "C01",
+            "topCount": 936,
+            "topRgb": [
+              255,
+              255,
+              255
+            ]
+          }
+        },
+        "skin": {
+          "original": {
+            "cells": 700,
+            "filled": 700,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 200,
+            "topCode": null,
+            "topCount": 700,
+            "topRgb": [
+              236,
+              206,
+              186
+            ]
+          },
+          "output": {
+            "cells": 700,
+            "filled": 700,
+            "fillRatio": 1,
+            "distinctColors": 7,
+            "darkCells": 2,
+            "meanLuminance": 200,
+            "topCode": "C153",
+            "topCount": 494,
+            "topRgb": [
+              243,
+              207,
+              179
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "I",
+      "classKey": "gray-ramp",
+      "mode": "beginner",
+      "framingStable": false,
+      "subjectCropApplied": true,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 10,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "463894a4",
+      "pipeline": {
+        "mode": "beginner",
+        "routedMode": "beginner",
+        "sampling": "auto",
+        "analysis": {
+          "edgeDensity": 0.007874015748031496,
+          "flatRegionRatio": 0.8796577593155186,
+          "textureScore": 0.037691239382478876,
+          "colorComplexity": 0.03515625,
+          "pixelLikeness": 0.5692600115668982
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "auto",
+        "detailProtection": 0.8,
+        "edgeProtection": 0.9,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.45,
+        "maxColors": 0,
+        "subjectCrop": true,
+        "autoBackground": true,
+        "strokeProtection": true,
+        "accentProtection": true
+      },
+      "probes": {
+        "ramp": {
+          "original": {
+            "cells": 7488,
+            "filled": 7488,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 2808,
+            "meanLuminance": 128,
+            "topCode": null,
+            "topCount": 7488,
+            "topRgb": [
+              255,
+              255,
+              255
+            ]
+          },
+          "output": {
+            "cells": 7488,
+            "filled": 7488,
+            "fillRatio": 1,
+            "distinctColors": 10,
+            "darkCells": 308,
+            "meanLuminance": 190,
+            "topCode": "C153",
+            "topCount": 4344,
+            "topRgb": [
+              243,
+              207,
+              179
+            ]
+          }
+        },
+        "skin": {
+          "original": {
+            "cells": 700,
+            "filled": 700,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 200,
+            "topCode": null,
+            "topCount": 700,
+            "topRgb": [
+              236,
+              206,
+              186
+            ]
+          },
+          "output": {
+            "cells": 700,
+            "filled": 700,
+            "fillRatio": 1,
+            "distinctColors": 2,
+            "darkCells": 0,
+            "meanLuminance": 204,
+            "topCode": "C153",
+            "topCount": 616,
+            "topRgb": [
+              243,
+              207,
+              179
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "J",
+      "classKey": "photo-noise",
+      "mode": "auto",
+      "framingStable": true,
+      "subjectCropApplied": false,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 14,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "b2f16bc3",
+      "pipeline": {
+        "mode": "auto",
+        "routedMode": "auto",
+        "sampling": "auto",
+        "analysis": {
+          "edgeDensity": 0.009858019716039432,
+          "flatRegionRatio": 0.5072850145700292,
+          "textureScore": 0.14806795542966153,
+          "colorComplexity": 0.12890625,
+          "pixelLikeness": 0.31384962887113277
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "auto",
+        "detailProtection": 0.7,
+        "edgeProtection": 0.7,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.5,
+        "maxColors": 0,
+        "subjectCrop": false,
+        "autoBackground": false,
+        "strokeProtection": false,
+        "accentProtection": false
+      },
+      "probes": {
+        "subject": {
+          "original": {
+            "cells": 625,
+            "filled": 625,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 163,
+            "topCode": null,
+            "topCount": 625,
+            "topRgb": [
+              128,
+              141,
+              151
+            ]
+          },
+          "output": {
+            "cells": 625,
+            "filled": 625,
+            "fillRatio": 1,
+            "distinctColors": 8,
+            "darkCells": 0,
+            "meanLuminance": 164,
+            "topCode": "C89",
+            "topCount": 187,
+            "topRgb": [
+              177,
+              179,
+              179
+            ]
+          }
+        },
+        "gradient": {
+          "original": {
+            "cells": 690,
+            "filled": 690,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 136,
+            "topCode": null,
+            "topCount": 690,
+            "topRgb": [
+              121,
+              142,
+              164
+            ]
+          },
+          "output": {
+            "cells": 690,
+            "filled": 690,
+            "fillRatio": 1,
+            "distinctColors": 5,
+            "darkCells": 0,
+            "meanLuminance": 130,
+            "topCode": "CT09",
+            "topCount": 595,
+            "topRgb": [
+              107,
+              132,
+              157
+            ]
+          }
+        }
+      }
+    },
+    {
+      "classId": "J",
+      "classKey": "photo-noise",
+      "mode": "beginner",
+      "framingStable": false,
+      "subjectCropApplied": true,
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "usedColors": 14,
+      "nullCells": 0,
+      "totalCells": 10816,
+      "gridHash": "2aab14f8",
+      "pipeline": {
+        "mode": "beginner",
+        "routedMode": "beginner",
+        "sampling": "auto",
+        "analysis": {
+          "edgeDensity": 0.009858019716039432,
+          "flatRegionRatio": 0.5072850145700292,
+          "textureScore": 0.14806795542966153,
+          "colorComplexity": 0.12890625,
+          "pixelLikeness": 0.31384962887113277
+        }
+      },
+      "resolvedConfig": {
+        "sampling": "auto",
+        "detailProtection": 0.8,
+        "edgeProtection": 0.9,
+        "highlightProtection": 0.8,
+        "eyeProtection": 1,
+        "microDetailProtection": 0.8,
+        "cleanupProtectionThreshold": 0.45,
+        "maxColors": 0,
+        "subjectCrop": true,
+        "autoBackground": true,
+        "strokeProtection": true,
+        "accentProtection": true
+      },
+      "probes": {
+        "subject": {
+          "original": {
+            "cells": 625,
+            "filled": 625,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 163,
+            "topCode": null,
+            "topCount": 625,
+            "topRgb": [
+              128,
+              141,
+              151
+            ]
+          },
+          "output": {
+            "cells": 625,
+            "filled": 625,
+            "fillRatio": 1,
+            "distinctColors": 8,
+            "darkCells": 0,
+            "meanLuminance": 165,
+            "topCode": "C89",
+            "topCount": 211,
+            "topRgb": [
+              177,
+              179,
+              179
+            ]
+          }
+        },
+        "gradient": {
+          "original": {
+            "cells": 690,
+            "filled": 690,
+            "fillRatio": 1,
+            "distinctColors": 1,
+            "darkCells": 0,
+            "meanLuminance": 136,
+            "topCode": null,
+            "topCount": 690,
+            "topRgb": [
+              121,
+              142,
+              164
+            ]
+          },
+          "output": {
+            "cells": 690,
+            "filled": 690,
+            "fillRatio": 1,
+            "distinctColors": 5,
+            "darkCells": 0,
+            "meanLuminance": 129,
+            "topCode": "CT09",
+            "topCount": 643,
+            "topRgb": [
+              107,
+              132,
+              157
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

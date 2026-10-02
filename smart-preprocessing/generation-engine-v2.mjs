@@ -456,6 +456,13 @@ export function generateV2({ source, width, height, palette, options = {} }) {
       microDetailProtection: cfg.microDetailProtection,
       cleanupProtectionThreshold: cfg.cleanupProtectionThreshold,
       maxColors: cfg.maxColors,
+      // 四个智能辅助开关必须在这里 —— 否则「这一列是在背景开关打开的情况下跑的」
+      // 这句话在报告里就无法自证。`subjectCrop` 还额外决定**取景是否变了**，
+      // 而取景一变，任何按归一化坐标做的区域对比都不再成立。
+      subjectCrop: cfg.subjectCrop,
+      autoBackground: cfg.autoBackground,
+      strokeProtection: cfg.strokeProtection,
+      accentProtection: cfg.accentProtection,
     },
     edgeMap: protection.edgeMap,
     protectionMap: protection.protectionMap,
