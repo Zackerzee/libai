@@ -38,6 +38,11 @@ import { createExportV2Service } from "../services/export-v2-service.js?v=202609
 import { resizeCanvasGrid, scalePatternNearest, createGridResizeCommand, clampSelectionToBounds, resizeCropInsets } from "../services/grid-resize-service.js?v=20261001-hotfix";
 import { createAutoDraftService } from "../services/auto-draft-service.js";
 import { createEditorCommand } from "../services/editor-command.js";
+// Stage B4 P0：长边权威。**query string 必须与 app.js 里那一处逐字一致** ——
+// 不一致就是两个模块实例，`LONG_EDGE_AUTHORITY` 会是两个不同的对象，
+// 「用户点过应用尺寸」这个事实就在一边成立、另一边不成立。
+// 守卫：tests/source-dimensions-wiring.test.mjs 断言所有引用点用同一个 specifier。
+import { LONG_EDGE_AUTHORITY, LONG_EDGE_EVENT, resolveLongEdgeAuthority, shouldAutoWriteLongEdge } from "../services/source-dimensions.mjs?v=20261003-stage-b4";
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
@@ -442,6 +447,17 @@ export function mountWorkspace(bridge) {
   // 草稿来源："auto"（像素倍数识别推导）| "manual"（用户显式指定）。
   // 只用于预设 chip 的高亮，不参与任何计算。
   let sizeOrigin = "auto";
+  // 长边权威（Stage B4 P0）。**和 sizeOrigin 不是一回事**：
+  //   sizeOrigin        = 「草稿现在这个值是不是手动来的」——拖滑杆就会变 manual
+  //   longEdgeAuthority = 「用户有没有在「应用尺寸」上确认过」——只有点按钮才升级
+  // 只有后者能挡住自动链。用户拖着滑杆但还没点应用时，自动识别仍然可以定尺寸。
+  let longEdgeAuthority = LONG_EDGE_AUTHORITY.AUTO;
+  /** 自动链被长边权威挡下的次数。只用于诊断与真机验收，不参与逻辑。 */
+  let blockedAutoSizeWrites = 0;
+  const setLongEdgeAuthority = (event) => {
+    longEdgeAuthority = resolveLongEdgeAuthority(longEdgeAuthority, event);
+    return longEdgeAuthority;
+  };
   // 已经识别过的源图 URL，避免 paint 每次触发都重跑识别。
   let detectedForUrl = null;
   let detecting = false;
@@ -465,6 +481,11 @@ export function mountWorkspace(bridge) {
     editorService.clearHistory();
     ignoredIssueKeys.clear();
     repairPreview = null;
+    // B4 §0：换源图 = 清除 user-explicit。这是两个清除口之一（另一个是「自动」档）。
+    // 放在事件处理器最前面：下面的 scheduleInitialGeneration() 会用到这个权威值。
+    setLongEdgeAuthority(LONG_EDGE_EVENT.SOURCE_REPLACED);
+    blockedAutoSizeWrites = 0;
+    sizeOrigin = "auto";
     store.setState({
       source: { image: event.detail.url, width: event.detail.width, height: event.detail.height },
       project: { name: event.detail.name.replace(/\.[^.]+$/, "") },
@@ -1970,8 +1991,15 @@ export function mountWorkspace(bridge) {
     setLongEdgeDraft(api ? api.stepLongEdge(longEdgeDraft, delta) : longEdgeDraft + delta);
   }
 
-  /** 「应用尺寸」= 提交草稿 + 生成一次。这是尺寸链路上唯一的生成入口。 */
+  /**
+   * 「应用尺寸」= 提交草稿 + 生成一次。这是尺寸链路上唯一的生成入口。
+   *
+   * 同时把长边升级为 `user-explicit`（B4 §0）：从这一刻起，
+   * 像素倍数识别 / 逻辑尺寸估算 / 首帧自动生成**都不得再改这个尺寸**，
+   * 直到用户换源图或主动点「自动」档。
+   */
   function commitSize() {
+    setLongEdgeAuthority(LONG_EDGE_EVENT.USER_APPLIED);
     pushDraftToBridge();
     // 尺寸可能变化很大，出图后要重新适配窗口，否则用户看到的是一角。
     fitOnNextResult = true;
@@ -2014,6 +2042,17 @@ export function mountWorkspace(bridge) {
    *   被否决时返回权威链的现有尺寸（调用方据此判断「这一票没生效」）。
    */
   function applyLogicalSize() {
+    // B4 §0：用户显式点过「应用尺寸」→ 自动链一律不得覆盖。
+    // 早退在**最前面**：不写草稿、不提交、不改权威。识别结果仍然会算出来（在下面），
+    // 但对尺寸不再有发言权。挡住一次就记一次，真机探针据此确认「自动链确实跑过且被挡」，
+    // 而不是「自动链压根没跑」—— 后者是另一个 bug，不能混为一谈。
+    if (!shouldAutoWriteLongEdge(longEdgeAuthority)) {
+      blockedAutoSizeWrites += 1;
+      // 刷一次 UI：让探针能读到「被挡了几次」。不刷的话计数器要等下一次
+      // 无关的 syncSizeUi() 才可见，真机验收会误判成「没被挡过」。
+      syncSizeUi();
+      return null;
+    }
     const result = bridge.getResult();
     if (!result.sourceWidth || !result.sourceHeight) return null;
     const { width, height } = logicalSize(result.sourceWidth, result.sourceHeight, detectedMultiple || 1);
@@ -2056,17 +2095,35 @@ export function mountWorkspace(bridge) {
    * 出图前**再提交一次草稿**是刻意的：识别回调（applyLogicalSize）与这里的
    * 生成是两个独立的异步链，靠「谁先谁后」维持一致太脆。显式提交一次，
    * 首帧尺寸就恒等于顶栏读数，不会出现「读数 100、图纸 104」这种分叉。
+   *
+   * **但用户显式确认过的尺寸除外**（B4 §0）。等待期间用户完全可能已经点了
+   * 「应用尺寸」—— 那时草稿与权威都属于用户，这里再提交一次就是把它冲掉，
+   * 而且会多排一次生成。判断必须写在 `.then` **里面**：
+   * 写在 `await` 之前等于在用户点击之前就做了决定，挡不住任何东西。
    */
   function scheduleInitialGeneration() {
     const url = get().source.image;
     const settled = url ? ensureMultipleDetection(url) : Promise.resolve(null);
-    settled.catch(() => {}).then(() => { pushDraftToBridge(); scheduleAutoGenerate(0); });
+    settled.catch(() => {}).then(() => {
+      if (!shouldAutoWriteLongEdge(longEdgeAuthority)) {
+        blockedAutoSizeWrites += 1;
+        return;
+      }
+      pushDraftToBridge();
+      scheduleAutoGenerate(0);
+    });
   }
 
   // 预设 chip：只改草稿。**大尺寸不会因为点了个预设就悄悄跑起来**，
   // 必须再点一次「应用尺寸」（B0 §8）。
   topControls.querySelectorAll("[data-size]").forEach((chip) => chip.addEventListener("click", () => {
-    if (chip.dataset.size === "auto") { applyLogicalSize(); return; }
+    if (chip.dataset.size === "auto") {
+      // 「自动」= 用户主动交还尺寸控制权（B4 §0 的第二个清除口）。
+      // 必须先降级再算，否则 applyLogicalSize() 会被刚设上的 user-explicit 挡住。
+      setLongEdgeAuthority(LONG_EDGE_EVENT.RESTORE_AUTO);
+      applyLogicalSize();
+      return;
+    }
     sizeOrigin = "manual";
     setLongEdgeDraft(chip.dataset.size);
   }));
@@ -2106,6 +2163,13 @@ export function mountWorkspace(bridge) {
 
   function syncSizeUi() {
     const locked = lockedAuthority();
+    // 长边权威对真机探针可见（B4 §0 验收要证明「用户那一票真的生效了」）。
+    // 挂在控件组上而不是别处：它描述的就是这组控件的状态。
+    const controlsNode = $("#ws-size-controls");
+    if (controlsNode) {
+      controlsNode.dataset.longEdgeAuthority = longEdgeAuthority;
+      controlsNode.dataset.blockedAutoWrites = String(blockedAutoSizeWrites);
+    }
     // 锁定态直接读权威尺寸，不走 draftSize()：那不是「派生」，是**绝对值**。
     const derived = locked
       ? { longEdge: Math.max(locked.width, locked.height), width: locked.width, height: locked.height }

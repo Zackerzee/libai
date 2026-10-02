@@ -22,3 +22,9 @@ tests/fixtures/b1-palette/
 #   10 张背景可靠性样例（白底 Logo / 蓝底 / 白底白衣 / 渐变 / 透明 PNG / 接触边缘 …）
 #   绘制函数与 tests/background-fixtures.mjs 共用 —— 验收的图和单测的图必须是同一张
 tests/fixtures/background/
+
+# 探针夹具：由 tools/b4-size-race-probe.mjs 用 png-io 现场生成，不入库
+#   A/D 2048×1536（512×384 格 @4×，自动尺寸 200×150）、B 600×480（自动 150×120）
+#   像素总数必须够大（≥3M）：识别要跑 getImageData + 边界扫描，只有大图才留得住
+#   「用户抢在识别 settle 之前点」的窗口 —— 小图上这个窗口根本不存在
+tests/fixtures/b4-race/

@@ -87,9 +87,15 @@ test("尺寸：大尺寸分档提示必须存在，且要求显式点「应用�
   assert.match(SIZE_SECTION, /超大尺寸[^`]*应用尺寸/, ">400 必须提示超大尺寸并要求显式确认");
   assert.match(SIZE_SECTION, /大尺寸/);
   // 预设 chip 也只改草稿 —— 点 500 不该悄悄跑起来
-  const chipBlock = SIZE_SECTION.slice(SIZE_SECTION.indexOf("querySelectorAll(\"[data-size]\")"));
-  assert.doesNotMatch(chipBlock.slice(0, 400), /scheduleAutoGenerate/, "预设 chip 不允许触发生成");
-  assert.match(chipBlock.slice(0, 400), /setLongEdgeDraft\(chip\.dataset\.size\)/);
+  const chipStart = SIZE_SECTION.indexOf('querySelectorAll("[data-size]")');
+  assert.ok(chipStart !== -1, "找不到预设 chip 的接线");
+  // 切到 handler 结束（`}));`），不要用固定字数：B4 §0 往这个分支里加了「自动」档的
+  // 权威清除，注释一多，固定 400 字就把断言切到了 handler 外面 —— 假红。
+  const chipEnd = SIZE_SECTION.indexOf("}));", chipStart);
+  assert.ok(chipEnd !== -1, "预设 chip 的 handler 没有正常闭合");
+  const chipBlock = SIZE_SECTION.slice(chipStart, chipEnd);
+  assert.doesNotMatch(chipBlock, /scheduleAutoGenerate/, "预设 chip 不允许触发生成");
+  assert.match(chipBlock, /setLongEdgeDraft\(chip\.dataset\.size\)/);
 });
 
 test("尺寸：顶栏读数不读画布尺寸（§5 生成尺寸与画布调整解耦）", () => {

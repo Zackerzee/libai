@@ -61,6 +61,82 @@ export const SIZE_AUTHORITY_LABELS = Object.freeze({
   [SIZE_AUTHORITY.STRUCTURED_PROJECT]: "工程文件",
 });
 
+/* ────────────────────────────────────────────────────────────────
+ * 长边权威（Stage B4 P0）
+ *
+ * 上面那套 `SIZE_AUTHORITY` 管的是**最终 W×H 谁说了算**。
+ * 但「普通图片生成」还有第二个自由度：**长边格数**。它由 UI 草稿推给 bridge，
+ * 与 W×H 权威是两件事，所以需要第二套权威 —— 否则「用户点了应用尺寸」
+ * 这个事实无处记录，任何异步链都能把它冲掉。
+ *
+ * 真实缺陷（B4 §0 要修的）：导入源图后，`ensureMultipleDetection()` 会异步识别
+ * 像素倍数，settle 之后 `applyLogicalSize()` 与 `scheduleInitialGeneration()`
+ * 会**无条件**再写一次草稿并提交。用户若在识别落地之前手填 104 并点「应用尺寸」，
+ * 这一票就被静默覆盖 —— 真机复现：`gray-gradient` 导入草稿 10 → 用户填 104 →
+ * 出图宽仍是自动识别出来的尺寸。
+ *
+ * 规则（B4 §0 原文）：
+ *   用户一旦显式点击「应用尺寸」，该尺寸成为 `user-explicit`；
+ *   后续自动链（pixel-multiple / logical-heuristic / 首帧自动生成）**不得覆盖**。
+ *   只有「重新导入新源图」或「用户主动恢复自动尺寸」才清除。
+ * ──────────────────────────────────────────────────────────────── */
+
+/** 长边草稿的两种权威。字符串值会写进 DOM dataset，改动即为破坏性变更。 */
+export const LONG_EDGE_AUTHORITY = Object.freeze({
+  /** 自动链可以写：像素倍数识别 / 逻辑尺寸估算 / 首帧自动生成。 */
+  AUTO: "auto",
+  /** 用户在「应用尺寸」上显式确认过。自动链一律不得覆盖。 */
+  USER_EXPLICIT: "user-explicit",
+});
+
+/** 能改变长边权威的四种事件。 */
+export const LONG_EDGE_EVENT = Object.freeze({
+  /** 用户点了「应用尺寸」。 */
+  USER_APPLIED: "user-applied",
+  /** 换了一张源图（`resetSourceDimensions("source-replaced")`）。 */
+  SOURCE_REPLACED: "source-replaced",
+  /** 用户主动点了「自动」档。 */
+  RESTORE_AUTO: "restore-auto",
+  /** 自动链识别出了一个尺寸。**不改变权威**。 */
+  AUTO_DETECTED: "auto-detected",
+});
+
+export function isLongEdgeAuthority(value) {
+  return value === LONG_EDGE_AUTHORITY.AUTO || value === LONG_EDGE_AUTHORITY.USER_EXPLICIT;
+}
+
+/**
+ * 权威状态机。**只有** `user-applied` 会升级到 `user-explicit`；
+ * 只有 `source-replaced` / `restore-auto` 会降回 `auto`；
+ * `auto-detected` 是空操作 —— 识别到什么都不改变「谁说了算」。
+ *
+ * 未知输入一律按 `auto` 处理（宁可少保护，不可把用户锁在一个他没收过的尺寸上）。
+ */
+export function resolveLongEdgeAuthority(current, event) {
+  const safe = isLongEdgeAuthority(current) ? current : LONG_EDGE_AUTHORITY.AUTO;
+  switch (event) {
+    case LONG_EDGE_EVENT.USER_APPLIED:
+      return LONG_EDGE_AUTHORITY.USER_EXPLICIT;
+    case LONG_EDGE_EVENT.SOURCE_REPLACED:
+    case LONG_EDGE_EVENT.RESTORE_AUTO:
+      return LONG_EDGE_AUTHORITY.AUTO;
+    case LONG_EDGE_EVENT.AUTO_DETECTED:
+      return safe;
+    default:
+      return safe;
+  }
+}
+
+/**
+ * 自动链现在能不能写长边草稿 / 提交尺寸。
+ *
+ * 所有自动写入点（`applyLogicalSize`、`scheduleInitialGeneration`、
+ * `ensureMultipleDetection` 的回调）都必须先过这一道 —— 这是本次修复的**唯一开关**。
+ */
+export function shouldAutoWriteLongEdge(authority) {
+  return authority !== LONG_EDGE_AUTHORITY.USER_EXPLICIT;
+}
+
 const clampDimension = (value) => {
   const number = Math.round(Number(value));
   if (!Number.isFinite(number)) return null;

@@ -42,7 +42,10 @@ function fnBody(source, signature) {
 test("source-dimensions.mjs 只被动态 import 一次，且与运行时模块同一实例", () => {
   const imports = app.match(/import\(["'][^"']*source-dimensions\.mjs[^"']*["']\)/g) || [];
   assert.equal(imports.length, 1, `必须只有一个 import 点，实际 ${imports.length} 个 —— 两个实例 = 两份模块状态`);
-  assert.match(imports[0], /source-dimensions\.mjs\?v=20261001-stage-b01/);
+  // Stage B4 P0 把缓存串升到 stage-b4（新增长边权威）。ui/workspace.js 的静态 import
+  // 必须用**同一个** query string，否则 LONG_EDGE_AUTHORITY 会是两个不同对象 ——
+  // 那条不变式由 tests/size-user-authority-race.test.mjs 单独钉。
+  assert.match(imports[0], /source-dimensions\.mjs\?v=20261003-stage-b4/);
   assert.match(app, /window\.LibmsSourceDimensions = mod/);
 });
 

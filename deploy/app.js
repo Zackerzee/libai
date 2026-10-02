@@ -898,7 +898,7 @@ function ensureGenerationRuntime() {
       import("./services/generation-job.mjs?v=20261001-stage-b0").then((mod) => { window.LibmsGenerationJob = mod; }),
       // Stage B0.1：尺寸权威链。结构化工程 / 人工标定 / 网格识别给出的尺寸是绝对值，
       // 不允许被长边、裁剪比例或像素倍数再算一遍。
-      import("./services/source-dimensions.mjs?v=20261001-stage-b01").then((mod) => { window.LibmsSourceDimensions = mod; }),
+      import("./services/source-dimensions.mjs?v=20261003-stage-b4").then((mod) => { window.LibmsSourceDimensions = mod; }),
       // Stage B3：紧凑结果契约 + 生成 Worker 客户端。
       // worker 的 URL 在 generation-worker-client.mjs 里，必须与这里同一份（含 query），
       // 否则 Worker 会加载到第二份模块图。
