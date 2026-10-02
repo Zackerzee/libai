@@ -84,7 +84,15 @@ export function downsampleSource(source, width, height) {
   return out;
 }
 
-/** 把归一化框映射到格网，量这一框里的东西。 */
+/**
+ * 把归一化框映射到格网，量这一框里的东西。
+ *
+ * ⚠️ 统计的键是 `cell.code ?? rgb`，**不能只用 `cell.code`**。
+ * 原图侧的格子（`downsampleSource`）没有色号、`code` 是 `null`，
+ * 只用 code 当键的话整框会塌成「1 种颜色」—— 而且这个 1 看起来完全正常，
+ * 于是「原图这一块有 6 色、输出只剩 3 色」这种结论永远做不出来。
+ * 首次实测就踩了：D 的原图用色数报成 1（真值 6）。
+ */
 export function measureProbe(grid, probe) {
   const h = grid.length;
   const w = grid[0]?.length ?? 0;
@@ -104,9 +112,10 @@ export function measureProbe(grid, probe) {
       const cell = grid[y]?.[x];
       if (!cell) continue;
       filled += 1;
-      const entry = codes.get(cell.code);
+      const key = cell.code ?? cell.rgb.join(",");
+      const entry = codes.get(key);
       if (entry) entry.count += 1;
-      else codes.set(cell.code, { count: 1, rgb: cell.rgb });
+      else codes.set(key, { count: 1, rgb: cell.rgb });
       const [r, g, b] = cell.rgb;
       const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
       lumSum += lum;

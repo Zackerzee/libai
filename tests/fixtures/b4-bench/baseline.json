@@ -87,11 +87,11 @@
     {
       "classId": "D",
       "classKey": "pixel",
-      "usedColors": 5,
+      "usedColors": 6,
       "logicalProbeStats": {
         "palette": {
           "cells": 4096,
-          "colors": 5
+          "colors": 6
         },
         "black-band": {
           "cells": 144,
@@ -241,11 +241,11 @@
             "cells": 4,
             "filled": 4,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 4,
             "darkCells": 0,
             "meanLuminance": 235,
-            "topCode": null,
-            "topCount": 4,
+            "topCode": "250,249,249",
+            "topCount": 1,
             "topRgb": [
               250,
               249,
@@ -273,15 +273,15 @@
             "cells": 72,
             "filled": 72,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 20,
             "darkCells": 7,
             "meanLuminance": 194,
-            "topCode": null,
-            "topCount": 72,
+            "topCode": "248,246,244",
+            "topCount": 18,
             "topRgb": [
-              232,
-              197,
-              172
+              248,
+              246,
+              244
             ]
           },
           "output": {
@@ -305,15 +305,15 @@
             "cells": 187,
             "filled": 187,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 4,
             "darkCells": 0,
             "meanLuminance": 206,
-            "topCode": null,
-            "topCount": 187,
+            "topCode": "238,200,172",
+            "topCount": 143,
             "topRgb": [
-              235,
-              197,
-              169
+              238,
+              200,
+              172
             ]
           },
           "output": {
@@ -337,11 +337,11 @@
             "cells": 476,
             "filled": 476,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 14,
             "darkCells": 476,
             "meanLuminance": 59,
-            "topCode": null,
-            "topCount": 476,
+            "topCode": "71,48,38",
+            "topCount": 34,
             "topRgb": [
               71,
               48,
@@ -372,7 +372,7 @@
             "distinctColors": 1,
             "darkCells": 0,
             "meanLuminance": 250,
-            "topCode": null,
+            "topCode": "250,250,252",
             "topCount": 1288,
             "topRgb": [
               250,
@@ -444,11 +444,11 @@
             "cells": 4,
             "filled": 4,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 4,
             "darkCells": 0,
             "meanLuminance": 235,
-            "topCode": null,
-            "topCount": 4,
+            "topCode": "250,249,249",
+            "topCount": 1,
             "topRgb": [
               250,
               249,
@@ -476,15 +476,15 @@
             "cells": 72,
             "filled": 72,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 20,
             "darkCells": 7,
             "meanLuminance": 194,
-            "topCode": null,
-            "topCount": 72,
+            "topCode": "248,246,244",
+            "topCount": 18,
             "topRgb": [
-              232,
-              197,
-              172
+              248,
+              246,
+              244
             ]
           },
           "output": {
@@ -508,15 +508,15 @@
             "cells": 187,
             "filled": 187,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 4,
             "darkCells": 0,
             "meanLuminance": 206,
-            "topCode": null,
-            "topCount": 187,
+            "topCode": "238,200,172",
+            "topCount": 143,
             "topRgb": [
-              235,
-              197,
-              169
+              238,
+              200,
+              172
             ]
           },
           "output": {
@@ -540,11 +540,11 @@
             "cells": 476,
             "filled": 476,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 14,
             "darkCells": 476,
             "meanLuminance": 59,
-            "topCode": null,
-            "topCount": 476,
+            "topCode": "71,48,38",
+            "topCount": 34,
             "topRgb": [
               71,
               48,
@@ -575,7 +575,7 @@
             "distinctColors": 1,
             "darkCells": 0,
             "meanLuminance": 250,
-            "topCode": null,
+            "topCode": "250,250,252",
             "topCount": 1288,
             "topRgb": [
               250,
@@ -647,11 +647,11 @@
             "cells": 4,
             "filled": 4,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 4,
             "darkCells": 0,
             "meanLuminance": 168,
-            "topCode": null,
-            "topCount": 4,
+            "topCode": "127,126,129",
+            "topCount": 1,
             "topRgb": [
               127,
               126,
@@ -679,15 +679,15 @@
             "cells": 2000,
             "filled": 2000,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 19,
             "darkCells": 400,
             "meanLuminance": 174,
-            "topCode": null,
-            "topCount": 2000,
+            "topCode": "252,228,208",
+            "topCount": 1088,
             "topRgb": [
-              246,
-              156,
-              62
+              252,
+              228,
+              208
             ]
           },
           "output": {
@@ -714,7 +714,7 @@
             "distinctColors": 1,
             "darkCells": 0,
             "meanLuminance": 168,
-            "topCode": null,
+            "topCode": "246,156,62",
             "topCount": 1248,
             "topRgb": [
               246,
@@ -786,11 +786,11 @@
             "cells": 4,
             "filled": 4,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 4,
             "darkCells": 0,
             "meanLuminance": 168,
-            "topCode": null,
-            "topCount": 4,
+            "topCode": "127,126,129",
+            "topCount": 1,
             "topRgb": [
               127,
               126,
@@ -818,15 +818,15 @@
             "cells": 2000,
             "filled": 2000,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 19,
             "darkCells": 400,
             "meanLuminance": 174,
-            "topCode": null,
-            "topCount": 2000,
+            "topCode": "252,228,208",
+            "topCount": 1088,
             "topRgb": [
-              246,
-              156,
-              62
+              252,
+              228,
+              208
             ]
           },
           "output": {
@@ -853,7 +853,7 @@
             "distinctColors": 1,
             "darkCells": 0,
             "meanLuminance": 168,
-            "topCode": null,
+            "topCode": "246,156,62",
             "topCount": 1248,
             "topRgb": [
               246,
@@ -928,7 +928,7 @@
             "distinctColors": 1,
             "darkCells": 0,
             "meanLuminance": 210,
-            "topCode": null,
+            "topCode": "178,216,244",
             "topCount": 1032,
             "topRgb": [
               178,
@@ -960,7 +960,7 @@
             "distinctColors": 1,
             "darkCells": 0,
             "meanLuminance": 136,
-            "topCode": null,
+            "topCode": "96,152,92",
             "topCount": 1288,
             "topRgb": [
               96,
@@ -989,15 +989,15 @@
             "cells": 870,
             "filled": 870,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 19,
             "darkCells": 221,
             "meanLuminance": 163,
-            "topCode": null,
-            "topCount": 870,
+            "topCode": "238,232,216",
+            "topCount": 391,
             "topRgb": [
-              178,
-              216,
-              244
+              238,
+              232,
+              216
             ]
           },
           "output": {
@@ -1067,7 +1067,7 @@
             "distinctColors": 1,
             "darkCells": 0,
             "meanLuminance": 210,
-            "topCode": null,
+            "topCode": "178,216,244",
             "topCount": 1032,
             "topRgb": [
               178,
@@ -1099,7 +1099,7 @@
             "distinctColors": 1,
             "darkCells": 0,
             "meanLuminance": 136,
-            "topCode": null,
+            "topCode": "96,152,92",
             "topCount": 1288,
             "topRgb": [
               96,
@@ -1128,15 +1128,15 @@
             "cells": 870,
             "filled": 870,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 19,
             "darkCells": 221,
             "meanLuminance": 163,
-            "topCode": null,
-            "topCount": 870,
+            "topCode": "238,232,216",
+            "topCount": 391,
             "topRgb": [
-              178,
-              216,
-              244
+              238,
+              232,
+              216
             ]
           },
           "output": {
@@ -1167,20 +1167,20 @@
         "width": 104,
         "height": 104
       },
-      "usedColors": 5,
+      "usedColors": 6,
       "nullCells": 0,
       "totalCells": 10816,
-      "gridHash": "8d852b5b",
+      "gridHash": "0cd4b680",
       "pipeline": {
         "mode": "auto",
         "routedMode": "auto",
         "sampling": "auto",
         "analysis": {
-          "edgeDensity": 0.10664021328042655,
-          "flatRegionRatio": 0.8933597867195734,
-          "textureScore": 0.10683198121396247,
-          "colorComplexity": 0.009765625,
-          "pixelLikeness": 0.616543092265872
+          "edgeDensity": 0.108500217000434,
+          "flatRegionRatio": 0.891499782999566,
+          "textureScore": 0.1086919849339699,
+          "colorComplexity": 0.01171875,
+          "pixelLikeness": 0.6156921223998699
         }
       },
       "resolvedConfig": {
@@ -1203,11 +1203,11 @@
             "cells": 10816,
             "filled": 10816,
             "fillRatio": 1,
-            "distinctColors": 1,
-            "darkCells": 5936,
-            "meanLuminance": 83,
-            "topCode": null,
-            "topCount": 10816,
+            "distinctColors": 18,
+            "darkCells": 5922,
+            "meanLuminance": 84,
+            "topCode": "28,28,36",
+            "topCount": 5412,
             "topRgb": [
               28,
               28,
@@ -1218,11 +1218,11 @@
             "cells": 10816,
             "filled": 10816,
             "fillRatio": 1,
-            "distinctColors": 5,
-            "darkCells": 5789,
-            "meanLuminance": 93,
+            "distinctColors": 6,
+            "darkCells": 5790,
+            "meanLuminance": 94,
             "topCode": "C157",
-            "topCount": 5789,
+            "topCount": 5790,
             "topRgb": [
               29,
               37,
@@ -1238,7 +1238,7 @@
             "distinctColors": 1,
             "darkCells": 390,
             "meanLuminance": 29,
-            "topCode": null,
+            "topCode": "28,28,36",
             "topCount": 390,
             "topRgb": [
               28,
@@ -1274,20 +1274,20 @@
         "width": 104,
         "height": 104
       },
-      "usedColors": 7,
+      "usedColors": 8,
       "nullCells": 0,
       "totalCells": 10816,
-      "gridHash": "ff8f3222",
+      "gridHash": "1a119b2c",
       "pipeline": {
         "mode": "beginner",
         "routedMode": "beginner",
         "sampling": "auto",
         "analysis": {
-          "edgeDensity": 0.10664021328042655,
-          "flatRegionRatio": 0.8933597867195734,
-          "textureScore": 0.10683198121396247,
-          "colorComplexity": 0.009765625,
-          "pixelLikeness": 0.616543092265872
+          "edgeDensity": 0.108500217000434,
+          "flatRegionRatio": 0.891499782999566,
+          "textureScore": 0.1086919849339699,
+          "colorComplexity": 0.01171875,
+          "pixelLikeness": 0.6156921223998699
         }
       },
       "resolvedConfig": {
@@ -1310,11 +1310,11 @@
             "cells": 10816,
             "filled": 10816,
             "fillRatio": 1,
-            "distinctColors": 1,
-            "darkCells": 5936,
-            "meanLuminance": 83,
-            "topCode": null,
-            "topCount": 10816,
+            "distinctColors": 18,
+            "darkCells": 5922,
+            "meanLuminance": 84,
+            "topCode": "28,28,36",
+            "topCount": 5412,
             "topRgb": [
               28,
               28,
@@ -1325,9 +1325,9 @@
             "cells": 10816,
             "filled": 10816,
             "fillRatio": 1,
-            "distinctColors": 7,
+            "distinctColors": 8,
             "darkCells": 5364,
-            "meanLuminance": 97,
+            "meanLuminance": 98,
             "topCode": "C157",
             "topCount": 5356,
             "topRgb": [
@@ -1345,7 +1345,7 @@
             "distinctColors": 1,
             "darkCells": 390,
             "meanLuminance": 29,
-            "topCode": null,
+            "topCode": "28,28,36",
             "topCount": 390,
             "topRgb": [
               28,
@@ -1417,15 +1417,15 @@
             "cells": 1505,
             "filled": 1505,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 7,
             "darkCells": 588,
             "meanLuminance": 155,
-            "topCode": null,
-            "topCount": 1505,
+            "topCode": "252,252,252",
+            "topCount": 729,
             "topRgb": [
-              177,
-              177,
-              178
+              252,
+              252,
+              252
             ]
           },
           "output": {
@@ -1449,11 +1449,11 @@
             "cells": 1332,
             "filled": 1332,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 28,
             "darkCells": 415,
             "meanLuminance": 181,
-            "topCode": null,
-            "topCount": 1332,
+            "topCode": "252,252,252",
+            "topCount": 623,
             "topRgb": [
               252,
               252,
@@ -1481,11 +1481,11 @@
             "cells": 10816,
             "filled": 10816,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 34,
             "darkCells": 1005,
             "meanLuminance": 230,
-            "topCode": null,
-            "topCount": 10816,
+            "topCode": "252,252,252",
+            "topCount": 9321,
             "topRgb": [
               252,
               252,
@@ -1556,15 +1556,15 @@
             "cells": 1505,
             "filled": 1505,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 7,
             "darkCells": 588,
             "meanLuminance": 155,
-            "topCode": null,
-            "topCount": 1505,
+            "topCode": "252,252,252",
+            "topCount": 729,
             "topRgb": [
-              177,
-              177,
-              178
+              252,
+              252,
+              252
             ]
           },
           "output": {
@@ -1588,11 +1588,11 @@
             "cells": 1332,
             "filled": 1332,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 28,
             "darkCells": 415,
             "meanLuminance": 181,
-            "topCode": null,
-            "topCount": 1332,
+            "topCode": "252,252,252",
+            "topCount": 623,
             "topRgb": [
               252,
               252,
@@ -1620,11 +1620,11 @@
             "cells": 10816,
             "filled": 10816,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 34,
             "darkCells": 1005,
             "meanLuminance": 230,
-            "topCode": null,
-            "topCount": 10816,
+            "topCode": "252,252,252",
+            "topCount": 9321,
             "topRgb": [
               252,
               252,
@@ -1695,15 +1695,15 @@
             "cells": 10816,
             "filled": 10816,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 36,
             "darkCells": 6872,
             "meanLuminance": 88,
-            "topCode": null,
-            "topCount": 10816,
+            "topCode": "96,20,24",
+            "topCount": 2384,
             "topRgb": [
-              214,
-              168,
-              62
+              96,
+              20,
+              24
             ]
           },
           "output": {
@@ -1727,15 +1727,15 @@
             "cells": 2704,
             "filled": 2704,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 36,
             "darkCells": 1718,
             "meanLuminance": 88,
-            "topCode": null,
-            "topCount": 2704,
+            "topCode": "96,20,24",
+            "topCount": 596,
             "topRgb": [
-              214,
-              168,
-              62
+              96,
+              20,
+              24
             ]
           },
           "output": {
@@ -1802,15 +1802,15 @@
             "cells": 10816,
             "filled": 10816,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 36,
             "darkCells": 6872,
             "meanLuminance": 88,
-            "topCode": null,
-            "topCount": 10816,
+            "topCode": "96,20,24",
+            "topCount": 2384,
             "topRgb": [
-              214,
-              168,
-              62
+              96,
+              20,
+              24
             ]
           },
           "output": {
@@ -1834,15 +1834,15 @@
             "cells": 2704,
             "filled": 2704,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 36,
             "darkCells": 1718,
             "meanLuminance": 88,
-            "topCode": null,
-            "topCount": 2704,
+            "topCode": "96,20,24",
+            "topCount": 596,
             "topRgb": [
-              214,
-              168,
-              62
+              96,
+              20,
+              24
             ]
           },
           "output": {
@@ -1909,11 +1909,11 @@
             "cells": 10816,
             "filled": 10816,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 265,
             "darkCells": 1040,
             "meanLuminance": 198,
-            "topCode": null,
-            "topCount": 10816,
+            "topCode": "62,54,48",
+            "topCount": 1015,
             "topRgb": [
               62,
               54,
@@ -1941,15 +1941,15 @@
             "cells": 400,
             "filled": 400,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 13,
             "darkCells": 0,
             "meanLuminance": 206,
-            "topCode": null,
-            "topCount": 400,
+            "topCode": "180,208,230",
+            "topCount": 40,
             "topRgb": [
-              186,
-              212,
-              232
+              180,
+              208,
+              230
             ]
           },
           "output": {
@@ -2016,11 +2016,11 @@
             "cells": 10816,
             "filled": 10816,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 265,
             "darkCells": 1040,
             "meanLuminance": 198,
-            "topCode": null,
-            "topCount": 10816,
+            "topCode": "62,54,48",
+            "topCount": 1015,
             "topRgb": [
               62,
               54,
@@ -2048,15 +2048,15 @@
             "cells": 400,
             "filled": 400,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 13,
             "darkCells": 0,
             "meanLuminance": 206,
-            "topCode": null,
-            "topCount": 400,
+            "topCode": "180,208,230",
+            "topCount": 40,
             "topRgb": [
-              186,
-              212,
-              232
+              180,
+              208,
+              230
             ]
           },
           "output": {
@@ -2123,11 +2123,11 @@
             "cells": 4320,
             "filled": 4320,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 3,
             "darkCells": 372,
             "meanLuminance": 237,
-            "topCode": null,
-            "topCount": 4320,
+            "topCode": "253,253,253",
+            "topCount": 3824,
             "topRgb": [
               253,
               253,
@@ -2155,15 +2155,15 @@
             "cells": 620,
             "filled": 620,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 3,
             "darkCells": 372,
             "meanLuminance": 142,
-            "topCode": null,
-            "topCount": 620,
+            "topCode": "72,84,148",
+            "topCount": 372,
             "topRgb": [
-              253,
-              253,
-              253
+              72,
+              84,
+              148
             ]
           },
           "output": {
@@ -2230,11 +2230,11 @@
             "cells": 4320,
             "filled": 4320,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 3,
             "darkCells": 372,
             "meanLuminance": 237,
-            "topCode": null,
-            "topCount": 4320,
+            "topCode": "253,253,253",
+            "topCount": 3824,
             "topRgb": [
               253,
               253,
@@ -2262,15 +2262,15 @@
             "cells": 620,
             "filled": 620,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 3,
             "darkCells": 372,
             "meanLuminance": 142,
-            "topCode": null,
-            "topCount": 620,
+            "topCode": "72,84,148",
+            "topCount": 372,
             "topRgb": [
-              253,
-              253,
-              253
+              72,
+              84,
+              148
             ]
           },
           "output": {
@@ -2337,11 +2337,11 @@
             "cells": 7488,
             "filled": 7488,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 24,
             "darkCells": 2808,
             "meanLuminance": 128,
-            "topCode": null,
-            "topCount": 7488,
+            "topCode": "255,255,255",
+            "topCount": 432,
             "topRgb": [
               255,
               255,
@@ -2369,11 +2369,11 @@
             "cells": 700,
             "filled": 700,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 18,
             "darkCells": 0,
             "meanLuminance": 200,
-            "topCode": null,
-            "topCount": 700,
+            "topCode": "236,206,186",
+            "topCount": 456,
             "topRgb": [
               236,
               206,
@@ -2444,11 +2444,11 @@
             "cells": 7488,
             "filled": 7488,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 24,
             "darkCells": 2808,
             "meanLuminance": 128,
-            "topCode": null,
-            "topCount": 7488,
+            "topCode": "255,255,255",
+            "topCount": 432,
             "topRgb": [
               255,
               255,
@@ -2476,11 +2476,11 @@
             "cells": 700,
             "filled": 700,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 18,
             "darkCells": 0,
             "meanLuminance": 200,
-            "topCode": null,
-            "topCount": 700,
+            "topCode": "236,206,186",
+            "topCount": 456,
             "topRgb": [
               236,
               206,
@@ -2551,15 +2551,15 @@
             "cells": 625,
             "filled": 625,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 533,
             "darkCells": 0,
             "meanLuminance": 163,
-            "topCode": null,
-            "topCount": 625,
+            "topCode": "176,178,178",
+            "topCount": 3,
             "topRgb": [
-              128,
-              141,
-              151
+              176,
+              178,
+              178
             ]
           },
           "output": {
@@ -2583,15 +2583,15 @@
             "cells": 690,
             "filled": 690,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 508,
             "darkCells": 0,
             "meanLuminance": 136,
-            "topCode": null,
-            "topCount": 690,
+            "topCode": "132,142,149",
+            "topCount": 6,
             "topRgb": [
-              121,
+              132,
               142,
-              164
+              149
             ]
           },
           "output": {
@@ -2658,15 +2658,15 @@
             "cells": 625,
             "filled": 625,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 533,
             "darkCells": 0,
             "meanLuminance": 163,
-            "topCode": null,
-            "topCount": 625,
+            "topCode": "176,178,178",
+            "topCount": 3,
             "topRgb": [
-              128,
-              141,
-              151
+              176,
+              178,
+              178
             ]
           },
           "output": {
@@ -2690,15 +2690,15 @@
             "cells": 690,
             "filled": 690,
             "fillRatio": 1,
-            "distinctColors": 1,
+            "distinctColors": 508,
             "darkCells": 0,
             "meanLuminance": 136,
-            "topCode": null,
-            "topCount": 690,
+            "topCode": "132,142,149",
+            "topCount": 6,
             "topRgb": [
-              121,
+              132,
               142,
-              164
+              149
             ]
           },
           "output": {
