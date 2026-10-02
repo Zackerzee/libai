@@ -3,13 +3,16 @@
  *
  * V2 生成链路：
  *   Source → [Subject Crop] → Sampling Engine V2 → Palette Matching (palette-engine)
- *          → [Auto Background] → [Stroke Mask] → Detail Protection
+ *          → [Auto Background（可靠性门 + 掩码）] → [Stroke Mask] → Detail Protection
  *          → Smart Cleanup → Protected Palette Budget ([Accent Protection]) → Final Grid
  *
  * 方括号里的四步是 V2.5 新增的「智能辅助」，全部**默认关闭**：
  * 只有显式打开对应开关（或选「小白一键」预设）才会进入，保证既有默认链路逐位不变。
  *   - Subject Crop   ：先自动裁到主体，让图案铺满画布（subject-crop.mjs）
  *   - Auto Background：把与边框连通的浅色区域判为真空豆（auto-background.mjs）
+ *                      **Stage B2 起先过 background-reliability.mjs 的可靠性门**：
+ *                      只有 5 个指标全过（reliable）才真的清格子；uncertain / none 一律 NO-OP。
+ *                      这从结构上排除了「安静地把主体啃掉一块」这种最糟的结果。
  *   - Stroke Mask    ：把线稿描边位置抬进保护图，避免描边被清理糊掉（stroke-mask.mjs）
  *   - Accent        ：降色时把关键强调色（眼睛/描边/高光）标为不主动合并（accent-protection.mjs）
  *
@@ -26,7 +29,8 @@ import { smartCleanup } from "./smart-cleanup-v2.mjs";
 import { buildPaletteBudgetPlan, applyBudgetPlan, countGridColors } from "./protected-palette-budget-v2.mjs";
 import { createPaletteEngine } from "./palette-engine.mjs";
 import { cropToSubject } from "./subject-crop.mjs";
-import { resolveBackgroundMask, applyBackgroundBlanks } from "./auto-background.mjs";
+import { applyBackgroundBlanks, DEFAULT_BACKGROUND_CONFIG } from "./auto-background.mjs";
+import { resolveBackgroundDecision, BACKGROUND_STATUS } from "./background-reliability.mjs";
 import { extractStrokeMask } from "./stroke-mask.mjs";
 import { detectAnchorColors } from "./accent-protection.mjs";
 
@@ -60,6 +64,17 @@ export const DEFAULT_GENERATION_V2_CONFIG = Object.freeze({
   maxColors: 0,
 });
 
+/**
+ * 采样配置。**导出**给 `services/background-preview-service.mjs` 复用 ——
+ * 背景预览必须和真实生成用同一套采样参数，否则「预览说能抠、生成却抠不动」
+ * 会变成一类无法解释的偏差。两份各写一份就是等着漂移。
+ */
+export const SAMPLING_CONFIG_V2 = Object.freeze({
+  extraction: { ignoreTransparent: true, alphaThreshold: 8 },
+  dominant: { threshold: 12 },
+  edgeAware: { edgeThreshold: 0.42, strongEdgeThreshold: 0.62, clusterThreshold: 10, centerBias: 0.2, continuityWeight: 0.25 },
+});
+
 function resolveOptions(options = {}) {
   const preset = GenerationProfiles[options.preset] || GenerationProfiles.photo;
   return {
@@ -91,6 +106,50 @@ function resolveOptions(options = {}) {
  * ======================================================= */
 
 /**
+ * 把源图的 alpha 下采样成「每格是否以透明像素为主」的 0/1 网格（Stage B2 §11）。
+ *
+ * 为什么需要它：采样引擎对透明像素是**直接跳过**的（`ignoreTransparent + alphaThreshold`），
+ * 于是透明区在 `sampled.colors` 里表现为 `null` —— 而 `null` 在 auto-background 里
+ * 原本被当作「数据缺失 = 背景候选」。结果就是：**全透明 PNG 会被判成「检测到浅色背景」**，
+ * 把透明和纯色背景混成同一种证据。
+ *
+ * 这里用与采样一致的 `cellBounds` 划分格子，格内过半像素 alpha ≤ 阈值 → 记 0（透明）。
+ * 纯计算，无 DOM；与采样引擎的 alpha 口径一致（同一个 8 阈值）。
+ *
+ * @param {{data:Uint8ClampedArray,width:number,height:number}} source
+ * @param {number} width 目标格数
+ * @param {number} height 目标格数
+ * @param {number} [alphaThreshold]
+ * @returns {Uint8Array} 1 = 不透明（默认），0 = 该格以透明像素为主
+ */
+export function buildAlphaGrid(source, width, height, alphaThreshold = 8) {
+  const grid = new Uint8Array(width * height).fill(1);
+  const sw = source.width;
+  const sh = source.height;
+  const data = source.data;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const b = cellBounds(x, y, sw, sh, width, height);
+      const x0 = Math.max(0, Math.floor(b.x0));
+      const x1 = Math.min(sw, Math.max(x0 + 1, Math.ceil(b.x1)));
+      const y0 = Math.max(0, Math.floor(b.y0));
+      const y1 = Math.min(sh, Math.max(y0 + 1, Math.ceil(b.y1)));
+      let total = 0;
+      let clear = 0;
+      for (let sy = y0; sy < y1; sy++) {
+        const row = sy * sw;
+        for (let sx = x0; sx < x1; sx++) {
+          total += 1;
+          if (data[(row + sx) * 4 + 3] <= alphaThreshold) clear += 1;
+        }
+      }
+      if (total > 0 && clear * 2 >= total) grid[y * width + x] = 0;
+    }
+  }
+  return grid;
+}
+
+/**
  * source: { data: Uint8ClampedArray, width, height }（ImageData 格式）
  * palette: [{ code, rgb: [r,g,b], hex?, name? }]
  * options: { preset, sampling, detailProtection, edgeProtection, highlightProtection, eyeProtection, microDetailProtection, maxColors }
@@ -111,11 +170,7 @@ export function generateV2({ source, width, height, palette, options = {} }) {
   const paletteEngine = createPaletteEngine(palette);
   const getColorKey = (cell) => (cell ? cell.code : null);
 
-  const samplingConfig = {
-    extraction: { ignoreTransparent: true, alphaThreshold: 8 },
-    dominant: { threshold: 12 },
-    edgeAware: { edgeThreshold: 0.42, strongEdgeThreshold: 0.62, clusterThreshold: 10, centerBias: 0.2, continuityWeight: 0.25 },
-  };
+  const samplingConfig = SAMPLING_CONFIG_V2;
 
   // 0. Subject Crop（可选）：先把画面裁到主体，让图案铺满画布。
   //    裁的是「源图」，网格宽高（width/height）不变，因此不会改变图纸尺寸口径。
@@ -162,14 +217,49 @@ export function generateV2({ source, width, height, palette, options = {} }) {
 
   // 2.5 Auto Background（可选）：只把「与边框连通的浅色区」判为真空豆，封闭浅色区保留。
   //     用采样色（而非量化后的色卡色）判定，保留原图层次。
+  //
+  //     Stage B2：这里**不再无条件应用**掩码。先过可靠性门（§3），
+  //     只有 status === "reliable" 才真的清格子；uncertain / none 一律 NO-OP（§4 §5），
+  //     并把结论与 5 个指标写进 diagnostics，供 UI 提示与验收取证。
   let backgroundDiag = null;
   if (cfg.autoBackground) {
     const tBg = performance.now();
-    const { backgroundMask, regionCount, diagnostics: bgDiag } = resolveBackgroundMask({
-      rgbGrid: sampled.colors, width, height, options: cfg.backgroundConfig || {},
+    // §11：先把「哪些格是透明」算出来。透明格不是背景证据，也不能和纯色背景混为一谈。
+    const alphaGrid = buildAlphaGrid(samplingSource, width, height);
+    const decision = resolveBackgroundDecision({
+      rgbGrid: sampled.colors,
+      alphaGrid,
+      grid,
+      width,
+      height,
+      options: cfg.backgroundConfig || {},
     });
-    const { blankCells } = applyBackgroundBlanks({ grid, mask: backgroundMask, width, height });
-    backgroundDiag = { ...bgDiag, regionCount, blankedCells: blankCells.length };
+    let blankedCells = 0;
+    if (decision.status === BACKGROUND_STATUS.RELIABLE && decision.mask) {
+      blankedCells = applyBackgroundBlanks({ grid, mask: decision.mask, width, height }).blankCells.length;
+    }
+    backgroundDiag = {
+      status: decision.status,
+      applied: blankedCells > 0,
+      reason: decision.reason,
+      removedCount: decision.removedCount,
+      removedRatio: Math.round(decision.removedRatio * 10000) / 10000,
+      metrics: decision.metrics,
+      regionCount: decision.regionCount,
+      blankedCells,
+      detail: decision.detail,
+      // 旧字段（B2 之前就在 diagnostics 里），保留以免下游诊断/报告断掉。
+      borderCandidates: decision.detail.borderCandidates,
+      floodedCells: decision.detail.floodedCells,
+      enclosedKept: decision.detail.enclosedKept,
+      totalCandidates: decision.detail.totalCandidates,
+      transparentCells: decision.detail.transparentCells,
+      lightnessThreshold: (cfg.backgroundConfig || {}).lightnessThreshold ?? DEFAULT_BACKGROUND_CONFIG.lightnessThreshold,
+      chromaThreshold: (cfg.backgroundConfig || {}).chromaThreshold ?? DEFAULT_BACKGROUND_CONFIG.chromaThreshold,
+      maxColorDelta: (cfg.backgroundConfig || {}).maxColorDelta ?? DEFAULT_BACKGROUND_CONFIG.maxColorDelta,
+      width,
+      height,
+    };
     timing.autoBackground = Math.round(performance.now() - tBg);
   }
 
@@ -406,6 +496,8 @@ export default {
   SamplingMode,
   GenerationProfiles,
   DEFAULT_GENERATION_V2_CONFIG,
+  SAMPLING_CONFIG_V2,
+  buildAlphaGrid,
   generateV2,
   compareGrids,
 };

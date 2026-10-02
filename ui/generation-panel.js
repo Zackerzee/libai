@@ -52,11 +52,17 @@ export class GenerationPanel {
 
       maxColors: 38,
 
+      // ── 去背景：**界面上只有一个开关**（Stage B2 §17 §18）──────────────
+      // 以前这里是两个字段两个开关：「去除纯色背景」(backgroundRemoval，写了没人读，
+      // 是个死开关) 和「自动留空背景」(autoBackground，真正接进生成引擎的那个)。
+      // 用户看到两个意思相近的开关、只有一个有效 —— 这是明确的产品缺陷。
+      // 现在 `backgroundRemoval` 是**唯一可见**的开关，`autoBackground` 降级为
+      // 它发往引擎的镜像（见 emitSettings()）。引擎协议不变。
       backgroundRemoval: false,
+      autoBackground: false,
 
       // V2.5 智能辅助开关（默认全关，保持既有默认链路不变）
       subjectCrop: false,
-      autoBackground: false,
       strokeProtection: false,
       accentProtection: false,
 
@@ -73,6 +79,19 @@ export class GenerationPanel {
     this.bindEvents();
   }
 
+  /**
+   * 面板发往工作台的设置快照。
+   *
+   * Stage B2 §17 §18：`autoBackground` 是 `backgroundRemoval` 的**镜像** ——
+   * 生成引擎读的是 `autoBackground`，界面读的是 `backgroundRemoval`。
+   * 两者必须在同一个函数里一起翻转，否则会出现「开关显示关着、引擎却真的去抠背景」
+   * 这种最难查的状态分叉。
+   */
+  emitSettings() {
+    const backgroundRemoval = Boolean(this.state.backgroundRemoval);
+    return { ...this.state, backgroundRemoval, autoBackground: backgroundRemoval };
+  }
+
   setState(patch, emit = true) {
     this.state = {
       ...this.state,
@@ -82,7 +101,7 @@ export class GenerationPanel {
     this.syncUI();
 
     if (emit) {
-      this.onChange({ ...this.state });
+      this.onChange(this.emitSettings());
     }
   }
 
@@ -355,7 +374,7 @@ export class GenerationPanel {
           ${this.switchRow(
             "backgroundRemoval",
             "去除纯色背景",
-            "仅作为生成前处理设置"
+            "先检测能否安全分离，再决定是否移除"
           )}
 
           <p class="sl-section-hint">
@@ -366,12 +385,6 @@ export class GenerationPanel {
             "subjectCrop",
             "自动裁主体",
             "先裁到主体，让图案铺满画布"
-          )}
-
-          ${this.switchRow(
-            "autoBackground",
-            "自动留空背景",
-            "只把与边框连通的浅色留成空豆"
           )}
 
           ${this.switchRow(
@@ -549,9 +562,7 @@ export class GenerationPanel {
 
       this.syncUI();
 
-      this.onChange({
-        ...this.state
-      });
+      this.onChange(this.emitSettings());
     });
   }
 
@@ -673,10 +684,15 @@ export class GenerationPanel {
     }; */
 
     const centralized = GENERATION_MODE_PRESETS[preset];
-    this.setState({
-      preset,
-      ...(centralized ? { ...centralized, sampling: ({ "edge-aware":"edge", "linear-mean":"mean" })[centralized.sampling] || centralized.sampling } : {})
-    });
+    const patch = centralized
+      ? { ...centralized, sampling: ({ "edge-aware":"edge", "linear-mean":"mean" })[centralized.sampling] || centralized.sampling }
+      : {};
+    // 「小白一键」会把四个智能辅助一次全开 —— 其中「去背景」必须落到
+    // **唯一可见**的那个开关上，否则预设开了、界面却显示关着。
+    if (centralized && "autoBackground" in centralized) {
+      patch.backgroundRemoval = Boolean(centralized.autoBackground);
+    }
+    this.setState({ preset, ...patch });
   }
 
   syncUI() {

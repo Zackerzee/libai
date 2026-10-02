@@ -136,7 +136,19 @@ export function mountWorkspace(bridge) {
     }
   });
   const canvas = document.createElement("section"); canvas.className = "ws-canvas-area"; canvas.id = "ws-canvas-area";
-  canvas.innerHTML = `<div class="ws-canvas-well" id="ws-canvas-well" role="img" aria-label="当前拼豆作品画布"><div class="ws-canvas-layers" id="ws-canvas-layers"></div><canvas id="ws-source-canvas" class="ws-source-canvas" aria-label="原图裁剪画布" hidden></canvas></div><div class="ws-canvas-stats" id="ws-canvas-stats"><span>已使用颜色</span> <strong id="ws-stats-colors">0</strong> <span>种</span> <i aria-hidden="true">/</i> <strong id="ws-stats-beads">0</strong> <span>颗</span></div><p class="ws-canvas-hint" id="ws-canvas-hint"></p>`;
+  canvas.innerHTML = `<div class="ws-canvas-well" id="ws-canvas-well" role="img" aria-label="当前拼豆作品画布"><div class="ws-canvas-layers" id="ws-canvas-layers"></div><canvas id="ws-source-canvas" class="ws-source-canvas" aria-label="原图裁剪画布" hidden></canvas></div><div class="ws-canvas-stats" id="ws-canvas-stats"><span>已使用颜色</span> <strong id="ws-stats-colors">0</strong> <span>种</span> <i aria-hidden="true">/</i> <strong id="ws-stats-beads">0</strong> <span>颗</span></div>
+    <!-- Stage B2 §6：生成前的背景预检条。
+         开启「去除纯色背景」后不直接静默应用 —— 先在这里给出结论，
+         由用户选 [应用] / [保留背景]。结论来自 services/background-preview-service.mjs，
+         真实判定仍在生成时由 background-reliability.mjs 重跑。 -->
+    <div class="ws-bg-preview" id="ws-bg-preview" role="status" hidden>
+      <span class="ws-bg-preview-text" id="ws-bg-preview-text">—</span>
+      <span class="ws-bg-preview-actions">
+        <button type="button" class="ws-button ws-button-primary" id="ws-bg-preview-apply">应用</button>
+        <button type="button" class="ws-button" id="ws-bg-preview-keep">保留背景</button>
+        <button type="button" class="ws-button" id="ws-bg-preview-dismiss" hidden>知道了</button>
+      </span>
+    </div><p class="ws-canvas-hint" id="ws-canvas-hint"></p>`;
   center.append(importView, canvas);
   // 底部工具坞：左=画布工具，中=视图与缩放，右=主操作。严格单行不换行。
   // 原先浮在画布上方 top:12px 的工具条会盖住画布抢点击，这里改为常驻底栏。
@@ -591,11 +603,25 @@ export function mountWorkspace(bridge) {
     // 所以拖尺寸滑杆不会走到 onChange，也就不会触发生成（B0 §5 / §7）。
     onChange: (settings) => {
       if (Number(settings.maxColors) !== get().palette.maxColors) palettes.setMaxColors(Number(settings.maxColors) || 0);
+      // Stage B2 §17 §18：界面只有一个「去除纯色背景」开关（backgroundRemoval）。
+      // 引擎读的是 autoBackground，所以这里把同一个值同时写给两者 ——
+      // 面板的 emitSettings() 已经把镜像做好了，这里再兜一次，保证从任何路径进来都一致。
+      const backgroundRemoval = Boolean(settings.backgroundRemoval);
+      const backgroundRemovalWasOn = Boolean(get().generation.backgroundRemoval);
       store.setState({
-        generation: { engine: get().generation.engine, algorithm: get().generation.algorithm || "current", preset: settings.preset, sampling: ({ edge: "edge-aware", mean: "linear-mean" })[settings.sampling] || settings.sampling, detailProtection: settings.detailProtection, edgeProtection: settings.edgeProtection, cleanupStrength: settings.cleanupStrength, preserveHighlights: settings.preserveHighlights, preserveEyes: settings.preserveEyes, preserveMicroDetails: settings.preserveMicroDetails, backgroundRemoval: settings.backgroundRemoval, subjectCrop: Boolean(settings.subjectCrop), autoBackground: Boolean(settings.autoBackground), strokeProtection: Boolean(settings.strokeProtection), accentProtection: Boolean(settings.accentProtection), brightness: settings.brightness, contrast: settings.contrast, saturation: settings.saturation },
+        generation: { engine: get().generation.engine, algorithm: get().generation.algorithm || "current", preset: settings.preset, sampling: ({ edge: "edge-aware", mean: "linear-mean" })[settings.sampling] || settings.sampling, detailProtection: settings.detailProtection, edgeProtection: settings.edgeProtection, cleanupStrength: settings.cleanupStrength, preserveHighlights: settings.preserveHighlights, preserveEyes: settings.preserveEyes, preserveMicroDetails: settings.preserveMicroDetails, backgroundRemoval, autoBackground: backgroundRemoval, subjectCrop: Boolean(settings.subjectCrop), strokeProtection: Boolean(settings.strokeProtection), accentProtection: Boolean(settings.accentProtection), brightness: settings.brightness, contrast: settings.contrast, saturation: settings.saturation },
         status: { dirty: true },
       });
-      // 生成参数变化都直接重算，不再等用户点按钮。
+      // 刚把「去除纯色背景」从关打到开 → **不立刻生成**，先跑预检让用户确认（§6）。
+      // 其他参数变化照旧直接重算。
+      if (backgroundRemoval && !backgroundRemovalWasOn) {
+        requestBackgroundPreview();
+        return;
+      }
+      // 任何其他参数变化都直接重算 —— 顺手收起预检条：
+      // 否则「预检还挂在画布下方、图纸却已经带着去背景重算过了」，
+      // 等于绕过了用户确认这一步。
+      hideBackgroundPreview();
       scheduleAutoGenerate();
     },
     onGenerate: async () => {
@@ -603,6 +629,88 @@ export function mountWorkspace(bridge) {
       try { await generation.generate({ overwriteApproved: true }); } catch (error) { store.setState({ status: { notice: error.message } }); }
     },
   });
+  // ===================== Stage B2 §6：生成前背景预检 =====================
+  // 「去除纯色背景」打开后**不立刻静默应用**。先跑一次轻量预检（长边封顶 160，
+  // 见 services/background-preview-service.mjs），把结论摆到画布下方，由用户选
+  // [应用] 还是 [保留背景]。
+  //
+  // 预检**不是放行凭证**：真正的判定在生成时由 generateV2 在真实格数上重跑一遍
+  // （smart-preprocessing/background-reliability.mjs）。所以预检乐观一点也不会
+  // 让主体被误删 —— 它只决定「要不要问用户」，不决定「删哪些格」。
+  let backgroundPreviewRunning = false;
+
+  function hideBackgroundPreview() {
+    const strip = $("#ws-bg-preview");
+    if (strip) strip.hidden = true;
+  }
+
+  function showBackgroundPreview(result) {
+    const strip = $("#ws-bg-preview");
+    const text = $("#ws-bg-preview-text");
+    const apply = $("#ws-bg-preview-apply");
+    const keep = $("#ws-bg-preview-keep");
+    const dismiss = $("#ws-bg-preview-dismiss");
+    if (!strip || !text) return;
+    const reliable = Boolean(result?.reliable);
+    text.textContent = result?.message || "已保持原图。";
+    strip.dataset.status = reliable ? "reliable" : "keep";
+    if (apply) apply.hidden = !reliable;
+    if (keep) keep.hidden = !reliable;
+    if (dismiss) dismiss.hidden = reliable;
+    strip.hidden = false;
+  }
+
+  /**
+   * 跑一次背景预检。
+   * 源图解码 / 裁剪变换由 app.js 侧完成（bridge.previewBackgroundRemoval），
+   * 工作台只管「什么时候问、怎么显示」。
+   */
+  async function requestBackgroundPreview() {
+    if (backgroundPreviewRunning) return;
+    const strip = $("#ws-bg-preview");
+    const text = $("#ws-bg-preview-text");
+    if (!strip || !text) { scheduleAutoGenerate(0); return; }
+    const size = bridge.getGenerationSize?.() || null;
+    // 还没有源图 / 尺寸未解析 → 没有什么可预检的，直接按老路径生成。
+    if (!size?.width || !size?.height || typeof bridge.previewBackgroundRemoval !== "function") {
+      hideBackgroundPreview();
+      scheduleAutoGenerate(0);
+      return;
+    }
+    backgroundPreviewRunning = true;
+    text.textContent = "正在检测背景…";
+    strip.dataset.status = "probing";
+    const apply = $("#ws-bg-preview-apply");
+    const keep = $("#ws-bg-preview-keep");
+    const dismiss = $("#ws-bg-preview-dismiss");
+    if (apply) apply.hidden = true;
+    if (keep) keep.hidden = true;
+    if (dismiss) dismiss.hidden = true;
+    strip.hidden = false;
+    try {
+      const result = await bridge.previewBackgroundRemoval({ width: size.width, height: size.height });
+      if (!result) { hideBackgroundPreview(); return; }
+      showBackgroundPreview(result);
+    } catch {
+      // 预检失败不该挡住生成：静默退回「直接生成」，由引擎侧的可靠性门兜底。
+      hideBackgroundPreview();
+    } finally {
+      backgroundPreviewRunning = false;
+    }
+  }
+
+  /** 用户选择「保留背景」：把开关真的关掉（面板 + state 一起），再生成。 */
+  function keepBackgroundAndGenerate() {
+    hideBackgroundPreview();
+    generationPanel.setState({ backgroundRemoval: false }, false);
+    store.setState({ generation: { backgroundRemoval: false, autoBackground: false } });
+    scheduleAutoGenerate(0);
+  }
+
+  $("#ws-bg-preview-apply")?.addEventListener("click", () => { hideBackgroundPreview(); scheduleAutoGenerate(0); });
+  $("#ws-bg-preview-keep")?.addEventListener("click", keepBackgroundAndGenerate);
+  $("#ws-bg-preview-dismiss")?.addEventListener("click", () => { hideBackgroundPreview(); scheduleAutoGenerate(0); });
+
   $("#ws-engine").addEventListener("change", (event) => {
     const engine = event.target.value;
     bridge.setGenerationEngine(engine);

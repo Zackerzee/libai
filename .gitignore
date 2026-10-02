@@ -17,3 +17,8 @@ tests/fixtures/b3-worker/
 # 探针夹具：由 tools/b1-palette-probe.mjs 用 zlib 现场生成，不入库
 #   photo-800x600.png（多色 + 分布不均 —— 低频色巡检 / 用量排序必须靠它才有意义）
 tests/fixtures/b1-palette/
+
+# 探针夹具：由 tools/build-background-fixtures.mjs 用 png-io 现场生成，不入库
+#   10 张背景可靠性样例（白底 Logo / 蓝底 / 白底白衣 / 渐变 / 透明 PNG / 接触边缘 …）
+#   绘制函数与 tests/background-fixtures.mjs 共用 —— 验收的图和单测的图必须是同一张
+tests/fixtures/background/

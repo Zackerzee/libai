@@ -7474,6 +7474,40 @@ window.LibmsWorkspaceBridge = {
     state.productionGenerationOptions = generationOptions;
   },
   /**
+   * 背景预检（Stage B2 §6）。给工作台「开启去除纯色背景 → 先问用户」用。
+   *
+   * 为什么放在 app.js 而不是工作台：源图的解码与非破坏式裁剪变换
+   * （sourceTransform）只在这里有。工作台只管显示结论。
+   *
+   * 返回 null 表示「没有可预检的源图」—— 调用方应直接走正常生成。
+   * 预检本身**不写任何 state**，也不改 `state.grid`：它是一次只读探测。
+   */
+  async previewBackgroundRemoval({ width, height } = {}) {
+    if (!state.sourceDataUrl) return null;
+    const previewModule = await import("./services/background-preview-service.mjs?v=20261003-stage-b2");
+    const original = await loadImage(state.sourceDataUrl);
+    const sourceEditor = await loadSourceEditor();
+    const processed = sourceEditor.hasSourceTransform(state.sourceTransform)
+      ? sourceEditor.renderSourceTransform(original, state.sourceTransform).toDataURL("image/png")
+      : state.sourceDataUrl;
+    const image = processed === state.sourceDataUrl ? original : await loadImage(processed);
+    const sourceImageData = imageToImageData(image);
+    // 尺寸口径与生成完全一致：显式传的优先，否则由「长边 + 裁剪比例」派生。
+    // 比例还没解析 → 没有可预检的格数，返回 null 让调用方走正常路径
+    // （生成自己会 defer，不该在这里硬编一个尺寸）。
+    const resolved = (width && height)
+      ? { width: Number(width), height: Number(height) }
+      : resolveGenerationDimensions(getGenerationLongEdge());
+    if (!resolved?.width || !resolved?.height) return null;
+    const options = state.productionGenerationOptions || {};
+    return previewModule.previewBackgroundRemoval({
+      image: sourceImageData,
+      finalSize: resolved,
+      sampling: options.sampling || state.generationSampling || "auto",
+      preset: options.preset || state.generationPreset || "auto",
+    });
+  },
+  /**
    * 生成一次。
    *
    * 尺寸只有两个合法来源：
