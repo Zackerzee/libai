@@ -216,6 +216,16 @@ test("§6：预检失败不挡生成（异常路径静默退回正常生成）",
   const body = fn.slice(0, fn.indexOf("\n  }"));
   assert.match(body, /catch \{/, "预检必须有 catch —— 否则一次探测失败会让用户点不动生成");
   assert.match(body, /hideBackgroundPreview\(\)/, "异常时应收起预检条");
+  // 但**只收起预检条不等于退回生成**：条子没了、图还是旧的、也没有任何提示，
+  // 用户点了「小白一键」却什么都没发生，还没有线索说明为什么 —— 典型的静默失效。
+  // 本用例的名字一直写着「退回正常生成」，代码却从来没有生成过。现在把这条钉住。
+  assert.match(workspace, /function fallbackToDirectGeneration\(\) \{[\s\S]*?hideBackgroundPreview\(\);[\s\S]*?scheduleAutoGenerate\(0\);/,
+    "兜底函数必须同时做两件事：收起预检条 + 发起生成");
+  const fallbackCalls = (body.match(/fallbackToDirectGeneration\(\)/g) || []).length;
+  assert.ok(fallbackCalls >= 2,
+    `两条失败路径（返回 null / 抛异常）都要走兜底，实得 ${fallbackCalls} 处`);
+  assert.ok(!/if \(!result\) \{ hideBackgroundPreview\(\); return; \}/.test(body),
+    "返回 null 时不能只收起预检条就返回");
 });
 
 test("§6：桥接层暴露 previewBackgroundRemoval，且不写任何 state", () => {

@@ -665,6 +665,22 @@ export function mountWorkspace(bridge) {
     if (strip) strip.hidden = true;
   }
 
+  /**
+   * 预检跑不出来时的兜底：收起预检条 + **真的把生成发出去**。
+   *
+   * 只 `hideBackgroundPreview()` 是不够的 —— 条子消失了、图还是旧的、也没有任何
+   * 提示。用户点了「小白一键」，模式高亮着，画布却没变，而且没有任何线索说明
+   * 为什么。这正是本项目一直在清的那类「静默失效」形状：
+   * 注释写着「静默退回直接生成」，代码却没生成。
+   *
+   * 兜底之后由引擎侧的可靠性门（B2）在**真实格数**上重新判定要不要去背景，
+   * 所以这里不需要、也不应该在 UI 侧替它做决定。
+   */
+  function fallbackToDirectGeneration() {
+    hideBackgroundPreview();
+    scheduleAutoGenerate(0);
+  }
+
   function showBackgroundPreview(result) {
     const strip = $("#ws-bg-preview");
     const text = $("#ws-bg-preview-text");
@@ -710,11 +726,11 @@ export function mountWorkspace(bridge) {
     strip.hidden = false;
     try {
       const result = await bridge.previewBackgroundRemoval({ width: size.width, height: size.height });
-      if (!result) { hideBackgroundPreview(); return; }
+      if (!result) { fallbackToDirectGeneration(); return; }
       showBackgroundPreview(result);
     } catch {
       // 预检失败不该挡住生成：静默退回「直接生成」，由引擎侧的可靠性门兜底。
-      hideBackgroundPreview();
+      fallbackToDirectGeneration();
     } finally {
       backgroundPreviewRunning = false;
     }
