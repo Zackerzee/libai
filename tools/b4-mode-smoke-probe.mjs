@@ -382,6 +382,16 @@ try {
   }
 
   note("本轮抓到的生成请求总数", String(await evalJs(`window.__b4s.requestCount()`)));
+  // 把整张请求表打出来 —— 这是唯一能一眼看出「哪个模式实际拿到了什么参数」的证据。
+  // §11（maxColors 硬约束）要用的基线数字就藏在这一列里。
+  const allRequests = await evalJson(`window.__b4sRequests`);
+  console.log("\n抓到的生成请求（按时间顺序）：");
+  console.log("  mode          尺寸        maxColors  清理强度  autoBg  细节保护");
+  for (const r of allRequests) {
+    console.log(`  ${String(r.mode).padEnd(13)} ${`${r.size?.width}×${r.size?.height}`.padEnd(10)} `
+      + `${String(r.maxColors).padEnd(10)} ${String(r.cleanupStrength).padEnd(8)} `
+      + `${String(r.autoBackground).padEnd(7)} ${r.detailProtection}`);
+  }
   await shot("modes-final");
 
   check("生产 CSP 未拦生成链路相关资源", cspViolations.length === 0, cspViolations[0] || "");
