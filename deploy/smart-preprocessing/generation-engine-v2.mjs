@@ -398,10 +398,17 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
   // §10 Conservative Cleanup 接缝。候选拿到的是 smartCleanup 的**全部入参**
   // 外加 source / cellBounds / cfg —— 不给原始像素，「1–4 格的眼睛/高光」这类
   // 判断就只能靠保护图猜，而保护图本身是下游产物，拿它当证据是循环论证。
+  // `cellBounds` 传出去的是**两参版本**，不是 `sampling-engine-v2` 导出的六参原件。
+  // 六参原件在只给 (x, y) 时算出的是 NaN —— `Math.max(0, Math.floor(NaN))` 仍是 NaN，
+  // 于是 `cellRect` 拿到 NaN 边界、像素循环一次都不跑、格子源色恒为 null。
+  // 后果不是报错，是 §10 的每个连通块都走 `skippedStructure` 分支**静默全不清理**，
+  // 而 Lab 指标看上去只是「碎片多一点」。这种失效形状必须靠契约测试钉住，
+  // 见 tests/conservative-cleanup.test.mjs 的 cellBounds 有限性用例。
   const cleanupRaw = labCleanup
     ? labCleanup({
       ...cleanupArgs,
-      source: samplingSource, width, height, cellBounds, cfg, palette, paletteEngine,
+      source: samplingSource, width, height, cfg, palette, paletteEngine,
+      cellBounds: (x, y) => cellBounds(x, y, samplingSource.width, samplingSource.height, width, height),
       report: labReport,
     })
     : smartCleanup(cleanupArgs);

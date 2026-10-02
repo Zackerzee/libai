@@ -223,5 +223,9 @@ export function runBenchCase(cls, mode, { inputs = null, palette = null, size = 
     labId: result.diagnostics?.lab?.id ?? null,
     // 候选说「我没意见」而退回生产匹配器的格数。接近总格数 = 候选其实没接上。
     labMatchFallbacks: result.diagnostics?.lab?.matchFallbacks ?? null,
+    // 候选自己的诊断。**必须透出来**：没有它，「候选在 J 类上清理了多少块」
+    // 这句话在图上一眼看不出来，只能靠数字；而 metrics.json 里没有它，
+    // 那句就只能靠猜。
+    labDetail: result.diagnostics?.lab?.detail ?? null,
   };
 }

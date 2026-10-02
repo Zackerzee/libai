@@ -31,6 +31,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { encodePng } from "../src/algorithms/engines/hybrid-v2/png-io.mjs";
+import { renderGridPng, compositePanels } from "./b4-sheet.mjs";
 import { B4_BENCH_CLASSES, buildBenchGrid } from "../tests/b4-bench-fixtures.mjs";
 import {
   B4_BENCH_PINNED as PINNED,
@@ -64,62 +65,11 @@ const PALETTE = benchPalette();
 const PALETTE_HASH = paletteHash(PALETTE);
 const size = benchSize();
 
-/* ── 渲染 ─────────────────────────────────────────────────────────── */
-function renderGridPng(grid, cell = 6) {
-  const h = grid.length;
-  const w = grid[0]?.length ?? 0;
-  const W = w * cell;
-  const H = h * cell;
-  const data = new Uint8ClampedArray(W * H * 4);
-  for (let y = 0; y < H; y += 1) {
-    for (let x = 0; x < W; x += 1) {
-      const gx = Math.floor(x / cell);
-      const gy = Math.floor(y / cell);
-      const i = (y * W + x) * 4;
-      const c = grid[gy]?.[gx];
-      if (!c) {
-        // 空豆画成浅棋盘 —— 比透明更清楚，肉眼一眼能看出「这里被清掉了」
-        const check = (Math.floor(x / 4) + Math.floor(y / 4)) % 2;
-        const v = check ? 236 : 248;
-        data[i] = v; data[i + 1] = v; data[i + 2] = v; data[i + 3] = 255;
-        continue;
-      }
-      data[i] = c.rgb[0]; data[i + 1] = c.rgb[1]; data[i + 2] = c.rgb[2]; data[i + 3] = 255;
-    }
-  }
-  return encodePng({ data, width: W, height: H });
-}
-
-/** 把若干张等大的网格横向拼起来（contact sheet 用）。 */
-function compositePanels(panels, cell, gap = 6, bg = [252, 252, 252]) {
-  if (!panels.length) return null;
-  const h = panels[0].grid.length;
-  const w = panels[0].grid[0].length;
-  const cols = panels.length;
-  const W = cols * w * cell + (cols + 1) * gap;
-  const H = h * cell + gap * 2;
-  const data = new Uint8ClampedArray(W * H * 4);
-  for (let i = 0; i < W * H; i += 1) {
-    data[i * 4] = bg[0]; data[i * 4 + 1] = bg[1]; data[i * 4 + 2] = bg[2]; data[i * 4 + 3] = 255;
-  }
-  panels.forEach((panel, index) => {
-    const ox = gap + index * (w * cell + gap);
-    for (let y = 0; y < h * cell; y += 1) {
-      for (let x = 0; x < w * cell; x += 1) {
-        const c = panel.grid[Math.floor(y / cell)]?.[Math.floor(x / cell)];
-        const i = ((gap + y) * W + (ox + x)) * 4;
-        if (!c) {
-          const check = (Math.floor(x / 4) + Math.floor(y / 4)) % 2;
-          const v = check ? 232 : 246;
-          data[i] = v; data[i + 1] = v; data[i + 2] = v;
-          continue;
-        }
-        data[i] = c.rgb[0]; data[i + 1] = c.rgb[1]; data[i + 2] = c.rgb[2];
-      }
-    }
-  });
-  return { data, width: W, height: H };
-}
+/* ── 渲染 ───────────────────────────────────────────────────────────
+ * 渲染原语在 `tools/b4-sheet.mjs`，和 §6–§10 的 Lab 跑分器共用同一份。
+ * 之前这里是本地副本，抽出之后 **基线 sheet 的像素必须逐位不变** ——
+ * 变了就说明抽错了，而不是「渲染升级了」。
+ */
 
 /* ── 跑 ───────────────────────────────────────────────────────────── */
 const classes = B4_BENCH_CLASSES.filter((c) => !onlyClasses.length || onlyClasses.includes(c.id));

@@ -1,0 +1,432 @@
+#!/usr/bin/env node
+/**
+ * b4-lab.mjs — Stage B4 §6–§10 候选算法跑分器（§13 指标 + §14 contact sheet）。
+ *
+ * ── 它存在的唯一理由 ────────────────────────────────────────────────
+ * §0 的实验流程是：实现独立候选 → 单测 → 跑固定 A–J benchmark → 输出 metrics diff
+ * → 输出 contact sheet → **人工看图** → 给 KEEP / REJECT / MODE-SPECIFIC。
+ * 这个工具负责中间那三步，并且**只负责那三步**：
+ *   · 它不写任何决策。决策在报告里，由人给出。
+ *   · 它不碰 `tests/fixtures/b4-bench/baseline.json`。基线是 §4/§5 冻结的，
+ *     Lab 的产物一律写到 `--out` 目录。写基线的那条路径在本文件里**不存在**，
+ *     不是靠纪律，是靠代码里没有这个分支。
+ *
+ * ── 指标为什么全部从「原图」而不是从「引擎中间量」算 ────────────────
+ * §13 的 perceptualError / edgeRetention / detailRetention 如果引用
+ * `diagnostics.protectionMap`，参照物就跟着候选一起变了 ——
+ * 「候选 A 的保护图认为这里该保护、候选 B 的不认为」，两边各自算各自的分数，
+ * 最后谁高谁低只是「谁更相信自己」。所以这些指标一律从
+ * `downsampleSource()` 的**原图**导出，所有候选共用同一把尺子。
+ *
+ * ── 取景纪律 ────────────────────────────────────────────────────────
+ * `beginner` 模式打开 subjectCrop，取景会变（§4/§5 已经量过：10 类里 8 类变）。
+ * 取景一变，任何按归一化坐标做的区域对比都不再成立。所以：
+ *   · 默认只跑 `auto`
+ *   · 显式跑 `beginner` 时，该行标 `framingStable: false`，
+ *     探针与指标**照常计算但不参与汇总**，避免它悄悄污染结论
+ *
+ * 用法：
+ *   node tools/b4-lab.mjs --out <dir>
+ *   node tools/b4-lab.mjs --class A,F --only bean-fit,neutral
+ *   node tools/b4-lab.mjs --modes auto,beginner --skip-sheets
+ */
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { encodePng } from "../src/algorithms/engines/hybrid-v2/png-io.mjs";
+import { renderGridPng, compositePanels, stackImages, cropGrid } from "./b4-sheet.mjs";
+import { B4_BENCH_CLASSES } from "../tests/b4-bench-fixtures.mjs";
+import {
+  B4_BENCH_PINNED as PINNED,
+  benchInputs,
+  benchPalette,
+  benchSize,
+  downsampleSource,
+  paletteHash,
+  measureProbe,
+  runBenchCase,
+} from "../tests/b4-bench-runner.mjs";
+import { LAB_MATRIX } from "../smart-preprocessing/lab/index.mjs";
+import { findConnectedComponents } from "../smart-preprocessing/smart-cleanup-v2.mjs";
+import { rgbToLab, deltaE2000, labChroma } from "../smart-preprocessing/lab/buckets.mjs";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const BASELINE_DIR = path.join(ROOT, "tests/fixtures");
+
+const argv = process.argv.slice(2);
+const flag = (name) => argv.includes(name);
+const value = (name, fallback = null) => {
+  const i = argv.indexOf(name);
+  return i === -1 ? fallback : argv[i + 1];
+};
+
+const OUT_DIR = path.resolve(value("--out", path.join(ROOT, ".b4-lab-out")));
+const onlyClasses = (value("--class") || "").split(",").map((s) => s.trim()).filter(Boolean);
+const onlyModes = (value("--modes") || "auto").split(",").map((s) => s.trim()).filter(Boolean);
+const onlyCandidates = (value("--only") || "").split(",").map((s) => s.trim()).filter(Boolean);
+const SKIP_SHEETS = flag("--skip-sheets");
+const SHEET_CELL = Number(value("--sheet-cell", 4));
+const ZOOM_CELL = Number(value("--zoom-cell", 12));
+const ZOOM_PAD = Number(value("--zoom-pad", 2));
+
+// 硬护栏：绝不往基线目录里写。写错一次就毁掉 §4/§5 的冻结基线，
+// 而那份基线是判断所有候选有没有效的**唯一**参照物。
+if (OUT_DIR.startsWith(BASELINE_DIR)) {
+  console.error(`拒绝：--out 落在基线目录里（${BASELINE_DIR}）。Lab 产物必须写到别处。`);
+  process.exit(2);
+}
+
+/* =========================================================
+ * §13 指标
+ * ======================================================= */
+
+const NEUTRAL_CHROMA_THRESHOLD = 12;
+const EDGE_LUM_DELTA = 32;
+const DETAIL_DELTA = 15;
+
+const lum = (rgb) => 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+const NEIGHBORS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+/** 从**原图**导出一次参照物，所有候选共用。 */
+function buildReference(originalGrid) {
+  const h = originalGrid.length;
+  const w = originalGrid[0]?.length ?? 0;
+  const lab = new Array(w * h).fill(null);
+  const chroma = new Float64Array(w * h);
+  const edgeCells = new Uint8Array(w * h);
+  const detailCells = new Uint8Array(w * h);
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const cell = originalGrid[y][x];
+      if (!cell) continue;
+      const idx = y * w + x;
+      lab[idx] = rgbToLab(cell.rgb);
+      chroma[idx] = labChroma(lab[idx]);
+    }
+  }
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const idx = y * w + x;
+      const own = originalGrid[y][x];
+      if (!own) continue;
+      const neighbours = [];
+      let lumEdge = false;
+      for (const [dx, dy] of NEIGHBORS) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+        const nc = originalGrid[ny][nx];
+        if (!nc) continue;
+        neighbours.push(nc.rgb);
+        if (Math.abs(lum(own.rgb) - lum(nc.rgb)) > EDGE_LUM_DELTA) lumEdge = true;
+      }
+      if (!neighbours.length) continue;
+      if (lumEdge) edgeCells[idx] = 1;
+      let r = 0, g = 0, b = 0;
+      for (const n of neighbours) { r += n[0]; g += n[1]; b += n[2]; }
+      const meanLab = rgbToLab([r / neighbours.length, g / neighbours.length, b / neighbours.length]);
+      if (deltaE2000(lab[idx], meanLab) > DETAIL_DELTA) detailCells[idx] = 1;
+    }
+  }
+  return { lab, chroma, edgeCells, detailCells, width: w, height: h };
+}
+
+/** 输出网格里，某格是否与任一 4 邻不同色（= 输出在这一格上确实画出了边界）。 */
+function hasBoundary(grid, x, y) {
+  const own = grid[y]?.[x];
+  if (!own) return false;
+  const w = grid[0].length;
+  const h = grid.length;
+  for (const [dx, dy] of NEIGHBORS) {
+    const nx = x + dx, ny = y + dy;
+    if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+    const other = grid[ny][nx];
+    if (!other || other.code !== own.code) return true;
+  }
+  return false;
+}
+
+function measure(grid, reference) {
+  const h = grid.length;
+  const w = grid[0]?.length ?? 0;
+  let filled = 0;
+  let nulls = 0;
+  let perceptualSum = 0;
+  let neutralSum = 0;
+  let neutralCount = 0;
+  let edgeTotal = 0;
+  let edgeKept = 0;
+  let detailTotal = 0;
+  let detailKept = 0;
+  let isolated = 0;
+  const used = new Set();
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const cell = grid[y][x];
+      if (!cell) { nulls += 1; continue; }
+      filled += 1;
+      used.add(cell.code);
+      const idx = y * w + x;
+      const refLab = reference.lab[idx];
+      if (refLab) {
+        const delta = deltaE2000(refLab, rgbToLab(cell.rgb));
+        perceptualSum += delta;
+        if (reference.chroma[idx] < NEUTRAL_CHROMA_THRESHOLD) { neutralSum += delta; neutralCount += 1; }
+      }
+      if (reference.edgeCells[idx]) { edgeTotal += 1; if (hasBoundary(grid, x, y)) edgeKept += 1; }
+      if (reference.detailCells[idx]) { detailTotal += 1; if (hasBoundary(grid, x, y)) detailKept += 1; }
+      let same = false;
+      for (const [dx, dy] of NEIGHBORS) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+        const other = grid[ny][nx];
+        if (other && other.code === cell.code) { same = true; break; }
+      }
+      if (!same) isolated += 1;
+    }
+  }
+  const components = findConnectedComponents(grid, (cell) => (cell ? cell.code : null));
+  const tiny = components.filter((c) => c.cells.length <= 2).length;
+  return {
+    usedColors: used.size,
+    nullCells: nulls,
+    filledCells: filled,
+    totalCells: w * h,
+    perceptualError: round2(perceptualSum / Math.max(1, filled)),
+    neutralError: neutralCount ? round2(neutralSum / neutralCount) : null,
+    neutralCells: neutralCount,
+    edgeRetention: edgeTotal ? round3(edgeKept / edgeTotal) : null,
+    edgeCells: edgeTotal,
+    detailRetention: detailTotal ? round3(detailKept / detailTotal) : null,
+    detailCells: detailTotal,
+    fragmentation: round2(components.length / Math.max(1, filled / 1000)),
+    tinyRegions: tiny,
+    isolatedPixels: isolated,
+    componentCount: components.length,
+  };
+}
+
+const round2 = (v) => Math.round(v * 100) / 100;
+const round3 = (v) => Math.round(v * 1000) / 1000;
+const delta = (a, b) => (a == null || b == null ? null : round3(a - b));
+
+/* =========================================================
+ * 跑
+ * ======================================================= */
+
+const PALETTE = benchPalette();
+const PALETTE_HASH = paletteHash(PALETTE);
+const size = benchSize();
+const classes = B4_BENCH_CLASSES.filter((c) => !onlyClasses.length || onlyClasses.includes(c.id));
+const candidates = LAB_MATRIX.filter((e) => !onlyCandidates.length || onlyCandidates.includes(e.id));
+
+fs.mkdirSync(OUT_DIR, { recursive: true });
+const sheetDir = path.join(OUT_DIR, "sheet");
+const zoomDir = path.join(OUT_DIR, "zoom");
+const originalDir = path.join(OUT_DIR, "original");
+if (!SKIP_SHEETS) for (const dir of [sheetDir, zoomDir, originalDir]) fs.mkdirSync(dir, { recursive: true });
+
+console.log(`夹具 ${classes.length} 类 · 模式 ${onlyModes.join("/")} · 候选 ${candidates.length} 个`);
+console.log(`色卡 ${PINNED.paletteLabel}（${PALETTE.length} 色，hash ${PALETTE_HASH}）· 格网 ${size.width}×${size.height}`);
+console.log(`输出 → ${OUT_DIR}\n`);
+
+const results = [];
+const sheetImages = [];
+
+for (const cls of classes) {
+  const inputs = benchInputs(cls);
+  const originalGrid = downsampleSource(inputs.source, size.width, size.height);
+  const reference = buildReference(originalGrid);
+  if (!SKIP_SHEETS) {
+    fs.writeFileSync(path.join(originalDir, `${cls.id}-${cls.key}.png`), renderGridPng(originalGrid));
+  }
+
+  const panels = [{ grid: originalGrid, label: "原图" }];
+  const zoomPanels = new Map();
+  for (const probe of cls.probes) zoomPanels.set(probe.id, [{ grid: cropGrid(originalGrid, probe.box, ZOOM_PAD), label: "原图" }]);
+
+  for (const entry of candidates) {
+    // `pending` 的候选**不许跑**。它的 `build()` 现在返回 null，
+    // 跑出来会得到一张和 CURRENT 逐位相同的图 —— 然后被记成
+    // 「Recommended-Hybrid 与基线一致」，那是一个凭空造出来的结论。
+    // §15 明说裁定要等 §14 的人工看图，所以这里直接跳过，汇总表里明确标「未裁定」。
+    if (entry.pending) continue;
+    for (const mode of onlyModes) {
+      let run;
+      const t0 = process.hrtime.bigint();
+      try {
+        run = runBenchCase(cls, mode, { inputs, palette: PALETTE, size, lab: entry.build() });
+      } catch (error) {
+        results.push({
+          classId: cls.id, classKey: cls.key, mode, candidateId: entry.id, label: entry.label,
+          error: `${error.name}: ${error.message}`,
+        });
+        console.log(`${cls.id} ${mode.padEnd(8)} ${entry.id.padEnd(24)} THROW ${error.message}`);
+        continue;
+      }
+      const elapsedMs = Number(process.hrtime.bigint() - t0) / 1e6;
+      const metrics = measure(run.grid, reference);
+      const probes = {};
+      for (const probe of cls.probes) probes[probe.id] = measureProbe(run.grid, probe);
+
+      results.push({
+        classId: cls.id,
+        classKey: cls.key,
+        mode,
+        candidateId: entry.id,
+        label: entry.label,
+        gridHash: run.gridHash,
+        framingStable: run.framingStable,
+        subjectCropApplied: run.subjectCropApplied,
+        labId: run.labId,
+        labMatchFallbacks: run.labMatchFallbacks,
+        runtimeMs: Math.round(elapsedMs),
+        msPerCell: round3(elapsedMs / Math.max(1, metrics.totalCells)),
+        ...metrics,
+        probes,
+        // 必须是 `run.labDetail`，不能写成 `run.diagnostics?.lab?.detail` ——
+        // `runBenchCase` **不返回** diagnostics（基线三个字段的口径里没有它），
+        // 所以后者恒为 undefined，metrics.json 里每个候选的诊断都会是 null。
+        // 那个失效形状非常安静：跑分器照常出图，只是「候选清理了多少块」
+        // 这种只能靠数字回答的问题永远答不了。
+        labDetail: run.labDetail,
+        maxColorsRespected: PINNED.maxColors === 0 ? true : metrics.usedColors <= PINNED.maxColors,
+      });
+
+      if (!SKIP_SHEETS) {
+        panels.push({ grid: run.grid, label: entry.id });
+        for (const probe of cls.probes) {
+          zoomPanels.get(probe.id).push({ grid: cropGrid(run.grid, probe.box, ZOOM_PAD), label: entry.id });
+        }
+      }
+      console.log(
+        `${cls.id} ${mode.padEnd(8)} ${entry.id.padEnd(24)} `
+        + `${String(metrics.usedColors).padStart(4)}色 空${String(metrics.nullCells).padStart(4)} `
+        + `ΔE ${String(metrics.perceptualError).padStart(6)} `
+        + `边${fmt(metrics.edgeRetention)} 细${fmt(metrics.detailRetention)} `
+        + `碎${String(metrics.fragmentation).padStart(6)} 孤${String(metrics.isolatedPixels).padStart(5)} `
+        + `${String(Math.round(elapsedMs)).padStart(5)}ms`,
+      );
+    }
+  }
+
+  if (!SKIP_SHEETS) {
+    const perClass = compositePanels(panels, SHEET_CELL);
+    if (perClass) fs.writeFileSync(path.join(sheetDir, `${cls.id}-${cls.key}.png`), encodePng(perClass));
+    for (const probe of cls.probes) {
+      const list = zoomPanels.get(probe.id);
+      const img = compositePanels(list, ZOOM_CELL, 8);
+      if (img) fs.writeFileSync(path.join(zoomDir, `${cls.id}-${cls.key}-${probe.id}.png`), encodePng(img));
+    }
+    sheetImages.push(perClass);
+  }
+}
+
+if (!SKIP_SHEETS && sheetImages.length) {
+  const overview = stackImages(sheetImages);
+  if (overview) {
+    const file = path.join(OUT_DIR, "contact-sheet-lab.png");
+    fs.writeFileSync(file, encodePng(overview));
+    // 列序清单。PNG 里没有文字标注（Node 侧没有可用的位图字体，
+    // 为了画几个字母去引一个字体光栅化器不值得），所以列序必须落成文件 ——
+    // 「第 7 列是哪个候选」如果只存在于跑分器的一次性输出里，看图的人无从复核。
+    const columnIds = ["原图", ...candidates.filter((c) => !c.pending).map((c) => c.id)];
+    const manifest = [
+      "contact sheet 列序（从左到右）：",
+      ...columnIds.map((id, i) => `  ${i}: ${id}`),
+      "",
+      "sheet/<类>.png     —— 每类一张，每格 " + SHEET_CELL + "px",
+      "zoom/<类>-<探针>.png —— 探针框 + " + ZOOM_PAD + " 格边距，每格 " + ZOOM_CELL + "px，列序同上",
+      "original/<类>.png  —— 原图列单独存一份",
+      "",
+      "模式：" + onlyModes.join(", ") + "（beginner 会开 subjectCrop，取景变化，该行不参与汇总）",
+    ].join("\n");
+    fs.writeFileSync(path.join(OUT_DIR, "sheet-columns.txt"), `${manifest}\n`);
+    console.log(`\n总览 sheet（列：${columnIds.join(" / ")}）→ ${file}`);
+    console.log(`列序清单 → ${path.join(OUT_DIR, "sheet-columns.txt")}`);
+    console.log(`逐类 sheet（能看清 1 格）→ ${sheetDir}`);
+    console.log(`局部放大（探针框 + ${ZOOM_PAD} 格边距，每格 ${ZOOM_CELL}px）→ ${zoomDir}`);
+  }
+}
+
+/* =========================================================
+ * metrics.json + 汇总表
+ * ======================================================= */
+
+const metricsFile = path.join(OUT_DIR, "metrics.json");
+fs.writeFileSync(metricsFile, `${JSON.stringify({
+  stage: "B4 §6–§10",
+  pinned: PINNED,
+  paletteHash: PALETTE_HASH,
+  paletteSize: PALETTE.length,
+  gridSize: { width: size.width, height: size.height },
+  reference: {
+    neutralChromaThreshold: NEUTRAL_CHROMA_THRESHOLD,
+    edgeLumDelta: EDGE_LUM_DELTA,
+    detailDelta: DETAIL_DELTA,
+    note: "全部指标从 downsampleSource 的原图导出，所有候选共用同一把尺子。",
+  },
+  candidates: candidates.map((c) => ({ id: c.id, label: c.label, pending: Boolean(c.pending) })),
+  results,
+}, null, 2)}\n`);
+
+// 汇总：只统计取景稳定的行。取景一变，归一化坐标上的对比就不成立，
+// 把它混进平均值等于让「取景变了」冒充「算法有效」。
+const stable = results.filter((r) => r.framingStable && !r.error);
+const skipped = results.length - stable.length;
+
+console.log(`\n汇总（仅取景稳定的 ${stable.length} 行；另有 ${skipped} 行因取景变化被排除）`);
+console.log("候选".padEnd(26) + "ΔE".padStart(8) + "中性ΔE".padStart(9) + "边保留".padStart(9)
+  + "细保留".padStart(9) + "碎化".padStart(8) + "孤点".padStart(8) + "用色".padStart(8) + "ms".padStart(8));
+
+const summary = [];
+for (const entry of candidates) {
+  const rows = stable.filter((r) => r.candidateId === entry.id);
+  if (!rows.length) {
+    summary.push({ candidateId: entry.id, label: entry.label, rows: 0, pending: Boolean(entry.pending) });
+    console.log(
+      entry.id.padEnd(26)
+      + (entry.pending ? "尚未裁定（§15 等 §14 人工看图）" : "无取景稳定的行"),
+    );
+    continue;
+  }
+  const agg = (key) => {
+    const list = rows.map((r) => r[key]).filter((v) => v != null);
+    return list.length ? list.reduce((a, b) => a + b, 0) / list.length : null;
+  };
+  const line = {
+    candidateId: entry.id,
+    label: entry.label,
+    pending: Boolean(entry.pending),
+    rows: rows.length,
+    perceptualError: round3(agg("perceptualError")),
+    neutralError: round3(agg("neutralError")),
+    edgeRetention: round3(agg("edgeRetention")),
+    detailRetention: round3(agg("detailRetention")),
+    fragmentation: round2(agg("fragmentation")),
+    isolatedPixels: round2(agg("isolatedPixels")),
+    usedColors: round2(agg("usedColors")),
+    runtimeMs: round2(agg("runtimeMs")),
+  };
+  summary.push(line);
+  console.log(
+    entry.id.padEnd(26)
+    + String(line.perceptualError ?? "-").padStart(8)
+    + String(line.neutralError ?? "-").padStart(9)
+    + fmt(line.edgeRetention).padStart(9)
+    + fmt(line.detailRetention).padStart(9)
+    + String(line.fragmentation ?? "-").padStart(8)
+    + String(line.isolatedPixels ?? "-").padStart(8)
+    + String(line.usedColors ?? "-").padStart(8)
+    + String(line.runtimeMs ?? "-").padStart(8),
+  );
+}
+
+const summaryFile = path.join(OUT_DIR, "summary.json");
+fs.writeFileSync(summaryFile, `${JSON.stringify({ stableRows: stable.length, excludedRows: skipped, summary }, null, 2)}\n`);
+console.log(`\n指标 → ${metricsFile}\n汇总 → ${summaryFile}`);
+console.log(`\n§15 的 KEEP / REJECT / MODE-SPECIFIC **不在本工具里**：`);
+console.log(`  必须看完 ${path.relative(ROOT, zoomDir)} 下的局部放大图之后，在报告里给出。`);
+
+function fmt(v) {
+  return v == null ? "-" : String(round3(v));
+}
