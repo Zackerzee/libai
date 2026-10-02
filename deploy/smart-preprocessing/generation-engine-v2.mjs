@@ -153,8 +153,9 @@ export function buildAlphaGrid(source, width, height, alphaThreshold = 8) {
  * source: { data: Uint8ClampedArray, width, height }（ImageData 格式）
  * palette: [{ code, rgb: [r,g,b], hex?, name? }]
  * options: { preset, sampling, detailProtection, edgeProtection, highlightProtection, eyeProtection, microDetailProtection, maxColors }
+ * lab:     Stage B4 §6–§10 Algorithm Lab 接缝（见下方说明），默认 null。
  */
-export function generateV2({ source, width, height, palette, options = {} }) {
+export function generateV2({ source, width, height, palette, options = {}, lab = null }) {
   if (!source || !source.data || !source.width || !source.height) throw new Error("generateV2: source (ImageData) required");
   if (!width || !height) throw new Error("generateV2: width/height required");
   if (!Array.isArray(palette) || !palette.length) throw new Error("generateV2: palette required");
@@ -167,6 +168,41 @@ export function generateV2({ source, width, height, palette, options = {} }) {
   const phase = (name) => { if (reportPhase) reportPhase(name); };
   const timing = {};
   const t0 = performance.now();
+
+  /* ── Stage B4 §6–§10：Algorithm Lab 接缝 ──────────────────────────────
+   *
+   * `lab` **刻意与 `options` 分开**，理由比 onPhase 更硬：
+   *   1. `options` 会经 `resolveOptions` 变成 `cfg`，而 `cfg` 的定位是
+   *      「可结构化克隆的配置」。函数混进去，主线程直跑没事，一旦进 Worker
+   *      就在 structuredClone 处抛 DataCloneError，被 `executeGenerationJob`
+   *      的 try/catch 吞成 GenerationError —— 表现成「生成失败」，
+   *      而不是「你把函数塞进了配置」。查错方向会被彻底带偏。
+   *   2. 三个接缝**各自可选**。全为 null 时逐位走原路径，行为零变化 ——
+   *      这是「候选算法不进生产」的第一层保证。
+   *   3. 候选算法**只能从这里进来**。不得为了跑实验去改 `MODE_PROFILES` ——
+   *      那是 §0 第 8 条「未完成视觉 QA 前不得写入 Production ModeProfile」的
+   *      结构性保证：生产模式表里没有 lab 字段，就没人能顺手把候选塞进去。
+   *
+   * 三个接缝的返回值口径：
+   *   matchCell  返回 cell（对象）/ null（这格留空，是真实意见）/
+   *              undefined（「我没意见」→ 退回 palette-engine，并计数）
+   *   refineGrid 原地改 `grid`，或返回**数组**整体替换；其它返回值一律忽略
+   *   cleanup    返回 `{ records }`；records 不是数组时按空数组处理
+   *
+   * 候选算法**抛异常不在这里吞**。Lab 是实验场，静默降级会让「候选崩了」
+   * 和「候选跑通了但没效果」长得一模一样 —— 那正是这个项目已经踩过的坑。
+   * 让它炸，由 Lab 跑分器记录成一条失败。
+   * ─────────────────────────────────────────────────────────────────── */
+  const labMatch = typeof lab?.matchCell === "function" ? lab.matchCell : null;
+  const labRefine = typeof lab?.refineGrid === "function" ? lab.refineGrid : null;
+  const labCleanup = typeof lab?.cleanup === "function" ? lab.cleanup : null;
+  const labId = lab && typeof lab.id === "string" && lab.id ? lab.id : (lab ? "unnamed-lab" : null);
+  // 候选算法写进这里的任何东西都会出现在 diagnostics.lab.detail。
+  // 用它而不是让接缝返回一个形状不定的对象：返回值形状一含糊，
+  // 第一个写错的候选就会静默丢掉全部诊断。
+  const labReport = {};
+  let labMatchFallbacks = 0;
+
   const paletteEngine = createPaletteEngine(palette);
   const getColorKey = (cell) => (cell ? cell.code : null);
 
@@ -207,14 +243,36 @@ export function generateV2({ source, width, height, palette, options = {} }) {
   const resolvedMode = sampled.resolvedMode;
 
   // 2. Palette Matching（复用 palette-engine）
+  //
+  // `let` 而不是 `const`：§9 Spatial Refine 的接缝允许候选返回一张新网格整体替换。
   phase("matching");
   const tMatch = performance.now();
-  const grid = [];
+  let grid = [];
   for (let y = 0; y < height; y++) {
     grid[y] = [];
     for (let x = 0; x < width; x++) {
       const rgb = sampled.colors[y][x];
       if (!rgb) { grid[y][x] = null; continue; }
+      if (labMatch) {
+        // 候选需要**格内原始像素**，不是均值 —— §6 Bean Fit 的全部意义就在于
+        // 「均值会把一小块高饱和色抹成背景色」。所以这里给的是 source + bounds，
+        // 让候选自己决定要不要付读像素的代价。
+        const bounds = cellBounds(x, y, samplingSource.width, samplingSource.height, width, height);
+        const produced = labMatch({
+          x, y, rgb, bounds,
+          source: samplingSource, width, height,
+          palette, paletteEngine, cellBounds,
+          report: labReport,
+        });
+        if (produced !== undefined) {
+          grid[y][x] = produced ? { ...produced } : null;
+          continue;
+        }
+        // 候选说「这一格我没意见」→ 退回生产匹配器，并计数。
+        // 计数是必须的：一个只覆盖了 3% 格子的候选看起来也能出图，
+        // 没有这个数字，报告会把「大部分格子其实走的是生产路径」当成候选的功劳。
+        labMatchFallbacks += 1;
+      }
       const matched = paletteEngine.match([rgb.r, rgb.g, rgb.b]);
       grid[y][x] = matched ? { ...matched } : null;
     }
@@ -328,7 +386,7 @@ export function generateV2({ source, width, height, palette, options = {} }) {
   phase("cleanup");
   const tCleanup = performance.now();
   const colorsBeforeCleanup = countGridColors(grid, getColorKey).size;
-  const cleanupResult = smartCleanup({
+  const cleanupArgs = {
     grid, getColorKey,
     getRGB: (cell) => (cell ? cell.rgb : null),
     protectionMap: protection.protectionMap,
@@ -336,9 +394,46 @@ export function generateV2({ source, width, height, palette, options = {} }) {
     samplingModeMap: sampled.modeMap || null,
     getSourceEvidence: (x, y, rgb) => calculateSourceEvidence(samplingSource, cellBounds(x, y, samplingSource.width, samplingSource.height, width, height), rgb),
     options: { protectionThreshold: cfg.cleanupProtectionThreshold, sourceEvidenceThreshold: 0.3, maxComponentSize: 5 },
-  });
+  };
+  // §10 Conservative Cleanup 接缝。候选拿到的是 smartCleanup 的**全部入参**
+  // 外加 source / cellBounds / cfg —— 不给原始像素，「1–4 格的眼睛/高光」这类
+  // 判断就只能靠保护图猜，而保护图本身是下游产物，拿它当证据是循环论证。
+  const cleanupRaw = labCleanup
+    ? labCleanup({
+      ...cleanupArgs,
+      source: samplingSource, width, height, cellBounds, cfg, palette, paletteEngine,
+      report: labReport,
+    })
+    : smartCleanup(cleanupArgs);
+  // 形状守卫：候选返回 undefined / 少了 records 都不能让后面的
+  // `cleanupRecords.length` 炸成一次「生成失败」。
+  const cleanupRecords = Array.isArray(cleanupRaw?.records) ? cleanupRaw.records : [];
   const colorsAfterCleanup = countGridColors(grid, getColorKey).size;
   timing.cleanup = Math.round(performance.now() - tCleanup);
+
+  // 4.5 Spatial Refine（Lab §9，可选）
+  //
+  // **位置是刻意的：Smart Cleanup 之后、Palette Budget 之前。**
+  // §9 允许候选从「当前色 / 邻居实际色 / 当前色附近的 Top-K 色卡色」里选，
+  // 也就是说它**可能把用色数抬高**。放在 Budget 之后 = maxColors 当场失效，
+  // 那是 §16 的硬失败项。放在 Budget 之前，降色仍然由 stage 5 兜底。
+  if (labRefine) {
+    const tRefine = performance.now();
+    const returned = labRefine({
+      grid, width, height, source: samplingSource,
+      palette, paletteEngine, protection, sampled, getColorKey, cfg,
+      report: labReport,
+    });
+    if (Array.isArray(returned)) grid = returned;
+    timing.spatialRefine = Math.round(performance.now() - tRefine);
+  }
+
+  // 预算门的判据必须**在 refine 之后重新量**。
+  // `colorsAfterCleanup` 是 stage 4 的出口快照，语义上就是「cleanup 之后」，
+  // 不能拿它当「预算之前」用 —— §9 允许 refine 引入邻居色/色卡色，
+  // 用旧快照做门就会出现「refine 把 3 色撒成 8 色，而门以为还是 3 色，直接跳过降色」，
+  // 于是 maxColors 静默失效。lab 为空时两者恒等，生产行为逐位不变。
+  const colorsBeforeBudget = countGridColors(grid, getColorKey).size;
 
   // 5. Protected Palette Budget（tier/reason 感知 + 可选强调色锚点保护）
   const tBudget = performance.now();
@@ -369,7 +464,7 @@ export function generateV2({ source, width, height, palette, options = {} }) {
     };
   }
 
-  if (cfg.maxColors > 0 && colorsAfterCleanup > cfg.maxColors) {
+  if (cfg.maxColors > 0 && colorsBeforeBudget > cfg.maxColors) {
     budgetPlan = buildPaletteBudgetPlan({
       grid, getColorKey,
       getRGBByKey: (key) => { const cell = grid.flat().find((c) => c && c.code === key); return cell ? cell.rgb : null; },
@@ -393,7 +488,7 @@ export function generateV2({ source, width, height, palette, options = {} }) {
 
   // 6. cleanupMap（被修改的 cell）
   const cleanupMap = new Float32Array(width * height);
-  for (const record of cleanupResult.records) cleanupMap[record.y * width + record.x] = 1;
+  for (const record of cleanupRecords) cleanupMap[record.y * width + record.x] = 1;
 
   const diagnostics = {
     samplingMode: resolvedMode,
@@ -426,8 +521,12 @@ export function generateV2({ source, width, height, palette, options = {} }) {
     protectionReasonCounts: protection.protectionReasonCounts,
     colorsBeforeCleanup,
     colorsAfterCleanup,
+    // 预算门真正看到的那个数。和 `colorsAfterCleanup` 分开记，
+    // 是为了让「refine 抬高了用色数、随后被预算压回去」这件事在报告里可见 ——
+    // 否则只能看到起点和终点，中间的抬升凭空消失。
+    colorsBeforeBudget,
     colorsAfterBudget: countGridColors(grid, getColorKey).size,
-    cleanupMerges: cleanupResult.records.length,
+    cleanupMerges: cleanupRecords.length,
     budgetMerges: budgetPlan.length,
     forcedProtectedMerges,
     // V2.5 智能辅助 diagnostics（未启用时为 null，便于判断是否真的跑过）
@@ -479,7 +578,23 @@ export function generateV2({ source, width, height, palette, options = {} }) {
     darkDetailMap: protection.darkDetailMap,
     eyeLikeMap: protection.eyeLikeMap,
     cleanupMap,
-    cleanupRecords: cleanupResult.records,
+    cleanupRecords,
+    // Stage B4 §6–§10：候选算法**是否真的挂上来了**。null = 完全没跑 Lab。
+    // 这一项存在的唯一理由是：报告里「Candidate 那一列用的是 bean-fit」这句话
+    // 必须能自证。否则一张和 Current 一模一样的图，没人分得清
+    // 「候选无效」还是「候选根本没接上」—— 后者在本项目已经发生过一次
+    // （`requestBackgroundPreview` 的失败路径只收条、不生成）。
+    lab: labId ? {
+      id: labId,
+      matchCell: Boolean(labMatch),
+      refineGrid: Boolean(labRefine),
+      cleanup: Boolean(labCleanup),
+      // 有多少格候选说「我没意见」而退回了生产匹配器。
+      // 这个数接近总格数 = 候选实际上没接上。
+      matchFallbacks: labMatchFallbacks,
+      cleanupRecords: cleanupRecords.length,
+      detail: labReport,
+    } : null,
   };
 
   return { grid, width, height, diagnostics };

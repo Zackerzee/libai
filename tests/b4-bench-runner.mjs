@@ -169,8 +169,15 @@ export function benchInputs(cls) {
   return { logical, source };
 }
 
-/** 跑一次生成，返回可冻结的摘要。 */
-export function runBenchCase(cls, mode, { inputs = null, palette = null, size = null } = {}) {
+/**
+ * 跑一次生成，返回可冻结的摘要。
+ *
+ * `lab` 是 Stage B4 §6–§10 的候选算法接缝，**默认 null**（= 生产路径）。
+ * 传进来只会多出一个 `labId` 字段，被冻结的三个字段（usedColors / nullCells /
+ * gridHash）口径不变 —— 所以加这个参数不会让基线失去意义。
+ * §6–§10 的 Lab 跑分器复用它，正是为了让「候选」和「基线」在同一套输入上比。
+ */
+export function runBenchCase(cls, mode, { inputs = null, palette = null, size = null, lab = null } = {}) {
   const { source } = inputs || benchInputs(cls);
   const usePalette = palette || benchPalette();
   const useSize = size || benchSize();
@@ -182,6 +189,7 @@ export function runBenchCase(cls, mode, { inputs = null, palette = null, size = 
     palette: usePalette,
     maxColors: B4_BENCH_PINNED.maxColors,
     overrides: {},
+    lab,
   });
   const elapsedMs = Number(process.hrtime.bigint() - t0) / 1e6;
 
@@ -211,5 +219,9 @@ export function runBenchCase(cls, mode, { inputs = null, palette = null, size = 
     timingMs: Math.round(elapsedMs),
     framingStable: !subjectCropApplied,
     subjectCropApplied,
+    // 挂上来的候选 id（null = 生产路径）。报告里「Candidate 列是谁」靠它自证。
+    labId: result.diagnostics?.lab?.id ?? null,
+    // 候选说「我没意见」而退回生产匹配器的格数。接近总格数 = 候选其实没接上。
+    labMatchFallbacks: result.diagnostics?.lab?.matchFallbacks ?? null,
   };
 }

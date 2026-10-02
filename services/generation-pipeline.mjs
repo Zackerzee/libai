@@ -77,15 +77,33 @@ export function analyzeGenerationImage(source) {
   return { edgeDensity, flatRegionRatio, textureScore, colorComplexity, pixelLikeness };
 }
 
-/** 唯一生产 runner。模式只注入配置，所有模式仍调用同一个 Generation Engine V2。 */
-export function runGenerationPipeline({ image, mode = "auto", size, palette, maxColors = 0, overrides = {}, onPhase = null }) {
+/**
+ * 唯一生产 runner。模式只注入配置，所有模式仍调用同一个 Generation Engine V2。
+ *
+ * `lab` 是 Stage B4 §6–§10 的候选算法接缝，**默认 null = 生产行为逐位不变**。
+ * 它刻意不放进 `overrides`：overrides 是纯数据、要能结构化克隆，
+ * 而 lab 里全是函数。
+ *
+ * ⚠️ 这条参数**不会**经由 `executeGenerationJob` 传进来（Worker 只吃纯数据）。
+ * 也就是说 `lab` 只有主线程直调时存在 —— 这是对的，Lab 是实验场不是产品路径。
+ * 反过来说：**任何「让 Worker 也支持 lab」的改动都意味着把函数塞进
+ * structuredClone**，那是设计错误，不是功能缺失。
+ */
+export function runGenerationPipeline({ image, mode = "auto", size, palette, maxColors = 0, overrides = {}, onPhase = null, lab = null }) {
   if (typeof onPhase === "function") onPhase("analyze");
   const profile = resolveGenerationPipeline(mode, analyzeGenerationImage(image), overrides);
   // onPhase 单独传，**不放进 profile** —— 它是函数，配置要能结构化克隆。
   const options = toEngineOptions(profile, { maxColors, onPhase });
-  const result = generateV2({ source: image, width: size.width, height: size.height, palette, options });
+  const result = generateV2({ source: image, width: size.width, height: size.height, palette, options, lab });
   return {
     ...result,
-    pipeline: { mode: profile.mode, routedMode: profile.routedMode, sampling: profile.sampling, analysis: profile.analysis },
+    pipeline: {
+      mode: profile.mode,
+      routedMode: profile.routedMode,
+      sampling: profile.sampling,
+      analysis: profile.analysis,
+      // 报告要能证明「这一列挂的是哪个候选」。null = 生产路径。
+      labId: result.diagnostics?.lab?.id ?? null,
+    },
   };
 }
