@@ -2156,24 +2156,33 @@ function mapDetailProtectionValue(value) {
 }
 
 /**
- * 生产链路 V2.5 的选项映射。
+ * 生产链路 V2.5 的**模式档案**（Stage B4 §2）。
  *
- * 从 processImageV2 里原样抽出（逐字段一致），目的是让 A/B 对比器里的 `current` 一侧
- * 用的是**同一个函数**产出的配置，而不是手抄一份可能漂移的副本。
+ * 返回值就是 `services/mode-profile.mjs` 的 ModeProfile 形状：**0–100 口径**，
+ * 字段名与 `MODE_PROFILE_FIELDS` 一一对应。它有两个用途，两个都走**同一个**
+ * 单位换算边界（`toEngineOptions`）：
+ *   1. 作为 `runGenerationJob` 的 `overrides` —— 管线内部自己换算；
+ *   2. 给算法实验室直调 `generateV2` 时先过 `toEngineOptions`。
+ *
+ * 历史坑（别加回来）：这里曾经自己把 detailProtection/edgeProtection 除以 100，
+ * 然后 `processImageV2` 又乘回 100 当 overrides，管线再除以 100 —— 三次换算
+ * 换出同一个数，纯属运气。而且它漏掉了 `cleanupStrength`，导致 A/B 对比器
+ * 里的 current 一侧用的是引擎默认清理阈值，跟生产不是同一条链路。
  */
 function buildV25Options(options = {}, maxColors = 0) {
-  const detailProtection = mapDetailProtectionValue(els.detailProtectionSelect?.value || "standard");
+  const legacyDetail = mapDetailProtectionValue(els.detailProtectionSelect?.value || "standard") * 100;
   return {
-    preset: options.preset || state.generationPreset || "auto",
+    // `mode` 是**生成模式载体**，不是引擎选项 —— 引擎侧已经不再读模式名。
+    // 曾经这个键叫 `preset`，而引擎的 `options.preset` 另有含义（自适应采样的
+    // 内容预设提示），一个键两个意思是实打实的坑，B4 §2 顺手改名拆开。
+    mode: options.preset || state.generationPreset || "auto",
     sampling: options.sampling || state.generationSampling || "auto",
-    detailProtection: options.detailProtection == null ? detailProtection : options.detailProtection / 100,
-    edgeProtection: options.edgeProtection == null ? detailProtection : options.edgeProtection / 100,
-    highlightProtection: options.preserveHighlights === false ? 0 : 0.8,
-    eyeProtection: options.preserveEyes === false ? 0 : 1.0,
-    microDetailProtection: options.preserveMicroDetails === false ? 0 : 0.8,
-    maxColors: maxColors || 0,
-    // V2.5 智能辅助（小白一键）：四开关全部默认关，只有显式打开才进入相应分支，
-    // 因此不开时与旧链路逐位一致，冻结基线不受影响。
+    detailProtection: options.detailProtection == null ? legacyDetail : Number(options.detailProtection),
+    edgeProtection: options.edgeProtection == null ? legacyDetail : Number(options.edgeProtection),
+    cleanupStrength: options.cleanupStrength == null ? 50 : Number(options.cleanupStrength),
+    preserveEyes: options.preserveEyes !== false,
+    preserveHighlights: options.preserveHighlights !== false,
+    preserveMicroDetails: options.preserveMicroDetails !== false,
     subjectCrop: options.subjectCrop === true,
     autoBackground: options.autoBackground === true,
     strokeProtection: options.strokeProtection === true,
@@ -2181,17 +2190,25 @@ function buildV25Options(options = {}, maxColors = 0) {
   };
 }
 
+/** 实验室直调 generateV2 用：把模式档案换算成引擎口径。换算逻辑只有一份。 */
+async function v25EngineOptions(options = {}, maxColors = 0) {
+  const { resolveGenerationPipeline, toEngineOptions } = await import("./services/mode-profile.mjs?v=20261003-stage-b4");
+  const profile = buildV25Options(options, maxColors);
+  return toEngineOptions(resolveGenerationPipeline(profile.mode, null, profile), { maxColors });
+}
+
 async function processImageV2(image, palette, { width, height, maxColors, options = {}, saveGallery = true }) {
   const startedAt = performance.now();
   const sourceImageData = imageToImageData(image);
-  const resolved=buildV25Options(options,maxColors);
+  const resolved = buildV25Options(options, maxColors);
   const result = await runGenerationJob({
     image: sourceImageData,
-    mode: resolved.preset,
+    mode: resolved.mode,
     size: { width, height },
     palette,
     maxColors,
-    overrides: { ...options, sampling: resolved.sampling, detailProtection: resolved.detailProtection * 100, edgeProtection: resolved.edgeProtection * 100 },
+    // 整份模式档案直接当 overrides 透传 —— 0–100 口径，换算由管线内部那一个边界做。
+    overrides: resolved,
     requestId: options.requestId,
   });
   // 执行体是一个 await 边界（未来换成 Worker 后更是），回来时可能已经有更新的请求在跑。
@@ -7504,7 +7521,13 @@ window.LibmsWorkspaceBridge = {
       image: sourceImageData,
       finalSize: resolved,
       sampling: options.sampling || state.generationSampling || "auto",
-      preset: options.preset || state.generationPreset || "auto",
+      // **不传 preset。** 预检里的 `preset` 是「自适应采样的内容预设提示」
+      // （`{preset, autoProfile: preset === "auto"}`），跟生成模式不是一回事。
+      // 以前这里把生成模式（anime / portrait / …）当提示传进去，于是
+      // 模式为 auto 时 `autoProfile` 被打开、其余模式关着 —— 而真实生成链路
+      // 从不传这个提示，`autoProfile` 恒为 false。结果是**预检与真实生成
+      // 用的不是同一套采样**，正是 B2 要避免的那类偏差。
+      // 现在两边都不传，服务默认值与引擎兜底值一致。
     });
   },
   /**
@@ -7638,8 +7661,12 @@ window.LibmsWorkspaceBridge = {
         ...bgsAnchorCodes(palette),
       },
       // current 一侧：直接跑生产链路的 V2.5 生成，只取矩阵，不写 state。
-      currentRunner: ({ imageData: shared, palette: sharedPalette }) => generateV2({
-        source: shared, width, height, palette: sharedPalette, options: buildV25Options(options, maxColors),
+      // 选项**必须**过 v25EngineOptions（= 模式档案 → toEngineOptions）：
+      // 直接塞 buildV25Options 会把 0–100 当 0–1 用，实验室的 current 就成了一条
+      // 跟生产不一样的假链路。
+      currentRunner: async ({ imageData: shared, palette: sharedPalette }) => generateV2({
+        source: shared, width, height, palette: sharedPalette,
+        options: await v25EngineOptions(options, maxColors),
       }).grid,
       includeMatrix,
     });
@@ -7686,8 +7713,9 @@ window.LibmsWorkspaceBridge = {
       maxColors: limit,
       includeBlockArt,
       // current 一侧跑的就是生产链路的 V2.5（不是手抄副本），共享同一份 imageData。
-      currentRunner: ({ imageData: shared, palette: sharedPalette, width: w, height: h, maxColors: m }) =>
-        generateV2({ source: shared, width: w, height: h, palette: sharedPalette, options: buildV25Options({}, m) }).grid,
+      // 同样要过 v25EngineOptions，否则实验室与生产的口径不一致（见上）。
+      currentRunner: async ({ imageData: shared, palette: sharedPalette, width: w, height: h, maxColors: m }) =>
+        generateV2({ source: shared, width: w, height: h, palette: sharedPalette, options: await v25EngineOptions({}, m) }).grid,
     });
     // 顺手给出 Markdown 版，方便直接贴进文档/聊天。
     report.markdown = renderLabReport(report);

@@ -241,26 +241,20 @@ async function runOne(fixture, { palette, width, maxColors }) {
     height,
     options: { maxColors, preserveAspectRatio: false },
     currentRunner: async ({ imageData: shared, palette: sharedPalette }) => {
-      const { generateV2 } = await import(path.join(PROJECT_ROOT, 'smart-preprocessing', 'generation-engine-v2.mjs'));
+      // Stage B4 §2：这里曾经手抄一份生成面板的配置（preset/sampling/五个保护值）。
+      // 手抄副本必然漂移，而且 `preset` 自 B4 起在引擎侧已经**不再被读**——
+      // 模式表收敛到了 services/mode-profile.mjs，换算边界收敛到了 toEngineOptions。
+      // 现在直接走那两份唯一来源，离线报告与浏览器里的生产链路就是同一条链路。
+      const [{ generateV2 }, { resolveGenerationPipeline, toEngineOptions }] = await Promise.all([
+        import(path.join(PROJECT_ROOT, 'smart-preprocessing', 'generation-engine-v2.mjs')),
+        import(path.join(PROJECT_ROOT, 'services', 'mode-profile.mjs')),
+      ]);
       return generateV2({
         source: shared,
         width,
         height,
         palette: sharedPalette,
-        // Mirror the app's default generation panel configuration, so the offline report
-        // describes the same setup the user sees in the browser rather than engine defaults.
-        // `preset`/`sampling` are not optional here: omitting them changes V2.5's own
-        // behaviour (measured: 6 distinct colours becomes 15 on the same input).
-        options: {
-          preset: 'auto',
-          sampling: 'auto',
-          maxColors,
-          detailProtection: 0.7,
-          edgeProtection: 0.7,
-          highlightProtection: 0.8,
-          eyeProtection: 1.0,
-          microDetailProtection: 0.8,
-        },
+        options: toEngineOptions(resolveGenerationPipeline('auto'), { maxColors }),
       }).grid;
     },
     includeMatrix: true,

@@ -48,7 +48,10 @@ export function resolveProbeSize(width, height, cap = PREVIEW_LONG_EDGE) {
  * @param {{data:Uint8ClampedArray,width:number,height:number}} input.image 源图 ImageData
  * @param {{width:number,height:number}} input.finalSize 这一版图纸的真实格数（用于折算格数）
  * @param {string} [input.sampling] "auto" | "linear-mean" | "center" | "dominant" | "edge-aware"
- * @param {string} [input.preset]
+ * @param {string} [input.preset] 自适应采样的**内容预设提示**，不是生成模式。
+ *   **必须与 generateV2 的 `options.preset` 同源** —— 生产链路从不传它，
+ *   所以这里保持默认值，两边都走 "photo" / `autoProfile: false`。
+ *   （B4 §2 之前宿主把生成模式传进来，导致预检与真实生成用的采样不一致。）
  * @param {object} [input.options] 背景阈值 + 可靠性阈值覆盖
  * @returns {{
  *   status:string, reliable:boolean, removedCount:number, removedRatio:number,

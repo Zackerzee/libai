@@ -37,30 +37,30 @@ import { detectAnchorColors } from "./accent-protection.mjs";
 export { SamplingMode };
 
 /* =========================================================
- * Preset（只是 config，不建立六套生成器）
+ * 引擎默认值 —— **不是模式表**
+ *
+ * Stage B4 §2：这里原来有一张 `GenerationProfiles`（8 行 × 7 字段）。
+ * B4 §1 审计证明它在生产链路**不可达**：唯一的模式来源
+ * （`services/generation-pipeline.mjs` 的 `GENERATION_MODE_PRESETS`）没有 `preset`
+ * 字段，`runGenerationPipeline` 也从不传 `preset`，于是 `resolveOptions`
+ * 恒定回落到 photo 那一行；只有 A/B 对比器直调 `generateV2` 时才命中它。
+ * 8 行 × 7 字段 = 56 个值里，被真正读到的只有 photo 那一行。
+ *
+ * 模式表已收敛到 `services/mode-profile.mjs`（唯一 ModeProfile Registry），
+ * 该表已删除。这里只留引擎自己的兜底默认值 —— 给直接调用 `generateV2` 的
+ * 测试与实验代码用。**不要在恢复一张模式表**：模式只有一份来源。
  * ======================================================= */
 
-export const GenerationProfiles = Object.freeze({
-  photo: Object.freeze({ id: "photo", sampling: "edge-aware", detailProtection: 0.7, edgeProtection: 0.5, highlightProtection: 0.7, eyeProtection: 0.9, microDetailProtection: 0.6, cleanupProtectionThreshold: 0.5 }),
-  portrait: Object.freeze({ id: "portrait", sampling: "edge-aware", detailProtection: 0.9, edgeProtection: 0.5, highlightProtection: 0.9, eyeProtection: 1.0, microDetailProtection: 0.8, cleanupProtectionThreshold: 0.45 }),
-  anime: Object.freeze({ id: "anime", sampling: "dominant", detailProtection: 0.9, edgeProtection: 0.9, highlightProtection: 1.0, eyeProtection: 1.0, microDetailProtection: 0.9, cleanupProtectionThreshold: 0.4 }),
-  illustration: Object.freeze({ id: "illustration", sampling: "dominant", detailProtection: 0.7, edgeProtection: 0.9, highlightProtection: 0.5, eyeProtection: 0.5, microDetailProtection: 0.7, cleanupProtectionThreshold: 0.5 }),
-  pixel: Object.freeze({ id: "pixel", sampling: "center", detailProtection: 0.9, edgeProtection: 0.9, highlightProtection: 0.5, eyeProtection: 0.5, microDetailProtection: 0.9, cleanupProtectionThreshold: 0.2 }),
-  logo: Object.freeze({ id: "logo", sampling: "dominant", detailProtection: 0.4, edgeProtection: 0.9, highlightProtection: 0.3, eyeProtection: 0.3, microDetailProtection: 0.4, cleanupProtectionThreshold: 0.6 }),
-  auto: Object.freeze({ id: "auto", sampling: "auto", detailProtection: 0.7, edgeProtection: 0.7, highlightProtection: 0.8, eyeProtection: 0.9, microDetailProtection: 0.8, cleanupProtectionThreshold: 0.5 }),
-  // 小白一键：面向「不懂参数、只想一键出好图」的新手。
-  // 采样走 auto（自适应），保护档偏保守（宁可多留细节），清理温和；配合四个智能辅助开关使用。
-  beginner: Object.freeze({ id: "beginner", sampling: "auto", detailProtection: 0.8, edgeProtection: 0.9, highlightProtection: 0.9, eyeProtection: 1.0, microDetailProtection: 0.9, cleanupProtectionThreshold: 0.45 }),
-});
-
 export const DEFAULT_GENERATION_V2_CONFIG = Object.freeze({
-  preset: "photo",
   sampling: "auto",
   detailProtection: 0.7,
   edgeProtection: 0.7,
   highlightProtection: 1.0,
   eyeProtection: 1.0,
   microDetailProtection: 1.0,
+  // 清理保护阈值（0–1）。**越高 → 保护门槛越高 → 跳过越少 → 清理越积极**
+  // （smart-cleanup-v2 里 `avgProtection >= threshold` 即跳过该连通块）。
+  cleanupProtectionThreshold: 0.5,
   maxColors: 0,
 });
 
@@ -76,16 +76,16 @@ export const SAMPLING_CONFIG_V2 = Object.freeze({
 });
 
 function resolveOptions(options = {}) {
-  const preset = GenerationProfiles[options.preset] || GenerationProfiles.photo;
+  const defaults = DEFAULT_GENERATION_V2_CONFIG;
   return {
-    sampling: options.sampling ?? preset.sampling,
-    detailProtection: options.detailProtection ?? preset.detailProtection,
-    edgeProtection: options.edgeProtection ?? preset.edgeProtection,
-    highlightProtection: options.highlightProtection ?? preset.highlightProtection,
-    eyeProtection: options.eyeProtection ?? preset.eyeProtection,
-    microDetailProtection: options.microDetailProtection ?? preset.microDetailProtection,
-    cleanupProtectionThreshold: options.cleanupProtectionThreshold ?? preset.cleanupProtectionThreshold,
-    maxColors: options.maxColors ?? DEFAULT_GENERATION_V2_CONFIG.maxColors,
+    sampling: options.sampling ?? defaults.sampling,
+    detailProtection: options.detailProtection ?? defaults.detailProtection,
+    edgeProtection: options.edgeProtection ?? defaults.edgeProtection,
+    highlightProtection: options.highlightProtection ?? defaults.highlightProtection,
+    eyeProtection: options.eyeProtection ?? defaults.eyeProtection,
+    microDetailProtection: options.microDetailProtection ?? defaults.microDetailProtection,
+    cleanupProtectionThreshold: options.cleanupProtectionThreshold ?? defaults.cleanupProtectionThreshold,
+    maxColors: options.maxColors ?? defaults.maxColors,
     // V2.5 智能辅助：默认全关（=== true 严格判定，避免 undefined/真值混淆）
     subjectCrop: options.subjectCrop === true,
     autoBackground: options.autoBackground === true,
@@ -192,10 +192,16 @@ export function generateV2({ source, width, height, palette, options = {} }) {
   timing.subjectCrop = Math.round(performance.now() - tCrop);
 
   // 1. Sampling（AUTO 用 Region-Adaptive，manual 全图单 mode）
+  //
+  // 注意这里的 `options.preset` **不是生成模式**（模式表已收敛到 mode-profile.mjs），
+  // 它只是给自适应采样引擎的「内容预设」提示，决定 `autoProfile` 开不开。
+  // 生产链路（runGenerationPipeline）从不传它，所以 `autoProfile` 在生产恒为 false；
+  // 只有直调 generateV2 的实验代码会用到。别再往这里塞模式名。
   phase("sampling");
   const tSampling = performance.now();
+  const samplingPreset = options.preset || "photo";
   const sampled = cfg.sampling === SamplingMode.AUTO
-    ? sampleGridAdaptive(samplingSource, width, height, { preset: options.preset || "photo", autoProfile: (options.preset || "photo") === "auto", ...samplingConfig })
+    ? sampleGridAdaptive(samplingSource, width, height, { preset: samplingPreset, autoProfile: samplingPreset === "auto", ...samplingConfig })
     : sampleGrid(samplingSource, width, height, { mode: cfg.sampling, ...samplingConfig });
   timing.sampling = Math.round(performance.now() - tSampling);
   const resolvedMode = sampled.resolvedMode;
@@ -437,6 +443,20 @@ export function generateV2({ source, width, height, palette, options = {} }) {
     accentProtection: accentDiag,
     accentProtectedColors: protectedByAccent,
     paletteMatcher: "palette-engine",
+    // 这次生成**实际生效**的引擎配置（0–1 口径，已过 resolveOptions 的兜底）。
+    // 存在的理由：B4 §4/§5 的 benchmark 要把「源图 / 尺寸 / 色卡 / maxColors / 背景开关」
+    // 连同配置一起钉进基线，§17 的决策表也要能证明「这一列是用什么配置跑出来的」。
+    // 没有它，报告只能靠调用方自述 —— 那正是会漂移的地方。
+    resolvedConfig: {
+      sampling: cfg.sampling,
+      detailProtection: cfg.detailProtection,
+      edgeProtection: cfg.edgeProtection,
+      highlightProtection: cfg.highlightProtection,
+      eyeProtection: cfg.eyeProtection,
+      microDetailProtection: cfg.microDetailProtection,
+      cleanupProtectionThreshold: cfg.cleanupProtectionThreshold,
+      maxColors: cfg.maxColors,
+    },
     edgeMap: protection.edgeMap,
     protectionMap: protection.protectionMap,
     protectionReasonMap: protection.protectionReasonMap,
@@ -494,7 +514,6 @@ export function compareGrids(legacyGrid, v2Grid) {
 
 export default {
   SamplingMode,
-  GenerationProfiles,
   DEFAULT_GENERATION_V2_CONFIG,
   SAMPLING_CONFIG_V2,
   buildAlphaGrid,
