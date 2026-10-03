@@ -17,6 +17,7 @@
  */
 
 import { generateV2 } from "../smart-preprocessing/generation-engine-v2.mjs";
+import { classifySource } from "./source-classifier.mjs";
 import {
   GENERATION_MODES,
   MODE_PROFILES,
@@ -78,6 +79,20 @@ export function analyzeGenerationImage(source) {
 }
 
 /**
+ * 路由证据 = 旧特征 + §12.2 分类器。
+ *
+ * 抽成一个导出函数，是因为**跑分器需要在生成之前就知道路由结果**：
+ * §12.4 的 Bean Fit 模式策略要按路由后的模式决定候选跑不跑，
+ * 而候选是在 `generateV2` 之前构造的。跑分器如果自己再拼一遍
+ * `{...analyzeGenerationImage(), routing: classifySource().routing}`，
+ * 那就是第二份接线 —— 两份必然漂移，而漂移的表现是
+ * 「跑分器以为这图是 photo、生成时其实是 pixel」这种谁都看不出来的错。
+ */
+export function analyzeRoutingEvidence(image) {
+  return { ...analyzeGenerationImage(image), routing: classifySource(image).routing };
+}
+
+/**
  * 唯一生产 runner。模式只注入配置，所有模式仍调用同一个 Generation Engine V2。
  *
  * `lab` 是 Stage B4 §6–§10 的候选算法接缝，**默认 null = 生产行为逐位不变**。
@@ -91,7 +106,12 @@ export function analyzeGenerationImage(source) {
  */
 export function runGenerationPipeline({ image, mode = "auto", size, palette, maxColors = 0, overrides = {}, onPhase = null, lab = null }) {
   if (typeof onPhase === "function") onPhase("analyze");
-  const profile = resolveGenerationPipeline(mode, analyzeGenerationImage(image), overrides);
+  // §12.3：路由证据来自 `classifySource()`（19 个信号 + 硬规则 + 候选评分），
+  // 不再来自 `analyzeGenerationImage().pixelLikeness`（§12.1 实测命中 9 张、真阳性 0 张）。
+  // `routing` 挂在 analysis 上而不是新增一个参数：analysis 就是「路由证据」的载体，
+  // 而 `toEngineOptions` 只挑声明过的字段，挂在这里不会漏进引擎选项。
+  const analysis = analyzeRoutingEvidence(image);
+  const profile = resolveGenerationPipeline(mode, analysis, overrides);
   // onPhase 单独传，**不放进 profile** —— 它是函数，配置要能结构化克隆。
   const options = toEngineOptions(profile, { maxColors, onPhase });
   const result = generateV2({ source: image, width: size.width, height: size.height, palette, options, lab });

@@ -215,10 +215,26 @@ function hasEvidence(analysis, keys) {
 
 /**
  * 解析 `auto` 该路由到哪个模式。非 auto 模式原样返回（模式是用户的显式选择）。
+ *
+ * ── §12.3 之后：新分类器优先，旧规则降级为「显式证据」兼容路径 ──────────
+ * `analysis.routing` 由 `source-classifier.mjs` 的 `classifySource()` 产出
+ * （`generation-pipeline.mjs` 的 `runGenerationPipeline` 把它挂进 analysis）。
+ * 只要它带着一个合法的引擎模式名，就以它为准 —— 包括它判「信心不足」时
+ * 返回的 `"auto"`：那是「不要强猜」的明确表态，不该再被旧规则覆盖回去。
+ *
+ * `MODE_ROUTING_RULES` **保留**，因为它是「调用方直接注入显式证据」的路径：
+ * 契约测试与 `generation-pipeline-consolidation.test.mjs` 都在用
+ * `resolveRoutedMode("auto", { pixelLikeness: 0.8 })` 这种形式。
+ * 那条路径的 `pixelLikeness` 已知是**反向信号**（§12.1：命中 9 张、真阳性 0 张），
+ * 所以它只服务于「显式声明」的调用方，不再是真实图片的默认路由。
  */
 export function resolveRoutedMode(mode, analysis = {}) {
   const selected = GENERATION_MODES.includes(mode) ? mode : "auto";
   if (selected !== "auto") return selected;
+  const routed = analysis?.routing;
+  if (routed && typeof routed.mode === "string" && GENERATION_MODES.includes(routed.mode)) {
+    return routed.mode;
+  }
   for (const rule of MODE_ROUTING_RULES) {
     if (!hasEvidence(analysis, rule.evidence)) continue;
     if (rule.test(analysis)) return rule.to;

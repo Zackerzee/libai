@@ -266,6 +266,97 @@ export function weightedBucketCost(keptBuckets, candidateLab) {
 }
 
 /* =========================================================
+ * §12.4 源色支持占比（sourceColorSupport）
+ * ======================================================= */
+
+/**
+ * 「接近某个源色桶」的 ΔE2000 门。
+ *
+ * 取 10 的依据：CIEDE2000 的 JND 约 2.3，10 已经是「一眼看得出是两个颜色」的量级。
+ * 比 10 还远，说「这个候选色就是那个源色」已经不诚实了。
+ *
+ * ⚠️ 这个值是**实测挑的，不是拍的**。A–J 全语料 3193 个 Bean Fit 改动格里，
+ * `sourceSupport` 的分布是：
+ *   [0, 1e-9) 286 格 · [1e-9, 0.1) **0 格** · [0.1, 0.25) 1 格 · [0.25, 0.44) 14 格 · [0.44, 0.6) 257 格 …
+ * 也就是说 **0.25 落在一条几乎空的带子里**（0.0 与 0.44 之间只有 15 格）。
+ * 门开在空带里，意味着「调 ±0.05 不会翻结论」—— 这是它可以被写成常量的前提。
+ * 复现脚本见报告 §12.4 的取证段。
+ */
+export const SUPPORT_TAU = 10;
+
+/**
+ * 候选色被**该格源色**支持了多少占比。
+ *
+ *   support(c) = Σ_{b ∈ kept} share_b × 1[ ΔE2000(bucket_b.lab, c.lab) ≤ τ ]
+ *
+ * 语义：「如果把这一格都填成 c，c 代表了格内多大比例的源色像素」。
+ *
+ * ── 为什么需要它（§12.4 的根因）────────────────────────────────────────
+ * `weightedBucketCost` 是**加权和**，所以它对「折中色」有系统性偏好：
+ * 一个既不太像桶 A、也不太像桶 B 的颜色，只要两边都不太远，加权和就可能
+ * 低于「完全像桶 A、离桶 B 很远」的正确答案。
+ * 实测（夹具 D 的描边格，桶 = 深底 50% + 红描边 50%）：
+ *   生产答案 C62(255,88,93)  成本 30.11  到桶 ΔE [50.9, 9.3]  → support = 0.50
+ *   BeanFit  C06(186,12,47)  成本 23.41  到桶 ΔE [35.8, 11.1] → support = **0.00**
+ * C06 是一个深红 —— 它**在原图里根本不存在**，是深底与红描边之间被加权和
+ * 造出来的中间色阶。这正是 §12 原文禁止的「为了降低局部 ΔE 引入视觉上不存在的新色阶」。
+ *
+ * ⚠️ 这个口径对生产答案和候选**一视同仁** —— 它不偏向任何一方，只问
+ * 「你离源图里的真实颜色有多近」。所以它在 J 类（照片噪声）上会判生产答案错：
+ * 生产 CE02(155,184,211) support = 0.00（格内唯一桶是 [128,150,174]），
+ * 而 BeanFit 的 CT09(107,132,157) support = 1.00。J 上 Bean Fit 确实是更好的那个。
+ *
+ * @param {Array<{share:number, lab:number[]}>} keptBuckets `topBuckets()` 的输出
+ * @param {number[]} candidateLab
+ * @param {number} [tau]
+ * @returns {number} 0–1。**不重新归一化**：`kept` 的 share 之和本身可能 < 1
+ *   （尾桶被 `minBucketShare` 丢掉了），那时 1.0 是拿不到的 —— 这是对的，
+ *   「这格有一部分像素谁也代表不了」本来就该让 support 上限降低。
+ */
+export function sourceSupport(keptBuckets, candidateLab, tau = SUPPORT_TAU) {
+  if (!keptBuckets?.length || !candidateLab) return 0;
+  let support = 0;
+  for (const bucket of keptBuckets) {
+    if (deltaE2000(bucket.lab, candidateLab) <= tau) support += bucket.share;
+  }
+  return support;
+}
+
+/**
+ * 一个格子**连同它的 3×3 邻域**的分桶，取权重最高的若干桶。
+ *
+ * 用途：§12.4 的「没有邻域支持」那一半判据 —— 一个色即使在本格里说得通，
+ * 如果整个邻域都找不到它，那它仍然是一个「局部凭空出现的新色阶」。
+ *
+ * ⚠️ **只在需要时调用**。它要遍历 9 倍于一个格子的像素，而 `rgbToLab` 里有
+ * 三次立方根。Bean Fit 的调用点做了懒计算（只有「基础成本最低的候选自身支持不足」
+ * 时才问邻域），理由见 `bean-fit.mjs` 里的可证明性说明。
+ *
+ * 邻域窗口按**格子自身的宽高**外扩一格，不用固定像素数：格网从 104 到 500 时
+ * 每格的像素数会差一个数量级，固定像素数会让「邻域」在小格网下退化成半个格子。
+ */
+export function neighbourhoodBuckets(source, bounds, options = {}) {
+  const {
+    bucketStep = LAB_BUCKET_STEP,
+    topBucketCount = 4,
+    minBucketShare = 0.08,
+    alphaThreshold = LAB_ALPHA_THRESHOLD,
+  } = options;
+  const own = cellRect(source, bounds);
+  const dx = own.w;
+  const dy = own.h;
+  const wide = {
+    x0: bounds.x0 - dx,
+    y0: bounds.y0 - dy,
+    x1: bounds.x1 + dx,
+    y1: bounds.y1 + dy,
+  };
+  const built = buildLabBuckets(source, wide, { bucketStep, alphaThreshold });
+  if (!built.opaque) return [];
+  return topBuckets(built.buckets, topBucketCount, minBucketShare);
+}
+
+/* =========================================================
  * 候选预筛
  * ======================================================= */
 

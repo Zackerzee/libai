@@ -74,6 +74,11 @@ export function combineLabs(labs, id) {
  * §11 的组合矩阵。`build()` 每次返回全新实例 —— 组合对象里有 `memberIds` 等
  * 一次性字段，复用实例会让「这一列是谁」和「这一列上一次是谁」混在一起。
  *
+ * `build({ mode })` 收到的是**路由之后的**模式名（跑分器算好传进来）。
+ * §12.4 起 Bean Fit 要用它查模式策略表；其它候选目前忽略这个参数。
+ * 传 `mode` 而不是让候选自己去猜，是因为「这一列是在什么模式下跑的」
+ * 必须是跑分器说了算 —— 候选自己猜出来的模式，报告里无法复核。
+ *
  * 注意 report **不挂在实例上**：候选的统计挂在引擎每次 `generateV2` 新建的
  * `ctx.report` 上，所以跨运行不会泄漏（tests/candidate-determinism.test.mjs 钉住了）。
  * 但**单次运行内**是逐格累加的，别指望 stat.cells 恒为 1。
@@ -91,9 +96,17 @@ export function combineLabs(labs, id) {
  * 而映射一错，§15 的裁定就建立在一个错柱子的数据上。
  * （实测：Neutral 列的自报 id 一度是 `neutral-protection`。）
  */
+/** 所有带 Bean Fit 的条目共用同一套「把 mode / policy 传进去」的接线 —— 少写一遍就少漂移一次。 */
+const beanFit = (id, extra = {}) => (ctx = {}) => createBeanFit({
+  id,
+  mode: ctx.mode ?? null,
+  policyOverride: ctx.policy ?? null,
+  ...extra,
+});
+
 export const LAB_MATRIX = Object.freeze([
   { id: "current", label: "CURRENT（生产基线）", build: () => null },
-  { id: "bean-fit", label: "BeanFit", build: () => createBeanFit({ id: "bean-fit" }) },
+  { id: "bean-fit", label: "BeanFit", build: beanFit("bean-fit") },
   { id: "dual-mode", label: "DualMode", build: () => createDualMode({ id: "dual-mode" }) },
   { id: "neutral", label: "Neutral", build: () => createNeutralProtection({ id: "neutral" }) },
   { id: "spatial", label: "Spatial", build: () => createSpatialRefine({ id: "spatial" }) },
@@ -102,19 +115,19 @@ export const LAB_MATRIX = Object.freeze([
     id: "bean-fit+neutral",
     label: "BeanFit+Neutral",
     // 同一个成本函数里多一项惩罚，不是两个匹配器比大小（见 bean-fit.mjs 的注释）
-    build: () => createBeanFit({ id: "bean-fit+neutral", neutral: {} }),
+    build: beanFit("bean-fit+neutral", { neutral: {} }),
   },
   {
     id: "bean-fit+dual-mode",
     label: "BeanFit+DualMode",
     // Dual Mode 优先：它的证据更具体
-    build: () => combineLabs([createDualMode(), createBeanFit()], "bean-fit+dual-mode"),
+    build: (ctx = {}) => combineLabs([createDualMode(), beanFit(null)(ctx)], "bean-fit+dual-mode"),
   },
   {
     id: "bean-fit+neutral+cleanup",
     label: "BeanFit+Neutral+Cleanup",
-    build: () => combineLabs([
-      createBeanFit({ id: "bean-fit+neutral", neutral: {} }),
+    build: (ctx = {}) => combineLabs([
+      beanFit("bean-fit+neutral", { neutral: {} })(ctx),
       createConservativeCleanup(),
     ], "bean-fit+neutral+cleanup"),
   },

@@ -29,6 +29,14 @@
  *   node tools/b4-lab.mjs --out <dir>
  *   node tools/b4-lab.mjs --class A,F --only bean-fit,neutral
  *   node tools/b4-lab.mjs --modes auto,beginner --skip-sheets
+ *   node tools/b4-lab.mjs --fixtures noisy --class K,P    # §12 的 K–Q 真实照片夹具
+ *   node tools/b4-lab.mjs --policy force-allow            # §12.4 反事实：绕过模式策略表
+ *
+ * ── §12.4 起：候选要在**路由之后的模式**上跑 ──────────────────────────
+ * Bean Fit 的模式策略表要按「这张图实际会走哪个模式」决定跑不跑。
+ * 路由结果由 `analyzeRoutingEvidence()` + `resolveRoutedMode()` 在**生成之前**算好，
+ * 和 `runGenerationPipeline` 用的是同一份接线 —— 跑分器自己再拼一遍，
+ * 就会出现「跑分器以为这是 photo、生成时其实是 pixel」这种看不出来的错。
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -36,6 +44,7 @@ import { fileURLToPath } from "node:url";
 import { encodePng } from "../src/algorithms/engines/hybrid-v2/png-io.mjs";
 import { renderGridPng, compositePanels, stackImages, cropGrid } from "./b4-sheet.mjs";
 import { B4_BENCH_CLASSES } from "../tests/b4-bench-fixtures.mjs";
+import { NOISY_PHOTO_CLASSES, buildNoisySource } from "../tests/noisy-photo-fixtures.mjs";
 import {
   B4_BENCH_PINNED as PINNED,
   benchInputs,
@@ -49,6 +58,8 @@ import {
 import { LAB_MATRIX } from "../smart-preprocessing/lab/index.mjs";
 import { findConnectedComponents } from "../smart-preprocessing/smart-cleanup-v2.mjs";
 import { rgbToLab, deltaE2000, labChroma } from "../smart-preprocessing/lab/buckets.mjs";
+import { analyzeRoutingEvidence } from "../services/generation-pipeline.mjs";
+import { resolveRoutedMode } from "../services/mode-profile.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BASELINE_DIR = path.join(ROOT, "tests/fixtures");
@@ -68,6 +79,43 @@ const SKIP_SHEETS = flag("--skip-sheets");
 const SHEET_CELL = Number(value("--sheet-cell", 4));
 const ZOOM_CELL = Number(value("--zoom-cell", 12));
 const ZOOM_PAD = Number(value("--zoom-pad", 2));
+/**
+ * §12.4 模式策略：
+ *   table（默认）  按 `BEAN_FIT_MODE_POLICY` 查表。pixel / logo → OFF。
+ *   force-allow    **反事实对照**：把所有模式强制成 allow，只留越界惩罚。
+ *   force-pure     **改动前基线**：强制 allow 且关掉源色支持机制 = §6 原口径。
+ *
+ * 为什么需要 force-allow：默认策略下 A–J 全部落在 OFF 上，
+ * `bean-fit` 列会与 `current` 逐位相同 —— 那是**正确的结论**，但它证明不了
+ * 「越界惩罚本身有没有用」。两组都跑，才能把「策略关掉的」和「惩罚修掉的」
+ * 分开记账，而不是拿一个数去替两件事背书。
+ *
+ * 为什么还需要 force-pure：§0 的裁定纪律要求**看图**。没有这一档，
+ * 「越界增色」就只有数字上的「6 色 → 8 色」，出不了那张改动前的图。
+ */
+const POLICY = value("--policy", "table");
+const POLICY_OVERRIDES = { table: null, "force-allow": "allow", "force-pure": "pure" };
+if (!Object.hasOwn(POLICY_OVERRIDES, POLICY)) {
+  console.error(`--policy 只认 ${Object.keys(POLICY_OVERRIDES).join(" / ")}，收到 ${POLICY}`);
+  process.exit(2);
+}
+const POLICY_OVERRIDE = POLICY_OVERRIDES[POLICY];
+/**
+ * §12.4 夹具集：
+ *   bench（默认）  A–J。§4/§5 冻结的固定 benchmark，**必须保持默认**。
+ *   noisy         K–Q。§12 新增的真实照片 / 真实像素画夹具（512×512，逐像素生成）。
+ *   all           两组都跑。
+ *
+ * 为什么需要 noisy：A–J 全部路由到 pixel / logo，而 §12.4 的模式策略把这两档
+ * 设成 OFF —— 于是 A–J 上 `bean-fit` 列与 `current` 逐位相同。那是正确的结论，
+ * 但它回答不了「Bean Fit 在**允许**的模式上到底有没有用」。
+ * K–Q 里有 portrait / photo / illustration / auto 四种落点，才能量到那个问题。
+ */
+const FIXTURES = value("--fixtures", "bench");
+if (!["bench", "noisy", "all"].includes(FIXTURES)) {
+  console.error(`--fixtures 只认 bench / noisy / all，收到 ${FIXTURES}`);
+  process.exit(2);
+}
 
 // 硬护栏：绝不往基线目录里写。写错一次就毁掉 §4/§5 的冻结基线，
 // 而那份基线是判断所有候选有没有效的**唯一**参照物。
@@ -216,7 +264,16 @@ const delta = (a, b) => (a == null || b == null ? null : round3(a - b));
 const PALETTE = benchPalette();
 const PALETTE_HASH = paletteHash(PALETTE);
 const size = benchSize();
-const classes = B4_BENCH_CLASSES.filter((c) => !onlyClasses.length || onlyClasses.includes(c.id));
+/**
+ * 夹具清单。`source` 为 null 时走 `benchInputs()`（A–J 的逻辑网格 → 栅格化）；
+ * K–Q 的源图逐像素生成，没有「逻辑网格」那一层，所以直接给源图。
+ */
+const allFixtures = [
+  ...(FIXTURES === "noisy" ? [] : B4_BENCH_CLASSES.map((cls) => ({ cls, source: null }))),
+  ...(FIXTURES === "bench" ? [] : NOISY_PHOTO_CLASSES.map((cls) => ({ cls, source: buildNoisySource(cls) }))),
+];
+const classes = allFixtures
+  .filter(({ cls }) => !onlyClasses.length || onlyClasses.includes(cls.id));
 const candidates = LAB_MATRIX.filter((e) => !onlyCandidates.length || onlyCandidates.includes(e.id));
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
@@ -225,20 +282,28 @@ const zoomDir = path.join(OUT_DIR, "zoom");
 const originalDir = path.join(OUT_DIR, "original");
 if (!SKIP_SHEETS) for (const dir of [sheetDir, zoomDir, originalDir]) fs.mkdirSync(dir, { recursive: true });
 
-console.log(`夹具 ${classes.length} 类 · 模式 ${onlyModes.join("/")} · 候选 ${candidates.length} 个`);
+console.log(`夹具 ${classes.length} 类（${FIXTURES}）· 模式 ${onlyModes.join("/")} · 候选 ${candidates.length} 个`);
 console.log(`色卡 ${PINNED.paletteLabel}（${PALETTE.length} 色，hash ${PALETTE_HASH}）· 格网 ${size.width}×${size.height}`);
+console.log(`§12.4 模式策略：${POLICY}${POLICY_OVERRIDE ? `（强制 ${POLICY_OVERRIDE}）` : ""}`);
 console.log(`输出 → ${OUT_DIR}\n`);
 
 const results = [];
 const sheetImages = [];
+const routingByClass = new Map();
 
-for (const cls of classes) {
-  const inputs = benchInputs(cls);
+for (const { cls, source: presetSource } of classes) {
+  const inputs = presetSource ? { source: presetSource } : benchInputs(cls);
+  // 路由证据只跟源图有关，与请求的模式无关 —— 每类算一次就够（classifySource 在 512² 上约 30ms）。
+  const evidence = analyzeRoutingEvidence(inputs.source);
+  const routed = {};
+  for (const mode of onlyModes) routed[mode] = resolveRoutedMode(mode, evidence);
+  routingByClass.set(cls.id, { candidate: evidence.routing?.candidate ?? null, confidence: evidence.routing?.confidence ?? null, routed });
   const originalGrid = downsampleSource(inputs.source, size.width, size.height);
   const reference = buildReference(originalGrid);
   if (!SKIP_SHEETS) {
     fs.writeFileSync(path.join(originalDir, `${cls.id}-${cls.key}.png`), renderGridPng(originalGrid));
   }
+  console.log(`${cls.id} ${cls.key.padEnd(12)} 路由 → ${onlyModes.map((m) => `${m}=${routed[m]}`).join("  ")}`);
 
   const panels = [{ grid: originalGrid, label: "原图" }];
   const zoomPanels = new Map();
@@ -251,10 +316,16 @@ for (const cls of classes) {
     // §15 明说裁定要等 §14 的人工看图，所以这里直接跳过，汇总表里明确标「未裁定」。
     if (entry.pending) continue;
     for (const mode of onlyModes) {
+      const routedMode = routed[mode];
       let run;
+      // 候选实例要留一个引用：`off` 档下 `matchCell` 第一行就返回 `undefined`，
+      // 于是引擎的 `report.beanFit` **根本不会被创建** —— 那时
+      // 「Bean Fit 这一列为什么和 CURRENT 一样」在 diagnostics 里查不到任何东西。
+      // 策略得从**真正被传进去的那个实例**上读。
+      const lab = entry.build({ mode: routedMode, policy: POLICY_OVERRIDE });
       const t0 = process.hrtime.bigint();
       try {
-        run = runBenchCase(cls, mode, { inputs, palette: PALETTE, size, lab: entry.build() });
+        run = runBenchCase(cls, mode, { inputs, palette: PALETTE, size, lab });
       } catch (error) {
         results.push({
           classId: cls.id, classKey: cls.key, mode, candidateId: entry.id, label: entry.label,
@@ -272,6 +343,9 @@ for (const cls of classes) {
         classId: cls.id,
         classKey: cls.key,
         mode,
+        // §12.4：**这一行实际是按哪个模式跑的**。报告里「Bean Fit 为什么没生效」
+        // 这个问题必须能靠数据回答，不能靠人回忆。
+        routedMode,
         candidateId: entry.id,
         label: entry.label,
         gridHash: run.gridHash,
@@ -279,6 +353,14 @@ for (const cls of classes) {
         subjectCropApplied: run.subjectCropApplied,
         labId: run.labId,
         labMatchFallbacks: run.labMatchFallbacks,
+        // 策略从实例上读（`off` 档下报告里没有 beanFit 段），
+        // 但把候选自报的那一份也留下 —— 两者不一致说明接线错了。
+        labPolicy: lab?.policy?.policy ?? null,
+        labSupportMode: lab?.policy?.supportMode ?? null,
+        labPolicyReported: run.labDetail?.beanFit?.policy ?? null,
+        labAbstained: run.labDetail?.beanFit?.abstained ?? null,
+        labSupportRejected: run.labDetail?.beanFit?.supportRejected ?? null,
+        labNeighbourhoodApplied: run.labDetail?.beanFit?.neighbourhoodApplied ?? null,
         runtimeMs: Math.round(elapsedMs),
         msPerCell: round3(elapsedMs / Math.max(1, metrics.totalCells)),
         ...metrics,
@@ -359,6 +441,12 @@ fs.writeFileSync(metricsFile, `${JSON.stringify({
   paletteHash: PALETTE_HASH,
   paletteSize: PALETTE.length,
   gridSize: { width: size.width, height: size.height },
+  // §12.4：这一轮是「按模式策略表跑」还是「强制 allow 的反事实对照」。
+  // 不记下来，两份 metrics.json 就没法区分，而它们的结论是相反的。
+  policyMode: POLICY,
+  policyOverride: POLICY_OVERRIDE,
+  fixtures: FIXTURES,
+  routing: [...routingByClass].map(([id, info]) => ({ classId: id, ...info })),
   reference: {
     neutralChromaThreshold: NEUTRAL_CHROMA_THRESHOLD,
     edgeLumDelta: EDGE_LUM_DELTA,
@@ -369,23 +457,37 @@ fs.writeFileSync(metricsFile, `${JSON.stringify({
   results,
 }, null, 2)}\n`);
 
-// 汇总：只统计取景稳定的行。取景一变，归一化坐标上的对比就不成立，
-// 把它混进平均值等于让「取景变了」冒充「算法有效」。
-const stable = results.filter((r) => r.framingStable && !r.error);
+// 汇总：只统计取景稳定、且策略允许进汇总的行。
+//   · 取景一变（beginner 的 subjectCrop），归一化坐标上的对比就不成立；
+//   · §12.4 的 `experimental` 档（illustration）同理 —— 算法可以跑，
+//     但它的结论还没有人工看图背书，混进平均等于让「未验证」冒充「已验证」。
+const experimental = results.filter((r) => r.labPolicy === "experimental");
+const stable = results.filter((r) => r.framingStable && !r.error && r.labPolicy !== "experimental");
 const skipped = results.length - stable.length;
 
-console.log(`\n汇总（仅取景稳定的 ${stable.length} 行；另有 ${skipped} 行因取景变化被排除）`);
-console.log("候选".padEnd(26) + "ΔE".padStart(8) + "中性ΔE".padStart(9) + "边保留".padStart(9)
+console.log(`\n汇总（仅取景稳定且非 experimental 的 ${stable.length} 行；`
+  + `另有 ${skipped} 行被排除，其中 experimental ${experimental.length} 行）`);
+console.log("候选".padEnd(26) + "策略".padStart(14) + "ΔE".padStart(8) + "中性ΔE".padStart(9) + "边保留".padStart(9)
   + "细保留".padStart(9) + "碎化".padStart(8) + "孤点".padStart(8) + "用色".padStart(8) + "ms".padStart(8));
 
 const summary = [];
 for (const entry of candidates) {
   const rows = stable.filter((r) => r.candidateId === entry.id);
+  // 策略不是候选的属性而是「候选 × 模式」的，所以一列里可能混着多档。
+  // 汇总时把它列成集合（如 `allow` 或 `cautious×2/off×8`），
+  // 免得「这一列平均了两种策略」这件事被一个单一值盖住。
+  const policyCounts = new Map();
+  for (const r of results.filter((x) => x.candidateId === entry.id)) {
+    const key = r.labPolicy ?? "-";
+    policyCounts.set(key, (policyCounts.get(key) || 0) + 1);
+  }
+  const policyLabel = [...policyCounts].map(([k, n]) => (n > 1 ? `${k}×${n}` : k)).join("/");
   if (!rows.length) {
-    summary.push({ candidateId: entry.id, label: entry.label, rows: 0, pending: Boolean(entry.pending) });
+    summary.push({ candidateId: entry.id, label: entry.label, rows: 0, pending: Boolean(entry.pending), policy: policyLabel });
     console.log(
       entry.id.padEnd(26)
-      + (entry.pending ? "尚未裁定（§15 等 §14 人工看图）" : "无取景稳定的行"),
+      + policyLabel.padStart(14)
+      + (entry.pending ? " 尚未裁定（§15 等 §14 人工看图）" : " 无可用行"),
     );
     continue;
   }
@@ -397,6 +499,7 @@ for (const entry of candidates) {
     candidateId: entry.id,
     label: entry.label,
     pending: Boolean(entry.pending),
+    policy: policyLabel,
     rows: rows.length,
     perceptualError: round3(agg("perceptualError")),
     neutralError: round3(agg("neutralError")),
@@ -410,6 +513,7 @@ for (const entry of candidates) {
   summary.push(line);
   console.log(
     entry.id.padEnd(26)
+    + policyLabel.padStart(14)
     + String(line.perceptualError ?? "-").padStart(8)
     + String(line.neutralError ?? "-").padStart(9)
     + fmt(line.edgeRetention).padStart(9)
@@ -422,7 +526,10 @@ for (const entry of candidates) {
 }
 
 const summaryFile = path.join(OUT_DIR, "summary.json");
-fs.writeFileSync(summaryFile, `${JSON.stringify({ stableRows: stable.length, excludedRows: skipped, summary }, null, 2)}\n`);
+fs.writeFileSync(summaryFile, `${JSON.stringify({
+  policyMode: POLICY, policyOverride: POLICY_OVERRIDE,
+  stableRows: stable.length, excludedRows: skipped, experimentalRows: experimental.length, summary,
+}, null, 2)}\n`);
 console.log(`\n指标 → ${metricsFile}\n汇总 → ${summaryFile}`);
 console.log(`\n§15 的 KEEP / REJECT / MODE-SPECIFIC **不在本工具里**：`);
 console.log(`  必须看完 ${path.relative(ROOT, zoomDir)} 下的局部放大图之后，在报告里给出。`);

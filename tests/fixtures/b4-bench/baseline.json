@@ -218,8 +218,38 @@
           "flatRegionRatio": 0.9661479322958646,
           "textureScore": 0.02908503433256875,
           "colorComplexity": 0.029296875,
-          "pixelLikeness": 0.6321297417985461
-        }
+          "pixelLikeness": 0.6321297417985461,
+          "routing": {
+            "candidate": "pixel",
+            "mode": "pixel",
+            "confidence": 1,
+            "reason": "hard-rule:hard-pixel",
+            "hardRule": "hard-pixel",
+            "evidence": [
+              "magnificationTrace",
+              "paletteDiscreteness",
+              "highFrequencyRatio",
+              "antiAliasRatio",
+              "nearWhiteRatio"
+            ],
+            "runnerUp": "anime",
+            "topScores": [
+              {
+                "mode": "pixel",
+                "score": 0.6773
+              },
+              {
+                "mode": "anime",
+                "score": 0.2293
+              },
+              {
+                "mode": "illustration",
+                "score": 0.1208
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
         "sampling": "center",
@@ -421,8 +451,38 @@
           "flatRegionRatio": 0.9661479322958646,
           "textureScore": 0.02908503433256875,
           "colorComplexity": 0.029296875,
-          "pixelLikeness": 0.6321297417985461
-        }
+          "pixelLikeness": 0.6321297417985461,
+          "routing": {
+            "candidate": "pixel",
+            "mode": "pixel",
+            "confidence": 1,
+            "reason": "hard-rule:hard-pixel",
+            "hardRule": "hard-pixel",
+            "evidence": [
+              "magnificationTrace",
+              "paletteDiscreteness",
+              "highFrequencyRatio",
+              "antiAliasRatio",
+              "nearWhiteRatio"
+            ],
+            "runnerUp": "anime",
+            "topScores": [
+              {
+                "mode": "pixel",
+                "score": 0.6773
+              },
+              {
+                "mode": "anime",
+                "score": 0.2293
+              },
+              {
+                "mode": "illustration",
+                "score": 0.1208
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
         "sampling": "auto",
@@ -624,8 +684,38 @@
           "flatRegionRatio": 0.9332878665757331,
           "textureScore": 0.06671213342426685,
           "colorComplexity": 0.01171875,
-          "pixelLikeness": 0.62822854747272
-        }
+          "pixelLikeness": 0.62822854747272,
+          "routing": {
+            "candidate": "pixel",
+            "mode": "pixel",
+            "confidence": 1,
+            "reason": "hard-rule:hard-pixel",
+            "hardRule": "hard-pixel",
+            "evidence": [
+              "magnificationTrace",
+              "paletteDiscreteness",
+              "highFrequencyRatio",
+              "antiAliasRatio",
+              "nearWhiteRatio"
+            ],
+            "runnerUp": "anime",
+            "topScores": [
+              {
+                "mode": "pixel",
+                "score": 0.9076
+              },
+              {
+                "mode": "anime",
+                "score": 0.5295
+              },
+              {
+                "mode": "illustration",
+                "score": 0
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
         "sampling": "center",
@@ -763,8 +853,38 @@
           "flatRegionRatio": 0.9332878665757331,
           "textureScore": 0.06671213342426685,
           "colorComplexity": 0.01171875,
-          "pixelLikeness": 0.62822854747272
-        }
+          "pixelLikeness": 0.62822854747272,
+          "routing": {
+            "candidate": "pixel",
+            "mode": "pixel",
+            "confidence": 1,
+            "reason": "hard-rule:hard-pixel",
+            "hardRule": "hard-pixel",
+            "evidence": [
+              "magnificationTrace",
+              "paletteDiscreteness",
+              "highFrequencyRatio",
+              "antiAliasRatio",
+              "nearWhiteRatio"
+            ],
+            "runnerUp": "anime",
+            "topScores": [
+              {
+                "mode": "pixel",
+                "score": 0.9076
+              },
+              {
+                "mode": "anime",
+                "score": 0.5295
+              },
+              {
+                "mode": "illustration",
+                "score": 0
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
         "sampling": "auto",
@@ -902,8 +1022,38 @@
           "flatRegionRatio": 0.9481058962117924,
           "textureScore": 0.04807564480128968,
           "colorComplexity": 0.013671875,
-          "pixelLikeness": 0.629711882275327
-        }
+          "pixelLikeness": 0.629711882275327,
+          "routing": {
+            "candidate": "pixel",
+            "mode": "pixel",
+            "confidence": 1,
+            "reason": "hard-rule:hard-pixel",
+            "hardRule": "hard-pixel",
+            "evidence": [
+              "magnificationTrace",
+              "paletteDiscreteness",
+              "highFrequencyRatio",
+              "antiAliasRatio",
+              "nearWhiteRatio"
+            ],
+            "runnerUp": "anime",
+            "topScores": [
+              {
+                "mode": "pixel",
+                "score": 0.9136
+              },
+              {
+                "mode": "anime",
+                "score": 0.5371
+              },
+              {
+                "mode": "illustration",
+                "score": 0
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
         "sampling": "center",
@@ -1041,8 +1191,38 @@
           "flatRegionRatio": 0.9481058962117924,
           "textureScore": 0.04807564480128968,
           "colorComplexity": 0.013671875,
-          "pixelLikeness": 0.629711882275327
-        }
+          "pixelLikeness": 0.629711882275327,
+          "routing": {
+            "candidate": "pixel",
+            "mode": "pixel",
+            "confidence": 1,
+            "reason": "hard-rule:hard-pixel",
+            "hardRule": "hard-pixel",
+            "evidence": [
+              "magnificationTrace",
+              "paletteDiscreteness",
+              "highFrequencyRatio",
+              "antiAliasRatio",
+              "nearWhiteRatio"
+            ],
+            "runnerUp": "anime",
+            "topScores": [
+              {
+                "mode": "pixel",
+                "score": 0.9136
+              },
+              {
+                "mode": "anime",
+                "score": 0.5371
+              },
+              {
+                "mode": "illustration",
+                "score": 0
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
         "sampling": "auto",
@@ -1170,27 +1350,57 @@
       "usedColors": 6,
       "nullCells": 0,
       "totalCells": 10816,
-      "gridHash": "0cd4b680",
+      "gridHash": "13cfc456",
       "pipeline": {
         "mode": "auto",
-        "routedMode": "auto",
-        "sampling": "auto",
+        "routedMode": "pixel",
+        "sampling": "center",
         "analysis": {
           "edgeDensity": 0.108500217000434,
           "flatRegionRatio": 0.891499782999566,
           "textureScore": 0.1086919849339699,
           "colorComplexity": 0.01171875,
-          "pixelLikeness": 0.6156921223998699
-        }
+          "pixelLikeness": 0.6156921223998699,
+          "routing": {
+            "candidate": "pixel",
+            "mode": "pixel",
+            "confidence": 0.7729538949187055,
+            "reason": "hard-rule:hard-pixel",
+            "hardRule": "hard-pixel",
+            "evidence": [
+              "magnificationTrace",
+              "paletteDiscreteness",
+              "highFrequencyRatio",
+              "antiAliasRatio",
+              "nearWhiteRatio"
+            ],
+            "runnerUp": "anime",
+            "topScores": [
+              {
+                "mode": "pixel",
+                "score": 0.9041
+              },
+              {
+                "mode": "anime",
+                "score": 0.6193
+              },
+              {
+                "mode": "illustration",
+                "score": 0
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
-        "sampling": "auto",
-        "detailProtection": 0.7,
-        "edgeProtection": 0.7,
+        "sampling": "center",
+        "detailProtection": 1,
+        "edgeProtection": 1,
         "highlightProtection": 0.8,
         "eyeProtection": 1,
         "microDetailProtection": 0.8,
-        "cleanupProtectionThreshold": 0.5,
+        "cleanupProtectionThreshold": 0.1,
         "maxColors": 0,
         "subjectCrop": false,
         "autoBackground": false,
@@ -1219,10 +1429,10 @@
             "filled": 10816,
             "fillRatio": 1,
             "distinctColors": 6,
-            "darkCells": 5790,
+            "darkCells": 5785,
             "meanLuminance": 94,
             "topCode": "C157",
-            "topCount": 5790,
+            "topCount": 5785,
             "topRgb": [
               29,
               37,
@@ -1287,8 +1497,38 @@
           "flatRegionRatio": 0.891499782999566,
           "textureScore": 0.1086919849339699,
           "colorComplexity": 0.01171875,
-          "pixelLikeness": 0.6156921223998699
-        }
+          "pixelLikeness": 0.6156921223998699,
+          "routing": {
+            "candidate": "pixel",
+            "mode": "pixel",
+            "confidence": 0.7729538949187055,
+            "reason": "hard-rule:hard-pixel",
+            "hardRule": "hard-pixel",
+            "evidence": [
+              "magnificationTrace",
+              "paletteDiscreteness",
+              "highFrequencyRatio",
+              "antiAliasRatio",
+              "nearWhiteRatio"
+            ],
+            "runnerUp": "anime",
+            "topScores": [
+              {
+                "mode": "pixel",
+                "score": 0.9041
+              },
+              {
+                "mode": "anime",
+                "score": 0.6193
+              },
+              {
+                "mode": "illustration",
+                "score": 0
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
         "sampling": "auto",
@@ -1384,27 +1624,57 @@
       "usedColors": 3,
       "nullCells": 0,
       "totalCells": 10816,
-      "gridHash": "e860b8ff",
+      "gridHash": "229aac4a",
       "pipeline": {
         "mode": "auto",
-        "routedMode": "pixel",
-        "sampling": "center",
+        "routedMode": "logo",
+        "sampling": "dominant",
         "analysis": {
           "edgeDensity": 0.05363010726021452,
           "flatRegionRatio": 0.9463698927397854,
           "textureScore": 0.05363010726021452,
           "colorComplexity": 0.005859375,
-          "pixelLikeness": 0.6330320615719356
-        }
+          "pixelLikeness": 0.6330320615719356,
+          "routing": {
+            "candidate": "logo",
+            "mode": "logo",
+            "confidence": 0.633727199261313,
+            "reason": "hard-rule:hard-logo",
+            "hardRule": "hard-logo",
+            "evidence": [
+              "nearWhiteRatio",
+              "colorCount",
+              "largeFlatBlockRatio",
+              "highFrequencyRatio",
+              "structureThickness"
+            ],
+            "runnerUp": "anime",
+            "topScores": [
+              {
+                "mode": "logo",
+                "score": 0.9042
+              },
+              {
+                "mode": "anime",
+                "score": 0.6657
+              },
+              {
+                "mode": "illustration",
+                "score": 0
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
-        "sampling": "center",
-        "detailProtection": 1,
-        "edgeProtection": 1,
-        "highlightProtection": 0.8,
-        "eyeProtection": 1,
-        "microDetailProtection": 0.8,
-        "cleanupProtectionThreshold": 0.1,
+        "sampling": "dominant",
+        "detailProtection": 0.35,
+        "edgeProtection": 0.95,
+        "highlightProtection": 0,
+        "eyeProtection": 0,
+        "microDetailProtection": 0,
+        "cleanupProtectionThreshold": 0.85,
         "maxColors": 0,
         "subjectCrop": false,
         "autoBackground": false,
@@ -1433,10 +1703,10 @@
             "filled": 1505,
             "fillRatio": 1,
             "distinctColors": 2,
-            "darkCells": 588,
+            "darkCells": 591,
             "meanLuminance": 169,
             "topCode": "C01",
-            "topCount": 917,
+            "topCount": 914,
             "topRgb": [
               255,
               255,
@@ -1465,10 +1735,10 @@
             "filled": 1332,
             "fillRatio": 1,
             "distinctColors": 2,
-            "darkCells": 558,
-            "meanLuminance": 169,
+            "darkCells": 572,
+            "meanLuminance": 166,
             "topCode": "C01",
-            "topCount": 774,
+            "topCount": 760,
             "topRgb": [
               255,
               255,
@@ -1497,10 +1767,10 @@
             "filled": 10816,
             "fillRatio": 1,
             "distinctColors": 3,
-            "darkCells": 1149,
+            "darkCells": 1167,
             "meanLuminance": 232,
             "topCode": "C01",
-            "topCount": 9667,
+            "topCount": 9649,
             "topRgb": [
               255,
               255,
@@ -1533,8 +1803,38 @@
           "flatRegionRatio": 0.9463698927397854,
           "textureScore": 0.05363010726021452,
           "colorComplexity": 0.005859375,
-          "pixelLikeness": 0.6330320615719356
-        }
+          "pixelLikeness": 0.6330320615719356,
+          "routing": {
+            "candidate": "logo",
+            "mode": "logo",
+            "confidence": 0.633727199261313,
+            "reason": "hard-rule:hard-logo",
+            "hardRule": "hard-logo",
+            "evidence": [
+              "nearWhiteRatio",
+              "colorCount",
+              "largeFlatBlockRatio",
+              "highFrequencyRatio",
+              "structureThickness"
+            ],
+            "runnerUp": "anime",
+            "topScores": [
+              {
+                "mode": "logo",
+                "score": 0.9042
+              },
+              {
+                "mode": "anime",
+                "score": 0.6657
+              },
+              {
+                "mode": "illustration",
+                "score": 0
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
         "sampling": "auto",
@@ -1659,30 +1959,60 @@
         "width": 104,
         "height": 104
       },
-      "usedColors": 5,
+      "usedColors": 4,
       "nullCells": 0,
       "totalCells": 10816,
-      "gridHash": "2dc041ec",
+      "gridHash": "9ce1897c",
       "pipeline": {
         "mode": "auto",
-        "routedMode": "illustration",
-        "sampling": "dominant",
+        "routedMode": "pixel",
+        "sampling": "center",
         "analysis": {
           "edgeDensity": 0.23634447268894537,
           "flatRegionRatio": 0.658503317006634,
           "textureScore": 0.2663023374046802,
           "colorComplexity": 0.0078125,
-          "pixelLikeness": 0.509575846495443
-        }
+          "pixelLikeness": 0.509575846495443,
+          "routing": {
+            "candidate": "pixel",
+            "mode": "pixel",
+            "confidence": 0.9761752668934308,
+            "reason": "hard-rule:hard-pixel",
+            "hardRule": "hard-pixel",
+            "evidence": [
+              "magnificationTrace",
+              "paletteDiscreteness",
+              "highFrequencyRatio",
+              "antiAliasRatio",
+              "nearWhiteRatio"
+            ],
+            "runnerUp": "anime",
+            "topScores": [
+              {
+                "mode": "pixel",
+                "score": 0.8399
+              },
+              {
+                "mode": "anime",
+                "score": 0.5491
+              },
+              {
+                "mode": "illustration",
+                "score": 0.3219
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
-        "sampling": "dominant",
-        "detailProtection": 0.7,
-        "edgeProtection": 0.85,
+        "sampling": "center",
+        "detailProtection": 1,
+        "edgeProtection": 1,
         "highlightProtection": 0.8,
-        "eyeProtection": 0,
+        "eyeProtection": 1,
         "microDetailProtection": 0.8,
-        "cleanupProtectionThreshold": 0.55,
+        "cleanupProtectionThreshold": 0.1,
         "maxColors": 0,
         "subjectCrop": false,
         "autoBackground": false,
@@ -1710,14 +2040,14 @@
             "cells": 10816,
             "filled": 10816,
             "fillRatio": 1,
-            "distinctColors": 5,
-            "darkCells": 7611,
-            "meanLuminance": 93,
-            "topCode": "C30",
-            "topCount": 3995,
+            "distinctColors": 4,
+            "darkCells": 7272,
+            "meanLuminance": 98,
+            "topCode": "CE17",
+            "topCount": 3720,
             "topRgb": [
-              147,
-              38,
+              93,
+              42,
               44
             ]
           }
@@ -1742,14 +2072,14 @@
             "cells": 2704,
             "filled": 2704,
             "fillRatio": 1,
-            "distinctColors": 5,
-            "darkCells": 1915,
-            "meanLuminance": 92,
-            "topCode": "C30",
-            "topCount": 1004,
+            "distinctColors": 4,
+            "darkCells": 1818,
+            "meanLuminance": 98,
+            "topCode": "CE17",
+            "topCount": 930,
             "topRgb": [
-              147,
-              38,
+              93,
+              42,
               44
             ]
           }
@@ -1779,8 +2109,38 @@
           "flatRegionRatio": 0.658503317006634,
           "textureScore": 0.2663023374046802,
           "colorComplexity": 0.0078125,
-          "pixelLikeness": 0.509575846495443
-        }
+          "pixelLikeness": 0.509575846495443,
+          "routing": {
+            "candidate": "pixel",
+            "mode": "pixel",
+            "confidence": 0.9761752668934308,
+            "reason": "hard-rule:hard-pixel",
+            "hardRule": "hard-pixel",
+            "evidence": [
+              "magnificationTrace",
+              "paletteDiscreteness",
+              "highFrequencyRatio",
+              "antiAliasRatio",
+              "nearWhiteRatio"
+            ],
+            "runnerUp": "anime",
+            "topScores": [
+              {
+                "mode": "pixel",
+                "score": 0.8399
+              },
+              {
+                "mode": "anime",
+                "score": 0.5491
+              },
+              {
+                "mode": "illustration",
+                "score": 0.3219
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
         "sampling": "auto",
@@ -1876,27 +2236,57 @@
       "usedColors": 4,
       "nullCells": 0,
       "totalCells": 10816,
-      "gridHash": "bd80a094",
+      "gridHash": "36a45e80",
       "pipeline": {
         "mode": "auto",
-        "routedMode": "illustration",
-        "sampling": "dominant",
+        "routedMode": "pixel",
+        "sampling": "center",
         "analysis": {
           "edgeDensity": 0.1346022692045384,
           "flatRegionRatio": 0.845495690991382,
           "textureScore": 0.1374211790486091,
           "colorComplexity": 0.01953125,
-          "pixelLikeness": 0.5937533058659868
-        }
+          "pixelLikeness": 0.5937533058659868,
+          "routing": {
+            "candidate": "pixel",
+            "mode": "pixel",
+            "confidence": 1,
+            "reason": "hard-rule:hard-pixel",
+            "hardRule": "hard-pixel",
+            "evidence": [
+              "magnificationTrace",
+              "paletteDiscreteness",
+              "highFrequencyRatio",
+              "antiAliasRatio",
+              "nearWhiteRatio"
+            ],
+            "runnerUp": "illustration",
+            "topScores": [
+              {
+                "mode": "pixel",
+                "score": 0.8508
+              },
+              {
+                "mode": "illustration",
+                "score": 0.306
+              },
+              {
+                "mode": "anime",
+                "score": 0.3023
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
-        "sampling": "dominant",
-        "detailProtection": 0.7,
-        "edgeProtection": 0.85,
+        "sampling": "center",
+        "detailProtection": 1,
+        "edgeProtection": 1,
         "highlightProtection": 0.8,
-        "eyeProtection": 0,
+        "eyeProtection": 1,
         "microDetailProtection": 0.8,
-        "cleanupProtectionThreshold": 0.55,
+        "cleanupProtectionThreshold": 0.1,
         "maxColors": 0,
         "subjectCrop": false,
         "autoBackground": false,
@@ -1928,7 +2318,7 @@
             "darkCells": 1980,
             "meanLuminance": 192,
             "topCode": "CE01",
-            "topCount": 6798,
+            "topCount": 6788,
             "topRgb": [
               209,
               221,
@@ -1993,8 +2383,38 @@
           "flatRegionRatio": 0.845495690991382,
           "textureScore": 0.1374211790486091,
           "colorComplexity": 0.01953125,
-          "pixelLikeness": 0.5937533058659868
-        }
+          "pixelLikeness": 0.5937533058659868,
+          "routing": {
+            "candidate": "pixel",
+            "mode": "pixel",
+            "confidence": 1,
+            "reason": "hard-rule:hard-pixel",
+            "hardRule": "hard-pixel",
+            "evidence": [
+              "magnificationTrace",
+              "paletteDiscreteness",
+              "highFrequencyRatio",
+              "antiAliasRatio",
+              "nearWhiteRatio"
+            ],
+            "runnerUp": "illustration",
+            "topScores": [
+              {
+                "mode": "pixel",
+                "score": 0.8508
+              },
+              {
+                "mode": "illustration",
+                "score": 0.306
+              },
+              {
+                "mode": "anime",
+                "score": 0.3023
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
         "sampling": "auto",
@@ -2090,27 +2510,57 @@
       "usedColors": 3,
       "nullCells": 0,
       "totalCells": 10816,
-      "gridHash": "d3b193ec",
+      "gridHash": "fc91ec7c",
       "pipeline": {
         "mode": "auto",
-        "routedMode": "pixel",
-        "sampling": "center",
+        "routedMode": "logo",
+        "sampling": "dominant",
         "analysis": {
           "edgeDensity": 0.04755409510819022,
           "flatRegionRatio": 0.9524459048918098,
           "textureScore": 0.04256102672205339,
           "colorComplexity": 0.005859375,
-          "pixelLikeness": 0.6348548652175431
-        }
+          "pixelLikeness": 0.6348548652175431,
+          "routing": {
+            "candidate": "logo",
+            "mode": "logo",
+            "confidence": 0.6015705698914086,
+            "reason": "hard-rule:hard-logo",
+            "hardRule": "hard-logo",
+            "evidence": [
+              "nearWhiteRatio",
+              "colorCount",
+              "largeFlatBlockRatio",
+              "highFrequencyRatio",
+              "structureThickness"
+            ],
+            "runnerUp": "anime",
+            "topScores": [
+              {
+                "mode": "logo",
+                "score": 0.9162
+              },
+              {
+                "mode": "anime",
+                "score": 0.6856
+              },
+              {
+                "mode": "illustration",
+                "score": 0
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
-        "sampling": "center",
-        "detailProtection": 1,
-        "edgeProtection": 1,
-        "highlightProtection": 0.8,
-        "eyeProtection": 1,
-        "microDetailProtection": 0.8,
-        "cleanupProtectionThreshold": 0.1,
+        "sampling": "dominant",
+        "detailProtection": 0.35,
+        "edgeProtection": 0.95,
+        "highlightProtection": 0,
+        "eyeProtection": 0,
+        "microDetailProtection": 0,
+        "cleanupProtectionThreshold": 0.85,
         "maxColors": 0,
         "subjectCrop": false,
         "autoBackground": false,
@@ -2207,8 +2657,38 @@
           "flatRegionRatio": 0.9524459048918098,
           "textureScore": 0.04256102672205339,
           "colorComplexity": 0.005859375,
-          "pixelLikeness": 0.6348548652175431
-        }
+          "pixelLikeness": 0.6348548652175431,
+          "routing": {
+            "candidate": "logo",
+            "mode": "logo",
+            "confidence": 0.6015705698914086,
+            "reason": "hard-rule:hard-logo",
+            "hardRule": "hard-logo",
+            "evidence": [
+              "nearWhiteRatio",
+              "colorCount",
+              "largeFlatBlockRatio",
+              "highFrequencyRatio",
+              "structureThickness"
+            ],
+            "runnerUp": "anime",
+            "topScores": [
+              {
+                "mode": "logo",
+                "score": 0.9162
+              },
+              {
+                "mode": "anime",
+                "score": 0.6856
+              },
+              {
+                "mode": "illustration",
+                "score": 0
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
         "sampling": "auto",
@@ -2301,30 +2781,60 @@
         "width": 104,
         "height": 104
       },
-      "usedColors": 16,
+      "usedColors": 14,
       "nullCells": 0,
       "totalCells": 10816,
-      "gridHash": "f7eb4c9e",
+      "gridHash": "786fed68",
       "pipeline": {
         "mode": "auto",
-        "routedMode": "auto",
-        "sampling": "auto",
+        "routedMode": "pixel",
+        "sampling": "center",
         "analysis": {
           "edgeDensity": 0.007874015748031496,
           "flatRegionRatio": 0.8796577593155186,
           "textureScore": 0.037691239382478876,
           "colorComplexity": 0.03515625,
-          "pixelLikeness": 0.5692600115668982
-        }
+          "pixelLikeness": 0.5692600115668982,
+          "routing": {
+            "candidate": "pixel",
+            "mode": "pixel",
+            "confidence": 1,
+            "reason": "hard-rule:hard-pixel",
+            "hardRule": "hard-pixel",
+            "evidence": [
+              "magnificationTrace",
+              "paletteDiscreteness",
+              "highFrequencyRatio",
+              "antiAliasRatio",
+              "nearWhiteRatio"
+            ],
+            "runnerUp": "anime",
+            "topScores": [
+              {
+                "mode": "pixel",
+                "score": 0.86
+              },
+              {
+                "mode": "anime",
+                "score": 0.0219
+              },
+              {
+                "mode": "illustration",
+                "score": 0
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
-        "sampling": "auto",
-        "detailProtection": 0.7,
-        "edgeProtection": 0.7,
+        "sampling": "center",
+        "detailProtection": 1,
+        "edgeProtection": 1,
         "highlightProtection": 0.8,
         "eyeProtection": 1,
         "microDetailProtection": 0.8,
-        "cleanupProtectionThreshold": 0.5,
+        "cleanupProtectionThreshold": 0.1,
         "maxColors": 0,
         "subjectCrop": false,
         "autoBackground": false,
@@ -2384,11 +2894,11 @@
             "cells": 700,
             "filled": 700,
             "fillRatio": 1,
-            "distinctColors": 7,
+            "distinctColors": 6,
             "darkCells": 2,
-            "meanLuminance": 200,
+            "meanLuminance": 198,
             "topCode": "C153",
-            "topCount": 494,
+            "topCount": 492,
             "topRgb": [
               243,
               207,
@@ -2421,8 +2931,38 @@
           "flatRegionRatio": 0.8796577593155186,
           "textureScore": 0.037691239382478876,
           "colorComplexity": 0.03515625,
-          "pixelLikeness": 0.5692600115668982
-        }
+          "pixelLikeness": 0.5692600115668982,
+          "routing": {
+            "candidate": "pixel",
+            "mode": "pixel",
+            "confidence": 1,
+            "reason": "hard-rule:hard-pixel",
+            "hardRule": "hard-pixel",
+            "evidence": [
+              "magnificationTrace",
+              "paletteDiscreteness",
+              "highFrequencyRatio",
+              "antiAliasRatio",
+              "nearWhiteRatio"
+            ],
+            "runnerUp": "anime",
+            "topScores": [
+              {
+                "mode": "pixel",
+                "score": 0.86
+              },
+              {
+                "mode": "anime",
+                "score": 0.0219
+              },
+              {
+                "mode": "illustration",
+                "score": 0
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
         "sampling": "auto",
@@ -2518,27 +3058,60 @@
       "usedColors": 14,
       "nullCells": 0,
       "totalCells": 10816,
-      "gridHash": "b2f16bc3",
+      "gridHash": "d104904d",
       "pipeline": {
         "mode": "auto",
-        "routedMode": "auto",
-        "sampling": "auto",
+        "routedMode": "pixel",
+        "sampling": "center",
         "analysis": {
           "edgeDensity": 0.009858019716039432,
           "flatRegionRatio": 0.5072850145700292,
           "textureScore": 0.14806795542966153,
           "colorComplexity": 0.12890625,
-          "pixelLikeness": 0.31384962887113277
-        }
+          "pixelLikeness": 0.31384962887113277,
+          "routing": {
+            "candidate": "pixel",
+            "mode": "pixel",
+            "confidence": 0.9064215416027104,
+            "reason": "scored:pixel",
+            "hardRule": null,
+            "evidence": [
+              "magnificationTrace",
+              "paletteDiscreteness",
+              "largeFlatBlockRatio",
+              "edgeDirectionRegularity",
+              "localColorVariety",
+              "highFrequencyRatio",
+              "antiAliasRatio",
+              "shadingCoverage"
+            ],
+            "runnerUp": "illustration",
+            "topScores": [
+              {
+                "mode": "pixel",
+                "score": 0.6794
+              },
+              {
+                "mode": "illustration",
+                "score": 0.4352
+              },
+              {
+                "mode": "portrait",
+                "score": 0.4221
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
-        "sampling": "auto",
-        "detailProtection": 0.7,
-        "edgeProtection": 0.7,
+        "sampling": "center",
+        "detailProtection": 1,
+        "edgeProtection": 1,
         "highlightProtection": 0.8,
         "eyeProtection": 1,
         "microDetailProtection": 0.8,
-        "cleanupProtectionThreshold": 0.5,
+        "cleanupProtectionThreshold": 0.1,
         "maxColors": 0,
         "subjectCrop": false,
         "autoBackground": false,
@@ -2568,9 +3141,9 @@
             "fillRatio": 1,
             "distinctColors": 8,
             "darkCells": 0,
-            "meanLuminance": 164,
+            "meanLuminance": 162,
             "topCode": "C89",
-            "topCount": 187,
+            "topCount": 169,
             "topRgb": [
               177,
               179,
@@ -2600,9 +3173,9 @@
             "fillRatio": 1,
             "distinctColors": 5,
             "darkCells": 0,
-            "meanLuminance": 130,
+            "meanLuminance": 131,
             "topCode": "CT09",
-            "topCount": 595,
+            "topCount": 562,
             "topRgb": [
               107,
               132,
@@ -2635,8 +3208,41 @@
           "flatRegionRatio": 0.5072850145700292,
           "textureScore": 0.14806795542966153,
           "colorComplexity": 0.12890625,
-          "pixelLikeness": 0.31384962887113277
-        }
+          "pixelLikeness": 0.31384962887113277,
+          "routing": {
+            "candidate": "pixel",
+            "mode": "pixel",
+            "confidence": 0.9064215416027104,
+            "reason": "scored:pixel",
+            "hardRule": null,
+            "evidence": [
+              "magnificationTrace",
+              "paletteDiscreteness",
+              "largeFlatBlockRatio",
+              "edgeDirectionRegularity",
+              "localColorVariety",
+              "highFrequencyRatio",
+              "antiAliasRatio",
+              "shadingCoverage"
+            ],
+            "runnerUp": "illustration",
+            "topScores": [
+              {
+                "mode": "pixel",
+                "score": 0.6794
+              },
+              {
+                "mode": "illustration",
+                "score": 0.4352
+              },
+              {
+                "mode": "portrait",
+                "score": 0.4221
+              }
+            ]
+          }
+        },
+        "labId": null
       },
       "resolvedConfig": {
         "sampling": "auto",

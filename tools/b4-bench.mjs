@@ -22,10 +22,14 @@
  * 这样「写基线的工具」和「守基线的测试」用的是**同一套测量**。
  *
  * 用法：
- *   node tools/b4-bench.mjs --out <dir>          # 跑并写出结果（PNG + JSON）
- *   node tools/b4-bench.mjs --check --out <dir>  # 只比对，不写基线
- *   node tools/b4-bench.mjs --update-baseline    # 明确更新基线，并打印逐项 diff
+ *   node tools/b4-bench.mjs --out <dir>          # 跑并写出结果（PNG + JSON），**不动冻结基线**
+ *   node tools/b4-bench.mjs --check --out <dir>  # 只比对；有漂移则退出码 1（测试用这个）
+ *   node tools/b4-bench.mjs --update-baseline    # **唯一**会写基线的开关，并打印逐项 diff
  *   node tools/b4-bench.mjs --class A,F --mode auto
+ *
+ * ⚠️ 基线**只有** `--update-baseline` 能改。曾经这里是无条件落盘，
+ * 于是「只是想看一眼」的一次 `node tools/b4-bench.mjs` 会静默重写冻结基线，
+ * 把 9 处路由差异一并吞掉 —— 一份会自己更新的「冻结基线」不是基线。
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -191,11 +195,19 @@ const nextBaseline = {
 
 const FROZEN_FIELDS = ["usedColors", "nullCells", "gridHash"];
 
-if (CHECK || UPDATE) {
-  if (!fs.existsSync(BASELINE_FILE)) {
-    console.log(`\n基线不存在：${path.relative(ROOT, BASELINE_FILE)}`);
-    process.exit(1);
-  }
+// 比对**总是**跑：一份只在 --check 时才告诉你漂移了的基线，等于默认静默。
+// 三种运行方式的区别只在「有漂移时怎么办」：
+//   默认        → 打印差异，不碰基线，退出 0（产物照常写出）
+//   --check     → 打印差异，不碰基线，有漂移则退出 1（测试用它当门禁）
+//   --update-baseline → 打印差异（=变更记录），**然后**写基线
+const hasBaseline = fs.existsSync(BASELINE_FILE);
+if (!hasBaseline && (CHECK || UPDATE)) {
+  console.log(`\n基线不存在：${path.relative(ROOT, BASELINE_FILE)}`);
+  console.log("（首次生成请显式运行 --update-baseline）");
+  process.exit(1);
+}
+
+if (hasBaseline) {
   const frozen = JSON.parse(fs.readFileSync(BASELINE_FILE, "utf8"));
   const index = new Map(frozen.runs.map((r) => [`${r.classId}/${r.mode}`, r]));
   const diffs = [];
@@ -236,6 +248,15 @@ if (CHECK || UPDATE) {
     console.log("\n与冻结基线完全一致。");
   }
   if (CHECK) process.exit(diffs.length ? 1 : 0);
+  if (!UPDATE) {
+    // 没写 --update-baseline → **不碰基线**。
+    // 这一句是防「顺手跑一下把基线刷了」的唯一一道闸：曾经这里是无条件落盘，
+    // 于是看一眼就会静默重写冻结基线、把差异一并吞掉。
+    console.log("\n未指定 --update-baseline：只产出 sheet / JSON，**冻结基线保持不变**。");
+    console.log("（确需更新请显式运行：node tools/b4-bench.mjs --update-baseline）");
+    console.log(`\n产物 → ${OUT_DIR}`);
+    process.exit(0);
+  }
   console.log("\n--update-baseline：写入新基线。**上面的差异列表就是变更记录**，不要让它空着。");
 }
 

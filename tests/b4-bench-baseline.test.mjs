@@ -16,6 +16,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { B4_BENCH_CLASSES, B4_BENCH_BY_KEY, LOGICAL_SIZE, buildBenchGrid } from "./b4-bench-fixtures.mjs";
 import {
@@ -184,4 +185,18 @@ test("§4：数据集覆盖 §17 点名要肉眼确认的每一项特征", () =>
   for (const feature of ["高光", "肤色", "回形纹", "金纹", "窗格", "白衣", "灰阶", "笔画", "描边"]) {
     assert.ok(text.includes(feature), `§17 要求看的「${feature}」在数据集里没有落点`);
   }
+});
+
+test("§4：跑一次默认命令**不得**改写冻结基线（只有 --update-baseline 能写）", () => {
+  // 这条守的是一个真实踩过的坑：原先写盘是无条件的，于是「只是想看一眼」
+  // 的一次 `node tools/b4-bench.mjs` 会把 9 处路由差异静默吞进基线 ——
+  // 一份会自己更新的「冻结基线」不是基线。
+  // 只跑一个类（~1s），因为要验的是**写盘闸门**，不是基线内容。
+  const before = fs.readFileSync(BASELINE_FILE);
+  execFileSync(process.execPath,
+    [path.join(ROOT, "tools/b4-bench.mjs"), "--class", "A", "--mode", "auto", "--out", path.join(ROOT, ".b4-bench-gate-probe")],
+    { cwd: ROOT, stdio: "pipe" });
+  const after = fs.readFileSync(BASELINE_FILE);
+  assert.ok(before.equals(after),
+    "默认运行改写了冻结基线 —— 写盘闸门失效了，请检查 tools/b4-bench.mjs 里 !UPDATE 分支");
 });
