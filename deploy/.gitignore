@@ -29,7 +29,12 @@ tests/fixtures/background/
 #   「用户抢在识别 settle 之前点」的窗口 —— 小图上这个窗口根本不存在
 tests/fixtures/b4-race/
 
-# B4 benchmark 的**渲染产物**（PNG / contact sheet），由 tools/b4-bench.mjs 现场生成，不入库。
+# B4 benchmark / Lab 的**渲染产物**（PNG / contact sheet / metrics.json），
+# 由 tools/b4-bench.mjs、tools/b4-lab.mjs 现场生成，不入库。
 # 注意：`tests/fixtures/b4-bench/baseline.json` **必须入库** —— 它是冻结基线本身，
-# 由 tests/b4-bench-baseline.test.mjs 守着。所以这里只忽略默认输出目录，不忽略那个 json。
-.b4-bench-out/
+# 由 tests/b4-bench-baseline.test.mjs 守着。所以这里只忽略 `.b4-*` 输出目录，
+# 不忽略那个 json（它不在 `.b4-` 前缀下）。
+# 用通配 `.b4-*/` 而不是逐个列目录名：跑分器允许 `--out <任意路径>`，
+# 逐个列等于「每换一次输出目录就往这里补一行」，而漏掉的那一次会被
+# `git add -A` 静默吞进提交里（§12 实测踩过一次）。
+.b4-*/
