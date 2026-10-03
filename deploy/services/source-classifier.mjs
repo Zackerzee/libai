@@ -203,7 +203,7 @@ function paletteSizeAtCoverage(histogram, total, coverage) {
  * 这里用宽窗，代价是奶油色毛发也会被计为肤色；因此 `skinRatio`
  * **不作为任何硬规则的唯一依据**（详见 `ROUTING_HARD_RULES` 的注释）。
  */
-function isSkin(r, g, b, lum) {
+export function isSkin(r, g, b, lum) {
   if (lum < 70 || lum > 250) return false;
   const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
   const delta = mx - mn;

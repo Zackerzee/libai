@@ -2197,20 +2197,243 @@ async function v25EngineOptions(options = {}, maxColors = 0) {
   return toEngineOptions(resolveGenerationPipeline(profile.mode, null, profile), { maxColors });
 }
 
+/* ─────────────────────────────────────────────────────────────
+ * §13 Auto Tune —— 只在「智能」模式下启用（§26 第一阶段）
+ *
+ * 它做的事只有一件：在小尺寸上把**允许的几套候选**各跑一遍，
+ * 按该模式的字典序目标挑一套，再用原始目标尺寸正式生成一次。
+ * 不创造新算法、不做连续参数搜索、不做 grid search。
+ *
+ * ── 为什么接在这里而不是管线内部 ─────────────────────────────────
+ * 候选是**多次生成**，每次都要过 Worker 契约。把「跑 N 次」塞进管线
+ * 等于把 Worker 契约改成「跑 N 次」，而 §13 明确不动 Worker 契约。
+ * 所以编排留在主线程这一层，管线那一层只多认一个纯字符串
+ * （`overrides.labCandidate`），函数不跨进程。
+ * ───────────────────────────────────────────────────────────── */
+
+const AUTO_TUNE_MODULE_QUERY = "?v=20261003-stage-b4-s13";
+let autoTuneModulePromise = null;
+let autoTuner = null;
+
+/**
+ * 每一次调优的请求上下文，按 requestId 存。
+ *
+ * ── 为什么必须是「每次刷新」而不是闭包（§13 真机验收抓到的缺陷）──────────
+ * `autoTuner` 是模块级单例（下面那个 `if (!autoTuner)` 只建一次），但它的
+ * `runCandidate` 需要读**这一次**的图 / 色板 / 模式 / maxColors。
+ * 把这四项直接闭包进 `runCandidate`，它们就会被**第一次调用**的值冻住，
+ * 后果按严重程度排：
+ *
+ *   ① 「颜色数量」从 0 改成 12 → 点生成
+ *      报告里 `maxColors: 12`（`tune()` 拿到的确实是新值），
+ *      但每个候选和最终出图都跑在 `maxColors: 0` 上 → **出图突破上限**。
+ *      这正是 §7-A 那条硬约束存在的理由，而报告看起来完全正常。
+ *   ② 再上传一张新图 → 候选与最终出图**还是上一张图**。
+ *
+ * 真机探针抓到的就是 ①：界面 12 / 请求里 0 / 出图 18 色。
+ * 以前没发现，是因为每张夹具都整页重载 —— 单例每次都是新建的，
+ * 闭包被冻住这件事在「一个页面只跑一次调优」的探针里根本不显形。
+ *
+ * 按 requestId 存、而不是存一个「当前值」：新请求会顶掉旧请求（§19），
+ * 两个调优可能短暂并存，只留一个槽位会让旧调优的后半程读到新请求的图。
+ */
+const autoTuneContexts = new Map();
+
+/**
+ * §15 调优报告（不含网格）。
+ *
+ * ── 为什么是模块级变量，不是 `state.autoTuneReport` ────────────────────
+ * `state` 是 `window.libmsStore.compat()` 返回的 **Proxy**（见 app.js 顶部），
+ * 它的 `get` 一律走 `LEGACY_MAP`，**未登记的键读回来永远是 `undefined`**，
+ * 写入只会落到 Proxy 的载体对象上 —— 也就是「只写不读」。
+ *
+ * 2026-10-04 真机实测踩过：这里原本写 `state.autoTuneReport = rest`，
+ * 调优器其实**跑得好好的**（`__s13diag` 记到 3 次全部 `decision=standard-is-best`、
+ * 有网格），但 `getAutoTuneReport()` 永远返回 null，看起来像「§13 根本没接上」。
+ * 单测全绿也抓不到 —— 单测直接构造调优器，不经过这条兼容层。
+ *
+ * 换成模块级变量还顺带解决另一个问题：报告里有每个候选的 metrics，
+ * 放进 store 会被序列化进工程文件，那不是我们想要的。
+ * 回归守卫见 `tests/auto-tune-report-wiring.test.mjs`。
+ */
+let autoTuneReport = null;
+
+function loadAutoTuneModule() {
+  if (!autoTuneModulePromise) {
+    autoTuneModulePromise = import(`./services/auto-tune.mjs${AUTO_TUNE_MODULE_QUERY}`)
+      .catch((error) => { autoTuneModulePromise = null; throw error; });
+  }
+  return autoTuneModulePromise;
+}
+
+/** 调优阶段也要走同一条进度广播 —— 工作台只认 store / 事件，不认 console。 */
+function reportTunePhase(phase) {
+  const label = GENERATION_PHASE_LABELS[phase] || "正在生成…";
+  setStatus(label);
+  window.dispatchEvent(new CustomEvent("libms:generation-phase", { detail: { phase, label } }));
+}
+
+/**
+ * 源图裁剪/旋转/翻转的指纹（§18「crop 变化必须失效」）。
+ *
+ * 排序后拼串，不直接 `JSON.stringify` —— 后者对键顺序敏感，
+ * 同一个变换换个书写顺序就成了另一个键，表现是「缓存时灵时不灵」。
+ */
+function sourceTransformFingerprint(transform) {
+  if (!transform || typeof transform !== "object") return null;
+  return Object.keys(transform).sort()
+    .map((key) => `${key}=${JSON.stringify(transform[key] ?? null)}`)
+    .join("|");
+}
+
+/**
+ * 跑一次 Auto Tune。
+ *
+ * @returns {Promise<null|{grid,width,height,diagnostics,pipeline}>}
+ *   `null` = 这次不该调优（模式不适用 / 只有一个候选 / 调优器不可用），
+ *   调用方照常走单次生成。
+ */
+async function runAutoTuneV2({ sourceImageData, resolved, palette, maxColors, width, height, requestId }) {
+  const mod = await loadAutoTuneModule();
+  if (!mod.isAutoTuneEnabledFor(resolved.mode)) return null;
+  if (!autoTuner) {
+    autoTuner = mod.createAutoTuner({
+      cache: mod.createTuneCache({ max: 4 }),
+      // §26 第一阶段：只跑生产白名单里的 lab 候选（当前是空集，见 auto-tune-profiles.mjs）。
+      limits: { productionOnly: true },
+      runCandidate: async ({ size, overrides, labCandidate, maxColors: candidateCap, requestId: rid }) => {
+        // ⚠️ 这里**只能**从 autoTuneContexts 取本次请求的图 / 色板 / 模式，
+        // 绝不能用本函数的形参。原因见 autoTuneContexts 的注释：
+        // 本闭包只在第一次调优时建一次，形参会被那一次的值冻住。
+        const ctx = autoTuneContexts.get(Number(rid));
+        if (!ctx) {
+          // 没有上下文 = 这次调优已经被更新的请求顶掉了（§19）。
+          // 抛 AbortError 让调优器按「预期结局」处理；绝不能拿错图去算。
+          const error = new Error("Auto Tune 请求已过期");
+          error.name = "AbortError";
+          throw error;
+        }
+        // maxColors 是**每次调用各不相同**的，所以它只能从入参取，不能从 ctx 取：
+        //   · 预览候选 → §6 比例缩放后的 `previewMaxColors`（104 档 / 目标 156 时是 8）
+        //   · 正式赢家 → 界面上的原始值
+        // 调优器两个都传了（见 auto-tune.mjs 的 `maxColors: previewCap` / `maxColors`）。
+        // 早先这里读的是闭包里的那个值，等于**§6 的预览缩放从未生效**：
+        // 预览和正式都跑在同一个上限上，候选之间可比性变差，
+        // 而且预览会突破它自己声明的 `previewMaxColors`（真机探针抓到过：
+        // 报告写 previewMaxColors=8，赢家指标却是 12 色）。
+        // ctx.maxColors 只在调优器没给这个字段时兜底。
+        const callMaxColors = Number.isFinite(Number(candidateCap))
+          ? Number(candidateCap)
+          : ctx.maxColors;
+        const t0 = performance.now();
+        const out = await runGenerationJob({
+          image: ctx.sourceImageData,
+          mode: ctx.mode,
+          size,
+          palette: ctx.palette,
+          maxColors: callMaxColors,
+          // 候选增量已经在调优器里合并好了；这里只把纯字符串的候选名带上。
+          overrides: labCandidate ? { ...overrides, labCandidate } : overrides,
+          requestId: rid,
+          // **不转移** image buffer：调优要在一张图上连跑 3–4 次，
+          // 转移之后主线程那份就 detach 了，第二个候选会拿到空 buffer。
+          transfer: [],
+        });
+        return { ...out, timingMs: performance.now() - t0 };
+      },
+    });
+  }
+  // 归一化一次，键和 tune() 收到的必须是**同一个数** —— 不一致的话
+  // `autoTuneContexts.get(rid)` 会查不到，每个候选都变成「已过期」。
+  const tuneRequestId = Number(requestId) > 0 ? Number(requestId) : 1;
+  autoTuneContexts.set(tuneRequestId, {
+    sourceImageData, mode: resolved.mode, palette, maxColors,
+  });
+  let report;
+  try {
+    report = await autoTuner.tune({
+      source: sourceImageData,
+      mode: resolved.mode,
+      size: { width, height },
+      palette,
+      maxColors,
+      overrides: resolved,
+      // §18：裁剪变化必须让缓存失效。`sourceTransform` 是纯数据小对象，
+      // 排序后拼串即可 —— 不排序的话，同一个变换换个书写顺序就是另一个键，
+      // 表现是「缓存时灵时不灵」这种查起来很累的 bug。
+      cropKey: sourceTransformFingerprint(state.sourceTransform),
+      // background decision 不再单独传：去背景意图在 `resolved.autoBackground` 上，
+      // 它已经被 overrides 指纹覆盖（见 auto-tune.mjs 的 overridesFingerprint）。
+      requestId: tuneRequestId,
+      onPhase: reportTunePhase,
+    });
+  } finally {
+    autoTuneContexts.delete(tuneRequestId);
+  }
+  // §19：一次调优要跑几秒（400 档更久），回来时这一轮很可能已经被更新的请求取代
+  // ——用户切了模式、或者又点了一次生成。结果当然由上层丢弃（提交前还有一次
+  // `isStaleGenerationRequest`），但**报告不能留下**：它会以「这一轮是这么选的」
+  // 的身份被 `getAutoTuneReport()` 读走，而画布上是另一个请求的图。
+  //
+  // 抛「过期」而不是静默 return null：静默返回会让上层退回单次生成，
+  // 白跑一遍注定要被丢掉的计算；而过期是既定纪律里的**预期结局**，
+  // 原样上抛即可（`processImageV2` → `processProductionV2` 按 name 识别，只提示不报错）。
+  if (isStaleGenerationRequest(requestId)) {
+    const error = new Error("Auto Tune 结果已被更新的请求取代");
+    error.name = "StaleGenerationError";
+    throw error;
+  }
+  // 报告去掉 grid 再落 state：那是一整张网格，不该跟着快照到处走。
+  const { grid, ...rest } = report;
+  autoTuneReport = rest;
+  window.dispatchEvent(new CustomEvent("libms:auto-tune", { detail: rest }));
+  if (!grid) return null;
+  // 诊断必须取**赢家那一次**的，不能填 null —— `processImageV2` 靠它回填
+  // `state.smartFeatures` / `state.smartReport`（主体裁剪、自动背景、描边/点缀保护）。
+  // 填 null 的表现是「智能模式下这四个报告全空」，看起来像功能坏了，其实是这里丢了。
+  return {
+    grid,
+    width: report.width,
+    height: report.height,
+    diagnostics: report.diagnostics ?? null,
+    pipeline: { autoTune: true, selectedProfileId: report.selectedProfileId },
+  };
+}
+
 async function processImageV2(image, palette, { width, height, maxColors, options = {}, saveGallery = true }) {
   const startedAt = performance.now();
+  // 上一轮的调优报告不能留在这一轮里 —— 它会被读成「这次也是这么选的」。
+  autoTuneReport = null;
   const sourceImageData = imageToImageData(image);
   const resolved = buildV25Options(options, maxColors);
-  const result = await runGenerationJob({
-    image: sourceImageData,
-    mode: resolved.mode,
-    size: { width, height },
-    palette,
-    maxColors,
-    // 整份模式档案直接当 overrides 透传 —— 0–100 口径，换算由管线内部那一个边界做。
-    overrides: resolved,
-    requestId: options.requestId,
-  });
+  // §13：智能模式先跑 Auto Tune（小尺寸上比几套候选，再按目标尺寸生成一次）。
+  // 返回 null = 「这次不调优」（模式不适用 / 只有一个候选），照常走下面的单次生成。
+  let result = null;
+  try {
+    result = await runAutoTuneV2({
+      sourceImageData, resolved, palette, maxColors, width, height, requestId: options.requestId,
+    });
+  } catch (error) {
+    // 取消 / 过期是**预期结局**，原样上抛 —— 绝不能退回单次生成重跑一遍
+    // （那等于「点了取消反而又开始算」）。
+    if (error?.name === "AbortError" || error?.name === "StaleGenerationError") throw error;
+    // 调优本身出问题**不能变成一次生成失败**。记一条告警、退回单次生成：
+    // 「优化坏了也不丢功能」是这条链路从 B3 起的既定纪律。
+    console.warn("Auto Tune 失败，退回单次生成", error);
+    autoTuneReport = { error: String(error?.message || error) };
+  }
+  if (!result) {
+    result = await runGenerationJob({
+      image: sourceImageData,
+      mode: resolved.mode,
+      size: { width, height },
+      palette,
+      maxColors,
+      // 整份模式档案直接当 overrides 透传 —— 0–100 口径，换算由管线内部那一个边界做。
+      overrides: resolved,
+      requestId: options.requestId,
+    });
+  }
   // 执行体是一个 await 边界（未来换成 Worker 后更是），回来时可能已经有更新的请求在跑。
   if (isStaleGenerationRequest(options.requestId)) return false;
   state.grid = result.grid.map((row) => row.map((cell) => {
@@ -3329,6 +3552,11 @@ const GENERATION_PHASE_LABELS = Object.freeze({
   matching: "正在匹配真实色号…",
   cleanup: "正在整理色块…",
   finalize: "正在完成图纸…",
+  // §13 Auto Tune 的三个阶段。**刻意不出现算法术语**（§16）：
+  // 用户看到的是「正在选择合适的生成方式…」，不是「Auto Tune Profile 3」。
+  "tune-analyze": "正在分析图片…",
+  "tune-preview": "正在选择合适的生成方式…",
+  "tune-final": "正在生成图纸…",
 });
 
 /** 生成 Worker 客户端单例。懒创建：没走到生成就不起 Worker。 */
@@ -3355,6 +3583,10 @@ function getGenerationWorkerClient() {
  * @returns {boolean} 是否真有任务被取消
  */
 function cancelGeneration(reason = "生成已取消") {
+  // §13：调优过程中可能有 2–4 个候选在排队。先给调优器打上取消标记，
+  // 否则杀掉当前 Worker 之后，循环里的下一个候选会**接着跑** ——
+  // 用户点了取消，界面却在继续生成，正是 B3 §29 要消灭的那种行为。
+  if (autoTuner?.cancel(reason)) { /* 标记已置，下面的 terminate 负责真停 */ }
   if (generationWorkerClient?.cancel(reason)) return true;
   if (state.isProcessingImage) {
     state.generationRequestId = (Number(state.generationRequestId) || 0) + 1;
@@ -3376,7 +3608,7 @@ function cancelGeneration(reason = "生成已取消") {
  *   ② Worker 不可用 / 起不来         → 主线程 executeGenerationJob
  *   ③ Worker 跑到一半真失败          → 原样抛，由上层报可读原因
  */
-async function runGenerationJob({ image, mode, size, palette, maxColors, overrides, requestId }) {
+async function runGenerationJob({ image, mode, size, palette, maxColors, overrides, requestId, transfer }) {
   const job = window.LibmsGenerationJob;
   const contract = window.LibmsGenerationRequest;
   if (!job || !contract) {
@@ -3392,6 +3624,11 @@ async function runGenerationJob({ image, mode, size, palette, maxColors, overrid
   if (client?.supported) {
     try {
       return await client.run(request, {
+        // §13：Auto Tune 要在一张图上连跑 3–4 个候选，**不能转移** image buffer
+        // —— Transferable 是不可逆的，转移之后主线程那份就 detach 了，
+        // 第二个候选会拿到空 buffer（表现为「data 长度不匹配」，看不出根因）。
+        // 多一次克隆（几 MB）换「候选能连续跑」，值。
+        transfer,
         onProgress: (phase) => {
           const label = GENERATION_PHASE_LABELS[phase] || "正在生成…";
           setStatus(label);
@@ -7449,6 +7686,13 @@ window.LibmsWorkspaceBridge = {
     algorithmEngine: state.algorithmEngine, algorithmEngineLast: state.algorithmEngineLast || null,
   }),
   getCell(x, y) { return cloneColor(state.grid[y]?.[x] || null); },
+  /**
+   * §13 Auto Tune 的诊断报告（不含网格）。
+   *
+   * 刻意**不放进工作台 UI**（§16：用户只看到「智能」，不该看到「Auto Tune Profile 3」）。
+   * 它服务于两件事：真机探针取证，以及出问题时能回答「这次为什么选了这一套」。
+   */
+  getAutoTuneReport: () => autoTuneReport,
   // 上一次生成的「智能辅助」运行报告：给验收脚本与排障用，不参与任何计算。
   getGenerationReport: () => ({
     engine: state.generationEngineLast || null,

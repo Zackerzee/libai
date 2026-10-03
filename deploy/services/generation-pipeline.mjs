@@ -17,6 +17,7 @@
  */
 
 import { generateV2 } from "../smart-preprocessing/generation-engine-v2.mjs";
+import { resolveLabCandidate } from "../smart-preprocessing/lab/index.mjs";
 import { classifySource } from "./source-classifier.mjs";
 import {
   GENERATION_MODES,
@@ -106,15 +107,28 @@ export function analyzeRoutingEvidence(image) {
  */
 export function runGenerationPipeline({ image, mode = "auto", size, palette, maxColors = 0, overrides = {}, onPhase = null, lab = null }) {
   if (typeof onPhase === "function") onPhase("analyze");
+  // §13：`overrides.labCandidate` 是**纯字符串**的候选名（例如 "bean-fit"），
+  // 在这里被解析成真正的 lab 实例。函数绝不跨进程边界 —— 请求里只有名字。
+  //
+  // 显式传进来的 `lab` 优先：那是主线程直调实验场（§6–§10 跑分器）的路径，
+  // 它手里已经有实例了，不需要（也不该）再按名字造一个。
+  //
+  // `labCandidate` 必须**从 overrides 里摘掉**再往下走。`toEngineOptions` 只挑
+  // 声明过的字段，理论上会丢掉它；但「理论上会丢掉」正是那种会在某次重构后
+  // 变成「悄悄漏进引擎选项」的东西 —— 显式摘掉，让它是**结构上不可能**。
+  const { labCandidate, ...engineOverrides } = (overrides && typeof overrides === "object") ? overrides : {};
   // §12.3：路由证据来自 `classifySource()`（19 个信号 + 硬规则 + 候选评分），
   // 不再来自 `analyzeGenerationImage().pixelLikeness`（§12.1 实测命中 9 张、真阳性 0 张）。
   // `routing` 挂在 analysis 上而不是新增一个参数：analysis 就是「路由证据」的载体，
   // 而 `toEngineOptions` 只挑声明过的字段，挂在这里不会漏进引擎选项。
   const analysis = analyzeRoutingEvidence(image);
-  const profile = resolveGenerationPipeline(mode, analysis, overrides);
+  const profile = resolveGenerationPipeline(mode, analysis, engineOverrides);
+  const activeLab = lab || (typeof labCandidate === "string" && labCandidate
+    ? resolveLabCandidate(labCandidate, { mode: profile.routedMode })
+    : null);
   // onPhase 单独传，**不放进 profile** —— 它是函数，配置要能结构化克隆。
   const options = toEngineOptions(profile, { maxColors, onPhase });
-  const result = generateV2({ source: image, width: size.width, height: size.height, palette, options, lab });
+  const result = generateV2({ source: image, width: size.width, height: size.height, palette, options, lab: activeLab });
   return {
     ...result,
     pipeline: {
@@ -124,6 +138,9 @@ export function runGenerationPipeline({ image, mode = "auto", size, palette, max
       analysis: profile.analysis,
       // 报告要能证明「这一列挂的是哪个候选」。null = 生产路径。
       labId: result.diagnostics?.lab?.id ?? null,
+      // 请求里声明的候选名。即使解析失败（拼错 / pending）也原样带出来，
+      // 这样「我请求了 bean-fit 但 labId 是 null」在报告里是可查的，而不是猜的。
+      requestedLabCandidate: typeof labCandidate === "string" && labCandidate ? labCandidate : null,
     },
   };
 }

@@ -60,29 +60,11 @@ export function benchSize() {
 }
 
 /** 源图 → 目标格数的**盒式降采样**，直接用原图颜色，不做色卡匹配。
- *  这是 contact sheet 的「原图」列：没有它，「算法把颜色改坏了」就没有参照物。 */
-export function downsampleSource(source, width, height) {
-  const out = [];
-  const sx = source.width / width;
-  const sy = source.height / height;
-  for (let y = 0; y < height; y += 1) {
-    const row = [];
-    for (let x = 0; x < width; x += 1) {
-      let r = 0, g = 0, b = 0, n = 0;
-      const x0 = Math.floor(x * sx), x1 = Math.min(source.width, Math.ceil((x + 1) * sx));
-      const y0 = Math.floor(y * sy), y1 = Math.min(source.height, Math.ceil((y + 1) * sy));
-      for (let py = y0; py < y1; py += 1) {
-        for (let px = x0; px < x1; px += 1) {
-          const i = (py * source.width + px) * 4;
-          r += source.data[i]; g += source.data[i + 1]; b += source.data[i + 2]; n += 1;
-        }
-      }
-      row.push(n ? { rgb: [Math.round(r / n), Math.round(g / n), Math.round(b / n)], code: null } : null);
-    }
-    out.push(row);
-  }
-  return out;
-}
+ *  这是 contact sheet 的「原图」列：没有它，「算法把颜色改坏了」就没有参照物。
+ *
+ *  §13 起实现搬到 `services/quality-metrics.mjs` —— Auto Tune 在生产里也要用它，
+ *  而生产拿不到 `tests/` 下的代码。这里只做 re-export，保持既有导入路径不变。 */
+export { downsampleSource } from "../services/quality-metrics.mjs";
 
 /**
  * 把归一化框映射到格网，量这一框里的东西。

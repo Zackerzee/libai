@@ -148,3 +148,38 @@ export const LAB_MATRIX = Object.freeze([
 export const LAB_MATRIX_BY_ID = Object.freeze(
   Object.fromEntries(LAB_MATRIX.map((entry) => [entry.id, entry])),
 );
+
+/**
+ * 按 id 构造一个 lab 候选 —— §13 Auto Tune 的**声明式接缝**。
+ *
+ * ── 为什么需要它 ──────────────────────────────────────────────────────
+ * 候选实例里全是函数，**过不了 structuredClone**，所以它不能出现在
+ * GenerationRequest 里（`generateV2` 的 `lab` 参数是刻意与 `options` 分开的）。
+ * 但 Auto Tune 要在生产里试 Bean Fit，而生产走 Worker —— 于是必须有一个
+ * 「纯字符串进、函数出」的解析点：请求里只放 `labCandidate: "bean-fit"`，
+ * **函数在管线内部现造**。
+ *
+ * 这不是「把函数塞进 structuredClone」，恰恰相反：它是让 Worker 路径
+ * 既能用到候选、又不破坏契约的唯一做法。`overrides.labCandidate` 是纯数据，
+ * `validateGenerationRequest` 对 overrides 只要求「是个对象」。
+ *
+ * ── 三条纪律 ──────────────────────────────────────────────────────────
+ *  ① **`pending` 的条目一律拒绝**（`recommended-hybrid` 还没裁定）。
+ *  ② **未知 id 返回 null，不抛。** 抛的话「请求里带了个拼错的候选名」
+ *     会变成一次生成失败；返回 null 则退化成生产行为，且
+ *     `diagnostics.lab.id` 为 null，报告里一眼能看出候选没挂上。
+ *  ③ **REJECT 的算法不许从这里拿到。** 白名单在
+ *     `services/auto-tune-profiles.mjs` 的 `AUTO_TUNE_LAB_CANDIDATES`，
+ *     由测试断言它不含任何 REJECT 条目；这里只是执行者。
+ */
+export function resolveLabCandidate(id, ctx = {}) {
+  if (typeof id !== "string" || !id) return null;
+  const entry = LAB_MATRIX_BY_ID[id];
+  if (!entry || entry.pending) return null;
+  if (typeof entry.build !== "function") return null;
+  try {
+    return entry.build(ctx) || null;
+  } catch {
+    return null;
+  }
+}

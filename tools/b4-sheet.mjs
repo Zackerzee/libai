@@ -137,3 +137,55 @@ export function cropGrid(grid, box, pad = 2) {
   }
   return out;
 }
+
+/** 两格是否同一颗豆。空豆 vs 空豆算相同，空豆 vs 有色算不同。 */
+function sameCell(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.code === b.code;
+}
+
+/**
+ * 逐格比对两张网格，给出计数。
+ *
+ * 为什么按 `code` 而不是 `rgb`：同一 RGB 在色板里可能是两条不同色号
+ * （拼豆实际拿到的豆子不同），`rgb` 相同不代表输出相同。
+ *
+ * `changed` 是**两个方向**的合计：`baseOnly`（Standard 有豆、对方没有）
+ * 与 `otherOnly`（对方有豆、Standard 没有）都是改变。分开报是为了区分
+ * 「换了颜色」和「凭空多/少了一颗豆」—— 后者才是视觉退化。
+ */
+export function compareGrids(base, other) {
+  const h = base.length;
+  const w = base[0]?.length ?? 0;
+  let changed = 0;
+  let baseOnly = 0;
+  let otherOnly = 0;
+  let filled = 0;
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const a = base[y]?.[x];
+      const b = other?.[y]?.[x];
+      if (a) filled += 1;
+      if (sameCell(a, b)) continue;
+      changed += 1;
+      if (a && !b) baseOnly += 1;
+      else if (!a && b) otherOnly += 1;
+    }
+  }
+  return { changed, baseOnly, otherOnly, filled, total: h * w };
+}
+
+/**
+ * 差异图：以 `base` 为底，把与 `other` **不同**的格涂成高亮色。
+ *
+ * §30-4 要求「关键夹具无视觉退化」。这个判断不能靠并排看两张图 ——
+ * Auto Tune 改档时常常只动几十格（104×104 里 0.2%），并排看是「一模一样」，
+ * 而那几十格恰好可能落在边缘或高光上。涂成高亮之后，
+ * 「变了几格、变在哪、是换了色还是多了豆」变成一眼可见的事实。
+ */
+export function diffGrids(base, other, rgb = [255, 0, 200]) {
+  return base.map((row, y) => row.map((cell, x) => (
+    sameCell(cell, other?.[y]?.[x]) ? cell : { rgb, code: "__diff__" }
+  )));
+}

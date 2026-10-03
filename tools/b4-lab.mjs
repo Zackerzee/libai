@@ -56,8 +56,13 @@ import {
   runBenchCase,
 } from "../tests/b4-bench-runner.mjs";
 import { LAB_MATRIX } from "../smart-preprocessing/lab/index.mjs";
-import { findConnectedComponents } from "../smart-preprocessing/smart-cleanup-v2.mjs";
-import { rgbToLab, deltaE2000, labChroma } from "../smart-preprocessing/lab/buckets.mjs";
+import {
+  NEUTRAL_CHROMA_THRESHOLD,
+  EDGE_LUM_DELTA,
+  DETAIL_DELTA,
+  buildReference,
+  measureGrid as measure,
+} from "../services/quality-metrics.mjs";
 import { analyzeRoutingEvidence } from "../services/generation-pipeline.mjs";
 import { resolveRoutedMode } from "../services/mode-profile.mjs";
 
@@ -125,133 +130,17 @@ if (OUT_DIR.startsWith(BASELINE_DIR)) {
 }
 
 /* =========================================================
- * §13 指标
+ * §13 指标 —— 实现已抽到 `services/quality-metrics.mjs`（唯一一把尺子）
  * ======================================================= */
 
-const NEUTRAL_CHROMA_THRESHOLD = 12;
-const EDGE_LUM_DELTA = 32;
-const DETAIL_DELTA = 15;
+// 抽出去的理由：§13 的 Auto Tune 选择器要**用同一批指标**做排序，
+// 而它跑在生产里（`services/auto-tune.mjs`），拿不到 tools/ 下的代码。
+// 两边各写一份，就会出现「跑分器说 edgeRetention 是 X、选择器按 Y 排序」——
+// 谁都不算错，但结论已经没有意义了。
+//
+// 指标口径、参照物来源、为什么必须从原图导出，全部写在那个文件的头注释里。
+// 这里只保留 `measure` 的别名，让下面的调用点一行都不用改。
 
-const lum = (rgb) => 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
-const NEIGHBORS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-
-/** 从**原图**导出一次参照物，所有候选共用。 */
-function buildReference(originalGrid) {
-  const h = originalGrid.length;
-  const w = originalGrid[0]?.length ?? 0;
-  const lab = new Array(w * h).fill(null);
-  const chroma = new Float64Array(w * h);
-  const edgeCells = new Uint8Array(w * h);
-  const detailCells = new Uint8Array(w * h);
-  for (let y = 0; y < h; y += 1) {
-    for (let x = 0; x < w; x += 1) {
-      const cell = originalGrid[y][x];
-      if (!cell) continue;
-      const idx = y * w + x;
-      lab[idx] = rgbToLab(cell.rgb);
-      chroma[idx] = labChroma(lab[idx]);
-    }
-  }
-  for (let y = 0; y < h; y += 1) {
-    for (let x = 0; x < w; x += 1) {
-      const idx = y * w + x;
-      const own = originalGrid[y][x];
-      if (!own) continue;
-      const neighbours = [];
-      let lumEdge = false;
-      for (const [dx, dy] of NEIGHBORS) {
-        const nx = x + dx, ny = y + dy;
-        if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
-        const nc = originalGrid[ny][nx];
-        if (!nc) continue;
-        neighbours.push(nc.rgb);
-        if (Math.abs(lum(own.rgb) - lum(nc.rgb)) > EDGE_LUM_DELTA) lumEdge = true;
-      }
-      if (!neighbours.length) continue;
-      if (lumEdge) edgeCells[idx] = 1;
-      let r = 0, g = 0, b = 0;
-      for (const n of neighbours) { r += n[0]; g += n[1]; b += n[2]; }
-      const meanLab = rgbToLab([r / neighbours.length, g / neighbours.length, b / neighbours.length]);
-      if (deltaE2000(lab[idx], meanLab) > DETAIL_DELTA) detailCells[idx] = 1;
-    }
-  }
-  return { lab, chroma, edgeCells, detailCells, width: w, height: h };
-}
-
-/** 输出网格里，某格是否与任一 4 邻不同色（= 输出在这一格上确实画出了边界）。 */
-function hasBoundary(grid, x, y) {
-  const own = grid[y]?.[x];
-  if (!own) return false;
-  const w = grid[0].length;
-  const h = grid.length;
-  for (const [dx, dy] of NEIGHBORS) {
-    const nx = x + dx, ny = y + dy;
-    if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
-    const other = grid[ny][nx];
-    if (!other || other.code !== own.code) return true;
-  }
-  return false;
-}
-
-function measure(grid, reference) {
-  const h = grid.length;
-  const w = grid[0]?.length ?? 0;
-  let filled = 0;
-  let nulls = 0;
-  let perceptualSum = 0;
-  let neutralSum = 0;
-  let neutralCount = 0;
-  let edgeTotal = 0;
-  let edgeKept = 0;
-  let detailTotal = 0;
-  let detailKept = 0;
-  let isolated = 0;
-  const used = new Set();
-  for (let y = 0; y < h; y += 1) {
-    for (let x = 0; x < w; x += 1) {
-      const cell = grid[y][x];
-      if (!cell) { nulls += 1; continue; }
-      filled += 1;
-      used.add(cell.code);
-      const idx = y * w + x;
-      const refLab = reference.lab[idx];
-      if (refLab) {
-        const delta = deltaE2000(refLab, rgbToLab(cell.rgb));
-        perceptualSum += delta;
-        if (reference.chroma[idx] < NEUTRAL_CHROMA_THRESHOLD) { neutralSum += delta; neutralCount += 1; }
-      }
-      if (reference.edgeCells[idx]) { edgeTotal += 1; if (hasBoundary(grid, x, y)) edgeKept += 1; }
-      if (reference.detailCells[idx]) { detailTotal += 1; if (hasBoundary(grid, x, y)) detailKept += 1; }
-      let same = false;
-      for (const [dx, dy] of NEIGHBORS) {
-        const nx = x + dx, ny = y + dy;
-        if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
-        const other = grid[ny][nx];
-        if (other && other.code === cell.code) { same = true; break; }
-      }
-      if (!same) isolated += 1;
-    }
-  }
-  const components = findConnectedComponents(grid, (cell) => (cell ? cell.code : null));
-  const tiny = components.filter((c) => c.cells.length <= 2).length;
-  return {
-    usedColors: used.size,
-    nullCells: nulls,
-    filledCells: filled,
-    totalCells: w * h,
-    perceptualError: round2(perceptualSum / Math.max(1, filled)),
-    neutralError: neutralCount ? round2(neutralSum / neutralCount) : null,
-    neutralCells: neutralCount,
-    edgeRetention: edgeTotal ? round3(edgeKept / edgeTotal) : null,
-    edgeCells: edgeTotal,
-    detailRetention: detailTotal ? round3(detailKept / detailTotal) : null,
-    detailCells: detailTotal,
-    fragmentation: round2(components.length / Math.max(1, filled / 1000)),
-    tinyRegions: tiny,
-    isolatedPixels: isolated,
-    componentCount: components.length,
-  };
-}
 
 const round2 = (v) => Math.round(v * 100) / 100;
 const round3 = (v) => Math.round(v * 1000) / 1000;
