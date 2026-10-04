@@ -315,40 +315,62 @@ Conservative Cleanup / Bean Fit。
 
 ### 8.2 500×500 的实测归因
 
+下面是**发布门那次运行**（B5 HEAD 提交、生产 CSP、`deploy/` 产物）的 16 段全量。
+
 | 段 | 耗时 | 说明 |
 |---|---|---|
-| `gridObjectConstruction` | 11.5 ms | 建 25 万个对象。B3 原先怀疑的就是它，其实只占 1% |
-| `materialStats` | 17.2 ms | 全图统计 |
-| `originalGridClone` | 3.9 ms | 整图深拷 |
-| **`chartUrl`** | **463.1 ms** | 其中 `chart.exportRender` 303.7 + `chart.exportEncode` 97.0 |
-| `uiUpdate` | 12.5 ms | |
-| `eventPayload` | 0.0 ms | `getResult()` 只花 0.1ms |
-| **`eventDispatch`** | **387.4 ms** | 全在**同步监听者**里（`ui/workspace.js` 的 `libms:project-result` handler） |
-| `gallery` | 92.5 ms | |
-| **`commitTotal`** | **988.1 ms** | |
-| 主线程最长任务 | 1111 ms | |
+| `gridObjectConstruction` | 4.4 ms | 建 25 万个对象。B3 原先怀疑的就是它，其实只占 0.5% |
+| `materialStats` | 2.5 ms | 全图统计 |
+| `originalGridClone` | 7.2 ms | 整图深拷 |
+| `chart.previewRender` | 51.6 ms | 预览缩略图 |
+| `chart.previewEncode` | 9.2 ms | |
+| **`chart.exportRender`** | **296.0 ms** | 5100×5100 画布逐格描画 |
+| `chart.exportEncode` | 92.5 ms | 5100×5100 PNG 编码 |
+| **`chartUrl`** | **449.3 ms** | 上面四段的合计 |
+| `uiUpdate` | 7.2 ms | |
+| `eventPayload` | 0.0 ms | `getResult()` 几乎不花时间 |
+| **`eventDispatch`** | **343.4 ms** | 全在**同步监听者**里（`ui/workspace.js` 的 `libms:project-result` handler） |
+| `gallery` | 85.6 ms | |
+| `status` | 0.0 ms | |
+| `decodeMs(workerClient)` | `null` | 见下 |
+| **`commitTotal`** | **899.6 ms** | |
+| `processImageV2Total` | 10 628.8 ms | 含 Worker 计算 |
+| 主线程最长任务 | 1 023 ms | |
 
 **结论**：提交段的两大项是**图纸渲染**（`PATTERN_EXPORT` 在 `maxSide > 160` 时
 `cell=10` + `margin=50` → 500 档要画 5100×5100 画布并 PNG 编码）与
-**同步事件监听者**（`ui/workspace.js` 的 `libms:project-result` handler）。
-B3 怀疑的网格构建只占 3–11ms。
+**同步事件监听者**（`ui/workspace.js` 的 `libms:project-result` handler），
+两者合计 792.7ms / 899.6ms = **88%**。
+B3 怀疑的网格构建只占 4.4ms（0.5%）。
+
+> **`decodeMs` 在 Auto Tune 路径上是 `null`，这是已知的诊断缺口，不是数据。**
+> 原因在代码里：`runAutoTuneV2` 的返回体只有
+> `{grid, width, height, diagnostics, pipeline}`，**没有把赢家那次的 `decodeMs` 带出来**
+> —— 而智能模式（本探针唯一开 profile 的路径）必走 Auto Tune。
+> 固定模式（人像 / 像素 / Logo …）走 `runGenerationJob` 直返，那个字段是有的。
+> 它**被 `commitTotal` 显式排除**，所以上面的数字不受影响。
+> 缺口归属 Stage C，与 §8.4 的 `requestId` 是同一类形状
+> ——「一个结构上在某条路径上恒为 null 的诊断字段」。
 
 ### 8.3 尺寸曲线（场景 P，§14 要求逐档记录）
 
 | 长边 | 格数 | `commitTotal` | `chartUrl` | `eventDispatch` | `gridObjectConstruction` | 主线程最长任务 |
 |---|---|---|---|---|---|---|
-| 104 | 10 816 | **54–71 ms** | 30 | 18–33 | 0.2 | — |
-| 200 | 40 000 | **155–158 ms** | 77 | 62 | 1.0–1.1 | — |
-| 300 | 90 000 | **330–332 ms** | 165–166 | 122–127 | 1.8–2.2 | — |
-| 400 | 160 000 | **597–598 ms** | 289–307 | 227–238 | 3.0–3.6 | — |
-| 500 | 250 000 | **932–988 ms** | 470 | 351 | 4.2–11.5 | 1040–1111 ms |
+| 104 | 10 816 | **64.6 ms** | 36.3 | 21.4 | 0.5 | — |
+| 200 | 40 000 | **173.2 ms** | 86.4 | 67.8 | 1.3 | — |
+| 300 | 90 000 | **381.9 ms** | 190.6 | 141.3 | 6.8 | — |
+| 400 | 160 000 | **586.2 ms** | 300.4 | 214.6 | 7.4 | — |
+| 500 | 250 000 | **899.6 ms** | 449.3 | 343.4 | 4.4 | 1 023 ms |
 
-**读法**：`commitTotal` 与格数**近似线性**（104→500 格数 ×23，耗时 ×13–18），
+> 跨次运行的抖动不大但不为零（104 档 54–71ms，500 档 899–988ms）。
+> 上表是发布门那一次；**结论对抖动不敏感** —— 500 档怎么跑都越线，400 档怎么跑都在线内。
+
+**读法**：`commitTotal` 与格数**近似线性**（104→500 格数 ×23，耗时 ×13.9），
 两大项各自也都是线性的。所以 §14 的 `<800ms` 不是「500 档特有的异常」，
 而是**这条曲线在 500 档自然越过了 800ms 这条线**：
 
-- 104 / 200 / 300 / 400 **全部达成** `<800ms`（300 档 332ms，还在一半以内）
-- 500 档 **未达成**（932–988ms）
+- 104 / 200 / 300 / 400 **全部达成** `<800ms`（300 档 381.9ms，还在一半以内）
+- 500 档 **未达成**（899.6ms，B3 基线 1150ms，已改善 21.8%）
 
 要真正压到 800ms 以下，必须动曲线本身（图纸渲染的采样密度 / 同步监听者的
 工作拆分），而这两处都会碰到 canonical grid / Undo / Diagnostics / Export 的语义，
@@ -455,7 +477,7 @@ node tools/stage-b-master-probe.mjs --only F,P,Q   # 调试单个/几个场景�
 > 字母表按**执行顺序**排（P 紧跟 F、Q 紧跟 H），不是按字典序 ——
 > 同一台浏览器里跑，顺序会影响缓存与单例状态。
 
-### 10.3 写探针时最容易踩的四个坑
+### 10.3 写探针时最容易踩的六个坑
 
 1. **HELPERS 是模板字符串。** 注释和字符串里**不能出现反引号**（会提前结束模板），
    单反斜杠转义（`\n`）会被外层提前还原成真换行。
@@ -482,3 +504,21 @@ node tools/stage-b-master-probe.mjs --only F,P,Q   # 调试单个/几个场景�
    用 `evalJs` 时务必 `void` 掉这个 promise：`evalJs` 是 `awaitPromise: true`，
    直接返回会让 CDP 一直等它结算，而结算时主线程很可能正被调优的提交段占着 ——
    探针会以「CDP Runtime.evaluate 超时」的样子挂死，报错却指向别处。
+5. **`element.click()` 能穿透 `display:none` —— 所以「点了它」的断言不含「它可见」。**
+   8 张模式卡住在右栏「生成模式」段里，而那段初始是
+   `section.ws-panel[hidden][display:none]`：右栏 6 个 tab
+   （作品 / 图片 / 色彩 / 编辑 / 检查 / 库存）**没有一个是「生成」**，
+   只有点「**色彩**」才会把它露出来（实测 `208×2836`，其余 5 个 tab 都是 `none`）。
+   `clickMode()` 用 `card.click()`，不看可见性，所以 A–Q 全部照跑 ——
+   那些断言关于**生成行为**，依然成立；但「用户找不找得到入口」是另一件事。
+   §19 的「入口恰好 8 个」由 `tests/stage-b-release-freeze.test.mjs` 在源码层守；
+   可达性由人工视觉验收确认（`outputs/stage-b5-release/screenshots/R-mode-panel.png`）。
+   **通用教训**：要验可见性，必须显式读 `getBoundingClientRect()`，
+   不能靠「我点到了而且它有反应」。
+6. **等对信号，别等「看起来差不多」。** 抓模式入口时连踩两次：
+   ① 一上来就 `setFileInputFiles`，页面自己的监听还没绑上 → 文件设进去毫无反应，
+   `[data-preset]` 永远 0；② 只等 `[data-preset]` 出现就截图 → 拿到的是**空状态**
+   （面板有 8 张卡但全 `0×0`，因为「还没有源图」时它是收起的）。
+   正确的三段信号：
+   `body.dataset.workspaceState === 'landing'` → 上传 → `'ready'`
+   且 `#source-preview` 的 src 已是 `data:` → `getResult().grid.length > 0`。
