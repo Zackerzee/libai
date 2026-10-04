@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createEditorService } from "../services/editor-service.js";
+import { MODE_PROFILES } from "../services/mode-profile.mjs";
 
 const root=new URL("../",import.meta.url);
 const html=readFileSync(new URL("index.html",root),"utf8");
@@ -45,10 +46,16 @@ test("release UI exposes eight scene modes while sampling remains an internal st
   for(const mode of ["小白一键","智能","人像","动漫","插画","像素","Logo","写实"])assert.match(generationPanel,new RegExp(`"${mode}"`));
   assert.doesNotMatch(generationPanel,/data-sampling=/);
   assert.doesNotMatch(generationPanel,/samplingButton\(/);
-  assert.match(generationPanel,/photo: \{\s*sampling: "mean"/);
-  assert.match(generationPanel,/portrait: \{\s*sampling: "edge"/);
-  assert.match(generationPanel,/pixel: \{\s*sampling: "center"/);
-  assert.match(generationPanel,/illustration: \{\s*sampling: "dominant"/);
+  // Stage B5 §20：这几条原本断言的是 `generation-panel.js` 里那张**已经失效的**
+  // 旧 presets 注释表（`photo: { sampling: "mean" …`）。那张表没有任何读者，
+  // 真正生效的是 `services/mode-profile.mjs` 的 `MODE_PROFILES`。
+  // 断言注释里的字符串，等于把「死副本还在」当成需求 —— 改真源不会红、
+  // 删死副本反而会红，方向完全反了。
+  // 现在直接对真源断言，比匹配注释**更强**：它验的是实际生效的值。
+  assert.equal(MODE_PROFILES.photo.sampling,"linear-mean");
+  assert.equal(MODE_PROFILES.portrait.sampling,"edge-aware");
+  assert.equal(MODE_PROFILES.pixel.sampling,"center");
+  assert.equal(MODE_PROFILES.illustration.sampling,"dominant");
 });
 
 test("200x200 editing stress keeps one command per stroke and survives undo redo",()=>{

@@ -118,7 +118,15 @@ export function createGenerationWorkerClient({
           settle("reject", new Error("Worker 回包不符合紧凑结果契约"));
           return;
         }
+        // §12 提交路径 profile：decode 是「Worker 算完了」到「主线程拿到 grid」
+        // 之间的那段。500×375 是 18.75 万格，`decodeGenerationResult` 要按行
+        // 建出同样数量的对象 —— 它长在**提交**上，不长在计算上。
+        // 单独计时是为了让「Worker 没起作用」这个误判没有立足点。
+        const tDecode = typeof performance !== "undefined" ? performance.now() : 0;
         const decoded = decodeGenerationResult(envelope);
+        const decodeMs = typeof performance !== "undefined"
+          ? Number((performance.now() - tDecode).toFixed(2))
+          : null;
         warm = true;
         settle("resolve", {
           grid: decoded.grid,
@@ -128,6 +136,7 @@ export function createGenerationWorkerClient({
           pipeline: decoded.pipeline,
           requestId: decoded.requestId,
           nullCount: decoded.nullCount,
+          decodeMs,
         });
         return;
       }

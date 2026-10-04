@@ -58,8 +58,14 @@ export class GenerationPanel {
       // 用户看到两个意思相近的开关、只有一个有效 —— 这是明确的产品缺陷。
       // 现在 `backgroundRemoval` 是**唯一可见**的开关，`autoBackground` 降级为
       // 它发往引擎的镜像（见 emitSettings()）。引擎协议不变。
+      //
+      // ⚠️ 面板 state 里**故意不声明** `autoBackground`（Stage B5 §20 删掉的）。
+      // 它曾经在这里有一个 `false` 初值，但从来没有 `[data-field="autoBackground"]`
+      // 去绑它、也没有任何逻辑读它 —— `emitSettings()` 是用**局部变量**
+      // `backgroundRemoval` 现算镜像值的。那个初值是个写不到也读不回的字段，
+      // 留着只会让人以为面板有两份背景状态。
+      // 真正活的那个 `autoBackground` 在 `state/store.js` 的 `generation` 槽里。
       backgroundRemoval: false,
-      autoBackground: false,
 
       // V2.5 智能辅助开关（默认全关，保持既有默认链路不变）
       subjectCrop: false,
@@ -567,121 +573,11 @@ export class GenerationPanel {
   }
 
   applyPreset(preset) {
-    const presets = /* legacy fallback removed: centralized below */ null;
-    /*
-      // 小白一键：面向新手的一步到位。除参数档位偏保守外，四个智能辅助开关一次全开。
-      beginner: {
-        sampling: "auto",
-        detailProtection: 80,
-        edgeProtection: 90,
-        cleanupStrength: 45,
-        preserveEyes: true,
-        preserveHighlights: true,
-        preserveMicroDetails: true,
-        subjectCrop: true,
-        autoBackground: true,
-        strokeProtection: true,
-        accentProtection: true
-      },
-
-      auto: {
-        sampling: "auto",
-        detailProtection: 70,
-        edgeProtection: 70,
-        cleanupStrength: 50,
-        preserveEyes: true,
-        preserveHighlights: true,
-        preserveMicroDetails: true,
-        subjectCrop: false,
-        autoBackground: false,
-        strokeProtection: false,
-        accentProtection: false
-      },
-
-      portrait: {
-        sampling: "edge",
-        detailProtection: 90,
-        edgeProtection: 75,
-        cleanupStrength: 35,
-        preserveEyes: true,
-        preserveHighlights: true,
-        preserveMicroDetails: true,
-        subjectCrop: false,
-        autoBackground: false,
-        strokeProtection: false,
-        accentProtection: false
-      },
-
-      anime: {
-        sampling: "dominant",
-        detailProtection: 90,
-        edgeProtection: 90,
-        cleanupStrength: 45,
-        preserveEyes: true,
-        preserveHighlights: true,
-        preserveMicroDetails: true,
-        subjectCrop: false,
-        autoBackground: false,
-        strokeProtection: false,
-        accentProtection: false
-      },
-
-      illustration: {
-        sampling: "dominant",
-        detailProtection: 70,
-        edgeProtection: 85,
-        cleanupStrength: 55,
-        preserveEyes: false,
-        preserveHighlights: true,
-        preserveMicroDetails: true,
-        subjectCrop: false,
-        autoBackground: false,
-        strokeProtection: false,
-        accentProtection: false
-      },
-
-      pixel: {
-        sampling: "center",
-        detailProtection: 100,
-        edgeProtection: 100,
-        cleanupStrength: 10,
-        preserveEyes: true,
-        preserveHighlights: true,
-        preserveMicroDetails: true,
-        subjectCrop: false,
-        autoBackground: false,
-        strokeProtection: false,
-        accentProtection: false
-      },
-
-      logo: {
-        sampling: "dominant",
-        detailProtection: 35,
-        edgeProtection: 95,
-        cleanupStrength: 85,
-        preserveEyes: false,
-        preserveHighlights: false,
-        preserveMicroDetails: false,
-        subjectCrop: false,
-        autoBackground: false,
-        strokeProtection: false,
-        accentProtection: false
-      },
-
-      photo: {
-        sampling: "mean",
-        detailProtection: 70,
-        edgeProtection: 70,
-        cleanupStrength: 50,
-        preserveEyes: true,
-        preserveHighlights: true,
-        preserveMicroDetails: true,
-        subjectCrop: false,
-        autoBackground: false,
-        strokeProtection: false,
-        accentProtection: false
-      }
-    }; */
+    // Stage B5 §20：这里原来内联着一整张旧 presets 表（8 个模式 × 完整生成配置），
+    // 以及一个 `const presets = null` 的死变量。两者都没有任何读者 ——
+    // 真正生效的是下面那行 `GENERATION_MODE_PRESETS[preset]`。
+    // 留着注释表的唯一后果是：改模式参数的人会先看到一份**已经失效**的副本，
+    // 改完发现没生效，再去追为什么。模式表只有 services/mode-profile.mjs 一份。
 
     const centralized = GENERATION_MODE_PRESETS[preset];
     const patch = centralized

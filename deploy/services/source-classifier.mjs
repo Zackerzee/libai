@@ -770,7 +770,12 @@ export function classifySource(source) {
 
   let candidate = null;
   let mode = "auto";
-  let reason = "no-signal";
+  // Stage B5 §20：这里原来有个 `= "no-signal"` 初值，但下面 if / else if / else
+  // 三路**互斥且穷尽**，每路都重新赋值 —— 那个字面量永远到不了返回值。
+  // 留一个永不可达的默认值比留空更危险：它会让人以为「没信号」是一条真实路径。
+  // 声明而不初始化，将来有人把 else 改成 else if 时得到的是 undefined，
+  // 那是显式的错，而不是一个看起来合理的假理由。
+  let reason;
   if (hardRule) {
     candidate = hardRule.to;
     mode = routingToEngineMode(candidate);

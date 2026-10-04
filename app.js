@@ -2400,8 +2400,76 @@ async function runAutoTuneV2({ sourceImageData, resolved, palette, maxColors, wi
   };
 }
 
-async function processImageV2(image, palette, { width, height, maxColors, options = {}, saveGallery = true }) {
+/* =========================================================
+ * §12 提交路径 profile
+ * ======================================================= */
+
+/**
+ * 提交阶段的分段计时。**默认关闭**，用 `window.__libmsProfileCommit = true` 打开。
+ *
+ * ── 为什么要有它 ──────────────────────────────────────────────────────
+ * B3 已知：500×375 的提交阶段约 1.15s 停顿。这个数字当时只能定位到
+ * 「最后一次进度广播 → generate 落地」这一段，无法回答**到底是哪一步慢**。
+ * 而「提交慢」的候选步骤有七八个（decode / 建格 / 深拷 / 统计 / 渲染 …），
+ * 它们的修法完全不同 —— 不分解就动手，等于随机重构。
+ *
+ * ── 纪律 ──────────────────────────────────────────────────────────────
+ *  ① **关闭时零成本**：每处只多一次布尔读取，`performance.now()` 一次都不调。
+ *  ② **不改行为**：只记录，不参与任何判断、不改变任何赋值顺序。
+ *  ③ **只在显式打开时挂 window**：生产用户不会莫名其妙多一个全局数组。
+ */
+function commitProfileOn() {
+  return typeof window !== "undefined" && window.__libmsProfileCommit === true;
+}
+
+/**
+ * 记一段。`startedAt` 由调用方在段首取（关闭时是 0，`mark` 直接返回）。
+ *
+ * 数组**按需自建**：`refreshChartUrl()` 也会记账，而它不止被提交路径调用
+ * （改色板 / 打开工程 / 恢复会话都会走到）。那些路径上 `__libmsCommitProfile`
+ * 还没被建出来，直接 push 会炸 —— 而记账代码炸掉会污染被观测的流程本身。
+ */
+function commitMark(label, startedAt) {
+  if (startedAt === 0) return;
+  if (!window.__libmsCommitProfile) window.__libmsCommitProfile = [];
+  const at = performance.now();
+  window.__libmsCommitProfile.push({ label, ms: Number((at - startedAt).toFixed(2)) });
+}
+
+/** 开一段：关闭时返回 0，`commitMark` 靠它跳过。 */
+function commitPhase(on) {
+  return on ? performance.now() : 0;
+}
+
+async function processImageV2(image, palette, { width, height, requestId = null, maxColors, options = {}, saveGallery = true }) {
   const startedAt = performance.now();
+  // ⚠️ 2026-10-04 修：`requestId` 必须**在这里解构**。
+  //
+  // 调用方（processProductionV2）传的是**顶层**字段：
+  //   processImageV2(image, palette, { …, requestId: options.requestId, options: state.productionGenerationOptions })
+  // 而 `options` 是 `state.productionGenerationOptions`（＝ store 里的模式档案，
+  // 里面**没有** requestId）。原来的形参漏解构了 requestId，于是本函数里读的
+  // `options.requestId` 恒为 undefined —— 实测证据：§12 profile 的
+  // `__libmsCommitProfileMeta.requestId` 一直是 null。
+  //
+  // 这一个丢参让三处设计好的守卫同时变成死代码（都是「看起来在防，其实没防」）：
+  //   · `runAutoTuneV2` 的 `tuneRequestId` 恒为 1 → autoTuneContexts 只按 1 存
+  //   · `runAutoTuneV2` 末尾的 `isStaleGenerationRequest` 恒 false
+  //     → **§19「被取代的调优不留报告」在生产里从未生效**（B4 §13 defect ③）
+  //   · 本函数 await 之后的 `isStaleGenerationRequest` 恒 false
+  //     → 旧请求的结果会照常提交（§11「旧结果绝不覆盖新图纸」的最后一道闸）
+  //
+  // 修法是**只补接线**，不动任何算法与提交语义：把顶层 requestId 解构出来，
+  // 并在 options 里没有时兜底读一次（兼容直调工具的旧写法）。
+  const reqId = requestId ?? options?.requestId ?? null;
+  const profiling = commitProfileOn();
+  if (profiling) {
+    window.__libmsCommitProfile = [];
+    window.__libmsCommitProfileMeta = {
+      width, height, cells: width * height, maxColors, mode: options?.mode ?? null,
+      requestId: reqId, at: Date.now(),
+    };
+  }
   // 上一轮的调优报告不能留在这一轮里 —— 它会被读成「这次也是这么选的」。
   autoTuneReport = null;
   const sourceImageData = imageToImageData(image);
@@ -2411,7 +2479,7 @@ async function processImageV2(image, palette, { width, height, maxColors, option
   let result = null;
   try {
     result = await runAutoTuneV2({
-      sourceImageData, resolved, palette, maxColors, width, height, requestId: options.requestId,
+      sourceImageData, resolved, palette, maxColors, width, height, requestId: reqId,
     });
   } catch (error) {
     // 取消 / 过期是**预期结局**，原样上抛 —— 绝不能退回单次生成重跑一遍
@@ -2431,24 +2499,37 @@ async function processImageV2(image, palette, { width, height, maxColors, option
       maxColors,
       // 整份模式档案直接当 overrides 透传 —— 0–100 口径，换算由管线内部那一个边界做。
       overrides: resolved,
-      requestId: options.requestId,
+      requestId: reqId,
     });
   }
   // 执行体是一个 await 边界（未来换成 Worker 后更是），回来时可能已经有更新的请求在跑。
-  if (isStaleGenerationRequest(options.requestId)) return false;
+  if (isStaleGenerationRequest(reqId)) return false;
+  // ── 提交路径分段计时（§12，默认关闭）──────────────────────────────
+  // 段的切法与「修法」一一对应，而不是按代码块随意切：
+  //   gridObjectConstruction —— 建 w×h 个新对象。要省它只能让 renderer
+  //                             接受紧凑表示，不是「少写几行」。
+  //   materialStats          —— 全图统计。可延迟/增量。
+  //   originalGridClone      —— 整图深拷。§13-B 的「无必要深 clone」指的就是它。
+  //   chartUrl / uiUpdate / eventDispatch / gallery / status —— 渲染与广播。
+  let t = commitPhase(profiling);
   state.grid = result.grid.map((row) => row.map((cell) => {
     if (!cell) return null;
     const rgbValue = Array.isArray(cell.rgb) ? cell.rgb : [cell.rgb?.[0] ?? 0, cell.rgb?.[1] ?? 0, cell.rgb?.[2] ?? 0];
     return { code: cell.code, rgb: [...rgbValue], hex: cell.hex || rgbToHex(rgbValue) };
   }));
+  commitMark("gridObjectConstruction", t);
   state.width = result.width;
   state.height = result.height;
   state.manualEdited = false;
+  t = commitPhase(profiling);
   state.stats = calculateStats(state.grid);
+  commitMark("materialStats", t);
   state.generationMilliseconds = Math.round(performance.now() - startedAt);
   state.generationEngineLast = "v2.5";
   state.algorithmEngineLast = "current";
+  t = commitPhase(profiling);
   state.generationOriginalGrid = cloneGrid(state.grid);
+  commitMark("originalGridClone", t);
   state.generationOptimizedGrid = null;
   state.optimizerReport = null;
   state.showingOptimizedGrid = true;
@@ -2463,12 +2544,44 @@ async function processImageV2(image, palette, { width, height, maxColors, option
   state.backgroundDecision = "";
   state.paletteLabel = getCurrentPaletteLabel();
   state.assemblyHideCellText = false;
+  t = commitPhase(profiling);
   refreshChartUrl();
+  commitMark("chartUrl", t);
+  t = commitPhase(profiling);
   updateResultUi();
   updateOptimizationToggle();
-  window.dispatchEvent(new CustomEvent("libms:project-result", { detail: window.LibmsWorkspaceBridge?.getResult() }));
+  commitMark("uiUpdate", t);
+  // detail 的构造与广播分开记。`getResult()` 每次都要重算 totalBeads（全图统计求和），
+  // 而广播本身要同步跑完所有监听者（含 paint）。两者混在一段里，
+  // 「429ms 到底是构造还是监听」这个问题永远答不上来 —— 而这两件事的修法完全不同。
+  t = commitPhase(profiling);
+  const resultDetail = window.LibmsWorkspaceBridge?.getResult();
+  commitMark("eventPayload", t);
+  t = commitPhase(profiling);
+  window.dispatchEvent(new CustomEvent("libms:project-result", { detail: resultDetail }));
+  commitMark("eventDispatch", t);
+  t = commitPhase(profiling);
   if (saveGallery) saveCurrentToGallery();
+  commitMark("gallery", t);
+  t = commitPhase(profiling);
   setStatus(getGeneratedStatus());
+  commitMark("status", t);
+  if (profiling) {
+    // decode 发生在 Worker 客户端里（Worker 算完 → 主线程拿到 grid），
+    // 所以它**不在**上面的段里 —— 单列一项，因为它是「计算」与「提交」的分界线：
+    // 这一项大 = Worker 回包后主线程还要重建一遍图；这一项小 = Worker 真的搬走了计算。
+    window.__libmsCommitProfile.push({ label: "decodeMs(workerClient)", ms: result.decodeMs ?? null });
+    window.__libmsCommitProfile.push({
+      label: "commitTotal",
+      // 过滤掉：非段项（decode / 汇总本身）、以及 `chart.*` 子段 ——
+      // 它们已经含在外层 `chartUrl` 里，算进去就是重复计数。
+      ms: Number(window.__libmsCommitProfile
+        .filter((row) => row.label !== "decodeMs(workerClient)" && row.label !== "commitTotal"
+          && !row.label.startsWith("chart."))
+        .reduce((sum, row) => sum + (Number(row.ms) || 0), 0).toFixed(2)),
+    });
+    window.__libmsCommitProfile.push({ label: "processImageV2Total", ms: Number((performance.now() - startedAt).toFixed(2)) });
+  }
   return true;
 }
 
@@ -4467,15 +4580,36 @@ function toggleGeneratedOptimization() {
   setStatus(state.showingOptimizedGrid ? "正在查看优化后" : "正在查看优化前");
 }
 
+/**
+ * 预览图 + 图纸图（都编码成 data URL）。
+ *
+ * §12 实测：500 长边时这一段占提交阶段 460ms / 1003ms，是最大的单项。
+ * 所以内部再切四段 —— 渲染（画格子）和编码（toDataURL）是两件完全不同的事，
+ * 修法也不同：
+ *   · 渲染大 → 画布尺寸/格数的问题，可以降采样或换 compact 表示。
+ *   · 编码大 → PNG 压缩的问题，可以延后（只在真的要看图时才编码）。
+ * 子段一律用 `chart.` 前缀，外层汇总会按前缀排除，避免重复计数。
+ */
 function refreshChartUrl() {
   const maxSide = Math.max(state.width, state.height);
   const cell = maxSide > 260 ? 4 : maxSide > 160 ? 6 : 8;
   state.previewRenderCell = cell;
+  const profiling = commitProfileOn();
+  let t = commitPhase(profiling);
   try {
     const previewCanvas = renderBeadPattern({ matrix: state.grid, stats: state.stats, preset: "PREVIEW_CLEAN", cell });
-    const canvas = renderBeadPattern({ matrix: state.grid, stats: state.stats, preset: "PATTERN_EXPORT", cell: maxSide > 160 ? 10 : maxSide > 90 ? 18 : 30, margin: 50 });
+    commitMark("chart.previewRender", t);
+    t = commitPhase(profiling);
     state.previewUrl = previewCanvas.toDataURL("image/png");
+    commitMark("chart.previewEncode", t);
+    t = commitPhase(profiling);
+    // 图纸图按「导出级」格子尺寸画：maxSide > 160 时 cell=10。
+    // 500 长边 → 5100×5100 画布（500×10 + 50×2 边距），编码一次就是千万级像素。
+    const canvas = renderBeadPattern({ matrix: state.grid, stats: state.stats, preset: "PATTERN_EXPORT", cell: maxSide > 160 ? 10 : maxSide > 90 ? 18 : 30, margin: 50 });
+    commitMark("chart.exportRender", t);
+    t = commitPhase(profiling);
     state.chartUrl = canvas.toDataURL("image/png");
+    commitMark("chart.exportEncode", t);
   } catch (error) {
     console.warn("Chart preview fallback", error);
     const fallbackUrl = createLightPreviewCanvas(state.grid).toDataURL("image/png");
@@ -7795,6 +7929,25 @@ window.LibmsWorkspaceBridge = {
    */
   async generate({ width, height, maxColors, overwriteApproved = false } = {}) {
     state.lastGenerationError = "";
+    // ── 单飞检查必须在**推进 requestId 之前** ──────────────────────────
+    //
+    // 2026-10-04 实测出来的真缺陷：原来这里先 `generationRequestId += 1`，再由
+    // `processProductionV2` 用 `isProcessingImage` 把重复请求拒掉。于是「被拒掉
+    // 的那个请求」**已经把 id 推过了** —— 在飞的那一轮因此被误判成「陈旧」。
+    //
+    // 为什么这个误判会要命：链路上有若干 `isStaleGenerationRequest` 守卫
+    // （`runAutoTuneV2` 发布报告前、`processImageV2` 提交前、这里出口）。
+    // 一旦它们真的生效，被误判的那一轮就会**丢弃结果**，而被拒的新请求什么都没跑
+    // —— 净效果是**一张图都出不来**（真机复现：b4 的 maxColors 轮在 320ms 去抖窗口内
+    // 又点了「重新生成」，两次 generate()，于是既没有新图也没有调优报告）。
+    //
+    // 正确语义：`generationRequestId` 是「**正在拥有生成权的那个请求**」的编号，
+    // 不是「最后一次尝试的编号」。被拒的请求不配推进它。
+    //
+    // 这一改让「陈旧」重新变回它该有的含义 ——「有更新的请求**真的接手了**」。
+    // 单飞之下那只可能来自 `cancelGeneration` 的主线程兜底分支（那里显式推进
+    // id 就是为了作废当前这轮，见 cancelGeneration 的注释）。
+    if (state.isProcessingImage) throw new Error("正在生成，请稍候");
     state.generationRequestId = (Number(state.generationRequestId) || 0) + 1;
     const requestId = state.generationRequestId;
     const previousLongEdge = Number(state.generationLongEdge) || 0;
