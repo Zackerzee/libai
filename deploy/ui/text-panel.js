@@ -107,7 +107,7 @@ export class TextPanel {
               <small>${esc(layer.font || "system")} · ${esc(layer.scale || 100)}% · ${Math.abs(Number(layer.rotation)||0)%180===90?"竖排":"横排"} · 间距 ${esc(layer.spacing || 0)} · ${esc(layer.color||"未选色")} · (${Math.round(layer.x)}, ${Math.round(layer.y)})</small>
               ${layer.id === view.activeId ? '<span class="ws-text-layer-badge">编辑中</span>' : ""}
             </div>`).join("")
-          : '<p class="ws-note">还没有文字图层。用顶部「文字」工具在画布上点一下，或点下面的按钮。</p>'}
+          : '<p class="ws-note">还没有文字图层。按 <b>T</b> 键在画布上点一下，或点下面的按钮。</p>'}
         <button type="button" class="ws-button ws-wide" data-text-action="add">+ 添加文字</button>
       </div>
       ${active ? `

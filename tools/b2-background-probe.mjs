@@ -260,7 +260,12 @@ const HELPERS = `(() => {
     background: () => (bridge().getGenerationReport() || {}).autoBackground || null,
     generating: () => bridge().isGenerating(),
     /* 其它 */
+    // Stage C0 §3：去背景开关与生成尺寸都搬进了右栏「生成」面板（原来挂在「色彩」里）。
+    // 这里保留 selectColorTab（色彩面板仍然是色号/用色统计的入口），
+    // 另加 selectGenerationTab —— 凡是操作生成参数的步骤都该先切到它。
     selectColorTab: () => { const b = document.querySelector('[data-ws-panel="color"]'); if (b) b.click(); return true; },
+    selectGenerationTab: () => { const b = document.querySelector('[data-ws-panel="generation"]'); if (b) b.click(); return true; },
+    panelVisibility: (panel) => { const p = document.querySelector('[data-ws-inspector="' + panel + '"]'); if (!p) return null; const r = p.getBoundingClientRect(); return { hidden: p.hidden, width: r.width, height: r.height }; },
     heartbeat: () => ({ max: window.__b2Probe.heartbeat.max, longtasks: window.__b2Probe.longtasks.slice() }),
     workers: () => window.__b2Probe.workerUrls.slice(),
   };

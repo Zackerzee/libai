@@ -34,11 +34,14 @@ export class GenerationPanel {
     this.state = {
       preset: "auto",
 
-      // 注意：**尺寸不在这里**。
-      // 生成尺寸的唯一自由度是「长边格数」，由顶栏尺寸栏 + bridge.setGenerationLongEdge()
-      // 单独持有（见 services/generation-size.mjs）。把它放回面板会让
-      // 「拖尺寸 = 立刻重算」这条风暴重新长出来，也会和「编辑器画布调整」串成一条链路。
-      // 编辑器画布的 width/height 仍然独立存在（store 的 canvas 命名空间），允许宽高各自变化。
+      // 注意：**尺寸不在这里**，但它现在住在同一个「生成」Tab 里。
+      // 生成尺寸的唯一自由度是「长边格数」，由 workspace.js 的「生成尺寸」一节
+      // （#ws-size-range / #ws-size-number / #ws-size-apply）+ bridge 单独持有，
+      // 见 services/generation-size.mjs。
+      // 它**故意不并入本面板的 state**：放进来就会和 onChange 连成一条
+      // 「拖尺寸 = 立刻重算」的风暴，也会和「图纸尺寸」（编辑器里的 grid resize）
+      // 串成一条链路。Stage C0 只是把两个控件放进了同一个 Tab，
+      // 没有合并它们的数据通路 —— 这是两件不同的事。
 
       sampling: "auto",
 
@@ -115,6 +118,8 @@ export class GenerationPanel {
     this.root.innerHTML = `
       <section class="sl-generation-panel">
 
+        ${this.renderActionSection()}
+
         ${this.renderGenMethodSection()}
 
         ${this.renderProtectionSection()}
@@ -131,8 +136,29 @@ export class GenerationPanel {
     this.syncUI();
   }
 
+  /**
+   * Stage C0 §4：主要动作「重新生成」。
+   *
+   * 这个按钮**之前根本不存在**：`bindEvents()` 里一直有 `case "generate"` 分支、
+   * workspace.js 也一直传着 `onGenerate`（含「覆盖手动修改」确认），
+   * 但 render() 从来没有渲染出任何 `[data-action="generate"]` 元素 ——
+   * 于是那条分支和那个回调都是够不到的死代码。
+   * 生成期间由 workspace.js 的 paint() 把这里 disable 掉（`#ws-generation-regenerate`）。
+   */
+  renderActionSection() {
+    return `
+      <div class="sl-panel-section sl-action-section">
+        <button type="button" class="sl-primary-action" id="ws-generation-regenerate" data-action="generate">
+          <strong>重新生成</strong>
+          <small>按当前设置重算整张图纸</small>
+        </button>
+      </div>
+    `;
+  }
+
   // 普通界面只暴露场景模式；底层 sampling 由各模式内部映射，避免同一能力重复出现。
-  // 图纸尺寸不在这里 —— 已提到工作台上方的顶栏，做成 52 / 78 / 104 / 自动 一行。
+  // 生成尺寸也不在这里 —— 它和本面板同在「生成」Tab，但由 workspace.js 的
+  // 「生成尺寸」一节独立持有（草稿 +「应用尺寸」显式提交，B0 §7 / Stage C0 §7）。
   renderGenMethodSection() {
     return `
       <div class="sl-panel-section">
@@ -290,10 +316,23 @@ export class GenerationPanel {
           </div>
         </div>
 
+        <!-- Stage C0 §6：0 这个内部哨兵值不再直接甩给用户看。
+             以前这一节只有一个数字框，标题是个内部字段名、提示要求用户先把 0
+             理解成「自动」，等于把实现细节当成产品语言。
+             现在档位按钮 + 读数说人话（「不限制」/「最多 24 色」），
+             数字框保留为自定义入口；data-field="maxColors" 与 0..221 的取值区间
+             都没变 —— 生成侧一条限制都没新增，改的只是显示层。
+             注意：这里是模板字面量内部，注释里不能出现反引号（会提前闭合模板）。 -->
+        <div class="sl-color-presets" role="group" aria-label="颜色数量档位">
+          ${[["0", "不限制"], ["8", "8"], ["16", "16"], ["24", "24"], ["38", "38"], ["64", "64"]]
+            .map(([value, label]) => `<button type="button" data-color-cap="${value}">${label}</button>`)
+            .join("")}
+        </div>
+
         <label class="sl-number-setting">
           <div>
-            <strong>最大颜色数</strong>
-            <small>0 = 自动 · 实际颜色数可能低于此值</small>
+            <strong>颜色数量</strong>
+            <small>限制最终图纸的用色数；不限制时由算法自行决定</small>
           </div>
 
           <div class="sl-number-stepper">
@@ -323,6 +362,8 @@ export class GenerationPanel {
 
           </div>
         </label>
+
+        <p class="sl-number-readout" id="ws-color-cap-readout">不限制</p>
 
         <div class="sl-info-box">
           <strong>关键细节不会只按使用数量删除</strong>
@@ -507,6 +548,15 @@ export class GenerationPanel {
         return;
       }
 
+      // Stage C0 §6：档位按钮 = 对 maxColors 的一次显式赋值，走同一条 setState，
+      // 不新增任何旁路状态。「不限制」档就是 0，和数字框里手动填 0 完全等价。
+      const colorCap = event.target.closest("[data-color-cap]");
+
+      if (colorCap) {
+        this.setState({ maxColors: Number(colorCap.dataset.colorCap) || 0 });
+        return;
+      }
+
       const rangeStepper =
         event.target.closest("[data-range-step]");
 
@@ -624,6 +674,26 @@ export class GenerationPanel {
         button.classList.toggle(
           "is-active",
           button.dataset.preset === this.state.preset
+        );
+      });
+
+    // Stage C0 §6：把 maxColors 的内部哨兵值 0 翻译成人话，并高亮当前档位。
+    // 数字框仍然显示原始数字（0..221），读数与档位负责解释它。
+    const capValue = Number(this.state.maxColors) || 0;
+    const capReadout = this.root.querySelector("#ws-color-cap-readout");
+
+    if (capReadout) {
+      capReadout.textContent = capValue > 0
+        ? `最多 ${capValue} 色`
+        : "不限制（由算法按画面自行决定）";
+    }
+
+    this.root
+      .querySelectorAll("[data-color-cap]")
+      .forEach(button => {
+        button.classList.toggle(
+          "is-active",
+          (Number(button.dataset.colorCap) || 0) === capValue
         );
       });
 

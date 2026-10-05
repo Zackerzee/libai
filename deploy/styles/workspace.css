@@ -247,13 +247,17 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 @media (prefers-reduced-motion: reduce) { .ws-export-drawer { transition: visibility 0s, opacity .12s; transform: none; opacity: 0; }.ws-export-drawer.open { opacity: 1; } .ws-button:active,.ws-rail-button:active { transform: none; } }
 @media (prefers-contrast: more) { .ws-rail-button.active,.ws-color-row.active { border-color: var(--ws-accent); } }
 
-/* ───────── 顶栏参数条：选择工具 + 图纸尺寸 + 视图缩放 ─────────
+/* ───────── 顶栏参数条：视图缩放 ─────────
    作为 .workspace-wrap 网格第 2 行（auto），横贯整宽，位于工作台上方、底部画笔坞之上。
-   色号选择与生成参数一律不在这里，统一收在右栏「色彩」面板，避免与画笔坞重复、也不再压住画布。 */
+   Stage C0 §2/§4：生成尺寸（长边草稿 + 派生读数 +「应用尺寸」）已经搬进右栏「生成」面板 ——
+   它是生成这一层的 PROPERTY，不该和视图控件挤在同一条横条上。这里只剩 TOOL 层的视图缩放。
+   保留 50px 的行高是刻意的：.ws-canvas-area 的行轨契约和底部工具坞的定位都按它算，
+   缩它等于顺手动布局；后续视图类开关（网格 / 色号 / 对比）也还有位置。 */
 .phase2-workspace .ws-top-controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
   min-width: 0;
   min-height: 50px;
@@ -262,22 +266,33 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
   background: var(--ws-surface);
   overflow: visible;
 }
-.phase2-workspace .ws-top-tools { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; }
+.phase2-workspace .ws-top-zoom { display: flex; align-items: center; margin-left: auto; }
 
-/* 图纸尺寸紧跟选择工具，优先保留四个常用预设；空间不足时整组自然换行。 */
-.phase2-workspace .ws-top-size {
-  flex: 1 1 720px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  margin-left: 0;
-  padding-left: 12px;
-  border-left: 1px solid var(--ws-border);
+/* ───────── 右栏「生成」面板：生成尺寸 ─────────
+   同一套控件从顶栏搬进窄右栏：预设改两列、滑杆与数字框占满宽度、应用按钮整宽。
+   **元素 id 一个都没换**（#ws-size-chips / #ws-size-range / #ws-size-number /
+   #ws-size-value / #ws-size-apply / #ws-size-authority / #ws-size-tier），
+   所以既有探针仍然按同一套选择器驱动它 —— 搬的只是位置，不是接口。 */
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-size-block {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 12px;
+  padding: 10px;
+  border: 1px solid var(--ws-border);
+  border-radius: 10px;
+  background: var(--ws-surface-soft);
 }
-.phase2-workspace .ws-top-size-label { color: var(--ws-text-tertiary); font-size: 11px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; }
-.phase2-workspace .ws-size-chips { display: flex; align-items: center; gap: 4px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-top-size-label { color: var(--ws-text-tertiary); font-size: 11px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-size-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-size-slider { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-size-slider output { display: flex; align-items: center; justify-content: center; gap: 8px; height: 30px; padding: 0 10px; border: 1px solid var(--ws-border); border-radius: 10px; background: var(--ws-accent-soft); color: var(--ws-text); font-size: 12px; font-variant-numeric: tabular-nums; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-size-slider input[type="range"] { width: 100%; accent-color: var(--ws-accent); cursor: pointer; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-size-slider input[type="number"] { width: 100%; height: 30px; padding: 0 6px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface); color: var(--ws-text); font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-size-slider input[type="number"]:focus { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-size-slider input[type="number"]:disabled { opacity: .5; }
+.phase2-workspace .ws-size-apply { height: 30px; padding: 0 12px; white-space: nowrap; }
+.phase2-workspace .ws-size-apply:disabled { opacity: .5; cursor: not-allowed; }
+/* 尺寸预设片在窄栏里也要有确定的命中面积（原本靠 44px 最小宽撑开）。 */
 .phase2-workspace .ws-size-chip {
   min-width: 44px;
   height: 30px;
@@ -294,31 +309,7 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .phase2-workspace .ws-size-chip:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
 .phase2-workspace .ws-size-chip.is-active { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
 .phase2-workspace .ws-size-chip-auto { min-width: 52px; }
-.phase2-workspace .ws-top-zoom { display: flex; align-items: center; }
 
-/* 生成尺寸：长边是唯一自由度（滑杆 / 数字框 / 滚轮 / 方向键），
-   宽高由长边 + 有效裁剪比例派生。滑杆与数字框只改草稿，点「应用尺寸」才提交。 */
-.phase2-workspace .ws-size-slider { display: grid; grid-template-columns: 96px 132px 62px; align-items: center; gap: 8px; }
-.phase2-workspace .ws-size-slider output { display: flex; align-items: center; justify-content: center; gap: 8px; height: 30px; padding: 0 10px; border: 1px solid var(--ws-border); border-radius: 10px; background: var(--ws-accent-soft); color: var(--ws-text); font-size: 12px; font-variant-numeric: tabular-nums; }
-.phase2-workspace .ws-size-slider output strong { min-width: 24px; text-align: center; font-size: 13px; }
-.phase2-workspace .ws-size-slider output span { color: var(--ws-text-tertiary); }
-.phase2-workspace .ws-size-slider input[type="range"] { width: 132px; accent-color: var(--ws-accent); cursor: pointer; }
-.phase2-workspace .ws-size-slider input[type="number"] {
-  width: 62px;
-  height: 30px;
-  padding: 0 6px;
-  border: 1px solid var(--ws-border);
-  border-radius: 8px;
-  background: var(--ws-surface);
-  color: var(--ws-text);
-  font-size: 12px;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-}
-.phase2-workspace .ws-size-slider input[type="number"]:focus { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
-.phase2-workspace .ws-size-slider input[type="number"]:disabled { opacity: .5; }
-.phase2-workspace .ws-size-apply { height: 30px; padding: 0 12px; white-space: nowrap; }
-.phase2-workspace .ws-size-apply:disabled { opacity: .5; cursor: not-allowed; }
 
 /* 大尺寸分档提示（B0 §8）：301–400 提示大尺寸，>400 提示超大尺寸，都必须显式点「应用尺寸」。 */
 .phase2-workspace .ws-size-tier {
@@ -361,17 +352,55 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
   width: 150px;
 }
 
-/* ───────── 右栏「色彩」面板：色卡 + 生成参数 + 色号选择 ─────────
-   GenerationPanel 从顶栏搬进窄右栏，撤掉横向卡片布局、回归竖排；预设网格压成 2 列。 */
-.phase2-workspace .ws-panel[data-ws-inspector="color"] .sl-generation-panel { gap: 12px; margin: 12px 0 4px; }
-.phase2-workspace .ws-panel[data-ws-inspector="color"] .sl-panel-section { padding: 12px; border-radius: 10px; border-color: var(--ws-border); }
-.phase2-workspace .ws-panel[data-ws-inspector="color"] .sl-section-heading { margin-bottom: 12px; }
-.phase2-workspace .ws-panel[data-ws-inspector="color"] .sl-section-heading h3 { font-size: 13px; }
-.phase2-workspace .ws-panel[data-ws-inspector="color"] .sl-section-heading p { font-size: 11px; }
-.phase2-workspace .ws-panel[data-ws-inspector="color"] .sl-preset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.phase2-workspace .ws-panel[data-ws-inspector="color"] .sl-sampling-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.phase2-workspace .ws-panel[data-ws-inspector="color"] .sl-advanced-content { display: block; }
+/* ───────── 右栏「生成」面板：生成模式 + 生成参数 + 生成状态 ─────────
+   GenerationPanel 从顶栏搬进窄右栏，撤掉横向卡片布局、回归竖排；预设网格压成 2 列。
+   Stage C0 §3：它现在住在**「生成」Tab**（原来挂在「色彩」里，6 个 tab 没有一个叫生成）。 */
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-generation-panel { gap: 12px; margin: 12px 0 4px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-panel-section { padding: 12px; border-radius: 10px; border-color: var(--ws-border); }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-section-heading { margin-bottom: 12px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-section-heading h3 { font-size: 13px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-section-heading p { font-size: 11px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-preset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-sampling-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-advanced-content { display: block; }
+
+/* 主要动作「重新生成」（Stage C0 §4）。放在面板最上面：它是这一屏唯一的 ACTION，
+   不该被 8 张模式卡 + 4 段参数压到最底下要滚三屏才够得着。 */
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-action-section { padding: 0; border: 0; background: transparent; }
+.phase2-workspace .sl-primary-action {
+  width: 100%; display: grid; gap: 2px; padding: 10px 12px; text-align: left;
+  border: 1px solid var(--ws-accent); border-radius: 10px;
+  background: var(--ws-accent-soft); color: var(--ws-accent); cursor: pointer;
+}
+.phase2-workspace .sl-primary-action strong { font-size: 13px; }
+.phase2-workspace .sl-primary-action small { color: var(--ws-text-secondary); font-size: 11px; }
+.phase2-workspace .sl-primary-action:hover:not(:disabled) { background: var(--ws-accent); color: var(--ws-surface); }
+.phase2-workspace .sl-primary-action:hover:not(:disabled) small { color: var(--ws-surface); }
+.phase2-workspace .sl-primary-action:disabled { opacity: .45; cursor: not-allowed; }
+
+/* 颜色数量档位（Stage C0 §6）：0 这个内部哨兵值不再直接给用户看。 */
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-color-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 10px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-color-presets button {
+  height: 28px; border: 1px solid var(--ws-border); border-radius: 8px;
+  background: var(--ws-surface); color: var(--ws-text-secondary);
+  font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-color-presets button:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-color-presets button.is-active { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-number-readout { margin: 8px 0 0; color: var(--ws-text-secondary); font-size: 12px; font-weight: 650; }
+
+/* ───────── 右栏「色彩」面板：色卡 + 色号选择 + 用色统计 ─────────
+   Stage C0 §3：生成参数已搬到「生成」面板，这里只剩色号本身（OBJECT/PROPERTY）。 */
 .phase2-workspace .ws-panel[data-ws-inspector="color"] #ws-color-search { width: 100%; height: 32px; margin-bottom: 8px; padding: 0 9px; border: 1px solid var(--ws-border); border-radius: 6px; font-size: 12px; background: var(--ws-surface); color: var(--ws-text); }
+
+/* ───────── 右栏「材料」面板：本作品用豆 + 底板 + 库存台账 ─────────
+   Stage C0 §2/§14：「库存」→「材料」。库存面板的每一项能力都还在（扣料 / OCR 录入 /
+   CSV / 缺货 / 单色号明细），它现在是材料面板的最后一节；上面多了备料口径的用豆清单。 */
+.phase2-workspace .ws-material-list { display: grid; gap: 2px; margin: 8px 0 4px; max-height: 260px; overflow-y: auto; }
+.phase2-workspace .ws-material-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; }
+.phase2-workspace .ws-material-row b { min-width: 0; overflow: hidden; color: var(--ws-text); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.phase2-workspace .ws-material-row em { color: var(--ws-text-secondary); font-style: normal; font-variant-numeric: tabular-nums; }
+.phase2-workspace .ws-material-row .ws-swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--ws-border-strong); }
 
 /* ───────── 右栏「编辑」面板：文字素材（浮动图层） ─────────
    结构照 Pixler 的「添加文字」：上面是浮动图层列表，下面是当前图层的编辑表单。
@@ -423,11 +452,9 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .phase2-workspace .ws-text-delete:hover:not(:disabled) { border-color: var(--ws-danger); background: var(--ws-surface); color: var(--ws-danger); }
 
 @media (max-width: 760px) {
-  /* 小屏：顶栏改为纵向堆叠，尺寸组不再贴右 */
+  /* 小屏：顶栏改为纵向堆叠（Stage C0 之后这里只剩视图缩放，尺寸控件已在右栏「生成」里） */
   .phase2-workspace .ws-top-controls { flex-direction: column; align-items: stretch; gap: 8px; }
-  .phase2-workspace .ws-top-size { margin-left: 0; padding-left: 0; border-left: 0; }
-  .phase2-workspace .ws-size-slider { grid-template-columns: 86px minmax(120px,1fr) 62px; flex: 1 1 260px; }
-  .phase2-workspace .ws-size-slider input[type="range"] { width: 100%; }
+  .phase2-workspace .ws-top-zoom { margin-left: 0; justify-content: flex-end; }
 }
 
 /* Stage A product shell */
@@ -460,7 +487,19 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .phase2-workspace .sl-rail-menu { position: relative; width: 100%; }
 .phase2-workspace .sl-rail-menu > summary { list-style: none; }
 .phase2-workspace .sl-rail-menu > summary::-webkit-details-marker { display: none; }
-.phase2-workspace .sl-rail-menu .sl-tool-menu { position: absolute; z-index: 75; left: calc(100% + 8px); top: 0; width: 130px; padding: 5px; border: 1px solid var(--ws-border); background: var(--ws-surface); box-shadow: 0 12px 28px rgba(24,26,34,.14); }
+/* Stage C0 §18：左轨子菜单改为「就地展开」，不再向右浮出。
+   ── 为什么必须改 ────────────────────────────────────────────────────
+   浮出版本和 .ws-rail 的 `overflow-x: hidden !important` **物理上互斥**：
+   `.sl-tool-menu` 是 `.sl-rail-menu`（position: relative，在左轨内部）的绝对定位
+   子元素，包含块落在裁剪框里面，所以「从 100% 再往右 8px」那一整块被裁掉。
+   实测证据：按钮有 37×38 的盒子、display=flex、visibility=visible，
+   但中心点 elementFromPoint 命中的是 `div#ws-canvas-well` —— 真鼠标点不到。
+   「形状」「选择」「镜像」三组共 9 个工具入口全部不可达，而且任何用
+   `element.click()` 驱动的探针都会说它们 PASS。
+   就地展开没有这个问题，也不再和 overflow-x: hidden 打架。
+   （移动端 ≤760px 是另一回事：横向条 overflow-y: hidden，改用 fixed 浮上去，
+     见文件末尾的媒体查询。） */
+.phase2-workspace .sl-rail-menu .sl-tool-menu { position: static; z-index: auto; left: auto; top: auto; width: 100%; margin: 4px 0 2px; padding: 2px 0 2px 8px; border: 0; border-left: 2px solid var(--ws-accent-soft); background: transparent; box-shadow: none; }
 .phase2-workspace .sl-rail-menu .sl-tool-menu .sl-tool-button { min-height: 36px; display: flex; justify-content: flex-start; padding-inline: 10px; }
 .phase2-workspace .sl-rail-help { width: 100%; min-height: 34px; margin-top: 4px; border: 0; background: transparent; }
 .phase2-workspace .ws-rail.is-collapsed { width: 58px; }
@@ -488,7 +527,26 @@ body.phase2-workspace .ws-rail .sl-grid-toolbar-rail > .sl-rail-menu > summary.s
 }
 body.phase2-workspace .ws-rail.is-collapsed .sl-grid-toolbar-rail > .sl-tool-button,
 body.phase2-workspace .ws-rail.is-collapsed .sl-grid-toolbar-rail > .sl-rail-menu > summary.sl-tool-button { height: 48px !important; min-height: 48px !important; }
-body.phase2-workspace .ws-rail .sl-rail-menu .sl-tool-menu { right: auto !important; bottom: auto !important; left: calc(100% + 8px) !important; top: 0 !important; }
+/* ── Stage C0 §18：桌面端左轨子菜单「就地展开」 ───────────────────────────
+   ⚠️ 这条规则**必须**被 `min-width: 761px` 包住，不是可选的美化。
+   ── 为什么（2026-10-05 四档视口 QA 抓出来的移动端回归）───────────────────
+   这条规则的选择器是 `body.phase2-workspace .ws-rail .sl-rail-menu .sl-tool-menu`
+   = (0,4,1)，而移动端那条（文件末尾 `@media (max-width: 760px)` 里）
+   `.phase2-workspace .sl-rail-menu .sl-tool-menu` = (0,3,0)。
+   **两条都带 `!important`，所以决定权完全在特异性上，与源码顺序无关** ——
+   于是这条 `position: static` 赢过移动端的 `position: fixed`，
+   移动端那条成了死代码。后果：≤760px 时子菜单按 static 排进只有 58px 高的
+   贴底横条（`overflow-y: hidden`）里，被裁掉且落到视口外。
+   实测（390×844）：三个菜单的 `.sl-tool-menu` 计算 `position: static`，
+   矩形 y=897 / 997（视口只有 844 高），9 个工具的
+   `elementFromPoint` 全返回 `null` —— 真鼠标点不到。
+   C0 之前这条规则是 `.sl-rail-menu .sl-tool-menu`（0,2,0、无 `!important`），
+   移动端的 `!important` 能压住它，所以移动端本来是好的。
+   **这是 C0 §18 引入的回归**，不是历史遗留。
+   用媒体查询切开比调特异性稳：桌面规则在 ≤760px 根本不存在，没有优先级可打。 */
+@media (min-width: 761px) {
+  body.phase2-workspace .ws-rail .sl-rail-menu .sl-tool-menu { position: static !important; right: auto !important; bottom: auto !important; left: auto !important; top: auto !important; width: 100% !important; }
+}
 
 .phase2-workspace .ws-resize-current { display:flex; align-items:center; justify-content:space-between; margin:8px 0 10px; padding:10px; border:1px solid var(--ws-border); background:var(--ws-surface-soft); }
 .phase2-workspace .ws-resize-current strong { font-size:16px; }.phase2-workspace .ws-resize-current span { color:var(--ws-text-muted); font-size:10px; }
@@ -512,6 +570,10 @@ body.phase2-workspace .ws-rail .sl-rail-menu .sl-tool-menu { right: auto !import
   .phase2-workspace .ws-rail .ws-grid-toolbar-host { flex:1; }.phase2-workspace .sl-grid-toolbar-rail { display:flex !important; flex-direction:row !important; width:max-content; }
   .phase2-workspace .sl-grid-toolbar-rail .sl-tool-button { width:48px; min-width:48px; min-height:46px; }.phase2-workspace .sl-grid-toolbar-rail .sl-tool-label { display:none; }.phase2-workspace .sl-rail-menu { width:48px; }
   body.phase2-workspace .ws-rail .sl-grid-toolbar-rail > .sl-tool-button,body.phase2-workspace .ws-rail .sl-grid-toolbar-rail > .sl-rail-menu,body.phase2-workspace .ws-rail .sl-grid-toolbar-rail > .sl-rail-menu > summary.sl-tool-button { width:48px !important; min-width:48px !important; height:46px !important; min-height:46px !important; }
-  .phase2-workspace .sl-rail-menu .sl-tool-menu { left:0; top:auto; bottom:calc(100% + 7px); }.phase2-workspace .ws-brand { min-width:36px; }.phase2-workspace .ws-brand span { display:none; }
+  /* ≤760px 时左轨是贴底的横向条（overflow-y: hidden，高度 58px），
+     就地展开会被条高裁掉。和坞的镜像菜单同样的处理：fixed 浮到条上方，脱离裁剪。
+     （pixler-skin.css 里对坞的 .sl-tool-menu 踩过同一个坑：注释写着
+     「实测 18 个工具只有 6 个能点到」。） */
+  .phase2-workspace .sl-rail-menu .sl-tool-menu { position: fixed !important; left: 8px !important; right: 8px !important; bottom: 64px !important; top: auto !important; width: auto !important; z-index: 90; }.phase2-workspace .ws-brand { min-width:36px; }.phase2-workspace .ws-brand span { display:none; }
   .phase2-workspace .ws-project-identity { min-width:90px; }.phase2-workspace .ws-topbar #ws-save-project { display:none; }
 }

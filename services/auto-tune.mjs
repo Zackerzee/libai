@@ -720,6 +720,24 @@ export function createAutoTuner({
       decision: "",
       runtimeMs: 0,
       cacheKey: key,
+      // ── Stage C0 §15：把 Worker 结果反序列化的耗时接出来 ──────────────
+      // 在这之前，commit profile 的 `decodeMs(workerClient)` 在**智能模式下恒为 null**。
+      // 不是 worker 没计时 —— `generation-worker-client.mjs` 每次都会把
+      // `decodeGenerationResult(envelope)` 的耗时挂在返回值上；是这条链路把它丢了：
+      // 预览候选的返回值只被取走了 grid/width/height/diagnostics，
+      // 正式那一轮的返回值也一样，报告里根本没有这个字段，
+      // 于是 app.js 的 `runAutoTuneV2` 没有东西可往 `processImageV2` 带。
+      // 后果是 §14 的性能表在智能模式下永远缺一格：没人能判断
+      // 「结构化克隆 + 反序列化」到底占了多少。
+      //
+      // 口径：**真正产出最终网格的那一次运行**的反序列化耗时。
+      //   · decodeMsSource === "final"      重跑正式生成 → 正式那一次
+      //   · decodeMsSource === "preview"    预览尺寸 == 目标尺寸、直接复用赢家网格 → 预览赢家那一次
+      //   · decodeMsSource === "cache-hit"  整轮命中缓存，这次调用里**没有发生**任何反序列化
+      // 之所以还要一个 source：null 有两种完全不同的含义（「没量到」和「本来就没有」），
+      // 只看 null 分不出来，而性能报告最怕的就是分不出来的空格。
+      decodeMs: null,
+      decodeMsSource: null,
     };
 
     // 只有一个候选（pixel / logo）= §9 明确禁止 Auto Tune 改算法。
@@ -742,7 +760,10 @@ export function createAutoTuner({
     if (useCache && cache) {
       const hit = cache.get(key);
       if (hit) {
-        const report = { ...hit, cached: true, runtimeMs: Math.round(now() - started) };
+        // 缓存命中：这一轮没有跑任何 worker，也就**没有发生反序列化**。
+        // 不能沿用缓存里那个旧数字 —— 那会把「上一次生成的开销」记到这一次头上，
+        // 正是 §15 要消灭的那种归因漂移。显式写 null + source，让读表的人一眼看懂。
+        const report = { ...hit, cached: true, runtimeMs: Math.round(now() - started), decodeMs: null, decodeMsSource: "cache-hit" };
         lastReport = report;
         return report;
       }
@@ -826,6 +847,8 @@ export function createAutoTuner({
         // 赢家的诊断要能透出去 —— `state.smartFeatures` / 背景预检结论都靠它。
         // 只在赢家那一条上带出去（`stripEntry` 不带），所以不会让报告膨胀。
         diagnostics: result.diagnostics ?? null,
+        // Stage C0 §15：同样只在赢家那一条上带出去（stripEntry 是显式白名单，不会漏到 candidates 里）。
+        decodeMs: Number.isFinite(Number(result?.decodeMs)) ? Number(result.decodeMs) : null,
         nullMaskHash: nullMaskHash(result.grid),
         metrics,
         runtimeMs,
@@ -897,9 +920,15 @@ export function createAutoTuner({
     let finalWidth = winner.width ?? size.width;
     let finalHeight = winner.height ?? size.height;
     let finalDiagnostics = winner.diagnostics ?? null;
+    // Stage C0 §15：跟着「最终网格是哪一次跑出来的」一起决定。
+    let finalDecodeMs = null;
+    let finalDecodeMsSource = null;
     if (winner.grid && previewSize.width === Number(size.width) && previewSize.height === Number(size.height)) {
       finalGrid = winner.grid;
       reused = true;
+      // 复用预览网格 → 最终网格就是预览赢家跑出来的那张，它的反序列化耗时才是这次生成的。
+      finalDecodeMs = Number.isFinite(Number(winner.decodeMs)) ? Number(winner.decodeMs) : null;
+      finalDecodeMsSource = "preview";
     } else {
       assertAlive(requestId, mine);
       onPhase?.("tune-final");
@@ -923,6 +952,8 @@ export function createAutoTuner({
       finalWidth = finalResult.width ?? finalWidth;
       finalHeight = finalResult.height ?? finalHeight;
       finalDiagnostics = finalResult.diagnostics ?? null;
+      finalDecodeMs = Number.isFinite(Number(finalResult.decodeMs)) ? Number(finalResult.decodeMs) : null;
+      finalDecodeMsSource = "final";
     }
     assertAlive(requestId, mine);
 
@@ -947,6 +978,10 @@ export function createAutoTuner({
       // 赢家的引擎诊断。`state.smartFeatures` / `state.smartReport` 靠它，
       // 缺了它的话「智能模式」下这四个开关的报告会全空。
       diagnostics: finalDiagnostics,
+      // Stage C0 §15：反序列化耗时 + 它的来源。app.js 的 runAutoTuneV2 把它带到
+      // `processImageV2` 的返回值上，commit profile 的 `decodeMs(workerClient)` 才不再是 null。
+      decodeMs: finalDecodeMs,
+      decodeMsSource: finalDecodeMsSource,
     };
     lastReport = report;
     if (useCache && cache && finalGrid) {

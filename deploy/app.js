@@ -2397,6 +2397,12 @@ async function runAutoTuneV2({ sourceImageData, resolved, palette, maxColors, wi
     height: report.height,
     diagnostics: report.diagnostics ?? null,
     pipeline: { autoTune: true, selectedProfileId: report.selectedProfileId },
+    // Stage C0 §15：这条返回体以前没有 decodeMs，所以 commit profile 的
+    // `decodeMs(workerClient)` 在智能模式下恒为 null（单次生成路径一直有值）。
+    // 现在把调优报告里的反序列化耗时原样带出去，两条路径的 §14 性能表可比。
+    // 命中缓存时是 null —— 那一轮确实没有发生反序列化，见 auto-tune.mjs 的 decodeMsSource。
+    decodeMs: Number.isFinite(Number(report.decodeMs)) ? Number(report.decodeMs) : null,
+    decodeMsSource: report.decodeMsSource ?? null,
   };
 }
 
@@ -2570,7 +2576,12 @@ async function processImageV2(image, palette, { width, height, requestId = null,
     // decode 发生在 Worker 客户端里（Worker 算完 → 主线程拿到 grid），
     // 所以它**不在**上面的段里 —— 单列一项，因为它是「计算」与「提交」的分界线：
     // 这一项大 = Worker 回包后主线程还要重建一遍图；这一项小 = Worker 真的搬走了计算。
-    window.__libmsCommitProfile.push({ label: "decodeMs(workerClient)", ms: result.decodeMs ?? null });
+    //
+    // Stage C0 §15：智能模式（Auto Tune）以前这里**恒为 null**，因为
+    // `runAutoTuneV2` 的返回体没带 decodeMs。现在两条路径都有值了。
+    // `source` 说明这个数来自哪一次运行（final / preview / cache-hit）：
+    // 缓存命中时 null 是**正确答案**（那一轮没有反序列化），不是「没量到」。
+    window.__libmsCommitProfile.push({ label: "decodeMs(workerClient)", ms: result.decodeMs ?? null, source: result.decodeMsSource ?? null });
     window.__libmsCommitProfile.push({
       label: "commitTotal",
       // 过滤掉：非段项（decode / 汇总本身）、以及 `chart.*` 子段 ——

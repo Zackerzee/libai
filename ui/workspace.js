@@ -169,7 +169,14 @@ export function mountWorkspace(bridge) {
   const viewBar = dock.querySelector("#ws-dock-view");
 
   right.className = "ws-inspector";
-  const INSPECTOR_TABS = [["project", "作品"], ["source", "图片"], ["color", "色彩"], ["edit", "编辑"], ["check", "检查"], ["inventory", "库存"]];
+  // Stage C0 §2/§3：右栏按产品层级重排 —— 作品 / 图片 / 生成 / 色彩 / 编辑 / 检查 / 材料。
+  //   · 新增「生成」：承载 8 个生成模式。改之前模式卡挂在「色彩」面板里，
+  //     而 6 个 tab 里没有一个叫「生成」—— 用户只能靠猜「色彩」才找得到模式入口
+  //     （实测：只有 color tab 能把它从 display:none 里露出来）。
+  //   · 「库存」→「材料」：语义从「只读台账」扩到「本作品用豆 + 底板 + 采购」。
+  //     库存面板本身的能力（扣料 / OCR 录入 / CSV / 缺货 / 单色号明细）一个都没删，
+  //     它现在是「材料」面板里的一节。
+  const INSPECTOR_TABS = [["project", "作品"], ["source", "图片"], ["generation", "生成"], ["color", "色彩"], ["edit", "编辑"], ["check", "检查"], ["material", "材料"]];
   right.innerHTML = `<div class="ws-side-tabs" role="tablist" aria-label="右栏分组">${INSPECTOR_TABS.map(([id, name]) => `<button type="button" role="tab" data-ws-panel="${id}">${name}</button>`).join("")}</div>
     <div class="ws-inspector-head"><strong id="ws-inspector-title">作品</strong><small id="ws-inspector-subtitle">当前设计</small></div>
     <div class="ws-inspector-scroll">
@@ -189,11 +196,35 @@ export function mountWorkspace(bridge) {
       </section>
       <section class="ws-panel" data-ws-inspector="project"><div class="ws-section-title">拼豆规格</div><label class="ws-field">单豆直径<select id="ws-bead-size"><option value="2.6">小豆 · 2.6 mm</option><option value="5">大豆 · 5.0 mm</option></select></label><div class="ws-readout" id="ws-physical-size">—</div><div class="ws-section-title">已有作品</div><div class="ws-project-gallery-slot"></div></section>
       <section class="ws-panel" data-ws-inspector="source"><div class="ws-section-title">非破坏式原图修整</div><p class="ws-note">在中央原图拖动裁剪。原文件不变，应用后重新生成图纸。</p><label class="ws-field">裁剪比例<select id="ws-source-ratio"><option value="free">自由</option><option>1:1</option><option>4:3</option><option>3:4</option><option>16:9</option><option>9:16</option></select></label><div class="ws-source-buttons"><button type="button" data-ws-source-rotate="-90">左转 90°</button><button type="button" data-ws-source-rotate="90">右转 90°</button><button type="button" data-ws-source-flip="flipX">水平翻转</button><button type="button" data-ws-source-flip="flipY">垂直翻转</button><button type="button" id="ws-source-pick-mode">原图取色</button></div><div id="ws-source-sample" class="ws-source-sample"></div><div class="ws-section-title">画面调整</div>${[["brightness","亮度",-100,100],["contrast","对比度",-100,100],["saturation","饱和度",-100,100],["sharpen","锐化",0,100]].map(([key,label,min,max])=>`<label class="ws-source-slider">${label}<span id="ws-source-${key}-value">0</span><input type="range" data-ws-source-adjust="${key}" min="${min}" max="${max}" value="0"></label>`).join("")}<div class="ws-section-title">扩容画布 · 原图像素</div><div class="ws-expand-grid">${["top","bottom","left","right"].map((side)=>`<label>${{top:"上",bottom:"下",left:"左",right:"右"}[side]}<input type="number" data-ws-source-expand="${side}" min="0" max="500" value="0"></label>`).join("")}</div><label class="ws-field">背景色<input id="ws-source-background" type="color" value="#ffffff"></label><div class="ws-section-title">处理后预览</div><canvas id="ws-source-preview" class="ws-source-preview" aria-label="处理后图片预览"></canvas><div id="ws-source-size" class="ws-note"></div><div class="ws-source-buttons"><button type="button" id="ws-source-reset">恢复原图</button><button type="button" class="ws-button-primary" id="ws-source-apply">应用并生成</button></div></section>
+      <section class="ws-panel" data-ws-inspector="generation">
+        <div class="ws-section-title">生成尺寸</div>
+        <p class="ws-note">长边是唯一自由度；宽高按原图有效比例派生。改完点「应用尺寸」才会重新生成。</p>
+        <div class="ws-top-size ws-size-block">
+          <span class="ws-top-size-label">长边</span>
+          <div class="ws-size-chips" id="ws-size-chips" role="group" aria-label="长边预设（格）">
+            <button type="button" class="ws-size-chip ws-size-chip-auto" data-size="auto" title="按像素倍数识别结果自动定长边">自动</button>
+            <button type="button" class="ws-size-chip" data-size="52" title="长边 52 格">52</button>
+            <button type="button" class="ws-size-chip" data-size="78" title="长边 78 格">78</button>
+            <button type="button" class="ws-size-chip" data-size="104" title="长边 104 格">104</button>
+          </div>
+          <div class="ws-size-slider" id="ws-size-controls" role="group" aria-label="长边（格）：滑杆、数字输入、滚轮、方向键">
+            <output id="ws-size-value" for="ws-size-range" aria-live="polite" title="派生尺寸（宽 × 高）"><strong>—</strong><span>×</span><strong>—</strong></output>
+            <input id="ws-size-range" type="range" min="10" max="500" step="1" value="104" aria-label="图纸长边（格）">
+            <input id="ws-size-number" type="number" min="10" max="500" step="1" value="104" aria-label="图纸长边格数（可直接输入）">
+          </div>
+          <button type="button" class="ws-button ws-size-apply" id="ws-size-apply">应用尺寸</button>
+          <span class="ws-size-authority" id="ws-size-authority" role="status" hidden></span>
+          <span class="ws-size-tier" id="ws-size-tier" role="status" hidden></span>
+        </div>
+        <div class="ws-section-title">生成参数</div>
+        <div id="generationPanel"></div>
+        <div class="ws-section-title">生成状态</div>
+        <div class="ws-readout" id="ws-generation-status" role="status">尚未生成</div>
+      </section>
       <section class="ws-panel" data-ws-inspector="color">
         <div class="ws-section-title">色卡</div>
         <label class="ws-field">品牌<select id="ws-brand"></select></label>
         <label class="ws-field">色数<select id="ws-palette-size"></select></label>
-        <div id="generationPanel"></div>
         <div class="ws-section-title">完整真实色盘</div>
         <div class="ws-current-color-summary" id="ws-palette-current">当前颜色：未选择</div>
         <input id="ws-color-search" type="search" placeholder="搜索色号 · H7 / H07" aria-label="搜索色号">
@@ -243,14 +274,23 @@ export function mountWorkspace(bridge) {
       </section>
       <section class="ws-panel" data-ws-inspector="edit"><div class="ws-editor-group"><div class="ws-section-title">工具属性</div><div id="ws-tool-details" class="ws-cell-details">选择工具 · 点击查看单豆</div><label class="ws-source-slider">笔宽<span id="ws-brush-size-value">1</span><input type="range" id="ws-brush-size" min="1" max="9" step="2" value="1" aria-label="画笔大小（格）"></label><label class="ws-switch-row"><input type="checkbox" id="ws-shape-filled"> 形状实心（矩形 / 圆形）</label><label class="ws-source-slider">魔棒容差<span id="ws-wand-tolerance-value">12</span><input type="range" id="ws-wand-tolerance" min="0" max="100" value="12"></label></div><div class="ws-editor-group"><div class="ws-section-title">选中对象</div><div id="ws-cell-details" class="ws-cell-details">点击画布或对象列表进行选择。</div><div id="ws-text-objects" class="ws-text-objects"></div><div id="textPanel" class="ws-text-panel"></div></div><div class="ws-editor-group"><div class="ws-section-title">选区动作</div><div class="ws-selection-actions"><button type="button" id="ws-erase-selection">擦除选区</button><button type="button" id="ws-clear-selection">清除选择</button></div><div class="ws-selection-actions"><button type="button" id="ws-copy-selection">复制</button><button type="button" id="ws-cut-selection">剪切</button><button type="button" id="ws-paste-selection">粘贴</button></div><div class="ws-selection-actions"><button type="button" id="ws-invert-selection">反选</button><button type="button" id="ws-select-all">全选</button></div><div class="ws-outline-options"><label><input id="ws-outline-diagonal" type="checkbox">描边包含对角</label><button type="button" id="ws-apply-outline">外描边</button></div><div id="ws-history-label" class="ws-note"></div></div><div class="ws-editor-group"><div class="ws-section-title">对称绘制</div><label class="ws-field">模式<select id="ws-symmetry-mode"><option value="none">关闭</option><option value="vertical">左右对称</option><option value="horizontal">上下对称</option><option value="both">双向对称</option></select></label><div class="ws-selection-actions"><label>左右轴<input id="ws-symmetry-axis-x" type="number" step="0.5"></label><label>上下轴<input id="ws-symmetry-axis-y" type="number" step="0.5"></label></div></div><div class="ws-editor-group"><div class="ws-section-title">参考底图</div><p class="ws-note">独立参考对象，不写入图纸与导出。</p><div class="ws-source-buttons"><button type="button" id="ws-ref-pick">添加 / 替换</button><button type="button" id="ws-ref-clear">删除</button></div><input type="file" id="ws-ref-file" accept="image/*" hidden><label class="ws-switch-row"><input type="checkbox" id="ws-ref-visible" checked> 显示参考图</label><label class="ws-source-slider">透明度<span id="ws-ref-opacity-value">40%</span><input type="range" id="ws-ref-opacity" min="0" max="100" value="40"></label><label class="ws-field">显示<select id="ws-ref-display"><option value="normal">正常</option><option value="reference-only">只看原图</option><option value="grid-only">只看图纸</option></select></label><label class="ws-field">适配<select id="ws-ref-fit"><option value="contain">完整适应</option><option value="cover">铺满裁切</option></select></label><label class="ws-field">质量<select id="ws-ref-smoothing"><option value="smooth">平滑</option><option value="pixelated">像素</option></select></label><label class="ws-source-slider">参考图缩放<span id="ws-ref-scale-value">100%</span><input type="range" id="ws-ref-scale" min="25" max="200" value="100"></label><div class="ws-selection-actions"><button type="button" id="ws-ref-adjust">调整位置</button><button type="button" id="ws-ref-reset">重新适配</button></div></div><button type="button" class="ws-button ws-wide" id="ws-open-editor" disabled hidden>打开原画板</button></section>
       <section class="ws-panel" data-ws-inspector="check"><div class="ws-section-title">真实检查结果</div><div id="ws-check-results" class="ws-check-results">生成后显示可验证的尺寸、色数与结构报告。</div></section>
-      <section class="ws-panel" data-ws-inspector="inventory"><div id="inventoryPanel"></div></section>
+      <section class="ws-panel" data-ws-inspector="material">
+        <div class="ws-section-title">本作品用豆</div>
+        <div class="ws-readout" id="ws-material-total">尚未生成图纸</div>
+        <div class="ws-material-list" id="ws-material-list"></div>
+        <div class="ws-section-title">底板与采购</div>
+        <div class="ws-readout" id="ws-material-boards">—</div>
+        <p class="ws-note" id="ws-material-note">按当前图纸精确统计，用于备料与补货；不含损耗余量。</p>
+        <div class="ws-section-title">豆子库存</div>
+        <div id="inventoryPanel"></div>
+      </section>
     </div>`;
   const editPanel = right.querySelector('[data-ws-inspector="edit"]');
   const projectPanel = right.querySelector('[data-ws-inspector="project"]');
-  projectPanel?.insertAdjacentHTML("beforeend", `<div class="ws-editor-group ws-resize-panel"><div class="ws-section-title">画布尺寸</div><div class="ws-resize-current"><strong id="ws-resize-current">104 × 104</strong><span id="ws-resize-kind">自定义</span></div><button type="button" class="ws-button ws-wide" id="ws-resize-open">调整尺寸</button></div><div class="ws-editor-group"><div class="ws-section-title">崩溃恢复</div><p class="ws-note" id="ws-draft-status">编辑后自动保存本地草稿。</p><div class="ws-selection-actions" id="ws-draft-actions" hidden><button type="button" id="ws-draft-restore">恢复</button><button type="button" id="ws-draft-discard">放弃</button></div></div>`);
+  projectPanel?.insertAdjacentHTML("beforeend", `<div class="ws-editor-group ws-resize-panel"><div class="ws-section-title">图纸尺寸</div><div class="ws-resize-current"><strong id="ws-resize-current">104 × 104</strong><span id="ws-resize-kind">自定义</span></div><button type="button" class="ws-button ws-wide" id="ws-resize-open">调整尺寸</button></div><div class="ws-editor-group"><div class="ws-section-title">崩溃恢复</div><p class="ws-note" id="ws-draft-status">编辑后自动保存本地草稿。</p><div class="ws-selection-actions" id="ws-draft-actions" hidden><button type="button" id="ws-draft-restore">恢复</button><button type="button" id="ws-draft-discard">放弃</button></div></div>`);
   const resizeDialog=document.createElement("dialog");resizeDialog.className="ws-resize-dialog";resizeDialog.id="ws-resize-dialog";
   const resizeAnchors=["top-left","top","top-right","left","center","right","bottom-left","bottom","bottom-right"],resizeAnchorLabels=["左上","上中","右上","左中","居中","右中","左下","下中","右下"];
-  resizeDialog.innerHTML=`<form method="dialog" class="ws-resize-card"><div class="ws-resize-head"><div><strong>调整画布尺寸</strong><small id="ws-resize-from">当前：104 × 104</small></div><button value="cancel" aria-label="关闭">×</button></div><div class="ws-resize-body"><div class="ws-section-title">目标尺寸</div><div class="ws-selection-actions"><label>宽<input id="ws-resize-width" type="number" min="1" max="1000" value="104"></label><span>×</span><label>高<input id="ws-resize-height" type="number" min="1" max="1000" value="104"></label></div><div class="ws-resize-presets"><button type="button" data-resize-preset="52">52×52</button><button type="button" data-resize-preset="78">78×78</button><button type="button" data-resize-preset="104">104×104</button><span>自定义</span></div><fieldset class="ws-resize-modes"><legend>模式</legend><label><input type="radio" name="ws-resize-mode" value="canvas" checked> 调整画布</label><label><input type="radio" name="ws-resize-mode" value="pattern"> 缩放图案</label></fieldset><div id="ws-resize-anchor-wrap"><div class="ws-section-title">锚点</div><div class="ws-anchor-grid" role="radiogroup" aria-label="九宫格锚点">${resizeAnchors.map((anchor,index)=>`<label title="${resizeAnchorLabels[index]}"><input type="radio" name="ws-resize-anchor" value="${anchor}"${anchor==="center"?" checked":""}><span></span></label>`).join("")}</div></div><p class="ws-resize-warning" id="ws-resize-summary">调整画布不会重新匹配颜色。</p></div><div class="ws-resize-foot"><button value="cancel">取消</button><button type="button" class="ws-button-primary" id="ws-resize-apply">确认调整</button></div></form>`;
+  resizeDialog.innerHTML=`<form method="dialog" class="ws-resize-card"><div class="ws-resize-head"><div><strong>调整图纸尺寸</strong><small id="ws-resize-from">当前：104 × 104</small></div><button value="cancel" aria-label="关闭">×</button></div><div class="ws-resize-body"><div class="ws-section-title">目标尺寸</div><div class="ws-selection-actions"><label>宽<input id="ws-resize-width" type="number" min="1" max="1000" value="104"></label><span>×</span><label>高<input id="ws-resize-height" type="number" min="1" max="1000" value="104"></label></div><div class="ws-resize-presets"><button type="button" data-resize-preset="52">52×52</button><button type="button" data-resize-preset="78">78×78</button><button type="button" data-resize-preset="104">104×104</button><span>自定义</span></div><fieldset class="ws-resize-modes"><legend>模式</legend><label><input type="radio" name="ws-resize-mode" value="canvas" checked> 调整图纸</label><label><input type="radio" name="ws-resize-mode" value="pattern"> 缩放图案</label></fieldset><div id="ws-resize-anchor-wrap"><div class="ws-section-title">锚点</div><div class="ws-anchor-grid" role="radiogroup" aria-label="九宫格锚点">${resizeAnchors.map((anchor,index)=>`<label title="${resizeAnchorLabels[index]}"><input type="radio" name="ws-resize-anchor" value="${anchor}"${anchor==="center"?" checked":""}><span></span></label>`).join("")}</div></div><p class="ws-resize-warning" id="ws-resize-summary">调整图纸不会重新匹配颜色。</p></div><div class="ws-resize-foot"><button value="cancel">取消</button><button type="button" class="ws-button-primary" id="ws-resize-apply">确认调整</button></div></form>`;
   wrap.append(resizeDialog);
   const symmetryControls = editPanel?.querySelector("#ws-symmetry-mode")?.closest(".ws-editor-group");
   symmetryControls?.insertAdjacentHTML("beforeend", `<label class="ws-switch-row"><input id="ws-symmetry-guides" type="checkbox" checked> 显示对称轴</label><p class="ws-note">对称绘制只影响新的画笔与橡皮笔画；镜像是对已有内容执行即时变换。</p>`);
@@ -324,34 +364,15 @@ export function mountWorkspace(bridge) {
   right.querySelector("#ws-brush-size")?.closest("label")?.after(pixelPerfectControl);
   const gallery = document.querySelector(".gallery-section"); if (gallery) right.querySelector(".ws-project-gallery-slot").append(gallery);
 
-  // 工作台上方的参数条，只保留两件事：
-  //   1) 不与编辑区重复的选择工具
-  //   2) 生成尺寸一行 —— 唯一自由度是「长边格数」：预设 / 滑杆 / 数字框 / 滚轮 / 方向键
-  //      都只改草稿，点「应用尺寸」才提交并生成一次（B0 §7）。
-  //      右侧紧邻视图缩放（缩放从底部 viewbar 挪上来，避免两处重复）。
-  // 色号选择、生成方式/算法等生成参数一律不进这里，统一收到右栏「色彩」面板。
+  // 工作台上方的参数条，只保留一件事：**视图缩放**。
+  // Stage C0 §2/§4：生成尺寸（长边草稿 + 派生宽高 +「应用尺寸」）已经搬进右栏「生成」面板 ——
+  // 它是生成这一层的 PROPERTY，和「生成模式」是同一层的东西，不该和视图控件挤在一条横条上。
+  // 顶栏剩下的是 TOOL 层：视图缩放（选择工具本身在左轨，见 toolRail）。
   const topControls = document.createElement("section");
   topControls.className = "ws-top-controls";
   topControls.id = "ws-top-controls";
-  topControls.setAttribute("aria-label", "选择工具、生成尺寸与视图缩放");
-  topControls.innerHTML = `<div class="ws-top-size">
-      <span class="ws-top-size-label">图纸长边</span>
-      <div class="ws-size-chips" id="ws-size-chips" role="group" aria-label="图纸长边预设（格）">
-        <button type="button" class="ws-size-chip ws-size-chip-auto" data-size="auto" title="按像素倍数识别结果自动定长边">自动</button>
-        <button type="button" class="ws-size-chip" data-size="52" title="长边 52 格">52</button>
-        <button type="button" class="ws-size-chip" data-size="78" title="长边 78 格">78</button>
-        <button type="button" class="ws-size-chip" data-size="104" title="长边 104 格">104</button>
-      </div>
-      <div class="ws-size-slider" id="ws-size-controls" role="group" aria-label="图纸长边（格）：滑杆、数字输入、滚轮、方向键">
-        <output id="ws-size-value" for="ws-size-range" aria-live="polite" title="派生尺寸（宽 × 高）"><strong>—</strong><span>×</span><strong>—</strong></output>
-        <input id="ws-size-range" type="range" min="10" max="500" step="1" value="104" aria-label="图纸长边（格）">
-        <input id="ws-size-number" type="number" min="10" max="500" step="1" value="104" aria-label="图纸长边格数（可直接输入）">
-      </div>
-      <button type="button" class="ws-button ws-size-apply" id="ws-size-apply">应用尺寸</button>
-      <span class="ws-size-authority" id="ws-size-authority" role="status" hidden></span>
-      <span class="ws-size-tier" id="ws-size-tier" role="status" hidden></span>
-      <div id="zoomControls" class="ws-top-zoom"></div>
-    </div>`;
+  topControls.setAttribute("aria-label", "视图缩放");
+  topControls.innerHTML = `<div id="zoomControls" class="ws-top-zoom"></div>`;
   grid.before(topControls);
 
   const toolRail = left.querySelector("#gridEditorToolbar");
@@ -1146,6 +1167,13 @@ export function mountWorkspace(bridge) {
       ? `${palette.length} 色`
       : `${matched.length} / ${palette.length} 色`;
   }
+  // ── Stage C0 §16：导出分板摘要的缓存 ─────────────────────────────────
+  // 声明点必须在 paint 定义**之前**：paint 会读它，而 `let` 在初始化前是 TDZ。
+  // 为什么需要缓存见 paint 里那段注释 —— 一句话：exportV2.estimate() 和
+  // exportV2.split() 都会走 export-v2-service.js 的 `grid()`，那是**整幅深拷贝**，
+  // 代价按格数走，而 paint 在一次提交里会被叫醒多次。
+  let boardSplitSignature = "";
+  let boardSplitCache = null;
   const paint = (state, patch = {}) => {
     if (state.editor.outlinePreview && patch.editor && ["selection","selectedCell","selectedPaletteId"].some((key)=>Object.prototype.hasOwnProperty.call(patch.editor,key))) {
       store.setState({editor:{outlinePreview:null}}); return;
@@ -1174,6 +1202,10 @@ export function mountWorkspace(bridge) {
     const manualEdited = Boolean(bridge.getResult().manualEdited);
     $("#ws-generate").hidden = !(hasSource && manualEdited);
     $("#ws-generate").disabled = !hasSource || state.status.generating;
+    // 「生成」面板里的主要动作。它在 GenerationPanel 内部渲染，workspace 只负责
+    // 按同一套可用性条件开关它（生成中 / 没源图 → 不可点），避免「点了没反应」。
+    const regenerate = $("#ws-generation-regenerate");
+    if (regenerate) regenerate.disabled = !hasSource || state.status.generating;
     // 「取消生成」只在真的在跑时出现（B3 §31）：大尺寸生成期间界面必须能操作。
     const cancelButton = $("#ws-cancel-generate");
     if (cancelButton) cancelButton.hidden = !state.status.generating;
@@ -1201,9 +1233,15 @@ export function mountWorkspace(bridge) {
     $("#ws-project-meta").textContent = hasPattern
       ? `${state.canvas.width}×${state.canvas.height} · ${state.stats.usedColors}色 · ${state.stats.totalBeads.toLocaleString("zh-CN", { useGrouping: false })}颗 · ${activePalette.key}`
       : hasSource ? "图片已导入 · 等待生成" : "尚未创建图纸";
+    // Stage C0 §11：Tab 切换只有 **一个真源** —— `state.ui.activePanel`。
+    // 这里只负责把真源映射到 DOM（active 类 + panel.hidden），不持有任何自己的 tab 状态。
     right.querySelector(".ws-side-tabs").querySelectorAll("[data-ws-panel]").forEach((button) => { button.classList.toggle("active", button.dataset.wsPanel === state.ui.activePanel); button.disabled = button.dataset.wsPanel === "source" && !hasSource; });
     right.querySelectorAll("[data-ws-inspector]").forEach((panel) => { panel.hidden = panel.dataset.wsInspector !== state.ui.activePanel; });
-    const titles = { project: "作品", source: "图片调整", color: "色彩", edit: "编辑", check: "检查", inventory: "库存", build: "施工" }; $("#ws-inspector-title").textContent = titles[state.ui.activePanel] || "";
+    const titles = { project: "作品", source: "图片调整", generation: "生成", color: "色彩", edit: "编辑", check: "检查", material: "材料", build: "施工" };
+    const subtitles = { project: "当前设计", source: "原图对象", generation: "输出规格", color: "色号与用量", edit: "对象与工具", check: "校验结果", material: "备料与台账", build: "分块施工" };
+    $("#ws-inspector-title").textContent = titles[state.ui.activePanel] || "";
+    const subtitleNode = $("#ws-inspector-subtitle");
+    if (subtitleNode) subtitleNode.textContent = subtitles[state.ui.activePanel] || "";
     // 施工模式下右栏整体换成施工面板，6 个 tab 收起
     const buildMode = document.body.classList.contains("ws-mode-build");
     right.querySelector(".ws-side-tabs").hidden = buildMode;
@@ -1249,6 +1287,18 @@ export function mountWorkspace(bridge) {
       $("#ws-merge-sources").innerHTML=mergeOptions;
     }
     const checks = bridge.getChecks(); $("#ws-check-results").innerHTML = hasPattern ? `<p>尺寸：${state.canvas.width} × ${state.canvas.height}</p><p>颜色：${state.stats.usedColors} 色${checks.validation?.valid === false ? " · 超出当前上限" : " · 已校验"}</p>${checks.structural ? `<p>结构检测：${esc(JSON.stringify(checks.structural))}</p>` : ""}` : "生成后显示可验证的尺寸、色数与结构报告。";
+    // ── Stage C0 §4：生成状态（「正在分析图片…」这类人话）也进「生成」面板 ──
+    // 文案只从 state.status.generationPhase 取，**不在这里重写一份**（app.js 的
+    // PHASE_LABELS 是唯一来源，见 tests/generation-status-notice.test.mjs §16）。
+    const generationStatusNode = $("#ws-generation-status");
+    if (generationStatusNode) {
+      generationStatusNode.textContent = state.status.generationError
+        ? `生成失败：${state.status.generationError}`
+        : state.status.generating
+          ? (state.status.generationPhase || "正在生成")
+          : bridge.getResult().manualEdited ? "已手动编辑 · 可重新生成覆盖" : hasPattern ? "已生成" : hasSource ? "图片已导入 · 等待生成" : "尚未生成";
+    }
+    renderMaterial(state);
     viewBar.querySelectorAll("[data-ws-view]").forEach((button) => {
       button.classList.toggle("active", button.dataset.wsView === state.view.mode);
       button.disabled = button.dataset.wsView === "original" ? !hasSource : !hasPattern;
@@ -1456,13 +1506,33 @@ export function mountWorkspace(bridge) {
     // 打开状态由按钮直接控制；普通 canvas/state repaint 不应意外把导出中心关掉。
     if (state.ui.exportDrawerOpen) drawer.classList.add("open");
     if (document.activeElement !== $("#ws-export-title")) $("#ws-export-title").value = state.project.name || "";
-    if (hasPattern) {
+    // ── Stage C0 §16：分板摘要「关着不算、开着也只算一次」 ────────────────
+    // 改之前这里是 `if (hasPattern) { … }` —— 只要出过图就**每次 paint** 无条件跑，
+    // 而 `exportV2.estimate()` 与 `exportV2.split()` 内部都会调
+    // export-v2-service.js 的 `grid()`：
+    //   getGrid().map(row => row.map(cell => cell ? {...cell, rgb:[...cell.rgb]} : null))
+    // 也就是**整幅深拷贝**（500×500 = 25 万格，页内实测一次 ~15ms）。
+    // paint() 在一次提交里会被叫醒多次（store 订阅 + 若干次 setState），抽屉
+    // 还多半是关着的 —— 于是「没人看的抽屉摘要」成了 §12 `eventDispatch` 里
+    // 按格数计费的一项。这与「材料」面板的 exportV2.split() 是同一笔钱。
+    // 现在：抽屉关着 → 一个字段都不算（打开抽屉会 setState，paint 自然会重来）；
+    // 开着 → 只在图纸真的变了时重算。
+    if (hasPattern && state.ui.exportDrawerOpen) {
       const estimate = exportV2.estimate($("#ws-export-quality").value);
       $("#ws-export-pixels").textContent = `预计 ${estimate.width} × ${estimate.height}px`;
-      const split = exportV2.split();
+      const splitSignature = `${gridRevision}|${state.canvas.width}x${state.canvas.height}`;
+      if (splitSignature !== boardSplitSignature) {
+        boardSplitSignature = splitSignature;
+        boardSplitCache = exportV2.split();
+      }
+      const split = boardSplitCache;
       $("#ws-board-summary").textContent = split.needsSplit ? `${state.canvas.width}×${state.canvas.height} · ${split.columns}列 × ${split.rows}行 · 共${split.total}块` : "当前作品无需分板";
       $("#ws-boards-choice").disabled = !split.needsSplit;
-    } else { $("#ws-export-pixels").textContent = ""; $("#ws-board-summary").textContent = "请先创建图纸"; $("#ws-boards-choice").disabled = true; }
+    } else if (!hasPattern) {
+      $("#ws-export-pixels").textContent = "";
+      $("#ws-board-summary").textContent = "请先创建图纸";
+      $("#ws-boards-choice").disabled = true;
+    }
     drawer.querySelectorAll("[data-ws-export]").forEach((button) => { button.disabled = !exports.isAvailable(button.dataset.wsExport); });
     if (patch.view || patch.editor || patch.stats || patch.status || patch.source || patch.reference) renderer.requestDraw();
     // 库存面板只在图纸/项目状态变化时重建；库存自身的变更由它自己订阅，避免每次鼠标移动都重排表格
@@ -1530,6 +1600,51 @@ export function mountWorkspace(bridge) {
     if (usageRenderedRevision === gridRevision) return;
     usageRenderedRevision = gridRevision;
     renderUsageStrip();
+  }
+  // ── Stage C0 §2：右栏「材料」面板的「本作品用豆」一节 ──────────────────
+  // 与「色彩」里的横向用色条同源（实时用量索引），但口径是**备料**：
+  // 总颗数 + 逐色号颗数 + 底板数量与实物厘米数。
+  // 这里不复用 usageEntries()，因为那个函数跟着用户在色彩面板选的排序走；
+  // 备料清单必须恒定按数量降序，否则用户换个排序，材料数字的顺序就跟着乱。
+  // 只在 gridRevision 或图纸物理尺寸变化时重建 —— paint 会被悬停/选区高频触发。
+  let materialSignature = "";
+  function renderMaterial(state) {
+    const totalNode = $("#ws-material-total"), listNode = $("#ws-material-list"), boardNode = $("#ws-material-boards");
+    if (!totalNode || !listNode || !boardNode) return;
+    // ── Stage C0 §16：材料面板不是当前 Tab 时，一个字都不算 ────────────────
+    // 不是「省一次 DOM 写入」那种小气：下面那句 exportV2.split() 的代价按**格数**走
+    // （export-v2-service.js 的 `grid()` 是整幅深拷贝，500×500 页内实测 ~15ms，
+    // 再叠加分板扫描），而 paint() 挂在 libms:project-result 的**同步监听者**里
+    // —— 这笔钱直接记进 §12 的 eventDispatch / commitTotal。
+    // 用户没在看「材料」，就不该替他付这笔钱。
+    // 注意这里**不能**顺手写 materialSignature：写了就等于把「没算过」记成
+    // 「算过了」，切回该 Tab 时会看到空面板。切 Tab 会 setState → paint 重来，
+    // 那时才真正计算（见 tests/material-tab-semantics.test.mjs）。
+    if (state.ui.activePanel !== "material") return;
+    const signature = `${gridRevision}|${state.canvas.width}x${state.canvas.height}|${state.canvas.beadSize}`;
+    if (signature === materialSignature) return;
+    materialSignature = signature;
+    const entries = buildUsageEntries(editorService.getPaletteUsageCounts(), paletteColors(), {
+      sort: "count-desc",
+      resolve: (paletteId) => editorService.resolveColor(paletteId),
+    });
+    if (!entries.length) {
+      totalNode.textContent = "尚未生成图纸";
+      listNode.innerHTML = "";
+      boardNode.textContent = "—";
+      return;
+    }
+    const beads = entries.reduce((sum, entry) => sum + entry.count, 0);
+    const format = (value) => value.toLocaleString("zh-CN", { useGrouping: false });
+    totalNode.textContent = `${entries.length} 色 · 共 ${format(beads)} 颗`;
+    listNode.innerHTML = entries.map((entry) => `<div class="ws-material-row"><span class="ws-swatch" style="background:${esc(entry.hex)}"></span><b>${esc(entry.code)}</b><em>${format(entry.count)}</em></div>`).join("");
+    const split = exportV2.split();
+    const widthCm = (state.canvas.width * state.canvas.beadSize / 10).toFixed(1);
+    const heightCm = (state.canvas.height * state.canvas.beadSize / 10).toFixed(1);
+    const size = `${state.canvas.width}×${state.canvas.height} 豆 · ${widthCm}×${heightCm} cm`;
+    boardNode.textContent = split.needsSplit
+      ? `${size} · 需 ${split.columns}×${split.rows} = ${split.total} 块底板`
+      : `${size} · 单块底板`;
   }
   // §21：共享色号清单（datalist）。按色板签名缓存 —— 换品牌/换色数才重建。
   // 选项文案带上系列，这样盼盼的纯数字色号也能看出属于哪个中文系列。
@@ -1812,7 +1927,7 @@ export function mountWorkspace(bridge) {
     if (!result.grid?.length) return;
     const mode=resizeValue("ws-resize-mode")||"canvas",anchor=resizeValue("ws-resize-anchor")||"center",crop=resizeCropInsets(result.width,result.height,targetWidth,targetHeight,{anchor});
     const cropLine=mode==="canvas"&&Object.values(crop).some(Boolean)?`\n将裁掉：上 ${crop.top} / 下 ${crop.bottom} / 左 ${crop.left} / 右 ${crop.right}`:"";
-    const message=`当前 ${result.width}×${result.height}\n目标 ${targetWidth}×${targetHeight}\n方式：${mode==="canvas"?"调整画布":"缩放图案"}${mode==="canvas"?`\n锚点：${resizeAnchorLabels[resizeAnchors.indexOf(anchor)]}`:""}${cropLine}\n\n确认应用？`;
+    const message=`当前 ${result.width}×${result.height}\n目标 ${targetWidth}×${targetHeight}\n方式：${mode==="canvas"?"调整图纸":"缩放图案"}${mode==="canvas"?`\n锚点：${resizeAnchorLabels[resizeAnchors.indexOf(anchor)]}`:""}${cropLine}\n\n确认应用？`;
     if (!window.confirm(message)) return;
     const command=createGridResizeCommand(bridge,{grid:result.grid,width:result.width,height:result.height,targetWidth,targetHeight,mode,anchor});
     if (!editorService.executeCommand(command)) return;
@@ -2165,7 +2280,8 @@ export function mountWorkspace(bridge) {
   /**
    * 刷新尺寸栏。用函数声明（会提升）而非 const 箭头，避免 paint() 早于定义执行时踩 TDZ。
    * 节点一律现查现用，不闭包捕获 const —— 同样是躲 TDZ。
-   * 注意这里**不读画布尺寸**：生成尺寸与编辑器画布尺寸是两条独立链路（B0 §5）。
+   * 注意这里**不读图纸尺寸**：生成尺寸与「作品」面板里的图纸尺寸是两条独立链路（B0 §5 / C0 §7）。
+   * 名字上也不再混用「画布」——「画布」在这个界面里专指 <canvas>。
    */
   /**
    * 当前尺寸权威（结构化工程 / 人工标定 / 网格识别）是否已经锁定了图纸尺寸。

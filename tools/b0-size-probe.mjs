@@ -214,6 +214,24 @@ const rectOf = async (selector) => JSON.parse(await evalJs(`(() => {
   return JSON.stringify({ x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) });
 })()`));
 
+/**
+ * Stage C0 §8：生成尺寸控件从顶栏搬进了右栏「生成」面板。
+ *
+ * 这一步**不是可有可无的礼貌**。右栏面板靠 `hidden`（`display:none !important`）切换，
+ * 而 CDP 的真鼠标事件与 `element.focus()` **都够不到 display:none 的元素**：
+ *   · `getBoundingClientRect()` 返回 0×0 → `rectOf()` 拿到 x=0,y=0 → 真鼠标打在左上角
+ *   · `focus()` 在不可见元素上静默失败 → 后面的方向键事件根本没有目标
+ * 也就是说，本文件里所有「真鼠标 / 真键盘」驱动的断言，前提都是这个面板先被切出来。
+ * 这同时也就是 §8 要求的「用户可达」：切不出来 = 用户够不到 = 后续断言不该算数。
+ */
+async function selectRightPanel(panel) {
+  const clicked = await evalJs(`(() => { const b = document.querySelector('[data-ws-panel="${panel}"]'); if (!b) return false; b.click(); return true; })()`);
+  const shown = await waitFor(
+    `(() => { const p = document.querySelector('[data-ws-inspector="${panel}"]'); return Boolean(p) && !p.hidden && p.getBoundingClientRect().width > 0 && p.getBoundingClientRect().height > 0; })()`,
+    10000, `右栏「${panel}」面板可见`);
+  return Boolean(clicked) && shown;
+}
+
 /** 真机滚轮：走 CDP 输入层，不是合成事件。modifiers: 8 = Shift。 */
 async function wheel(selector, deltaY, shiftKey = false) {
   const rect = await rectOf(selector);
@@ -384,7 +402,12 @@ try {
   const genCount = () => evalJs("window.__b0GenCount");
 
   /* ── 4. 滑杆 104 → 500：generation count 必须为 0（§7 核心） ───────── */
+  // Stage C0 §8：下面要用**真鼠标**拖滑杆、用 **focus + 真按键**打方向键。
+  // 这两件事都要求控件真的可见 —— 先把右栏切到「生成」面板。
+  const sizePanelReady = await selectRightPanel("generation");
+  check("右栏「生成」面板可切出（生成尺寸的容器）", sizePanelReady, "切不出来 = 用户够不到，后面的真鼠标断言一律不算数");
   const sliderRect = await rectOf("#ws-size-range");
+  check("滑杆有真实命中区域（非 0×0）", Boolean(sliderRect) && sliderRect.x > 0 && sliderRect.y > 0, `rect=${JSON.stringify(sliderRect)}`);
   await evalJs(`(() => { const el = document.querySelector('#ws-size-range'); el.value = '104'; el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
   // 用 CDP 真鼠标把滑杆一路拖到最右（500）
   await send("Input.dispatchMouseEvent", { type: "mousePressed", x: sliderRect.x, y: sliderRect.y, button: "left", clickCount: 1 });
