@@ -1,0 +1,32 @@
+/* Homepage-only overrides loaded after the editor skin. */
+body:not(.phase2-workspace),
+body:not(.phase2-workspace) .topbar,
+body:not(.phase2-workspace) .generator-intro.homepage,
+body:not(.phase2-workspace) .generator-intro.homepage *,
+body:not(.phase2-workspace) .site-footer,
+body:not(.phase2-workspace) .site-footer * {
+  font-family: var(--ds-font-ui) !important;
+  font-variant-ligatures: normal;
+  -webkit-font-smoothing: antialiased;
+}
+
+body:not(.phase2-workspace) { background: var(--ds-color-app); color: var(--ds-color-text); }
+body:not(.phase2-workspace) .homepage :is(.homepage-start-card, .homepage-capabilities article) { background: var(--ds-color-surface); border-radius: 12px; }
+body:not(.phase2-workspace) :is(.primary-action, .homepage-primary-cta) { border-radius: 8px; background: var(--ds-color-accent); color: var(--ds-color-on-accent); }
+
+/* Defer below-fold layout without pulling any editor modules into Landing. */
+body:not(.phase2-workspace) .homepage-workflow,
+body:not(.phase2-workspace) .homepage-capabilities,
+body:not(.phase2-workspace) .homepage-closing {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:not(.phase2-workspace) .homepage *,
+  body:not(.phase2-workspace) .topbar a {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

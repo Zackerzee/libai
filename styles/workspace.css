@@ -1,0 +1,783 @@
+body.phase2-workspace { background: var(--ws-app); color: var(--ws-text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", system-ui, sans-serif; }
+.workspace-bootstrap-error { position: fixed; z-index: var(--ds-layer-toast); top: 0; left: 0; right: 0; padding: 8px 12px; border-bottom: 1px solid var(--ds-color-danger); background: var(--ds-color-surface); color: var(--ds-color-danger); font: 13px/1.5 var(--ds-font-ui); text-align: center; }
+.workspace-entry-status { position: fixed; z-index: var(--ds-layer-modal); inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; background: #fffdfbe8; color: var(--ws-text); font: 650 14px/1.4 var(--ws-font); backdrop-filter: blur(3px); }
+.workspace-entry-status.is-failed { flex-direction: column; color: var(--ds-color-danger); }
+.workspace-entry-status button { min-height: 34px; padding: 0 14px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface); cursor: pointer; }
+.workspace-entry-spinner { width: 18px; height: 18px; border: 2px solid var(--ws-border); border-top-color: var(--ws-accent); border-radius: 50%; animation: ws-entry-spin .7s linear infinite; }
+@keyframes ws-entry-spin { to { transform: rotate(1turn); } }
+body.phase2-workspace > .app-shell { height: 100dvh; min-height: 0; overflow: hidden; }
+body.phase2-workspace > .app-shell > .topbar,
+body.phase2-workspace > .app-shell > .site-footer { display: none !important; }
+body.phase2-workspace .workspace-wrap { position: relative; flex: none !important; max-width: none !important; width: 100%; height: 100dvh !important; min-height: 0; margin: 0; padding: 0 !important; display: grid !important; grid-template-rows: var(--ws-toolbar-height) auto minmax(0,1fr) var(--ws-viewbar-height) !important; overflow: hidden; background: var(--ws-app); }
+body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: none !important; width: 100%; min-height: 0; height: 100%; margin: 0; padding: 0 !important; display: grid !important; grid-template-columns: var(--ws-rail-width) minmax(0,1fr) var(--ws-inspector-width) !important; gap: 0 !important; overflow: hidden; }
+.ws-topbar { display: flex; align-items: center; gap: var(--ws-space-3); min-width: 0; height: var(--ws-toolbar-height); padding: 0 var(--ws-space-4); border-bottom: 1px solid var(--ws-border); background: var(--ws-surface); }
+.ws-engine-label { display: flex; align-items: center; gap: 6px; color: var(--ws-text-secondary); font-size: 13px; white-space: nowrap; }
+.ws-engine-label select { height: 34px; padding: 0 9px; border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); background: var(--ws-surface); color: var(--ws-text); font: inherit; }
+.ws-brand { display: flex; align-items: center; gap: 9px; min-width: 200px; font-size: 13px; font-weight: 680; white-space: nowrap; }
+.ws-name { min-width: 100px; max-width: 270px; flex: 1; height: 34px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--ws-radius-sm); background: transparent; color: var(--ws-text); font-size: 13px; font-weight: 600; }
+.ws-name:hover,.ws-name:focus { border-color: var(--ws-border); background: var(--ws-surface-soft); outline: none; }
+.ws-status { margin-left: auto; color: var(--ws-text-tertiary); font-size: 13px; white-space: nowrap; }
+.ws-membership-status { flex: 0 0 auto; padding: 4px 8px; border: 1px solid var(--ws-border); border-radius: 999px; background: var(--ws-surface); color: var(--ws-text-secondary); font-size: 13px; white-space: nowrap; }
+.ws-export-drawer { width: min(430px, 94vw); overflow-y: auto; }
+.ws-export-drawer .ws-field { display: grid; gap: 6px; }
+.ws-export-drawer input[type="text"], .ws-export-drawer input:not([type]), .ws-export-drawer select { min-height: 34px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface); color: var(--ws-text); padding: 0 9px; }
+.ws-export-drawer .ws-export-options { display: grid; gap: 8px; }
+.ws-export-drawer .ws-export-options label { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--ws-text-secondary); font-size: 13px; }
+.ws-export-drawer .ws-export-options small, .ws-export-drawer #ws-board-summary { color: var(--ws-text-tertiary); font-size: 13px; line-height: 1.45; }
+#ws-poster-preview { display:block; width:min(100%,300px); height:auto; margin:8px auto; border:1px solid var(--ws-border); background:#eee; }
+#ws-poster-solid-controls { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+#preview-modal:not(.show):not([open]), #preview-modal[aria-hidden="true"] { pointer-events:none !important; }
+.phase2-workspace .ws-old-preview { display:none !important; pointer-events:none !important; }
+.ws-button { min-height: 34px; padding: 0 12px; border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); background: var(--ws-surface); color: var(--ws-text); font-size: 13px; font-weight: 620; white-space: nowrap; cursor: pointer; }
+.ws-button:hover:not(:disabled) { border-color: var(--ws-border-strong); background: var(--ws-surface-soft); }
+.ws-button:active:not(:disabled),.ws-rail-button:active { transform: scale(.98); }
+.ws-button:disabled { opacity: .45; cursor: default; }
+.ws-button-primary { border-color: var(--ws-accent); background: var(--ws-accent); color: #fff; }
+.ws-button-primary:hover:not(:disabled) { border-color: var(--ws-accent-hover); background: var(--ws-accent-hover); }
+.ws-button-danger { border-color: #d9483b; background: #d9483b; color: #fff; }
+.ws-button-danger:hover:not(:disabled) { border-color: #b93a2e; background: #b93a2e; }
+.ws-wide { width: 100%; }
+.ws-rail { min-width: 0; padding: 10px 6px; display: flex; flex-direction: column; gap: 4px; overflow: auto; border-right: 1px solid var(--ws-border); background: var(--ws-surface-soft); }
+.ws-rail-button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 100%; min-height: 58px; padding: 5px 0; border: 1px solid transparent; border-radius: var(--ws-radius-sm); background: transparent; color: var(--ws-text-secondary); cursor: pointer; }
+.ws-rail-button span { font-size: 19px; line-height: 1.2; }.ws-rail-button small { font-size: 13px; font-weight: 600; }
+.ws-rail-button:hover { background: #f1f1ef; }.ws-rail-button.active { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
+.ws-center { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--ws-canvas); }
+.ws-center > .ws-old-preview { display: none !important; }
+.ws-import,.ws-canvas-area { position: absolute; inset: 0; min-width: 0; min-height: 0; }
+.ws-import[hidden],.ws-canvas-area[hidden] { display: none !important; }
+.ws-import { display: grid; place-items: center; padding: 24px; background: var(--ws-canvas); }
+.ws-import-inner { width: min(720px,100%); text-align: center; }.ws-eyebrow { margin: 0 0 8px; color: var(--ws-accent); font-size: 13px; font-weight: 750; letter-spacing: .15em; }
+.ws-import h1 { margin: 0 0 8px; font-size: 24px; font-weight: 650; letter-spacing: -.025em; }.ws-import p { margin: 0 0 20px; color: var(--ws-text-secondary); font-size: 13px; }.ws-import-inner > span { display: block; margin-top: 12px; color: var(--ws-text-tertiary); font-size: 13px; }
+.ws-import .ws-drop-slot > #upload-zone { width: 100%; min-height: 230px; max-height: 290px; margin: 0; border: 1.5px dashed var(--ws-border-strong); border-radius: var(--ws-radius-md); background: var(--ws-surface); box-shadow: none; }
+.ws-import .ws-drop-slot > #upload-zone:hover,.ws-import .ws-drop-slot > #upload-zone.drag-over { border-color: var(--ws-accent); background: var(--ws-accent-soft); }
+.ws-start-options { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; }
+.ws-blank-start { min-height: 230px; padding: 28px 20px; border: 1.5px solid var(--ws-border-strong); border-radius: var(--ws-radius-md); background: var(--ws-surface); color: var(--ws-text); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+.ws-blank-start:hover { border-color: var(--ws-accent); background: var(--ws-accent-soft); }
+.ws-blank-start strong { font-size: 16px; }.ws-blank-start span { color: var(--ws-text-secondary); font-size: 13px; }
+.ws-blank-start label,.ws-blank-custom { display: flex; align-items: center; gap: 7px; color: var(--ws-text-secondary); font-size: 13px; }.ws-blank-start select,.ws-blank-start input { min-height: 32px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); color: var(--ws-text); }.ws-blank-start input { width: 70px; padding-inline: 8px; }.ws-blank-start > button { min-height: 36px; padding: 0 16px; border: 0; border-radius: 7px; background: var(--ws-accent); color: #fff; font-weight: 700; cursor: pointer; }
+@media (max-width: 720px) { .ws-start-options { grid-template-columns: 1fr; }.ws-import { overflow: auto; align-items: start; }.ws-import-inner { padding-block: 24px; }.ws-import .ws-drop-slot > #upload-zone,.ws-blank-start { min-height: 160px; } }
+/* 画布区是 4 行：画布 / 用量汇总 / 背景预检条 / 操作提示。
+   预检条（B2 §6）是第 3 行 —— 只在开关打开时才有内容，所以用 `auto` 而不是固定值：
+   隐藏时 `display:none` 让它整行塌掉，布局与「没有这一行」完全一致。
+   最后三行都必须是 `auto`：只要有一行是固定值，多出来的那个 child 就会掉进隐式行，
+   把固定值那行抢过去，剩下的一行被压扁（提示行 26px → 17px，文字溢到工具坞下面）。 */
+.ws-canvas-area { display: grid; grid-template-rows: minmax(0,1fr) auto auto auto; }
+/* 图纸正下方的用量汇总。放在画布与操作提示之间，是画布区的第二行，
+   所以「滚轮缩放」那行提示不会被挤掉，也不会盖到画布。
+   词间距由标记里的字面空格提供（不另设 gap），这样复制出来的文本就是完整一句。 */
+.ws-canvas-stats { display: flex; align-items: baseline; justify-content: center; padding: 7px 12px; border-top: 1px solid var(--ws-border); background: var(--ws-surface); color: var(--ws-text-secondary); font-size: 13px; }
+.ws-canvas-stats strong { color: var(--ws-text); font-size: 15px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.ws-canvas-stats i { color: var(--ws-text-tertiary); font-style: normal; }
+.ws-canvas-stats.is-empty strong { color: var(--ws-text-tertiary); }
+.ws-canvas-well { min-height: 0; position: relative; display: grid; place-items: center; overflow: hidden; touch-action: none; cursor: grab; background-color: var(--ws-canvas); background-image: none; background-size: 24px 24px; }
+.ws-canvas-well.is-panning { cursor: grabbing; }.ws-canvas-well img { max-width: none; max-height: none; width: auto; height: auto; object-fit: contain; transform-origin: center; user-select: none; pointer-events: none; image-rendering: pixelated; filter: drop-shadow(0 1px 2px #18241b17); }
+.ws-canvas-layers { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.ws-navigator { position: absolute; z-index: 4; right: 14px; bottom: 14px; width: 190px; padding: 7px; border: 1px solid var(--ws-border); border-radius: 9px; background: color-mix(in srgb, var(--ws-surface) 92%, transparent); box-shadow: 0 5px 18px #17231b1f; backdrop-filter: blur(8px); cursor: crosshair; }
+.ws-navigator[hidden] { display: none; }
+.ws-navigator-title { margin: 0 2px 5px; color: var(--ws-text-secondary); font-size: 13px; font-weight: 700; letter-spacing: .06em; }
+.ws-navigator canvas { display: block; width: 176px; height: 116px; border-radius: 4px; touch-action: none; image-rendering: pixelated; }
+.ws-layer { position: absolute; inset: 0; pointer-events: none; }
+.ws-source-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }.ws-source-canvas[hidden] { display: none; }
+.ws-source-preview { display: block; width: 100%; max-height: 160px; object-fit: contain; border: 1px solid var(--ws-border); border-radius: 7px; background: var(--ws-canvas); }
+.ws-source-buttons { display: flex; flex-wrap: wrap; gap: 5px; margin: 9px 0; }.ws-source-buttons button { min-height: 29px; padding: 3px 9px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); color: var(--ws-text); font-size: 13px; cursor: pointer; }.ws-source-buttons button.ws-button-primary { background: var(--ws-accent); color: #fff; border-color: var(--ws-accent); }
+.ws-source-slider { display: grid; grid-template-columns: 1fr auto; gap: 4px; margin: 7px 0; color: var(--ws-text-secondary); font-size: 13px; }.ws-source-slider input { grid-column: 1/-1; width: 100%; accent-color: var(--ws-accent); }
+.ws-source-sample { color: var(--ws-text-secondary); font-size: 13px; }.ws-source-sample > div { display: flex; flex-wrap: wrap; gap: 4px; }.ws-source-sample button { display: flex; align-items: center; gap: 4px; min-height: 27px; border: 1px solid var(--ws-border); border-radius: 5px; background: var(--ws-surface); color: var(--ws-text); cursor: pointer; font-size: 13px; }
+.ws-expand-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }.ws-expand-grid label { display: flex; align-items: center; gap: 5px; font-size: 13px; }.ws-expand-grid input { min-width: 0; width: 100%; height: 27px; border: 1px solid var(--ws-border); border-radius: 5px; }
+.ws-grid-toolbar-host { position: absolute; z-index: 5; top: 12px; left: 50%; transform: translateX(-50%); width: min(690px, calc(100% - 32px)); overflow: visible; }
+.ws-cell-details { min-height: 66px; padding: 10px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface-soft); font-size: 13px; }
+.ws-cell-details strong { font-size: 17px; }.ws-cell-details p { margin: 4px 0; }
+.ws-current-color-summary { min-height: 42px; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 8px 10px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface-soft); color: var(--ws-text-secondary); font-size: 13px; }
+.ws-current-color-summary strong { color: var(--ws-text); font-size: 14px; }.ws-current-color-summary b { margin-left: auto; color: var(--ws-text); font-variant-numeric: tabular-nums; }
+.ws-current-color-swatch { width: 22px; height: 22px; flex: 0 0 auto; border: 1px solid #17231b35; border-radius: 4px; }
+.ws-palette-suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin: 7px 0 10px; }
+.ws-palette-suggestions button { display: grid; justify-items: center; gap: 2px; min-width: 38px; padding: 5px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); color: var(--ws-text-secondary); cursor: pointer; }
+.ws-palette-suggestions button span { width: 24px; height: 18px; border: 1px solid #17231b35; border-radius: 4px; }
+.ws-palette-diagnostic-list { display: grid; gap: 4px; max-height: 180px; overflow: auto; margin: 7px 0 10px; }
+.ws-palette-diagnostic-list button { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 7px; min-height: 30px; padding: 4px 7px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); color: var(--ws-text); text-align: left; cursor: pointer; }
+.ws-palette-diagnostic-list button span { width: 18px; height: 18px; border: 1px solid #17231b35; border-radius: 3px; }.ws-palette-diagnostic-list button small { color: var(--ws-text-secondary); }
+.ws-inspection { display: grid; gap: 7px; padding: 9px; border: 1px solid var(--ws-border); border-radius: 8px; background: color-mix(in srgb, var(--ws-surface) 92%, var(--ws-accent) 8%); }
+.ws-inspection-head, .ws-inspection-row { display: flex; align-items: center; justify-content: space-between; gap: 7px; }
+.ws-inspection button { min-height: 28px; padding: 4px 8px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); color: var(--ws-text); cursor: pointer; }
+.ws-inspection button:disabled { opacity: .45; cursor: default; }
+.ws-inspection-row span { min-width: 46px; color: var(--ws-text-secondary); font-size: 13px; text-align: center; }
+.ws-diagnostic-counts { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin: 6px 0 9px; }
+.ws-diagnostic-counts button { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 30px; padding: 5px 7px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); color: var(--ws-text); cursor: pointer; }
+.ws-diagnostic-counts button.active { border-color: var(--ws-accent); box-shadow: inset 0 0 0 1px var(--ws-accent); }
+.ws-diagnostic-counts b { color: var(--ws-accent); }
+.ws-repair-card, .ws-repair-queue { display: grid; gap: 8px; padding: 9px; border: 1px solid var(--ws-border); border-radius: 8px; background: color-mix(in srgb, var(--ws-surface) 94%, #4f9b72 6%); }
+.ws-repair-queue { margin-top: 8px; }
+.ws-repair-actions { display: flex; gap: 6px; }
+.ws-repair-actions button, #ws-repair-cancel-preview { flex: 1; min-height: 30px; padding: 5px 7px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); color: var(--ws-text); cursor: pointer; }
+.ws-repair-actions button:disabled, #ws-repair-cancel-preview:disabled { opacity: .45; cursor: default; }
+.ws-smart-status { color: var(--ws-text-secondary); font-size: 13px; white-space: nowrap; }
+.ws-color-optimization { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin:8px 0; }
+.ws-color-optimization button { min-height:34px; padding:6px; border:1px solid var(--ws-border); border-radius:6px; background:var(--ws-surface); color:var(--ws-text); cursor:pointer; }
+#ws-merge-sources { min-height:108px; }
+.ws-repair-counts { color: var(--ws-text-secondary); font-size: 13px; }
+.ws-bead-picker { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 4px; max-height: 220px; margin-top: 8px; overflow-y: auto; }
+.ws-bead-picker button { display: grid; justify-items: center; gap: 3px; padding: 4px 2px; border: 1px solid var(--ws-border); border-radius: 5px; background: var(--ws-surface); color: var(--ws-text-secondary); cursor: pointer; }
+.ws-bead-picker button.active,.ws-bead-picker button:hover { border-color: var(--ws-accent); color: var(--ws-accent); }.ws-bead-picker span { width: 20px; height: 20px; border: 1px solid #17231b25; border-radius: 3px; }.ws-bead-picker small { font-size: 13px; }
+.ws-palette-categories,.ws-recent-colors,.ws-selection-actions,.ws-outline-options { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+.ws-palette-categories button,.ws-recent-colors button,.ws-selection-actions button,.ws-outline-options button { min-height: 27px; padding: 2px 7px; border: 1px solid var(--ws-border); border-radius: 5px; background: var(--ws-surface); color: var(--ws-text-secondary); font-size: 13px; cursor: pointer; }
+.ws-palette-categories button.active,.ws-recent-colors button:hover { color: var(--ws-accent); border-color: var(--ws-accent); background: var(--ws-accent-soft); }
+.ws-recent-colors { font-size: 13px; color: var(--ws-text-tertiary); align-items: center; }.ws-outline-options label { display: flex; align-items: center; gap: 5px; font-size: 13px; }
+/* —— Stage B1 §12：横向用色统计 / 颜色巡检条 ——
+   横向滚动而不是竖列：右栏只有 244px，竖列会把色盘挤到屏幕外。
+   卡片是「色卡 + 色号 + 颗数」三行，最小宽度按最长色号（4 字符）留够。 */
+.ws-usage-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 6px 0 5px; }
+.ws-usage-head > span { font-size: 13px; color: var(--ws-text-secondary); font-variant-numeric: tabular-nums; }
+.ws-usage-sort { display: flex; gap: 3px; }
+.ws-usage-sort button { min-height: 22px; padding: 1px 5px; border: 1px solid var(--ws-border); border-radius: 4px; background: var(--ws-surface); color: var(--ws-text-tertiary); font-size: 13px; cursor: pointer; }
+.ws-usage-sort button.active { color: var(--ws-accent); border-color: var(--ws-accent); background: var(--ws-accent-soft); }
+.ws-usage-strip { display: flex; gap: 4px; margin: 0 0 6px; padding-bottom: 4px; overflow-x: auto; overflow-y: hidden; }
+.ws-usage-strip button.ws-usage-card { flex: 0 0 auto; display: grid; justify-items: center; gap: 2px; min-width: 44px; padding: 4px 3px; border: 1px solid var(--ws-border); border-radius: 5px; background: var(--ws-surface); color: var(--ws-text-secondary); cursor: pointer; }
+.ws-usage-strip button.ws-usage-card.active { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
+.ws-usage-strip .ws-swatch { width: 22px; height: 14px; border: 1px solid #17231b25; border-radius: 3px; }
+.ws-usage-strip small { font-size: 13px; }.ws-usage-strip em { font-size: 13px; font-style: normal; color: var(--ws-text-tertiary); font-variant-numeric: tabular-nums; }
+.ws-usage-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0 0 6px; }
+.ws-usage-actions .ws-usage-current { flex: 1 1 100%; font-size: 13px; color: var(--ws-text-secondary); font-variant-numeric: tabular-nums; }
+.ws-usage-actions button { min-height: 24px; padding: 2px 7px; border: 1px solid var(--ws-border); border-radius: 5px; background: var(--ws-surface); color: var(--ws-text-secondary); font-size: 13px; cursor: pointer; }
+.ws-usage-actions button:hover { color: var(--ws-accent); border-color: var(--ws-accent); }
+.ws-usage-similar { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 6px; }
+.ws-usage-similar button { display: grid; justify-items: center; gap: 2px; min-width: 52px; padding: 4px 3px; border: 1px solid var(--ws-border); border-radius: 5px; background: var(--ws-surface); color: var(--ws-text-secondary); cursor: pointer; }
+.ws-usage-similar button:hover { border-color: var(--ws-accent); color: var(--ws-accent); }
+.ws-usage-similar .ws-swatch { width: 22px; height: 14px; border: 1px solid #17231b25; border-radius: 3px; }
+.ws-usage-similar small { font-size: 13px; }.ws-usage-similar em { font-size: 9px; font-style: normal; color: var(--ws-text-tertiary); font-variant-numeric: tabular-nums; }
+.ws-picker-count { margin: 4px 0 0; font-size: 13px; color: var(--ws-text-tertiary); font-variant-numeric: tabular-nums; }
+.ws-bead-picker .ws-picker-more { grid-column: 1 / -1; min-height: 26px; border: 1px dashed var(--ws-border); border-radius: 5px; background: transparent; color: var(--ws-text-secondary); font-size: 13px; cursor: pointer; }
+.ws-bead-picker .ws-picker-more:hover { color: var(--ws-accent); border-color: var(--ws-accent); }
+.ws-editor-actions { display: flex; gap: 8px; margin: 12px 0; }.ws-editor-actions button { flex: 1; min-height: 30px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); cursor: pointer; }.ws-editor-actions button:disabled { opacity: .45; cursor: default; }
+.ws-canvas-hint { margin: 0; padding: 3px 12px; color: var(--ws-text-tertiary); font-size: 13px; text-align: center; background: var(--ws-canvas); }
+/* 提示行原本靠 `grid-template-rows` 里那个固定 26px 保住高度。改成 auto 之后，
+   必须自己声明最小高度 —— 否则预检条一出现，这一行会被挤到 17px，11px 的文字
+   按默认行高 1.4 就是 15.4px，直接溢出到工具坞下面。
+   用 border-box，26px 才等于「含 padding 的总高」，与改前的视觉高度一致。 */
+.ws-canvas-hint { box-sizing: border-box; min-height: 26px; }
+/* Stage B2 §6：生成前的背景预检条。
+   只在「刚打开去除纯色背景」时出现；三个按钮由 JS 按 status 显隐，
+   所以这里必须给 [hidden] 兜底（flex 会无视 hidden 属性）。 */
+.ws-bg-preview { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; padding: 7px 12px; border-top: 1px solid var(--ws-border); background: var(--ws-surface-soft); color: var(--ws-text); font-size: 13px; }
+.ws-bg-preview[hidden] { display: none; }
+.ws-bg-preview[data-status="probing"],.ws-bg-preview[data-status="keep"] { color: var(--ws-text-secondary); }
+.ws-bg-preview-text { font-weight: 650; }
+.ws-bg-preview-actions { display: inline-flex; align-items: center; gap: 6px; }
+.ws-bg-preview-actions button { min-height: 28px; padding: 3px 10px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); color: var(--ws-text); font-size: 13px; cursor: pointer; }
+.ws-bg-preview-actions button[hidden] { display: none; }
+.ws-bg-preview-actions button.ws-button-primary { border-color: var(--ws-accent); background: var(--ws-accent); color: #fff; }
+.ws-inspector { min-width: 0; min-height: 0; display: grid; grid-template-rows: 56px minmax(0,1fr); overflow: hidden; border-left: 1px solid var(--ws-border); background: var(--ws-surface); }
+.ws-inspector-head { display: flex; align-items: baseline; gap: 9px; padding: 18px 16px 13px; border-bottom: 1px solid var(--ws-border); }.ws-inspector-head strong { font-size: 14px; }.ws-inspector-head small { color: var(--ws-text-tertiary); font-size: 13px; }
+.ws-inspector-scroll { min-height: 0; overflow-y: auto; padding: 14px 16px 24px; }.ws-panel[hidden] { display: none !important; }
+.ws-section-title { margin: 8px 0 12px; padding-top: 12px; border-top: 1px solid var(--ws-border); font-size: 13px; font-weight: 720; }.ws-section-title:first-child { margin-top: 0; padding-top: 0; border: 0; }
+.ws-field { display: flex; flex-direction: column; gap: 6px; margin: 0 0 12px; color: var(--ws-text-secondary); font-size: 13px; font-weight: 600; }.ws-field input:not([type="range"]),.ws-field select { width: 100%; height: 35px; padding: 0 9px; border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); background: var(--ws-surface); color: var(--ws-text); font: inherit; font-size: 13px; }.ws-field input[readonly] { background: var(--ws-surface-soft); color: var(--ws-text-tertiary); }
+.ws-field input:focus,.ws-field select:focus { outline: 2px solid #98d4c2; outline-offset: 1px; }.ws-note { color: var(--ws-text-tertiary); font-size: 13px; line-height: 1.45; }.ws-check { display: flex; align-items: center; gap: 6px; color: var(--ws-text-secondary); font-size: 13px; }
+.ws-readout { padding: 10px 12px; border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); background: var(--ws-surface-soft); color: var(--ws-text); font-size: 13px; font-weight: 650; }
+.ws-color-list { display: grid; gap: 2px; max-height: 38vh; overflow-y: auto; }.ws-color-row { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 8px; width: 100%; padding: 7px 6px; border: 1px solid transparent; border-radius: var(--ws-radius-sm); background: transparent; color: var(--ws-text); font-size: 13px; text-align: left; cursor: pointer; }.ws-color-row:hover,.ws-color-row.active { border-color: #f5c8aa; background: var(--ws-accent-soft); }.ws-color-row small { color: var(--ws-text-secondary); font-variant-numeric: tabular-nums; }.ws-swatch { width: 17px; height: 17px; border: 1px solid #0002; border-radius: 3px; }
+.ws-check-results { overflow-wrap: anywhere; color: var(--ws-text-secondary); font-size: 13px; line-height: 1.5; }.ws-check-results p { margin: 0 0 7px; }
+.ws-project-gallery-slot .gallery-section { display: block !important; margin: 0; padding: 0; max-width: 100%; }.ws-project-gallery-slot .gallery-section .generated-gallery { display: grid; grid-template-columns: 1fr; }.ws-project-gallery-slot .gallery-card { width: 100%; }
+.ws-project-gallery-slot .gallery-head { display: block; min-width: 0; margin: 0 0 8px; }.ws-project-gallery-slot .gallery-head h2 { font-size: 13px; line-height: 1.3; letter-spacing: 0; }.ws-project-gallery-slot .gallery-head p { display: none; }.ws-project-gallery-slot .gallery-tools { margin-top: 9px; }.ws-project-gallery-slot .gallery-search input { min-height: 33px; padding: 0 9px; border-radius: var(--ws-radius-sm); font-size: 13px; }.ws-project-gallery-slot .gallery-card { border-radius: var(--ws-radius-sm); }.ws-project-gallery-slot .gallery-card img { height: 118px; object-fit: contain; }.ws-project-gallery-slot .gallery-caption { padding: 7px; font-size: 13px; }
+.ws-viewbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; height: var(--ws-viewbar-height); padding: 0 14px; border-top: 1px solid var(--ws-border); background: var(--ws-surface); }.ws-viewbar button { height: 29px; min-width: 28px; padding: 0 7px; border: 1px solid transparent; border-radius: var(--ws-radius-sm); background: transparent; color: var(--ws-text-secondary); font-size: 13px; cursor: pointer; }.ws-viewbar button:hover:not(:disabled) { background: var(--ws-surface-soft); border-color: var(--ws-border); }.ws-viewbar button.active { background: var(--ws-accent-soft); color: var(--ws-accent); font-weight: 720; }.ws-viewbar button:disabled { opacity: .4; cursor: default; }
+.ws-view-modes,.ws-view-toggles { display: flex; align-items: center; gap: 3px; min-width: 0; }.ws-view-toggles { gap: 12px; }.ws-view-toggles label { display: flex; align-items: center; gap: 5px; color: var(--ws-text-secondary); font-size: 13px; white-space: nowrap; cursor: pointer; }.ws-view-toggles input { accent-color: var(--ws-accent); }
+.ws-confirm-dialog { width: min(340px,90vw); padding: 22px; border: 1px solid var(--ws-border); border-radius: 12px; background: var(--ws-surface); color: var(--ws-text); box-shadow: 0 16px 40px #17231b30; }
+.ws-confirm-dialog::backdrop { background: #17231b55; }.ws-confirm-dialog p { margin: 0 0 18px; font-size: 13px; line-height: 1.5; }.ws-confirm-dialog div { display: flex; justify-content: flex-end; gap: 8px; }
+.ws-confirm-dialog button { min-height: 32px; padding: 0 12px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); color: var(--ws-text); cursor: pointer; }
+.ws-confirm-dialog #ws-confirm-ok { border-color: var(--ws-accent); background: var(--ws-accent); color: #fff; }
+.ws-export-drawer { position: absolute; z-index: 30; top: var(--ws-toolbar-height); right: 0; bottom: var(--ws-viewbar-height); width: min(340px,90vw); padding: 18px; overflow-y: auto; border-left: 1px solid var(--ws-border); background: var(--ws-surface); transform: translateX(101%); visibility: hidden; transition: transform .24s ease, visibility .24s; box-shadow: -10px 0 24px #17231b12; }.ws-export-drawer.open { transform: translateX(0); visibility: visible; }.ws-drawer-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid var(--ws-border); font-size: 15px; }.ws-drawer-head button { width: 30px; height: 30px; border: 0; background: transparent; color: var(--ws-text-secondary); font-size: 23px; cursor: pointer; }.ws-export-choice { display: flex; flex-direction: column; gap: 5px; width: 100%; margin: 8px 0; padding: 14px; border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); background: var(--ws-surface); color: var(--ws-text); text-align: left; cursor: pointer; }.ws-export-choice:hover { border-color: var(--ws-accent); background: var(--ws-accent-soft); }.ws-export-choice strong { font-size: 13px; }.ws-export-choice small { color: var(--ws-text-tertiary); font-size: 13px; }
+.ws-export-options { display: grid; gap: 9px; margin: 18px 0 10px; padding: 12px; border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); background: var(--ws-surface-soft); font-size: 13px; }.ws-export-options strong { font-size: 13px; }.ws-export-options label { display: flex; align-items: center; gap: 7px; color: var(--ws-text-secondary); cursor: pointer; }.ws-export-options input { accent-color: var(--ws-accent); }
+/* ============================ 库存面板（B 批） ============================ */
+.inv-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+.inv-search { width: 100%; height: 33px; margin-bottom: 8px; padding: 0 9px; border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); background: var(--ws-surface); color: var(--ws-text); font: inherit; font-size: 13px; }
+.inv-list { display: grid; gap: 2px; }
+.inv-row-item { display: grid; grid-template-columns: 18px minmax(0,1fr) auto; align-items: center; gap: 8px; width: 100%; padding: 6px; border: 1px solid transparent; border-radius: var(--ws-radius-sm); background: transparent; color: var(--ws-text); font-size: 13px; text-align: left; cursor: pointer; }
+.inv-row-item:hover { border-color: #f5c8aa; background: var(--ws-accent-soft); }
+.inv-row-main { display: grid; min-width: 0; }
+.inv-row-main strong { font-weight: 650; }
+.inv-row-main small { overflow: hidden; color: var(--ws-text-tertiary); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.inv-stock { font-variant-numeric: tabular-nums; font-weight: 650; text-align: right; }
+.inv-stock small { display: block; color: var(--ws-text-tertiary); font-size: 13px; font-weight: 500; }
+.inv-stock.is-low { color: #b06a1e; }
+.inv-stock.is-negative { color: var(--ws-danger); }
+.inv-deficit { color: var(--ws-danger); font-size: 13px; font-weight: 650; }
+.inv-submission { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px; margin-bottom: 4px; padding: 6px; border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); }
+.inv-submission.is-reverted { opacity: .55; }
+.inv-submission strong { font-size: 13px; }
+.inv-submission small { display: block; color: var(--ws-text-tertiary); font-size: 13px; }
+.ws-toast { position: fixed; left: 50%; bottom: 26px; z-index: 60; max-width: min(560px, 88vw); padding: 10px 16px; border: 1px solid var(--ws-border); border-radius: 999px; background: var(--ws-surface); color: var(--ws-text); box-shadow: 0 12px 30px #17231b33; font-size: 13px; transform: translateX(-50%); }
+.ws-inv-dialog { width: min(520px,94vw); padding: 20px; border: 1px solid var(--ws-border); border-radius: 12px; background: var(--ws-surface); color: var(--ws-text); box-shadow: 0 18px 44px #17231b33; }
+.ws-inv-dialog::backdrop { background: #17231b55; }
+.ws-inv-dialog-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.ws-inv-dialog-head strong { font-size: 14px; }
+.ws-inv-dialog-head button { width: 28px; height: 28px; border: 0; border-radius: 6px; background: none; color: var(--ws-text-tertiary); font-size: 18px; cursor: pointer; }
+.ws-inv-dialog-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; margin-top: 12px; }
+.ws-inv-wide { grid-column: 1/-1; }
+.ws-inv-dialog-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; }
+.ws-inv-dialog-foot div { display: flex; gap: 8px; }
+.inv-danger { color: var(--ws-danger); }
+/* 用豆清单对话框。[open] 不能省：作者样式里的 display 会盖掉浏览器默认的 dialog:not([open]){display:none} */
+.ws-usage-dialog[open] { display: grid; grid-template-rows: auto auto auto minmax(0,1fr) auto; width: min(960px,96vw); max-height: 88vh; padding: 0; border: 1px solid var(--ws-border); border-radius: 12px; background: var(--ws-surface); color: var(--ws-text); box-shadow: 0 18px 44px #17231b33; }
+.ws-usage-dialog::backdrop { background: #17231b55; }
+.ws-usage-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; border-bottom: 1px solid var(--ws-border); }
+.ws-usage-head strong { display: block; font-size: 14px; }
+.ws-usage-head small { color: var(--ws-text-tertiary); font-size: 13px; }
+.ws-usage-close { width: 28px; height: 28px; border: 0; border-radius: 6px; background: none; color: var(--ws-text-tertiary); font-size: 18px; cursor: pointer; }
+.ws-usage-toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 18px 0; }
+.ws-usage-dialog > .ws-note { margin: 8px 18px 10px; }
+.ws-usage-table-host { min-height: 0; margin: 0 18px; overflow: auto; border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); }
+.ws-usage-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ws-usage-table th { position: sticky; top: 0; z-index: 1; padding: 7px 9px; background: var(--ws-surface-soft); color: var(--ws-text-tertiary); font-size: 13px; font-weight: 650; text-align: left; }
+.ws-usage-table td { padding: 5px 9px; border-top: 1px solid var(--ws-border); vertical-align: middle; }
+.ws-usage-code,.ws-usage-count { width: 100%; height: 30px; padding: 0 7px; border: 1px solid var(--ws-border); border-radius: var(--ws-radius-sm); background: var(--ws-surface); color: var(--ws-text); font: inherit; font-size: 13px; }
+.ws-usage-code { width: 92px; }
+.ws-usage-count { width: 84px; font-variant-numeric: tabular-nums; }
+.ws-usage-hint { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; color: var(--ws-text-tertiary); font-size: 13px; }
+.ws-usage-badge { padding: 1px 6px; border-radius: 999px; background: var(--ws-surface-soft); border: 1px solid var(--ws-border); color: var(--ws-text-secondary); }
+.ws-usage-badge.is-ok { border-color: #a9cfae; background: #eef7ef; color: #2f6b39; }
+.ws-usage-badge.is-review { border-color: #e3c07a; background: #fdf6e6; color: #8a6113; }
+.ws-usage-badge.is-failed { border-color: #dfa49f; background: #fdedec; color: var(--ws-danger); }
+.ws-usage-text { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.ws-usage-warn { color: #8a6113; }
+.ws-usage-adopt { padding: 1px 7px; border: 1px solid var(--ws-accent); border-radius: 999px; background: var(--ws-accent-soft); color: #a8500f; font-size: 13px; cursor: pointer; }
+.ws-usage-remove { width: 24px; height: 24px; border: 0; border-radius: 5px; background: none; color: var(--ws-text-tertiary); font-size: 15px; cursor: pointer; }
+.ws-usage-remove:hover { background: var(--ws-surface-soft); color: var(--ws-danger); }
+.ws-usage-empty { padding: 22px 10px; color: var(--ws-text-tertiary); text-align: center; }
+.ws-swatch-empty { background: repeating-linear-gradient(45deg,#ffffff,#ffffff 4px,#e6e6e3 4px,#e6e6e3 8px); }
+.ws-usage-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px 16px; }
+.ws-usage-foot div { display: flex; gap: 8px; }
+@media (max-width: 1100px) { :root { --ws-inspector-width: 280px; } .ws-brand { min-width: 155px; }.ws-status { display: none; } }
+@media (max-width: 760px) { body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { grid-template-columns: 56px minmax(0,1fr) !important; }.ws-inspector { position: absolute; z-index: 20; top: var(--ws-toolbar-height); right: 0; bottom: var(--ws-viewbar-height); width: min(300px,calc(100vw - 56px)); box-shadow: -8px 0 18px #17231b13; }.ws-brand span:last-child { display: none; }.ws-brand { min-width: 30px; }.ws-topbar { gap: 5px; padding: 0 7px; }.ws-name { min-width: 0; }.ws-viewbar { overflow-x: auto; padding: 0 7px; }.ws-view-modes,.ws-view-toggles { flex: 0 0 auto; } }
+@media (prefers-reduced-motion: reduce) { .ws-export-drawer { transition: visibility 0s, opacity .12s; transform: none; opacity: 0; }.ws-export-drawer.open { opacity: 1; } .ws-button:active,.ws-rail-button:active { transform: none; } }
+@media (prefers-contrast: more) { .ws-rail-button.active,.ws-color-row.active { border-color: var(--ws-accent); } }
+
+/* ───────── 顶栏参数条：视图缩放 ─────────
+   作为 .workspace-wrap 网格第 2 行（auto），横贯整宽，位于工作台上方、底部画笔坞之上。
+   Stage C0 §2/§4：生成尺寸（长边草稿 + 派生读数 +「应用尺寸」）已经搬进右栏「生成」面板 ——
+   它是生成这一层的 PROPERTY，不该和视图控件挤在同一条横条上。这里只剩 TOOL 层的视图缩放。
+   保留 50px 的行高是刻意的：.ws-canvas-area 的行轨契约和底部工具坞的定位都按它算，
+   缩它等于顺手动布局；后续视图类开关（网格 / 色号 / 对比）也还有位置。 */
+.phase2-workspace .ws-top-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+  min-height: 50px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--ws-border);
+  background: var(--ws-surface);
+  overflow: visible;
+}
+.phase2-workspace .ws-top-zoom { display: flex; align-items: center; margin-left: auto; }
+
+/* ───────── 右栏「生成」面板：生成尺寸 ─────────
+   同一套控件从顶栏搬进窄右栏：预设改两列、滑杆与数字框占满宽度、应用按钮整宽。
+   **元素 id 一个都没换**（#ws-size-chips / #ws-size-range / #ws-size-number /
+   #ws-size-value / #ws-size-apply / #ws-size-authority / #ws-size-tier），
+   所以既有探针仍然按同一套选择器驱动它 —— 搬的只是位置，不是接口。 */
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-size-block {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 12px;
+  padding: 10px;
+  border: 1px solid var(--ws-border);
+  border-radius: 10px;
+  background: var(--ws-surface-soft);
+}
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-top-size-label { color: var(--ws-text-tertiary); font-size: 13px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-size-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-size-slider { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-size-slider output { display: flex; align-items: center; justify-content: center; gap: 8px; height: 30px; padding: 0 10px; border: 1px solid var(--ws-border); border-radius: 10px; background: var(--ws-accent-soft); color: var(--ws-text); font-size: 13px; font-variant-numeric: tabular-nums; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-size-slider input[type="range"] { width: 100%; accent-color: var(--ws-accent); cursor: pointer; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-size-slider input[type="number"] { width: 100%; height: 30px; padding: 0 6px; border: 1px solid var(--ws-border); border-radius: 8px; background: var(--ws-surface); color: var(--ws-text); font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-size-slider input[type="number"]:focus { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .ws-size-slider input[type="number"]:disabled { opacity: .5; }
+.phase2-workspace .ws-size-apply { height: 30px; padding: 0 12px; white-space: nowrap; }
+.phase2-workspace .ws-size-apply:disabled { opacity: .5; cursor: not-allowed; }
+/* 尺寸预设片在窄栏里也要有确定的命中面积（原本靠 44px 最小宽撑开）。 */
+.phase2-workspace .ws-size-chip {
+  min-width: 44px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--ws-border);
+  border-radius: 8px;
+  background: var(--ws-surface);
+  color: var(--ws-text-secondary);
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.phase2-workspace .ws-size-chip:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
+.phase2-workspace .ws-size-chip.is-active { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
+.phase2-workspace .ws-size-chip-auto { min-width: 52px; }
+
+
+/* 大尺寸分档提示（B0 §8）：301–400 提示大尺寸，>400 提示超大尺寸，都必须显式点「应用尺寸」。 */
+.phase2-workspace .ws-size-tier {
+  padding: 3px 8px;
+  border: 1px solid var(--ws-border-strong);
+  border-radius: 8px;
+  color: var(--ws-text-secondary);
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.phase2-workspace .ws-size-tier[data-tier="large"] { border-color: #d9a441; color: #8a6415; background: #fdf5e4; }
+.phase2-workspace .ws-size-tier[data-tier="xlarge"] { border-color: #d1663f; color: #8f2f11; background: #fdeee7; }
+
+/* 尺寸权威来源（B0.1）：绝对权威在位时长边不再是自由度，必须说清是谁定的尺寸，
+   否则用户会以为滑杆坏了。工程文件 / 人工标定 / 网格识别用同一套中性色。 */
+.phase2-workspace .ws-size-authority {
+  padding: 3px 8px;
+  border: 1px solid var(--ws-border-strong);
+  border-radius: 8px;
+  color: var(--ws-text-secondary);
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.phase2-workspace .ws-size-authority[data-authority="structured-project"] { border-color: #6b8fd1; color: #2c4f8f; background: #eef3fd; }
+.phase2-workspace .ws-size-authority[data-authority="manual-calibration"] { border-color: #6fae86; color: #24603c; background: #eaf6ef; }
+.phase2-workspace .ws-size-authority[data-authority="grid-detection"] { border-color: #7f9fb5; color: #2f5566; background: #eef5f8; }
+
+/* 扩展工具条：帮助是独立尾项，不参与主要尺寸设置区的宽度竞争。 */
+.phase2-workspace .sl-grid-toolbar-extended { flex-wrap: nowrap; }
+.phase2-workspace .sl-toolbar-help { flex: 0 0 auto; margin-left: 4px; padding-left: 4px; border-left: 1px solid var(--ws-border); }
+
+/* 镜像菜单属于底部工具坞，向上展开，避免被视口底边截断。 */
+.phase2-workspace .ws-dock .sl-mirror-menu .sl-tool-menu {
+  top: auto;
+  right: 0;
+  bottom: calc(100% + 8px);
+  grid-template-columns: 1fr;
+  width: 150px;
+}
+
+/* ───────── 右栏「生成」面板：生成模式 + 生成参数 + 生成状态 ─────────
+   GenerationPanel 从顶栏搬进窄右栏，撤掉横向卡片布局、回归竖排；预设网格压成 2 列。
+   Stage C0 §3：它现在住在**「生成」Tab**（原来挂在「色彩」里，6 个 tab 没有一个叫生成）。 */
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-generation-panel { gap: 12px; margin: 12px 0 4px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-panel-section { padding: 12px; border-radius: 10px; border-color: var(--ws-border); }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-section-heading { margin-bottom: 12px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-section-heading h3 { font-size: 13px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-section-heading p { font-size: 13px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-preset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-sampling-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-advanced-content[hidden] { display: none; }
+
+/* 主要动作「重新生成」（Stage C0 §4）。放在面板最上面：它是这一屏唯一的 ACTION，
+   不该被 8 张模式卡 + 4 段参数压到最底下要滚三屏才够得着。 */
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-action-section { padding: 0; border: 0; background: transparent; }
+.phase2-workspace .sl-primary-action {
+  width: 100%; display: grid; gap: 2px; padding: 10px 12px; text-align: left;
+  border: 1px solid var(--ws-accent); border-radius: 10px;
+  background: var(--ws-accent-soft); color: var(--ws-accent); cursor: pointer;
+}
+.phase2-workspace .sl-primary-action strong { font-size: 13px; }
+.phase2-workspace .sl-primary-action small { color: var(--ws-text-secondary); font-size: 13px; }
+.phase2-workspace .sl-primary-action:hover:not(:disabled) { background: var(--ws-accent); color: var(--ws-surface); }
+.phase2-workspace .sl-primary-action:hover:not(:disabled) small { color: var(--ws-surface); }
+.phase2-workspace .sl-primary-action:disabled { opacity: .45; cursor: not-allowed; }
+
+/* 颜色数量档位（Stage C0 §6）：0 这个内部哨兵值不再直接给用户看。 */
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-color-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 10px; }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-color-presets button {
+  height: 28px; border: 1px solid var(--ws-border); border-radius: 8px;
+  background: var(--ws-surface); color: var(--ws-text-secondary);
+  font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-color-presets button:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-color-presets button.is-active { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
+.phase2-workspace .ws-panel[data-ws-inspector="generation"] .sl-number-readout { margin: 8px 0 0; color: var(--ws-text-secondary); font-size: 13px; font-weight: 650; }
+
+/* ───────── 右栏「色彩」面板：色卡 + 色号选择 + 用色统计 ─────────
+   Stage C0 §3：生成参数已搬到「生成」面板，这里只剩色号本身（OBJECT/PROPERTY）。 */
+.phase2-workspace .ws-panel[data-ws-inspector="color"] #ws-color-search { width: 100%; height: 32px; margin-bottom: 8px; padding: 0 9px; border: 1px solid var(--ws-border); border-radius: 6px; font-size: 13px; background: var(--ws-surface); color: var(--ws-text); }
+
+/* ───────── 右栏「材料」面板：本作品用豆 + 底板 + 库存台账 ─────────
+   Stage C0 §2/§14：「库存」→「材料」。库存面板的每一项能力都还在（扣料 / OCR 录入 /
+   CSV / 缺货 / 单色号明细），它现在是材料面板的最后一节；上面多了备料口径的用豆清单。 */
+.phase2-workspace .ws-material-list { display: grid; gap: 2px; margin: 8px 0 4px; max-height: 260px; overflow-y: auto; }
+.phase2-workspace .ws-material-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; }
+.phase2-workspace .ws-material-row b { min-width: 0; overflow: hidden; color: var(--ws-text); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.phase2-workspace .ws-material-row em { color: var(--ws-text-secondary); font-style: normal; font-variant-numeric: tabular-nums; }
+.phase2-workspace .ws-material-row .ws-swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--ws-border-strong); }
+
+/* ───────── 右栏「编辑」面板：文字素材（浮动图层） ─────────
+   结构照 Pixler 的「添加文字」：上面是浮动图层列表，下面是当前图层的编辑表单。
+   文字在画布上只画在 overlay 层（拖动/调参全程不写 grid），点「向下合并」才写进图纸。 */
+.phase2-workspace .ws-text-panel { display: grid; gap: 10px; margin: 10px 0 4px; }
+
+/* 浮动图层列表 */
+.phase2-workspace .ws-text-layers { display: grid; gap: 6px; }
+.phase2-workspace .ws-text-layers-head { color: var(--ws-text-tertiary); font-size: 13px; font-weight: 700; letter-spacing: .06em; }
+.phase2-workspace .ws-text-layers-head b { color: var(--ws-text-secondary); }
+.phase2-workspace .ws-text-layer {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 3px 8px; width: 100%;
+  padding: 7px 9px; border: 1px solid var(--ws-border); border-radius: 8px;
+  background: var(--ws-surface); color: var(--ws-text-secondary);
+  font-size: 13px; text-align: left; cursor: pointer;
+}
+.phase2-workspace .ws-text-layer small { grid-column: 1 / -1; color: var(--ws-text-tertiary); line-height: 1.45; }
+.phase2-workspace .ws-text-object-delete { width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--ws-text-tertiary); font-size: 18px; line-height: 1; cursor: pointer; }
+.phase2-workspace .ws-text-object-delete:hover { background: color-mix(in srgb, #dc2626 10%, transparent); color: #b91c1c; }
+.phase2-workspace .ws-text-layer:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
+.phase2-workspace .ws-text-layer.is-active { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
+.phase2-workspace .ws-text-layer-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phase2-workspace .ws-text-layer-badge { grid-column: 1 / -1; justify-self: start; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--ws-accent); color: var(--ws-accent); font-size: 13px; font-weight: 700; }
+
+/* 编辑表单：文字内容 / 字体 / 颜色 / 加粗倾斜 / 字号 / 旋转 */
+.phase2-workspace .ws-text-editor { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--ws-border); border-radius: 10px; background: var(--ws-surface-soft); }
+.phase2-workspace .ws-text-label { color: var(--ws-text-secondary); font-size: 13px; }
+.phase2-workspace .ws-text-colors { display: flex; flex-wrap: wrap; gap: 6px; }
+.phase2-workspace .ws-text-swatch {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 7px 3px 3px; border: 1px solid var(--ws-border); border-radius: 6px;
+  background: var(--ws-surface); color: var(--ws-text-secondary);
+  font-size: 13px; font-weight: 650; cursor: pointer;
+}
+.phase2-workspace .ws-text-swatch i { width: 16px; height: 16px; border: 1px solid var(--ws-border); border-radius: 3px; }
+.phase2-workspace .ws-text-swatch:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
+.phase2-workspace .ws-text-swatch.is-on { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
+.phase2-workspace .ws-text-swatch-pick,
+.phase2-workspace .ws-text-swatch-add { padding: 3px 9px; font-size: 13px; line-height: 1; }
+.phase2-workspace .ws-text-style { display: flex; gap: 6px; }
+.phase2-workspace .ws-text-toggle {
+  width: 34px; height: 30px; border: 1px solid var(--ws-border); border-radius: 8px;
+  background: var(--ws-surface); color: var(--ws-text-secondary); font-size: 13px; cursor: pointer;
+}
+.phase2-workspace .ws-text-toggle:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
+.phase2-workspace .ws-text-toggle.is-on { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
+.phase2-workspace .ws-text-actions { display: grid; grid-template-columns: auto 1fr; gap: 8px; }
+.phase2-workspace .ws-text-delete { color: var(--ws-danger); }
+.phase2-workspace .ws-text-delete:hover:not(:disabled) { border-color: var(--ws-danger); background: var(--ws-surface); color: var(--ws-danger); }
+
+@media (max-width: 760px) {
+  /* 小屏：顶栏改为纵向堆叠（Stage C0 之后这里只剩视图缩放，尺寸控件已在右栏「生成」里） */
+  .phase2-workspace .ws-top-controls { flex-direction: column; align-items: stretch; gap: 8px; }
+  .phase2-workspace .ws-top-zoom { margin-left: 0; justify-content: flex-end; }
+}
+
+/* Stage A product shell */
+.phase2-workspace .ws-topbar { gap: 10px; padding-inline: 12px; }
+.phase2-workspace .ws-brand { min-width: 170px; }
+.phase2-workspace .ws-brand img { width: 34px; height: 34px; border-radius: 9px; object-fit: cover; }
+.phase2-workspace .ws-brand span { display: grid; line-height: 1.05; }
+.phase2-workspace .ws-brand strong { color: var(--ws-text); font-size: 13px; }
+.phase2-workspace .ws-brand small { margin-top: 3px; color: var(--ws-text-muted); font-size: 9px; }
+.phase2-workspace .ws-project-identity { min-width: 190px; display: grid; grid-template-columns: minmax(110px,220px) auto; align-items: center; column-gap: 8px; }
+.phase2-workspace .ws-project-identity .ws-name { grid-row: 1 / span 2; }
+.phase2-workspace .ws-project-identity > span { min-width: 0; overflow: hidden; color: var(--ws-text-muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.phase2-workspace .ws-history-actions { display: flex; gap: 3px; }
+.phase2-workspace .ws-history-actions button,.phase2-workspace .ws-rail-collapse { width: 34px; height: 34px; border: 1px solid var(--ws-border); background: var(--ws-surface); color: var(--ws-text); font-size: 18px; }
+.phase2-workspace .ws-project-menu { position: relative; }
+.phase2-workspace .ws-project-menu > summary { list-style: none; }
+.phase2-workspace .ws-project-menu > summary::-webkit-details-marker { display: none; }
+.phase2-workspace .ws-project-popover { position: absolute; z-index: 80; top: calc(100% + 8px); right: 0; width: 230px; padding: 6px; border: 1px solid var(--ws-border); background: var(--ws-surface); box-shadow: 0 14px 36px rgba(24,26,34,.16); }
+.phase2-workspace .ws-project-popover button { width: 100%; display: grid; gap: 3px; padding: 10px 11px; border: 0; background: transparent; color: var(--ws-text); text-align: left; }
+.phase2-workspace .ws-project-popover button:hover { background: var(--ws-accent-soft); }
+.phase2-workspace .ws-project-popover small { color: var(--ws-text-muted); font-size: 13px; }
+.phase2-workspace .ws-rail { width: 58px; padding: 6px; transition: width 180ms ease; }
+.phase2-workspace .ws-rail-collapse { flex: 0 0 auto; align-self: flex-end; width: 28px; height: 28px; margin-bottom: 4px; font-size: 16px; }
+.phase2-workspace .ws-rail .ws-grid-toolbar-host { min-height: 0; flex: 0 0 auto; width: 100%; }
+.phase2-workspace .sl-grid-toolbar-rail { display: grid; gap: 4px; align-content: start; }
+.phase2-workspace .sl-grid-toolbar-rail .sl-tool-button { width: 100%; min-height: 44px; display: grid; place-items: center; gap: 2px; padding: 4px; border: 1px solid transparent; background: transparent; color: var(--ws-text-secondary); }
+.phase2-workspace .sl-grid-toolbar-rail .sl-tool-button:hover,.phase2-workspace .sl-grid-toolbar-rail .sl-tool-button.is-active,.phase2-workspace .sl-grid-toolbar-rail details[open] > summary { border-color: var(--ws-border); background: var(--ws-accent-soft); color: var(--ws-accent); }
+.phase2-workspace .sl-grid-toolbar-rail .sl-tool-icon svg { width: 20px; height: 20px; }
+.phase2-workspace .sl-grid-toolbar-rail .sl-tool-label { display: block; font-size: 13px; }
+.phase2-workspace .sl-rail-menu { position: relative; width: 100%; }
+.phase2-workspace .sl-rail-menu > summary { list-style: none; }
+.phase2-workspace .sl-rail-menu > summary::-webkit-details-marker { display: none; }
+/* Stage C0 §18：左轨子菜单改为「就地展开」，不再向右浮出。
+   ── 为什么必须改 ────────────────────────────────────────────────────
+   浮出版本和 .ws-rail 的 `overflow-x: hidden !important` **物理上互斥**：
+   `.sl-tool-menu` 是 `.sl-rail-menu`（position: relative，在左轨内部）的绝对定位
+   子元素，包含块落在裁剪框里面，所以「从 100% 再往右 8px」那一整块被裁掉。
+   实测证据：按钮有 37×38 的盒子、display=flex、visibility=visible，
+   但中心点 elementFromPoint 命中的是 `div#ws-canvas-well` —— 真鼠标点不到。
+   「形状」「选择」「镜像」三组共 9 个工具入口全部不可达，而且任何用
+   `element.click()` 驱动的探针都会说它们 PASS。
+   就地展开没有这个问题，也不再和 overflow-x: hidden 打架。
+   （移动端 ≤760px 是另一回事：横向条 overflow-y: hidden，改用 fixed 浮上去，
+     见文件末尾的媒体查询。） */
+.phase2-workspace .sl-rail-menu .sl-tool-menu { position: static; z-index: auto; left: auto; top: auto; width: 100%; margin: 4px 0 2px; padding: 2px 0 2px 8px; border: 0; border-left: 2px solid var(--ws-accent-soft); background: transparent; box-shadow: none; }
+.phase2-workspace .sl-rail-menu .sl-tool-menu .sl-tool-button { min-height: 36px; display: flex; justify-content: flex-start; padding-inline: 10px; }
+.phase2-workspace .sl-rail-help { width: 100%; min-height: 34px; margin-top: 4px; border: 0; background: transparent; }
+.phase2-workspace .ws-rail.is-collapsed { width: 58px; }
+.phase2-workspace .ws-rail.is-collapsed .sl-tool-label,.phase2-workspace .ws-rail.is-collapsed .ws-rail-mode small { display: none; }
+.phase2-workspace .ws-rail.is-collapsed .sl-grid-toolbar-rail .sl-tool-button { min-height: 42px; }
+.phase2-workspace .ws-rail,
+body.phase2-workspace .workspace-grid[data-workspace-ready="true"] > .ws-rail {
+  box-sizing: border-box; min-width: 0; max-width: 100%; overflow-x: hidden !important; overflow-y: auto;
+  display: flex !important; flex-direction: column !important; flex-wrap: nowrap !important;
+}
+body.phase2-workspace .ws-rail .ws-grid-toolbar-host { box-sizing: border-box; min-width: 0; max-width: 100%; width: 100%; overflow: visible; }
+body.phase2-workspace .ws-rail .sl-grid-toolbar-rail {
+  box-sizing: border-box; min-width: 0; max-width: 100%; width: 100%;
+  display: flex !important; flex-direction: column !important; flex-wrap: nowrap !important; gap: 4px;
+  overflow: visible;
+}
+body.phase2-workspace .ws-rail .sl-grid-toolbar-rail > .sl-tool-button,
+body.phase2-workspace .ws-rail .sl-grid-toolbar-rail > .sl-rail-menu,
+body.phase2-workspace .ws-rail .sl-grid-toolbar-rail > .sl-rail-menu > summary.sl-tool-button {
+  box-sizing: border-box; flex: 0 0 auto !important; min-width: 0 !important; max-width: 100%; width: 100% !important;
+}
+body.phase2-workspace .ws-rail .sl-grid-toolbar-rail > .sl-tool-button,
+body.phase2-workspace .ws-rail .sl-grid-toolbar-rail > .sl-rail-menu > summary.sl-tool-button {
+  height: 44px !important; min-height: 44px !important; display: flex !important; flex-direction: column !important; align-items: center; justify-content: center;
+}
+body.phase2-workspace .ws-rail.is-collapsed .sl-grid-toolbar-rail > .sl-tool-button,
+body.phase2-workspace .ws-rail.is-collapsed .sl-grid-toolbar-rail > .sl-rail-menu > summary.sl-tool-button { height: 44px !important; min-height: 44px !important; }
+/* ── Stage C0 §18：桌面端左轨子菜单「就地展开」 ───────────────────────────
+   ⚠️ 这条规则**必须**被 `min-width: 761px` 包住，不是可选的美化。
+   ── 为什么（2026-10-05 四档视口 QA 抓出来的移动端回归）───────────────────
+   这条规则的选择器是 `body.phase2-workspace .ws-rail .sl-rail-menu .sl-tool-menu`
+   = (0,4,1)，而移动端那条（文件末尾 `@media (max-width: 760px)` 里）
+   `.phase2-workspace .sl-rail-menu .sl-tool-menu` = (0,3,0)。
+   **两条都带 `!important`，所以决定权完全在特异性上，与源码顺序无关** ——
+   于是这条 `position: static` 赢过移动端的 `position: fixed`，
+   移动端那条成了死代码。后果：≤760px 时子菜单按 static 排进只有 58px 高的
+   贴底横条（`overflow-y: hidden`）里，被裁掉且落到视口外。
+   实测（390×844）：三个菜单的 `.sl-tool-menu` 计算 `position: static`，
+   矩形 y=897 / 997（视口只有 844 高），9 个工具的
+   `elementFromPoint` 全返回 `null` —— 真鼠标点不到。
+   C0 之前这条规则是 `.sl-rail-menu .sl-tool-menu`（0,2,0、无 `!important`），
+   移动端的 `!important` 能压住它，所以移动端本来是好的。
+   **这是 C0 §18 引入的回归**，不是历史遗留。
+   用媒体查询切开比调特异性稳：桌面规则在 ≤760px 根本不存在，没有优先级可打。 */
+@media (min-width: 761px) {
+  body.phase2-workspace .ws-rail .sl-rail-menu .sl-tool-menu { position: static !important; right: auto !important; bottom: auto !important; left: auto !important; top: auto !important; width: 100% !important; }
+}
+
+.phase2-workspace .ws-resize-current { display:flex; align-items:center; justify-content:space-between; margin:8px 0 10px; padding:10px; border:1px solid var(--ws-border); background:var(--ws-surface-soft); }
+.phase2-workspace .ws-resize-current strong { font-size:16px; }.phase2-workspace .ws-resize-current span { color:var(--ws-text-muted); font-size: 13px; }
+.ws-resize-dialog { width:min(460px,calc(100vw - 28px)); padding:0; border:1px solid var(--ws-border); background:var(--ws-surface); color:var(--ws-text); box-shadow:0 24px 70px rgba(20,22,30,.24); }
+.ws-resize-dialog::backdrop { background:rgba(20,22,30,.32); backdrop-filter:blur(2px); }
+.ws-resize-card { display:grid; }.ws-resize-head,.ws-resize-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; border-bottom:1px solid var(--ws-border); }
+.ws-resize-head > div { display:grid; gap:3px; }.ws-resize-head small { color:var(--ws-text-muted); }.ws-resize-head button { border:0; background:transparent; font-size:22px; }
+.ws-resize-body { display:grid; gap:12px; padding:16px; }.ws-resize-body input[type="number"] { width:110px; min-height:36px; padding:0 9px; border:1px solid var(--ws-border); background:var(--ws-surface); }
+.ws-resize-presets { display:flex; gap:6px; flex-wrap:wrap; }.ws-resize-presets button,.ws-resize-foot button { min-height:34px; padding:0 12px; border:1px solid var(--ws-border); background:var(--ws-surface); }.ws-resize-presets span { align-self:center; color:var(--ws-text-muted); font-size: 13px; }
+.ws-resize-modes { display:flex; gap:18px; margin:0; padding:12px; border:1px solid var(--ws-border); }.ws-resize-modes legend { padding:0 5px; color:var(--ws-text-muted); font-size: 13px; }
+.ws-anchor-grid { display:grid; grid-template-columns:repeat(3,34px); gap:5px; width:max-content; }.ws-anchor-grid label { position:relative; width:34px; height:34px; }.ws-anchor-grid input { position:absolute; opacity:0; }.ws-anchor-grid span { display:block; width:100%; height:100%; border:1px solid var(--ws-border); background:var(--ws-surface-soft); }.ws-anchor-grid input:checked + span { border-color:var(--ws-accent); background:var(--ws-accent-soft); box-shadow:inset 0 0 0 5px var(--ws-surface); }
+.ws-resize-warning { min-height:42px; margin:0; padding:10px 12px; background:#fff7ed; color:#9a3412; font-size: 13px; line-height:1.55; }.ws-resize-foot { justify-content:flex-end; border-top:1px solid var(--ws-border); border-bottom:0; }.ws-resize-foot .ws-button-primary { border-color:var(--ws-accent); background:var(--ws-accent); color:#fff; }
+.phase2-workspace .ws-editor-group { padding: 12px 0; border-bottom: 1px solid var(--ws-border); }
+.phase2-workspace .ws-text-objects { display: grid; gap: 6px; }
+@media (max-width: 1180px) { .phase2-workspace .ws-brand { min-width: 125px; }.phase2-workspace .ws-brand small,.phase2-workspace .ws-project-identity .ws-status { display:none; }.phase2-workspace .ws-project-identity { min-width:150px; grid-template-columns:minmax(100px,1fr); }.phase2-workspace .ws-project-identity .ws-name { grid-row:auto; } }
+@media (max-width: 900px) { .phase2-workspace .ws-project-identity > #ws-project-meta { display:none; }.phase2-workspace .ws-project-identity { min-width:105px; }.phase2-workspace .ws-topbar { overflow:visible; } }
+@media (max-width: 760px) {
+  body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { grid-template-columns:minmax(0,1fr) !important; padding-bottom:58px; }
+  body.phase2-workspace .workspace-grid[data-workspace-ready="true"] > .ws-rail { position:fixed; z-index:72; left:0; right:0; bottom:0; width:100% !important; height:58px; flex-direction:row !important; align-items:center; overflow-x:auto !important; overflow-y:hidden; border-right:0; border-top:1px solid var(--ws-border); background:var(--ws-surface); }
+  .phase2-workspace .ws-rail-collapse,.phase2-workspace .ws-rail .ws-rail-mode small { display:none; }
+  .phase2-workspace .ws-rail .ws-grid-toolbar-host { flex:1; }.phase2-workspace .sl-grid-toolbar-rail { display:flex !important; flex-direction:row !important; width:max-content; }
+  .phase2-workspace .sl-grid-toolbar-rail .sl-tool-button { width:48px; min-width:48px; min-height:46px; }.phase2-workspace .sl-grid-toolbar-rail .sl-tool-label { display:none; }.phase2-workspace .sl-rail-menu { width:48px; }
+  body.phase2-workspace .ws-rail .sl-grid-toolbar-rail > .sl-tool-button,body.phase2-workspace .ws-rail .sl-grid-toolbar-rail > .sl-rail-menu,body.phase2-workspace .ws-rail .sl-grid-toolbar-rail > .sl-rail-menu > summary.sl-tool-button { width:48px !important; min-width:48px !important; height:46px !important; min-height:46px !important; }
+  /* ≤760px 时左轨是贴底的横向条（overflow-y: hidden，高度 58px），
+     就地展开会被条高裁掉。和坞的镜像菜单同样的处理：fixed 浮到条上方，脱离裁剪。
+     （pixler-skin.css 里对坞的 .sl-tool-menu 踩过同一个坑：注释写着
+     「实测 18 个工具只有 6 个能点到」。） */
+  .phase2-workspace .sl-rail-menu .sl-tool-menu { position: fixed !important; left: 8px !important; right: 8px !important; bottom: 64px !important; top: auto !important; width: auto !important; z-index: 90; }.phase2-workspace .ws-brand { min-width:36px; }.phase2-workspace .ws-brand span { display:none; }
+  .phase2-workspace .ws-project-identity { min-width:90px; }
+}
+.ws-canvas-well { touch-action: none; }
+.ws-touch-bar { position:absolute; bottom:68px; left:50%; transform:translateX(-50%); z-index:25; display:flex; gap:12px; align-items:center; padding:10px 14px; background:rgba(255,255,255,.96); border:1px solid #dedde4; border-radius:14px; box-shadow:0 4px 20px #0002; }
+.ws-touch-bar[hidden], .ws-touch-cursor[hidden] { display:none; }
+.ws-touch-bar button { min-height:44px; padding:8px 18px; touch-action:none; }
+.ws-touch-bar button:active { background:#e9e3ff; }
+.ws-touch-cursor { position:absolute; z-index:12; width:24px; height:24px; transform:translate(-50%,-50%); border:2px solid #7056d8; border-radius:50%; box-shadow:0 0 0 2px white; pointer-events:none; }
+.ws-version-list { display:grid; gap:8px; margin-top:10px; }
+.ws-version-card { border:1px solid #e6e1e9; border-radius:10px; padding:10px; }
+.ws-version-card small { display:block; margin:4px 0 8px; }
+.ws-available-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(95px,1fr)); gap:6px; max-height:55vh; overflow:auto; }
+.ws-available-grid label { display:flex; gap:5px; align-items:center; min-height:36px; }
+.ws-available-grid i { width:18px; height:18px; border:1px solid #ddd; border-radius:4px; }
+.ws-mobile-panel-close { display:none; }
+/* Contextual controls and live palette share the warm-white chrome. */
+.phase2-workspace { font-size: 14px; line-height: 1.45; }
+.phase2-workspace :is(button, input, select, textarea, output) { font-family: var(--ds-font-ui); }
+.phase2-workspace .ws-inspector-scroll { padding: 12px 14px 18px; }
+.phase2-workspace .ws-section-title { color: var(--ws-text); font-size: 13px; font-weight: 650; }
+.phase2-workspace .ws-rail-mode { width: 44px; min-height: 44px; border-radius: 8px; }
+.phase2-workspace .ws-rail-mode.active { color: var(--ws-accent); border-color: var(--ws-accent); background: var(--ws-accent-soft); }
+#ws-tool-options { min-width: 0; min-height: 40px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; padding: 6px 12px; border-bottom: 1px solid var(--ws-border); background: var(--ws-surface); color: var(--ws-text-secondary); font-size: 13px; }
+#ws-tool-options .ws-context-group { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+#ws-tool-options .ws-context-group[hidden] { display: none; }
+#ws-context-tool-label { color: var(--ws-text); font-weight: 650; white-space: nowrap; }
+#ws-tool-options :is(select, input[type="number"], button) { min-height: 30px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); color: var(--ws-text); padding: 3px 8px; font-size: 13px; }
+#ws-tool-options input[type="range"] { width: 100px; }
+#ws-selection-buttons { display:flex; flex-wrap:wrap; gap:5px; }
+#ws-tool-options .ws-context-group > label[hidden] { display:none!important; }
+#ws-tool-options #ws-selection-buttons button[aria-pressed="true"] { background:var(--ws-accent,#7560d7);color:#fff;border-color:var(--ws-accent,#7560d7); }
+.ws-output-menu { position: relative; flex: 0 0 auto; }
+.ws-output-menu > summary { list-style: none; cursor: pointer; }
+.ws-output-menu > summary::-webkit-details-marker { display: none; }
+.ws-output-menu > :not(summary) { position: absolute; right: 0; top: calc(100% + 8px); min-width: 190px; padding: 8px; border: 1px solid var(--ws-border); border-radius: 10px; background: var(--ws-surface); box-shadow: var(--ds-shadow-overlay); z-index: 2200; }
+.ws-output-menu > :not(summary) button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; text-align: left; border-radius: 6px; }
+#ws-canvas-stats.ws-usage-band { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 12px; justify-content: stretch; padding: 8px 12px; background: var(--ws-surface); border-top: 1px solid var(--ws-border); }
+.ws-usage-band .ws-usage-totals { display: flex; align-items: baseline; gap: 5px; white-space: nowrap; font-size: 13px; }
+.ws-usage-band .ws-usage-totals strong { font-size: 14px; }
+.ws-usage-band .ws-usage-band-tools { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.ws-usage-band #ws-usage-strip { grid-column: 1 / -1; min-width: 0; display: flex; flex-direction: row; gap: 6px; margin: 0; padding: 2px 0 4px; overflow-x: auto; overscroll-behavior-inline: contain; }
+.ws-usage-band #ws-usage-strip .ws-usage-card { display: grid; grid-template-columns: 20px auto; align-items: center; justify-items: start; gap: 3px 6px; min-width: 78px; min-height: 40px; padding: 5px 8px; border-radius: 7px; }
+.ws-usage-band .ws-usage-card .ws-swatch { grid-row: 1 / 3; width: 20px; height: 26px; border-radius: 4px; }
+.ws-usage-band .ws-usage-card small, .ws-usage-band .ws-usage-card em { font-size: 12px; }
+.ws-usage-band #ws-usage-actions, .ws-usage-band #ws-usage-similar-list { grid-column: 1 / -1; }
+body.ws-output-preview .ws-canvas-well { background: var(--ws-canvas); }
+#ws-build-return { min-height: 34px; padding: 6px 12px; border-radius: 7px; color: var(--ws-accent); background: var(--ws-accent-soft); border: 1px solid var(--ws-accent); }
+@media (max-width: 1024px) { #ws-tool-options { gap: 6px 10px; padding-inline: 10px; } }
+@media (max-width: 768px) { #ws-tool-options { font-size: 13px; max-height: 100px; overflow-y: auto; } #ws-tool-options input[type="range"] { width: 78px; } #ws-canvas-stats.ws-usage-band { padding: 6px 8px; gap: 5px; } .ws-usage-band .ws-usage-totals { font-size: 12px; } .ws-usage-band .ws-usage-band-tools { font-size: 12px; } .ws-output-menu > :not(summary) { max-width: calc(100vw - 20px); } }
+@media (prefers-reduced-motion: reduce) { .phase2-workspace * { scroll-behavior: auto; transition-duration: 0s; animation-duration: 0s; } }
+/* Rail menus live outside the scrolling rail, so neither overflow clipping nor
+   narrow two/three-column menu rules can compress their action rows. */
+body.phase2-workspace .sl-tool-menu.sl-rail-popover {
+  position:fixed !important; right:auto !important; bottom:auto !important; margin:0 !important;
+  display:grid; grid-template-columns:minmax(0,1fr) !important; gap:4px;
+  max-height:65dvh; overflow-y:auto; overflow-x:hidden; padding:8px;
+  border:1px solid var(--ws-border); border-radius:12px;
+  background:var(--ws-surface,#fff); color:var(--ws-text); box-shadow:0 10px 32px #18212b24; z-index:2200;
+}
+body.phase2-workspace .sl-tool-menu.sl-rail-popover .sl-tool-button {
+  box-sizing:border-box; display:flex !important; flex-direction:row !important;
+  align-items:center; justify-content:flex-start; gap:12px; width:100% !important;
+  min-width:0; min-height:44px !important; height:auto !important; flex-basis:auto;
+  padding:9px 12px; border-radius:7px; white-space:nowrap;
+}
+body.phase2-workspace .sl-tool-menu.sl-rail-popover .sl-tool-label { display:block !important; font-size:13px; }
+body.phase2-workspace .sl-tool-menu.sl-rail-popover .sl-tool-icon { flex:0 0 24px; }
+@media(max-width:768px) {
+  body.phase2-workspace .workspace-grid[data-workspace-ready="true"] > .ws-rail { z-index:2001; }
+  body.phase2-workspace .ws-rail .sl-grid-toolbar-rail { flex-direction:row !important; width:max-content; max-width:none; }
+  body.phase2-workspace .ws-dock { position:fixed; left:0; right:0; bottom:58px; height:36px; }
+  body.phase2-workspace .workspace-grid[data-workspace-ready="true"] > .ws-inspector { position:fixed; z-index:70; left:8px; right:8px; bottom:100px; top:auto; width:auto; max-height:65dvh; border:1px solid var(--ws-border); border-radius:16px 16px 8px 8px; box-shadow:0 -4px 20px #0001; }
+  body.phase2-workspace .ws-inspector:not(.is-mobile-panel-open) .ws-inspector-head,
+  body.phase2-workspace .ws-inspector:not(.is-mobile-panel-open) .ws-inspector-scroll { display:none; }
+  body.phase2-workspace .ws-inspector .ws-inspector-scroll { min-height:0; max-height:calc(70dvh - 85px); overflow:auto; }
+  body.phase2-workspace .ws-inspector .ws-side-tabs { display:flex; flex-wrap:nowrap; overflow-x:auto; flex-shrink:0; }
+  body.phase2-workspace .ws-inspector .ws-side-tabs button { flex-shrink:0; }
+  .ws-mobile-panel-close { display:block; margin-left:auto; min-height:36px; }
+  .ws-touch-bar { position:fixed; bottom:150px; width:max-content; max-width:calc(100% - 24px); }
+  .ws-version-dialog, .ws-available-dialog { width:calc(100vw - 20px); max-width:none; max-height:90dvh; margin:auto auto 0; border-radius:18px 18px 0 0; }
+}
+/* QA: content-sized tools, a real two-row mobile header and reserved fixed chrome. */
+body.phase2-workspace .ws-rail .sl-grid-toolbar-rail { height: auto !important; justify-content: flex-start !important; }
+#ws-context-text-controls { display: flex !important; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-width: 0; }
+#ws-context-text-controls .ws-field { display: flex; align-items: center; gap: 6px; margin: 0; width: auto; }
+#ws-context-text-controls .ws-field :is(input, select, textarea) { max-width: 150px; min-width: 0; }
+#ws-context-text-controls .ws-source-slider { display: flex; align-items: center; gap: 5px; margin: 0; }
+#ws-context-text-controls .ws-source-slider input { width: 90px; }
+#ws-context-text-controls :is(.ws-recent-colors, .ws-source-buttons) { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; }
+.ws-canvas-secondary-hint { display: none; }
+.ws-color-picker { position: relative; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ws-color-picker > input { min-width: 0; flex: 1; }
+.ws-color-picker-preview { flex: 0 0 22px; height: 22px; border: 1px solid var(--ws-border); border-radius: 4px; }
+.ws-color-picker > button { min-height: 34px; padding: 5px 8px; border: 1px solid var(--ws-border); border-radius: 6px; }
+.ws-color-picker-popup { position: absolute; top: calc(100% + 5px); left: 0; right: 0; z-index: 100; background: var(--ws-surface); border: 1px solid var(--ws-border); padding: 8px; border-radius: 8px; box-shadow: var(--ds-shadow-overlay); }
+.ws-color-picker-popup[hidden] { display: none; }
+.ws-color-picker-results { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 4px; max-height: 220px; overflow: auto; }
+.ws-color-picker-option { display: flex; align-items: center; gap: 5px; min-height: 38px; padding: 4px; border: 1px solid var(--ws-border); border-radius: 5px; font-size: 12px; }
+.ws-color-picker-option i { width: 18px; height: 22px; flex-shrink: 0; border: 1px solid #0002; border-radius: 3px; }
+@media (max-width: 768px) {
+  body.phase2-workspace .workspace-wrap { grid-template-rows: 80px auto minmax(0,1fr) 0 !important; }
+  body.phase2-workspace .ws-topbar { height: 80px; display: grid; grid-template-columns: 34px minmax(0,1fr) auto auto; grid-template-rows: 34px 34px; gap: 4px 6px; padding: 4px 8px; }
+  .phase2-workspace .ws-topbar .ws-brand { grid-column: 1; grid-row: 1; min-width: 0; }
+  .phase2-workspace .ws-topbar .ws-project-identity { grid-column: 2 / 5; grid-row: 1; min-width: 0; width: 100%; }
+  .phase2-workspace .ws-topbar .ws-name { max-width: none; width: 100%; }
+  .phase2-workspace .ws-topbar .ws-topbar-spacer { display: none; }
+  .phase2-workspace .ws-topbar .ws-history-actions { grid-column: 1 / 3; grid-row: 2; }
+  .phase2-workspace .ws-topbar .ws-project-menu { grid-column: 3; grid-row: 1; }
+  .phase2-workspace .ws-topbar #ws-edit-actions { grid-column: 3; grid-row: 2; }
+  .phase2-workspace .ws-topbar #ws-output-menu { grid-column: 4; grid-row: 2; }
+  .phase2-workspace .ws-topbar .ws-project-identity { grid-column: 2; }
+  .phase2-workspace .ws-topbar .ws-membership-status { grid-column: 4; grid-row: 1; max-width: 82px; font-size: 11px; padding: 3px; }
+  .phase2-workspace .ws-topbar :is(.ws-project-menu, .ws-output-menu) > summary { padding: 4px 7px; font-size: 12px; }
+  body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { box-sizing: border-box; padding-bottom: 146px !important; height: 100%; }
+  body.phase2-workspace .ws-rail .ws-grid-toolbar-host { flex: 1 0 auto; width: auto; }
+  #ws-context-text-controls { gap: 6px; }
+  #ws-context-text-controls .ws-field :is(input, textarea) { max-width: 110px; }
+  #ws-context-text-controls .ws-source-slider input { width: 64px; }
+}
+/* Cell recommendations share canonical palette identity; these are presentation-only overlays. */
+.ws-cell-color-popover{position:absolute;z-index:35;width:max-content;max-width:calc(100% - 16px);box-sizing:border-box;padding:7px;background:rgba(255,254,251,.97);border:1px solid #dcd9e6;border-radius:8px;box-shadow:0 4px 16px #23203520;color:#252434}
+.ws-cell-color-popover[hidden]{display:none}
+.ws-cell-color-popover-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;margin-bottom:3px}
+.ws-cell-color-popover-head button{border:0;background:transparent;font-size:20px;line-height:20px;cursor:pointer}
+.ws-cell-color-groups{display:flex;gap:5px;flex-wrap:nowrap;overflow-x:auto;max-width:390px}
+.ws-cell-color-group{min-width:0;flex:0 0 auto}
+.ws-cell-color-group+.ws-cell-color-group{border-left:1px solid #dedbe7;padding-left:5px}
+.ws-cell-color-group-label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.ws-cell-color-suggestions{display:flex;gap:2px}
+.ws-cell-color-reason{display:block;margin-top:6px;font-size:10px;color:#757184}
+.ws-cell-color-suggestions button{width:34px;min-height:32px;flex:0 0 34px;padding:2px;border:1px solid transparent;border-radius:4px;background:transparent;cursor:pointer}
+.ws-cell-color-suggestions button.is-target{border-color:#6658df;background:#f0edff}
+.ws-cell-color-suggestions span{display:grid;place-items:center;height:26px;border:1px solid #0002;border-radius:3px}
+.ws-cell-color-suggestions small{display:block;margin:0;font-size:10px;font-weight:650;line-height:1}
+.ws-cell-color-actions{display:flex;gap:5px;margin-top:4px}
+.ws-cell-color-actions button{flex:1;font-size:10px;min-height:24px;padding:3px 5px;border:1px solid #dcd9e6;border-radius:5px;background:white;cursor:pointer}
+.ws-cell-color-actions button:disabled{opacity:.45;cursor:default}
+.ws-cell-selected-marker{position:absolute;z-index:34;pointer-events:none;overflow:visible}
+.ws-cell-selected-marker rect{fill:none;stroke-width:1;vector-effect:non-scaling-stroke}
+.ws-cell-ant-base{stroke:#fff}.ws-cell-ant-dashes{stroke:#302b50;stroke-dasharray:5 5;animation:ws-cell-ants 6s linear infinite}
+@keyframes ws-cell-ants{to{stroke-dashoffset:-20}}
+.ws-usage-strip button.ws-usage-card.active { position: relative; }
+.ws-usage-card.active::after { content: ""; pointer-events: none; position: absolute; inset: -1px; border-radius: inherit; background: repeating-linear-gradient(90deg,var(--ws-accent) 0 5px,transparent 5px 10px) top left/200% 1px no-repeat,repeating-linear-gradient(90deg,var(--ws-accent) 0 5px,transparent 5px 10px) bottom right/200% 1px no-repeat,repeating-linear-gradient(0deg,var(--ws-accent) 0 5px,transparent 5px 10px) left bottom/1px 200% no-repeat,repeating-linear-gradient(0deg,var(--ws-accent) 0 5px,transparent 5px 10px) right top/1px 200% no-repeat; animation: ws-usage-ants 24s linear infinite; }
+@keyframes ws-usage-ants { to { background-position: top right,bottom left,left top,right bottom; } }
+@media(prefers-reduced-motion:reduce){.ws-usage-card.active::after{animation:none}}
+@media(prefers-reduced-motion:reduce){.ws-cell-ant-dashes{animation:none}}
+
+/* Work areas change panel visibility, never the canvas/history instance. */
+.ws-topbar{flex-wrap:wrap;height:auto;min-height:58px;gap:7px}
+.ws-workareas,.ws-output-tasks{display:flex;align-items:center;gap:4px}
+.ws-workareas{margin-left:auto;background:var(--ws-canvas);padding:3px;border-radius:8px}
+.ws-workareas button,.ws-output-tasks button{border:1px solid transparent;background:transparent;color:var(--ws-text-secondary);border-radius:6px;min-height:34px;padding:6px 9px;white-space:nowrap;font-size:12px;cursor:pointer}
+.ws-workareas button.active,.ws-output-tasks button.active{background:var(--ws-surface);color:var(--ws-accent);border-color:var(--ws-border);box-shadow:0 1px 3px #00000008}
+.ws-side-tabs [hidden],.ws-export-drawer [data-output-panel][hidden],.ws-field[hidden]{display:none!important}
+.ws-selection-actionbar[hidden]{display:flex!important;visibility:hidden;pointer-events:none}
+.ws-side-tabs{grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible}
+.ws-project-identity #ws-project-info{font-size:10px;padding:2px 4px;min-height:22px;border:0;background:none;color:var(--ws-text-secondary);cursor:pointer}
+.ws-selection-actionbar{display:flex;align-items:center;gap:5px;padding:5px 9px;background:var(--ws-surface);border-bottom:1px solid var(--ws-border);overflow-x:auto;white-space:nowrap}
+.ws-selection-actionbar strong{font-size:11px;color:var(--ws-text-secondary);margin-right:auto}
+.ws-selection-actionbar button,.ws-shape-kinds button{font-size:11px;padding:4px 7px;border:1px solid var(--ws-border);background:var(--ws-surface);color:var(--ws-text);border-radius:5px;white-space:nowrap;cursor:pointer}
+.ws-canvas-area:has(#ws-selection-actionbar){grid-template-rows:auto minmax(0,1fr) auto auto auto}
+.ws-export-drawer{width:min(480px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow-y:auto}
+.ws-output-tasks{position:sticky;top:0;z-index:2;background:var(--ws-surface);padding:6px 0;border-bottom:1px solid var(--ws-border);margin-bottom:10px}
+.ws-output-tasks button{flex:1;padding:5px;font-size:11px}
+.ws-export-drawer[data-output-current="poster"]{width:min(760px,calc(100vw - 24px))}
+.ws-export-drawer [data-output-panel="poster"]>.ws-export-options{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 14px;align-items:start}
+.ws-export-drawer [data-output-panel="poster"]>.ws-export-options>strong{grid-column:1/-1}
+.ws-export-drawer [data-output-panel="poster"] #ws-poster-preview{grid-column:1;grid-row:2/span 18;width:100%;height:auto;position:sticky;top:58px}
+.ws-export-drawer [data-output-panel="poster"]>.ws-export-options>:not(strong):not(canvas){grid-column:2}
+.ws-feature-search{width:min(420px,calc(100vw - 32px));max-height:80dvh;border:1px solid var(--ws-border);border-radius:12px;padding:16px;color:var(--ws-text);background:var(--ws-surface)}
+.ws-feature-search::backdrop{background:#211e3330}
+.ws-feature-search input{box-sizing:border-box;width:100%;padding:10px;border:1px solid var(--ws-border);border-radius:7px;margin:10px 0}
+.ws-feature-results{display:grid;gap:5px;max-height:55dvh;overflow:auto}
+.ws-feature-results button{text-align:left;min-height:38px;border:1px solid var(--ws-border);border-radius:6px;padding:7px 10px;color:var(--ws-text);background:var(--ws-canvas);cursor:pointer}
+.phase2-workspace .sl-grid-toolbar-rail .sl-tool-label{display:block;font-size:9px;line-height:12px;margin-top:1px}
+@media(max-width:760px){
+  .ws-workareas{order:10;margin-left:0;flex:1 0 100%;justify-content:space-between}
+  .ws-workareas button{flex:1;font-size:11px;min-height:40px;padding:5px 3px}
+  .ws-topbar{padding:5px 8px;gap:5px}
+  .ws-selection-actionbar button{min-height:36px}
+  .ws-output-tasks button{min-height:44px}
+  .ws-export-drawer{max-height:calc(100dvh - 12px)}
+  .ws-export-drawer [data-output-panel="poster"]>.ws-export-options{grid-template-columns:1fr}
+  .ws-export-drawer [data-output-panel="poster"] #ws-poster-preview{grid-column:1;grid-row:auto;position:static;max-width:300px;justify-self:center}
+  .ws-export-drawer [data-output-panel="poster"]>.ws-export-options>:not(strong):not(canvas){grid-column:1}
+  .ws-feature-results button{min-height:44px}
+}
+
+/* Override the earlier fixed-height desktop/mobile header contract: wrapping
+   controls must take up their own grid row rather than paint over tool options. */
+body.phase2-workspace .workspace-wrap{grid-template-rows:auto auto minmax(0,1fr) var(--ws-viewbar-height)!important}
+body.phase2-workspace .ws-topbar{display:flex;flex-wrap:wrap;height:auto!important;min-height:58px;box-sizing:border-box;overflow:visible;align-content:center;padding-block:6px;gap:7px}
+body.phase2-workspace .ws-top-controls{height:auto;min-height:50px;box-sizing:border-box}
+.ws-export-drawer [data-output-panel="poster"]>.ws-export-options>label{display:grid;grid-template-columns:76px minmax(0,1fr);align-items:center;white-space:nowrap;gap:8px;min-width:0}
+.ws-export-drawer [data-output-panel="poster"]>.ws-export-options>label :is(select,input){min-width:0;max-width:100%;width:100%;box-sizing:border-box}
+.ws-export-drawer [data-output-panel="poster"]>.ws-export-options>label:has(input[type="checkbox"]){display:flex;justify-content:flex-start;white-space:normal}
+.ws-export-drawer [data-output-panel="poster"]>.ws-export-options>label input[type="checkbox"]{width:auto;flex:0 0 auto}
+@media(max-width:760px){
+  body.phase2-workspace .workspace-wrap{grid-template-rows:auto auto minmax(0,1fr) 0!important}
+  body.phase2-workspace .ws-topbar{display:flex;height:auto!important;min-height:0;padding:5px 8px;gap:5px}
+  body.phase2-workspace .ws-topbar .ws-brand{flex:0 0 34px}
+  body.phase2-workspace .ws-topbar .ws-project-identity{flex:1 1 calc(100% - 45px);width:auto}
+  body.phase2-workspace .ws-topbar .ws-workareas{order:10;flex:1 0 100%}
+  body.phase2-workspace .ws-topbar .ws-project-menu,body.phase2-workspace .ws-topbar .ws-output-menu{flex:0 0 auto}
+  body.phase2-workspace .ws-top-controls{height:auto;min-height:44px}
+}

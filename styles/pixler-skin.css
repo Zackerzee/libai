@@ -1,0 +1,264 @@
+/* Compatibility filename: functional workspace/export layout only.
+ * LIBMS visual identity lives in tokens.css; obsolete Pixler pixel/dark skin removed.
+ * Canvas chart typography is controlled by renderers, not this UI stylesheet. */
+html, body { background: var(--ds-color-app); color: var(--ds-color-text); }
+body { font-family: var(--ds-font-ui); font-size: 14px; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea, output, dialog { font-family: var(--ds-font-ui); }
+button, input, select, textarea { accent-color: var(--ds-color-accent); }
+:where(button, input, select, textarea):focus-visible { outline: 2px solid var(--ds-color-focus); outline-offset: 2px; }
+.primary-action, .quick-button, .ws-button-primary, #ws-generate { background: var(--primary); color: #fff; border-color: var(--primary); }
+.primary-action:hover:not(:disabled), .quick-button:hover:not(:disabled), .ws-button-primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+/* Do not add padding to the well: viewport conversion uses clientWidth. */
+.ws-canvas-well { margin: 0; border: 0; border-radius: var(--ds-radius-sm); background-color: var(--ws-canvas); background-image: none; }
+.ws-center { background: var(--page); }
+.ws-canvas-hint { background: var(--surface); }
+.export-settings-modal::backdrop {
+  background: rgba(28, 25, 31, 0.55);
+  backdrop-filter: none;
+}
+.export-settings-modal {
+  padding: 0; border: none; background: transparent;
+  color: var(--body); max-width: 96vw; max-height: 92vh;
+}
+.export-settings-modal[open] .export-settings-card { animation: none; }
+
+.export-settings-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--ds-radius-sm);
+  box-shadow: none;
+}
+.export-settings-body { display: flex; flex-direction: row; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.export-settings-close {
+  border-radius: var(--ds-radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+}
+.export-preview-pane { background: var(--surface-soft); }
+.export-preview-stage { background: var(--surface); border: 1px solid var(--line); border-radius: var(--ds-radius-sm); }
+.export-settings-header h2 { font-size: 24px; font-weight: 600; color: var(--ink); }
+.export-settings-header p { font-size: 13px; color: var(--muted); }
+.export-tab { border: 1px solid var(--line); border-radius: var(--ds-radius-sm); background: var(--surface); color: var(--body); font-weight: 600; font-size: 13px; }
+.export-tab:hover { border-color: var(--primary); color: var(--primary); }
+.export-tab.active { background: var(--surface); color: var(--primary); border-color: var(--primary); box-shadow: none; }
+.export-section-title { font-size: 13px; font-weight: 600; color: var(--ink); border-bottom: 1px solid var(--line-soft); }
+.export-field input { border: 1px solid var(--line); border-radius: var(--ds-radius-sm); background: var(--surface); color: var(--ink); font-size: 13px; }
+.export-field input:focus { border-color: var(--primary); box-shadow: none; }
+.export-specs-card { background: var(--primary-bg); border: 1px solid var(--line); border-radius: var(--ds-radius-sm); }
+.export-spec b { font-size: 13px; font-weight: 600; color: var(--ink); }
+
+/* ---------- 6. 第三方品牌 chip ---------- */
+.external-brand-chip { font-size: 13px; padding: 4px 9px; border-style: dashed; }
+.external-brand-chip[aria-pressed="true"] { border-style: solid; }
+
+/* ---- 8.1 顶栏：一条紧凑工具带 ---- */
+.ws-topbar { gap: 8px; padding: 0 10px; }
+.ws-topbar-spacer { flex: 1 1 auto; min-width: 8px; }
+.ws-name { height: 24px; padding: 0 6px; font-size: 13px; font-weight: 600; }
+.ws-status { margin-left: 0; font-size: 13px; }
+.ws-engine-label { font-size: 13px; gap: 4px; }
+.ws-engine-label select { height: 24px; padding: 0 4px; font-size: 13px; border-radius: var(--ds-radius-sm); }
+.ws-topbar .ws-button { min-height: 24px; height: 24px; padding: 0 8px; font-size: 13px; }
+
+/* ---- 8.2 左轨：品牌 + 两个模式入口 ---- */
+.ws-rail { padding: 7px 0; gap: 4px; align-items: center; }
+.ws-rail-brand { display: grid; place-items: center; width: 26px; height: 26px; margin-bottom: 6px; border: 1px solid var(--primary); color: var(--primary); font-size: 13px; }
+.ws-rail-mode { display: grid; place-items: center; gap: 2px; width: 44px; min-height: 46px; padding: 4px 0; border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; }
+.ws-rail-mode small { font-size: 13px; }
+.ws-rail-icon { display: grid; place-items: center; }
+.ws-rail-mode:hover { background: var(--surface-soft); color: var(--ink); }
+.ws-rail-mode.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+/* ---- 8.3 右栏：tab 分组 ---- */
+.ws-inspector { grid-template-rows: auto auto minmax(0, 1fr); }
+.ws-side-tabs { display: flex; gap: 0; padding: 0 6px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.ws-side-tabs::-webkit-scrollbar { display: none; }
+.ws-side-tabs button { flex: 1 0 auto; min-width: 34px; padding: 7px 5px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: 13px; cursor: pointer; }
+.ws-side-tabs button:hover:not(:disabled) { color: var(--ink); }
+.ws-side-tabs button.active { color: var(--primary); border-bottom-color: var(--primary); }
+.ws-side-tabs button:disabled { opacity: .35; cursor: default; }
+.ws-inspector-head { padding: 8px 10px 7px; }
+.ws-inspector-head strong { font-size: 13px; font-weight: 600; }
+.ws-inspector-head small { font-size: 13px; }
+.ws-inspector-scroll { padding: 8px 10px 20px; }
+.ws-section-title { margin: 8px 0 6px; padding-top: 8px; font-size: 13px; font-weight: 600; color: var(--muted); border-top: 1px solid var(--line-soft); }
+.ws-panel { padding: 0; }
+.ws-note { font-size: 13px; line-height: 1.6; color: var(--muted); }
+.ws-field { font-size: 13px; gap: 4px; }
+.ws-field input, .ws-field select { height: 26px; font-size: 13px; }
+.ws-readout { font-size: 13px; padding: 6px 8px; background: var(--surface-soft); }
+.ws-wide { width: 100%; }
+
+/* ---- 8.4 底部工具坞 ---- */
+.ws-dock { position:relative; z-index:2000; isolation:isolate; pointer-events:auto; display: flex; align-items: center; gap: 8px; height: var(--ws-viewbar-height); min-width: 0; padding: 0 8px; border-top: 1px solid var(--line); background: var(--surface); }
+.ws-dock-tools { display: flex; align-items: center; min-width: 0; }
+.ws-dock-view { display: flex; align-items: center; gap: 8px; min-width: 0; margin-left: auto; }
+.ws-dock-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.ws-dock .ws-button { min-height: 28px; height: 28px; padding: 0 10px; font-size: 13px; }
+
+/* 工具条从「浮在画布上方」改为「常驻工具坞」 */
+.ws-grid-toolbar-host { position: static; top: auto; left: auto; transform: none; width: auto; z-index: 1; }
+.phase2-workspace .sl-grid-toolbar { min-height: 0; height: 100%; padding: 0; gap: 4px; border: 0; border-radius: var(--ds-radius-sm); background: transparent; box-shadow: none; }
+.phase2-workspace .sl-tool-button { flex: 0 0 auto; width: auto; min-width: 36px; height: 38px; padding: 1px 5px; gap: 1px; border-radius: var(--ds-radius-sm); color: var(--muted); }
+.phase2-workspace .sl-tool-button:hover:not(:disabled) { background: var(--surface-soft); }
+.phase2-workspace .sl-tool-button.is-active { background: var(--primary); color: #fff; }
+.phase2-workspace .sl-tool-icon { width: 18px; height: 18px; font-size: 16px; }
+.phase2-workspace .sl-tool-icon svg { width: 16px; height: 16px; }
+.phase2-workspace .sl-tool-label { font-size: 13px; font-weight: 600; line-height: 1.1; }
+.phase2-workspace .sl-toolbar-history { padding-left: 4px; border-left: 1px solid var(--line); gap: 2px; }
+.phase2-workspace .sl-history-button { width: 30px; height: 30px; border-radius: var(--ds-radius-sm); color: var(--muted); }
+.phase2-workspace .sl-history-button:hover:not(:disabled) { background: var(--surface-soft); color: var(--primary); }
+.phase2-workspace .sl-history-button svg { width: 16px; height: 16px; }
+.phase2-workspace .sl-tool-more { position: relative; }
+
+/* 工具坞里的缩放 / 视图 / 勾选 */
+.ws-dock-view .ws-view-modes button,
+.ws-dock-view .ws-view-toggles label,
+.ws-dock-view #zoomControls { font-size: 13px; }
+.ws-dock-view .ws-view-modes button { height: 26px; min-width: 30px; padding: 0 7px; border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; }
+.ws-dock-view .ws-view-modes button:hover:not(:disabled) { background: var(--surface-soft); color: var(--ink); }
+.ws-dock-view .ws-view-modes button.active { background: var(--primary); color: #fff; }
+.ws-dock-view .ws-view-modes button:disabled { opacity: .35; cursor: default; }
+.ws-dock-view .ws-view-toggles { gap: 8px; }
+.ws-dock-view .ws-view-toggles label { color: var(--muted); }
+
+/* ---- 8.5 施工面板控件 ---- */
+.ws-stepper { display: flex; align-items: center; gap: 4px; }
+.ws-stepper button { width: 28px; height: 28px; flex: 0 0 auto; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; cursor: pointer; }
+.ws-stepper button:hover { border-color: var(--primary); color: var(--primary); }
+.ws-stepper output { flex: 0 0 52px; text-align: center; padding: 5px 0; border: 1px solid var(--line); font-size: 13px; }
+.ws-block-map { display: grid; grid-template-columns: repeat(var(--ws-block-cols, 1), minmax(0, 1fr)); gap: 2px; }
+.ws-block-map button { padding: 8px 0; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; cursor: pointer; }
+.ws-block-map button:hover { border-color: var(--primary); color: var(--primary); }
+.ws-block-map button.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.ws-block-arrows { display: flex; gap: 2px; margin-top: 4px; }
+.ws-block-arrows button { flex: 1; padding: 4px 0; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; cursor: pointer; }
+.ws-block-arrows button:hover { border-color: var(--primary); color: var(--primary); }
+.ws-block-colors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; max-height: 220px; overflow-y: auto; }
+.ws-block-colors button { display: grid; place-items: center; gap: 1px; padding: 3px 0; border: 1px solid var(--line); background: var(--surface); cursor: pointer; }
+.ws-block-colors button span { width: 22px; height: 22px; border: 1px solid var(--line); }
+.ws-block-colors button small { font-size: 13px; color: var(--muted); }
+.ws-block-colors button.active { border-color: var(--primary); background: var(--primary-bg); }
+.ws-block-colors button.active small { color: var(--primary); }
+
+/* ---- 8.6 画布叠加层：区块高亮 + 四边标尺 ---- */
+.ws-canvas-well { position: relative; }
+.ws-build-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.ws-build-spot { position: absolute; box-shadow: 0 0 0 9999px rgba(250, 249, 246, 0.48); border: 1px solid var(--primary); }
+.ws-rulers { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
+.ws-ruler { position: absolute; color: var(--muted); font-size: 13px; }
+.ws-ruler-top { top: 0; left: 0; right: 0; height: 14px; }
+.ws-ruler-bottom { bottom: 0; left: 0; right: 0; height: 14px; }
+.ws-ruler-left { top: 0; bottom: 0; left: 0; width: 22px; }
+.ws-ruler-right { top: 0; bottom: 0; right: 0; width: 22px; }
+.ws-ruler span { position: absolute; line-height: 1; white-space: nowrap; }
+.ws-ruler-top span, .ws-ruler-bottom span { transform: translateX(-50%); }
+.ws-ruler-left span, .ws-ruler-right span { transform: translateY(-50%); }
+.ws-ruler span.is-major { color: var(--primary); }
+
+/* ---- 8.7 密度压缩：把原先占满首屏的控件压成一行/两行 ---- */
+/* 生成方式 7 张卡：原先 1 列 × 62px = 476px，占满 244px 侧栏的首屏。
+   压成 2 列 × 30px，说明文字收起（名称已自解释），首屏让给真正要调的参数。 */
+.phase2-workspace .sl-preset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
+.phase2-workspace .sl-preset-card { grid-template-columns: 18px minmax(0, 1fr); gap: 5px; min-height: 30px; padding: 4px 6px; border-radius: var(--ds-radius-sm); }
+.phase2-workspace .sl-preset-card.is-active { box-shadow: none; border-color: var(--primary); background: var(--primary-bg); }
+.phase2-workspace .sl-preset-card:hover { border-color: var(--primary); }
+.phase2-workspace .sl-preset-icon { width: 18px; height: 18px; font-size: 13px; background: transparent; }
+.phase2-workspace .sl-preset-icon svg { width: 16px; height: 16px; }
+.phase2-workspace .sl-preset-copy strong { font-size: 13px; font-weight: 600; }
+.phase2-workspace .sl-preset-copy small { display: none; }
+.phase2-workspace .sl-preset-check { font-size: 13px; }
+
+/* 尺寸快捷值、采样方式等按钮组同样收紧 */
+.phase2-workspace .sl-size-presets { gap: 3px; }
+.phase2-workspace .sl-size-presets button { min-height: 24px; padding: 0 6px; font-size: 13px; border-radius: var(--ds-radius-sm); }
+/* 格子采样：5 个选项原为 5 列 × 58px 高，压成 3 列 × 30px 的方块组 */
+.phase2-workspace .sl-sampling-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; padding: 0; background: transparent; }
+.phase2-workspace .sl-sampling-card { min-height: 30px; gap: 1px; border: 1px solid var(--line); border-radius: var(--ds-radius-sm); background: var(--surface); color: var(--muted); }
+.phase2-workspace .sl-sampling-card strong { font-size: 13px; font-weight: 600; }
+.phase2-workspace .sl-sampling-card span { font-size: 13px; }
+.phase2-workspace .sl-sampling-card.is-active { background: var(--primary); border-color: var(--primary); color: #fff; box-shadow: none; }
+.phase2-workspace .sl-sampling-description { min-height: 0; margin-top: 4px; font-size: 13px; }
+/* 左轨模式图标：16px 在 44px 宽的按钮里太小，放大到 20px 并拉开与文字的间距 */
+.ws-rail-mode { min-height: 50px; gap: 3px; }
+.ws-rail-icon svg { width: 20px; height: 20px; }
+.ws-rail-mode.active .ws-rail-icon svg { stroke-width: 1.4; }
+
+/* ---- 8.6 小屏：底部工具坞横向可滚动 ----
+   工具坞是「严格单行不换行」的设计（ui/workspace.js 注释），内容固定宽
+   约 776px：工具条 ~503px + 视图切换 + 缩放 + 主操作。在 ≤760px 的手机上
+   放不下。原先 .ws-dock 是 overflow:visible + 子项 min-width:0，溢出的部分
+   被祖先 .app-shell 的 overflow-x:hidden 直接裁掉——文档不产生滚动条，用户
+   既看不见也点不到右边那半排工具。实测 iPhone 14 (390px) 下 19 个控件不可达。
+   改为坞内横向滚动：子项不再压缩，超出部分可滑到。
+   断点取 900px：768px 的 iPad 竖屏下坞内容 775px 同样会超出，子项被压缩后
+   内容溢出并互相覆盖（实测 11 个控件被「开始拼 / 导出图纸」盖住）。 */
+@media (max-width: 900px) {
+  .ws-dock {
+    /* 单给菜单提 z-index 不够：小屏右栏 .ws-inspector 是 absolute z-index:20 的
+       滑出面板，会盖住「更多」菜单（实测菜单被压到绘制栈第 7 层，18 个工具只有
+       6 个点得到）。给整个坞建一个高层堆叠上下文，菜单作为它的后代就整体高于
+       右栏。relative 不是 fixed 的包含块，所以菜单的视口定位不受影响。 */
+    position: relative;
+    z-index: 200;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none; /* 覆盖式滚动条，避免挤压 48px 的坞高 */
+  }
+  .ws-dock::-webkit-scrollbar { height: 0; }
+
+  /* min-width:0 本意是允许压缩，但按钮有 min-width 压不动，结果是被挤出
+     容器而不是收缩。改为不收缩，把宽度交给横向滚动。 */
+  .ws-dock-tools,
+  .ws-dock-view,
+  .ws-dock-actions,
+  .ws-dock .ws-grid-toolbar-host,
+  .ws-dock .sl-grid-toolbar { flex: 0 0 auto; min-width: auto; }
+
+  /* 滚动到底时给一点右侧留白，避免最后一个按钮贴边 */
+  .ws-dock-actions { padding-right: 2px; }
+}
+
+/* 移动端底部标签栏（.mobile-tabbar）是 position:fixed + z-index:100 钉在视口
+   底部的高 99px 浮层，和工作台底部工具坞占据同一块区域且层级更高。实测
+   iPhone 14 (390px) 下坞里 24 个控件全部被它的「下载预览图 / 下载图纸」盖住，
+   命中测试可达数为 0——整个工具坞在手机上不可用。
+   进入工作台后隐藏它：坞里已有「导出图纸」入口，功能不丢；
+   首页 / 预览页（没有 .phase2-workspace）不受影响。 */
+@media (max-width: 700px) {
+  body.phase2-workspace .mobile-tabbar { display: none !important; }
+}
+
+/* ---- 8.7 「更多工具」菜单改为向上弹出 ----
+   .sl-tool-menu 原本是 top: calc(100% + 9px)，向下弹。那是工具条还浮在画布
+   上方（top:12px）时的设定；工具条改成常驻底部坞之后，坞就在视口最底部，
+   向下弹会直接掉到屏幕外——实测菜单里的 18 个按钮落在 y=934~1262，而视口
+   只有 900，全部点不到。这 18 个是选择 / 魔棒 / 连通 / 取色 / 换色 / 描边 /
+   旋转 / 辅助线 等核心编辑工具，属于必须可达的能力。改为贴着坞的上方弹出。 */
+/* .sl-tool-menu 被写死成 display:grid（generation-editor.css:676）。作者样式的
+   display 优先级高于 <details> 未展开时浏览器自带的隐藏规则，结果菜单不管
+   details 有没有 open 都一直显示、一直浮在界面上。补回收起态的隐藏。 */
+.phase2-workspace .sl-tool-more:not([open]) > .sl-tool-menu { display: none; }
+
+.phase2-workspace .sl-tool-menu { top: auto; bottom: calc(100% + 9px); grid-template-columns: repeat(3, minmax(0, 1fr)); width: 330px; }
+
+/* 但 ≤900px 时坞自身要横向滚动（见 8.6），overflow 不再是 visible，会把向上
+   弹出的菜单裁掉。小屏改用 fixed 定位，脱离坞的裁剪；坞高 48px，菜单停在
+   坞上方 60px 处，宽度铺满并收窄成 3 列。 */
+@media (max-width: 900px) {
+  .phase2-workspace .sl-tool-menu {
+    position: fixed;
+    /* 25 不够：小屏右栏是滑出面板，里面的 .sl-panel-section / .sl-primary-button
+       会盖在菜单上（实测 18 个工具只有 6 个能点到）。提到 200，
+       高于右栏面板也高于移动端标签栏的 100。 */
+    z-index: 200;
+    right: 8px;
+    bottom: 60px;
+    left: 8px;
+    width: auto;
+    max-height: 52vh;
+  }
+}

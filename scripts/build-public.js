@@ -5,6 +5,18 @@ const root = process.cwd();
 const outDir = path.join(root, "public");
 
 const staticEntries = [
+  "component-showcase.html",
+  "brand-motion-lab.html",
+  "algorithm-lab.html",
+  "config",
+  "importers",
+  "services",
+  "smart-preprocessing",
+  "src",
+  "state",
+  "styles",
+  "ui",
+  "vendor",
   ".nojekyll",
   "6c4b8a3f1e2d7095.txt",
   "_headers",

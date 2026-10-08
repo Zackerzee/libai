@@ -27,16 +27,12 @@ const BOARD_SIZES = [
   ["120x120", "120x120 极限板"],
 ];
 
-const DEFAULT_GRANULARITY = 52;
-const MIN_GRANULARITY = 10;
-const MAX_GRANULARITY = 1000;
-const MAX_DIRECT_PATTERN_GRID = 1000;
-const MAX_PIXEL_ART_DETECTION_SIDE = 4096;
+const DEFAULT_GRANULARITY = 50;
 const LIVE_PREVIEW_DELAY = 320;
 const EXPORT_MIN_LONG_SIDE = 8192;
+const DEFAULT_INVITE_CODE = "LBPD2026";
 const BEAD_SIZE_CM = 0.26;
 const GALLERY_STORAGE_KEY = "libai-maker-generated-gallery";
-const PROJECT_FILE_VERSION = 1;
 const MAX_GALLERY_ITEMS = 18;
 const A4_DPI = 300;
 const A4_SIZE_MM = { width: 210, height: 297 };
@@ -44,31 +40,33 @@ const EDITOR_CELL_SIZE = 30;
 const EDITOR_MARGIN = 42;
 const DIRECT_PATTERN_COLOR_TOLERANCE = 38;
 const DIRECT_PATTERN_MIN_COLOR_COUNT = 3;
-const NSFWJS_SCRIPT_URL = "./assets/vendor/nsfwjs.min.js";
-const NSFW_MODEL_URL = "./assets/vendor/nsfw-model/";
-const JSPDF_SCRIPT_URL = "./assets/vendor/jspdf.umd.min.js";
-const SAFETY_SCRIPT_LOAD_TIMEOUT = 8000;
-const SAFETY_MODEL_LOAD_TIMEOUT = 12000;
+// 空白画板尺寸：填多少就是多少，不做静默改写（1 × 1 也允许）。
+const BLANK_BOARD_MIN = 1;
+const BLANK_BOARD_MAX = 1000;
+const TFJS_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js";
+// nsfwjs 4.x 浏览器版**不自带模型**：必须按「模型元数据 → 权重分片 → 主包」的顺序
+// 依次挂上三个 script，最后才能调用 nsfwjs.load()（默认 MobileNetV2）。
+// 三处路径任一写错，loadLocalSafetyModel() 都会静默返回 null，图片审查被整体跳过。
+const NSFWJS_CDN = "https://cdn.jsdelivr.net/npm/nsfwjs@4.2.1/dist";
+const NSFWJS_MODEL_URL = `${NSFWJS_CDN}/models/mobilenet_v2/model.min.js`;
+const NSFWJS_WEIGHTS_URL = `${NSFWJS_CDN}/models/mobilenet_v2/group1-shard1of1.min.js`;
+const NSFWJS_SCRIPT_URL = `${NSFWJS_CDN}/browser/nsfwjs.min.js`;
+// 权重分片单个 3.4 MB，原先的 8 秒在弱网下必然超时（超时会静默放行，等于审查失效）。
+// 这里给到 20 秒；再长就没有意义了 —— 用户在上传后会一直停在「本地审查中」。
+const SAFETY_SCRIPT_LOAD_TIMEOUT = 20000;
+const SAFETY_MODEL_LOAD_TIMEOUT = 15000;
 const NSFW_THRESHOLDS = {
   Porn: 0.55,
   Hentai: 0.55,
   Sexy: 0.88,
 };
-const LOCAL_WATERMARK_TEXT = "本图纸由用户在浏览器本地生成，请合规使用";
+const LOCAL_WATERMARK_TEXT = "本图纸由用户在浏览器本地生成，内容与里白造物无关，请合规使用";
 const MARD_COLOR_SOURCE_URL = "https://www.pixel-beads.com/zh/mard-bead-color-chart";
 const MARD_COLOR_SOURCE_VERSION = "MARD 2026";
 const MARD_EXPECTED_COLOR_COUNT = 291;
 const PALETTE_SIZE_OPTIONS = [48, 64, 72, 90, 144, 221, 264, 291];
-const PORTRAIT_COLOR_LIMIT = 30;
-// 参考图采用“区域代表色”而不是抖动点阵。关闭误差扩散后，同一块头发、衣服或
-// 背景会保持连续色面，五官轮廓仍由原始区域平均和 Lab 色差保留。
-const PORTRAIT_DITHER_STRENGTH = 0;
-const PORTRAIT_CLUSTER_SAMPLE_LIMIT = 900;
-// 人像模式先按目标网格的 4 倍做分析，再回收为每颗豆子的代表色，避免先缩到
-// 目标尺寸时把眼睛、嘴唇和发丝等窄结构直接抹掉。
-const PORTRAIT_ANALYSIS_SCALE = 4;
 const CANVAS_FONT_STACK =
-  'DottedPixel, "Maple Mono", "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif';
+  'DottedPixel, "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif';
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/pjpeg",
@@ -405,11 +403,11 @@ const BASE_COLORS = parsePalette(BASE_PALETTE);
 const MARD_FULL_COLORS = [...BASE_COLORS, ...parsePalette(EXTRA_PALETTE)];
 const BRAND_CODE_MAP = parseBrandCodeMap(BRAND_CODE_MAP_TEXT);
 const DEFAULT_BRAND = "mard";
-const DEFAULT_PALETTE_SIZE = 291;
+const DEFAULT_PALETTE_SIZE = 221;
 const BRAND_PROFILES = {
   mard: {
     label: "MARD 2026",
-    options: PALETTE_SIZE_OPTIONS,
+    options: globalThis.LibmsMardKits.options,
     sourceUrl: MARD_COLOR_SOURCE_URL,
     sourceVersion: MARD_COLOR_SOURCE_VERSION,
   },
@@ -420,25 +418,78 @@ const BRAND_PROFILES = {
 };
 const PALETTES = createPaletteCatalog();
 
+// Stage 3 专业色卡引擎是可选增强。设置 localStorage
+// `libms:palette-engine=off` 即可回退到原有 RGB 匹配逻辑。
+const PALETTE_ENGINE_ENABLED = (() => {
+  try {
+    return window.localStorage.getItem("libms:palette-engine") !== "off";
+  } catch {
+    return true;
+  }
+})();
+const paletteEngineCache = new Map();
+let paletteEngineWarningShown = false;
+const PORTRAIT_PREMIUM = Object.freeze({
+  skinBrightening: 35,
+  shadowCompression: 40,
+  darkMergeStrength: 70,
+  neutralCleanup: 65,
+  redEnhancement: 40,
+  outlineStrength: 75,
+  blockCleanup: 80,
+  detailPreservation: 70,
+  gradientSmoothing: 30,
+  maxColors: 30,
+});
+
+function getPaletteEngine(palette) {
+  if (!PALETTE_ENGINE_ENABLED || !window.LibmsPaletteEngine?.createPaletteEngine) return null;
+  const key = palette.map((color) => color.code).join("|");
+  if (!paletteEngineCache.has(key)) {
+    paletteEngineCache.set(
+      key,
+      window.LibmsPaletteEngine.createPaletteEngine(palette, {
+        candidateCount: 7,
+        cacheSize: 8192,
+        cacheQuantization: 8,
+        contextCorrectionWeight: 0.7,
+      }),
+    );
+  }
+  return paletteEngineCache.get(key);
+}
+
 function createPaletteCatalog() {
   const catalog = {};
   for (const [brand, profile] of Object.entries(BRAND_PROFILES)) {
-    for (const count of profile.options) {
-      catalog[getPaletteKey(brand, count)] = buildPaletteVariant(MARD_FULL_COLORS, count, brand, profile);
+    for (const count of new Set(brand === 'mard' ? [...profile.options, ...PALETTE_SIZE_OPTIONS] : profile.options)) {
+      const colors = brand === 'mard' && globalThis.LibmsMardKits.kits[count]
+        ? globalThis.LibmsMardKits.select(MARD_FULL_COLORS, count) : MARD_FULL_COLORS;
+      catalog[getPaletteKey(brand, count)] = buildPaletteVariant(colors, count, brand, profile);
     }
   }
   return catalog;
 }
 
 function buildPaletteVariant(colors, count, brand, profile) {
+  // 外源品牌自带官方色号（profile.colors 存在即为此类），原样保留，
+  // 不参与 MARD 跨品牌换号 —— 换号会破坏 Artkal/COCO 等官方编号体系。
+  const useNativeCode = Array.isArray(profile.colors);
   return colors.slice(0, count).map((color, index) => ({
-    code: getBrandCode(color, brand, profile, index),
+    code: useNativeCode ? color.code : getBrandCode(color, brand, profile, index),
     hex: color.hex || rgbToHex(color.rgb),
     sourceCode: color.code,
     sourceHex: color.hex || rgbToHex(color.rgb),
     sourceUrl: profile.sourceUrl || "",
     sourceVersion: profile.sourceVersion || "",
+    ...(color.paletteId ? { paletteId: color.paletteId } : {}),
     brand: profile.label,
+    // Stage B1 §3：把官方色卡的**系列**元数据带进运行时条目。
+    // 以前这里只搬运 code/hex/rgb，group 被丢掉 —— 于是 UI 只能靠
+    // `code.match(/^[A-Z]+/)` 猜系列，盼盼 / 咪小窝的纯数字色号猜不出前缀，
+    // 7 个官方中文系列（黄 / 橙棕 / 红粉 / 灰白黑 / 紫 / 绿 / 青蓝）在界面上完全消失。
+    // 内建 5 品牌共用 MARD 色表、本来就没有 group，取 "" 后由色号前缀推导，行为不变。
+    group: typeof color.group === "string" ? color.group : "",
     rgb: [...color.rgb],
   }));
 }
@@ -484,6 +535,92 @@ function validateMardPalette() {
   }
 }
 
+// ---------- 第三方品牌色库（可选增量）----------
+// 数据来自 HansBug/pindou-color-data（MIT）。异步加载；加载失败时内建 5 个品牌不受任何影响。
+// 背景：内建的 mard/coco/manman/panpan/mixiaowo 共用同一份 MARD 291 色，只有色号不同，
+// 所以切品牌实际颜色不变。这里新增的品牌各用自己官方色卡的**真实 RGB**，id 与内建不冲突。
+const EXTERNAL_BRAND_LABELS = Object.create(null);
+
+function registerExternalBrandPalettes(palettes, source) {
+  if (!Array.isArray(palettes)) return 0;
+  let added = 0;
+  for (const entry of palettes) {
+    const id = entry?.id;
+    if (!id || BRAND_PROFILES[id]) continue; // 绝不允许覆盖内建品牌
+    const colors = (entry.colors || [])
+      .filter((color) => color && color.code && Array.isArray(color.rgb) && color.rgb.length >= 3)
+      .map((color) => ({
+        code: String(color.code),
+        ...(color.paletteId ? { paletteId: String(color.paletteId) } : {}),
+        rgb: [...color.rgb],
+        hex: color.hex || rgbToHex(color.rgb),
+        group: color.group || "",
+      }));
+    if (!colors.length) continue;
+    const count = colors.length;
+    const profile = {
+      label: entry.label || id,
+      options: [count],
+      fallbackPrefix: "",
+      external: true,
+      sourceId: entry.sourceId || "",
+      sourceVersion: entry.sourceVersion || "",
+      sourceUrl: entry.sourceUrl || source?.url || "",
+      tierLabel: entry.tierLabel || "",
+      summary: entry.summary || "",
+      colors,
+    };
+    BRAND_PROFILES[id] = profile;
+    PALETTES[getPaletteKey(id, count)] = buildPaletteVariant(colors, count, id, profile);
+    EXTERNAL_BRAND_LABELS[id] = profile.label;
+    added += 1;
+  }
+  if (!added) return 0;
+  window.LibmsBrandLabels = Object.assign(Object.create(null), window.LibmsBrandLabels, EXTERNAL_BRAND_LABELS);
+  appendExternalBrandButtons();
+  window.dispatchEvent(
+    new CustomEvent("libms:brand-palettes-ready", { detail: { added, source: source || null } }),
+  );
+  return added;
+}
+
+function appendExternalBrandButtons() {
+  const line = document.querySelector("[data-brand]")?.parentElement;
+  if (!line) return;
+  for (const [id, label] of Object.entries(EXTERNAL_BRAND_LABELS)) {
+    if (line.querySelector(`[data-brand="${id}"]`)) continue;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "chip external-brand-chip";
+    button.dataset.brand = id;
+    button.setAttribute("aria-pressed", "false");
+    button.textContent = label;
+    button.title = BRAND_PROFILES[id]?.summary || label;
+    button.addEventListener("click", () => selectBrand(id));
+    line.appendChild(button);
+  }
+}
+
+function loadExternalBrandPalettes() {
+  import("./smart-preprocessing/palette-international.mjs?v=20261008-palette-location-r23")
+    .then(module_ => registerExternalBrandPalettes(
+      module_.BRAND_PALETTES.map(entry => ({ ...entry,
+        colors: entry.colors.map(color => ({ ...color, paletteId: `${entry.id}:${color.code}` }))
+      })), module_.BRAND_PALETTE_SOURCE))
+    .catch(error => console.info("[palette] 国际品牌参考色卡暂不可用：", error?.message || error));
+  import("./smart-preprocessing/palette-brands.mjs?v=20260920-brands")
+    .then((module_) => {
+      const added = registerExternalBrandPalettes(module_.BRAND_PALETTES, module_.BRAND_PALETTE_SOURCE);
+      if (added) {
+        const meta = module_.BRAND_PALETTE_SOURCE || {};
+        console.info(`[palette] 已加载 ${added} 个第三方品牌色板（${meta.repo || "unknown"} / ${meta.license || ""}）`);
+      }
+    })
+    .catch((error) => {
+      console.info("[palette] 第三方品牌色板不可用（可选增量，不影响内置品牌）：", error?.message || error);
+    });
+}
+
 const els = {
   visitCount: document.querySelector("#visit-count"),
   resetButton: document.querySelector("#reset-button"),
@@ -495,18 +632,26 @@ const els = {
   printLayoutSelect: document.querySelector("#print-layout-select"),
   printMarginInput: document.querySelector("#print-margin-input"),
   paletteCount: document.querySelector("#palette-count"),
+  maxColorsInput: document.querySelector("#max-colors-input"),
+  generationEngineSelect: document.querySelector("#generation-engine-select"),
+  generationPresetSelect: document.querySelector("#generation-preset-select"),
+  generationSamplingSelect: document.querySelector("#generation-sampling-select"),
+  paletteBudgetStatus: document.querySelector("#palette-budget-status"),
+  maxColorPresetButtons: document.querySelectorAll("[data-max-colors]"),
+  regionStrengthInput: document.querySelector("#region-strength-input"),
+  regionStrengthOutput: document.querySelector("#region-strength-output"),
+  detailProtectionSelect: document.querySelector("#detail-protection-select"),
+  patternOptimizerEnabled: document.querySelector("#pattern-optimizer-enabled"),
+  toggleOptimizedButton: document.querySelector("#toggle-optimized-button"),
   editorPaletteSelect: document.querySelector("#editor-palette-select"),
   uploadZone: document.querySelector("#upload-zone"),
   fileInput: document.querySelector("#file-input"),
   directPatternFileInput: document.querySelector("#direct-pattern-file-input"),
-  projectFileInput: document.querySelector("#project-file-input"),
   sourcePreview: document.querySelector("#source-preview"),
   sourceTitle: document.querySelector("#source-title"),
   statusPill: document.querySelector("#status-pill"),
   importButton: document.querySelector("#import-button"),
   mobileImportButton: document.querySelector("#mobile-import-button"),
-  mobileProjectImportButton: document.querySelector("#mobile-project-import-button"),
-  mobileProjectExportButton: document.querySelector("#mobile-project-export-button"),
   mobileProcessButton: document.querySelector("#mobile-process-button"),
   mobileDownloadButton: document.querySelector("#mobile-download-button"),
   mobileStartAssemblyButton: document.querySelector("#mobile-start-assembly-button"),
@@ -514,11 +659,14 @@ const els = {
   mobileChartDownloadButton: document.querySelector("#mobile-chart-download-button"),
   mobilePrintA4Button: document.querySelector("#mobile-print-a4-button"),
   fullscreenButton: document.querySelector("#fullscreen-button"),
-  historyButton: document.querySelector("#history-button"),
-  projectImportButton: document.querySelector("#project-import-button"),
-  projectExportButton: document.querySelector("#project-export-button"),
-  projectImportButtonSide: document.querySelector("#project-import-button-side"),
-  projectExportButtonSide: document.querySelector("#project-export-button-side"),
+  registerOpenButton: document.querySelector("#register-open-button"),
+  registerOpenButtonSide: document.querySelector("#register-open-button-side"),
+  registerModal: document.querySelector("#register-modal"),
+  registerForm: document.querySelector("#register-form"),
+  registerName: document.querySelector("#register-name"),
+  inviteCode: document.querySelector("#invite-code"),
+  inviteStatus: document.querySelector("#invite-status"),
+  registerMessage: document.querySelector("#register-message"),
   smartPhotoButton: document.querySelector("#smart-photo-button"),
   smartRestoreButton: document.querySelector("#smart-restore-button"),
   smartDirectButton: document.querySelector("#smart-direct-button"),
@@ -534,25 +682,13 @@ const els = {
   directPatternWidth: document.querySelector("#direct-pattern-width"),
   directPatternHeight: document.querySelector("#direct-pattern-height"),
   directPatternMessage: document.querySelector("#direct-pattern-message"),
-  directPatternDetectButton: document.querySelector("#direct-pattern-detect-button"),
   assemblyModal: document.querySelector("#assembly-modal"),
   assemblyProgressLabel: document.querySelector("#assembly-progress-label"),
-  assemblyBoardPicker: document.querySelector("#assembly-board-picker"),
-  assemblyBoardLabel: document.querySelector("#assembly-board-label"),
-  assemblyBoardRange: document.querySelector("#assembly-board-range"),
-  assemblyBoardButtons: document.querySelector("#assembly-board-buttons"),
   assemblySummary: document.querySelector("#assembly-summary"),
   assemblyColorList: document.querySelector("#assembly-color-list"),
   assemblyBoard: document.querySelector("#pixel-board-container"),
   assemblyClearFocusButton: document.querySelector("#assembly-clear-focus-button"),
   assemblyResetProgressButton: document.querySelector("#assembly-reset-progress-button"),
-  assemblyTimer: document.querySelector("#assembly-timer"),
-  assemblyTimerToggle: document.querySelector("#assembly-timer-toggle"),
-  assemblyModeButtons: document.querySelectorAll("[data-assembly-mode]"),
-  assemblyPrevButton: document.querySelector("#assembly-prev-button"),
-  assemblyNextButton: document.querySelector("#assembly-next-button"),
-  assemblyNextIncompleteButton: document.querySelector("#assembly-next-incomplete-button"),
-  assemblyUndoButton: document.querySelector("#assembly-undo-button"),
   exitModal: document.querySelector("#exit-modal"),
   exitConfirmButton: document.querySelector("#btn-confirm-exit"),
   exitCancelButton: document.querySelector("#btn-cancel-exit"),
@@ -562,31 +698,18 @@ const els = {
   donateQrcode: document.querySelector("#donate-qrcode"),
   downloadButtonTop: document.querySelector("#download-button-top"),
   blankBoardButton: document.querySelector("#blank-board-button"),
+  openProjectButton: document.querySelector("#open-project-button"),
+  landingProjectInput: document.querySelector("#landing-project-input"),
   granularityInput: document.querySelector("#granularity-input"),
   granularityOutput: document.querySelector("#granularity-output"),
   granularityNumber: document.querySelector("#granularity-number"),
   granularityApply: document.querySelector("#granularity-apply"),
-  gridHeightNumber: document.querySelector("#grid-height-number"),
-  ratioLockButton: document.querySelector("#ratio-lock-button"),
-  ratioHelp: document.querySelector("#ratio-help"),
-  cropModeSelect: document.querySelector("#crop-mode-select"),
-  cropZoomInput: document.querySelector("#crop-zoom-input"),
-  cropZoomOutput: document.querySelector("#crop-zoom-output"),
-  cropXInput: document.querySelector("#crop-x-input"),
-  cropYInput: document.querySelector("#crop-y-input"),
-  compositionResetButton: document.querySelector("#composition-reset-button"),
-  portraitSamplePresetButton: document.querySelector("#portrait-sample-preset-button"),
   mobileGranularityInput: document.querySelector("#mobile-granularity-input"),
   mobileGranularityOutput: document.querySelector("#mobile-granularity-output"),
   similarityInput: document.querySelector("#similarity-input"),
   similarityOutput: document.querySelector("#similarity-output"),
   similarityNumber: document.querySelector("#similarity-number"),
   similarityApply: document.querySelector("#similarity-apply"),
-  colorLimitSelect: document.querySelector("#color-limit-select"),
-  isolationInput: document.querySelector("#isolation-input"),
-  isolationOutput: document.querySelector("#isolation-output"),
-  smartPresetButton: document.querySelector("#smart-preset-button"),
-  applyCleanupButton: document.querySelector("#apply-cleanup-button"),
   modeSelect: document.querySelector("#mode-select"),
   backgroundModeSelect: document.querySelector("#background-mode-select"),
   processButton: document.querySelector("#process-button"),
@@ -600,6 +723,7 @@ const els = {
   statsSummary: document.querySelector("#stats-summary"),
   statsList: document.querySelector("#stats-list"),
   editButton: document.querySelector("#edit-button"),
+  mainPatternAdjustButton: document.querySelector("#main-pattern-adjust-button"),
   startAssemblyButton: document.querySelector("#start-assembly-button"),
   startAssemblyPanelButton: document.querySelector("#start-assembly-panel-button"),
   downloadButton: document.querySelector("#download-button"),
@@ -623,12 +747,12 @@ const els = {
   currentSwatch: document.querySelector("#current-swatch"),
   clearColorButton: document.querySelector("#clear-color-button"),
   undoPaintButton: document.querySelector("#undo-paint-button"),
-  redoEditorButton: document.querySelector("#redo-editor-button"),
-  applySelectionColorButton: document.querySelector("#apply-selection-color-button"),
   replaceFrom: document.querySelector("#replace-from"),
   replaceTo: document.querySelector("#replace-to"),
   replaceButton: document.querySelector("#replace-button"),
   undoReplaceButton: document.querySelector("#undo-replace-button"),
+  fillSelectionButton: document.querySelector("#fill-selection-button"),
+  clearSelectionButton: document.querySelector("#clear-selection-button"),
   paletteGroups: document.querySelector("#palette-groups"),
   editorToolButtons: document.querySelectorAll("[data-editor-tool]"),
   floatingTools: document.querySelector("#floating-tools"),
@@ -643,14 +767,23 @@ const els = {
   editorToolbarPosition: document.querySelector("#editor-toolbar-position"),
   flipHorizontalButton: document.querySelector("#flip-horizontal-button"),
   flipVerticalButton: document.querySelector("#flip-vertical-button"),
-  rotateLeftButton: document.querySelector("#rotate-left-button"),
-  rotateRightButton: document.querySelector("#rotate-right-button"),
-  editorSymmetrySelect: document.querySelector("#editor-symmetry-select"),
   scaleDownButton: document.querySelector("#scale-down-button"),
   scaleUpButton: document.querySelector("#scale-up-button"),
   referenceImageInput: document.querySelector("#reference-image-input"),
   referenceImageButton: document.querySelector("#reference-image-button"),
   clearReferenceButton: document.querySelector("#clear-reference-button"),
+  referenceControls: document.querySelector("#reference-controls"),
+  referenceOpacity: document.querySelector("#reference-opacity"),
+  referenceOpacityOutput: document.querySelector("#reference-opacity-output"),
+  referenceScale: document.querySelector("#reference-scale"),
+  referenceScaleOutput: document.querySelector("#reference-scale-output"),
+  referenceRotation: document.querySelector("#reference-rotation"),
+  referenceRotationOutput: document.querySelector("#reference-rotation-output"),
+  referenceVisibleButton: document.querySelector("#reference-visible-button"),
+  referenceLockButton: document.querySelector("#reference-lock-button"),
+  referenceNudgeButtons: document.querySelectorAll("[data-reference-nudge]"),
+  patternAdjustButton: document.querySelector("#pattern-adjust-button"),
+  gridAlignButton: document.querySelector("#grid-align-button"),
   libraryImportSelect: document.querySelector("#library-import-select"),
   importLibraryButton: document.querySelector("#import-library-button"),
   trimArtworkButton: document.querySelector("#trim-artwork-button"),
@@ -660,6 +793,7 @@ const els = {
   assemblyModeButton: document.querySelector("#assembly-mode-button"),
   saveLibraryButton: document.querySelector("#save-library-button"),
   downloadEditorButton: document.querySelector("#download-editor-button"),
+  publishCommunityButton: document.querySelector("#publish-community-button"),
   cancelEditButton: document.querySelector("#cancel-edit-button"),
   saveEditButton: document.querySelector("#save-edit-button"),
   generatedGallery: document.querySelector("#generated-gallery"),
@@ -667,80 +801,33 @@ const els = {
   galleryCount: document.querySelector("#gallery-count"),
   galleryEmpty: document.querySelector("#gallery-empty"),
   galleryClearButton: document.querySelector("#gallery-clear-button"),
+  blankBoardModal: document.querySelector("#blank-board-modal"),
+  blankBoardWidth: document.querySelector("#blank-board-width"),
+  blankBoardHeight: document.querySelector("#blank-board-height"),
+  blankBoardSummary: document.querySelector("#blank-board-summary"),
+  blankBoardMessage: document.querySelector("#blank-board-message"),
+  blankBoardPresets: document.querySelectorAll("[data-size]"),
+  createBlankBoardButton: document.querySelector("#create-blank-board-button"),
+  patternAdjustModal: document.querySelector("#pattern-adjust-modal"),
+  patternAdjustPreviewImage: document.querySelector("#pattern-adjust-preview-image"),
+  patternAdjustInputs: document.querySelectorAll("[data-pattern-adjust]"),
+  resetPatternAdjustButton: document.querySelector("#reset-pattern-adjust-button"),
+  applyPatternAdjustButton: document.querySelector("#apply-pattern-adjust-button"),
+  gridAlignModal: document.querySelector("#grid-align-modal"),
+  gridOffsetX: document.querySelector("#grid-offset-x"),
+  gridOffsetY: document.querySelector("#grid-offset-y"),
+  gridCellWidth: document.querySelector("#grid-cell-width"),
+  gridCellHeight: document.querySelector("#grid-cell-height"),
+  gridAlignMessage: document.querySelector("#grid-align-message"),
+  autoAlignGridButton: document.querySelector("#auto-align-grid-button"),
+  applyGridAlignButton: document.querySelector("#apply-grid-align-button"),
 };
 
-const state = {
-  sourceDataUrl: "",
-  sourceName: "",
-  grid: [],
-  stats: [],
-  chartUrl: "",
-  previewUrl: "",
-  paletteLabel: "",
-  width: 0,
-  height: 0,
-  sourceAspectRatio: 1,
-  ratioLocked: true,
-  optimizationSummary: "",
-  previewZoom: 1,
-  editorZoom: 1,
-  selectedBrand: DEFAULT_BRAND,
-  selectedColor: null,
-  editorGrid: [],
-  editorTool: "pencil",
-  editorFloating: null,
-  editorSelection: null,
-  editorSelectedCells: new Set(),
-  editorLassoPoints: [],
-  editorHistory: [],
-  editorRedo: [],
-  editorActionSnapshot: null,
-  editorSymmetry: "none",
-  editorReferenceImage: null,
-  editorPrefs: {
-    showGrid: true,
-    showCodes: true,
-    showCoords: true,
-    snap: true,
-    toolbarPosition: "left",
-  },
-  assemblyMode: false,
-  assemblyHighlightCode: "",
-  playActiveCode: "",
-  currentSelectedColor: null,
-  playCompletedBeads: new Set(),
-  playStorageKey: "",
-  playHoverRow: "",
-  playHoverCol: "",
-  assemblyHistoryActive: false,
-  assemblyHideCellText: false,
-  assemblyEngine: null,
-  assemblyBoardRow: 0,
-  assemblyBoardCol: 0,
-  assemblyNavigationMode: "color",
-  assemblyNavigationIndex: 0,
-  assemblyUndo: [],
-  assemblyElapsedMs: 0,
-  assemblyTimerStartedAt: 0,
-  assemblyTimerRunning: false,
-  assemblyTimerInterval: 0,
-  directPatternFile: null,
-  paintUndo: [],
-  replaceUndo: [],
-  isPainting: false,
-  lastPaintKey: "",
-  importMode: "photo",
-  autoProcessAfterLoad: false,
-  restoreAutoSizePending: false,
-  livePreviewTimer: 0,
-  livePreviewPending: false,
-  isProcessingImage: false,
-  backgroundDecision: "",
-  sourceSafetyChecked: false,
-  safetyModel: null,
-  safetyModelLoading: null,
-  safetyModelUnavailable: false,
-};
+const state = window.libmsStore.compat();
+/* ↑ Phase 2：原 100 字段扁平 state 字面量已替换为 store.js 的兼容层 Proxy。
+   真实数据只存一份，位于 window.libmsStore（state/store.js）。
+   旧代码 state.xxx 读写全部路由到 store，无双写。详见 STATE-MIGRATION.md。
+   不要在 Phase 3/4 之前在此恢复字面量或新增直接写入的字段。 */
 
 function applyRandomPixelTheme() {
   const background = pickRandom(PIXEL_THEME_COLORS);
@@ -786,8 +873,110 @@ function rgbToHex(rgbValue) {
     .toUpperCase()}`;
 }
 
-function init() {
+let workspaceLoadPromise = null;
+let workspaceLoaded = false;
+let workspaceMounted = false;
+let workspaceController = null;
+let workspaceRuntimeInitialized = false;
+let generationRuntimePromise = null;
+let qrRuntimePromise = null;
+const workspaceEntryQueue = [];
+let workspaceDrainPromise = null;
+const parkedWorkspaceNodes = [];
+
+function ensureGenerationRuntime() {
+  if (!generationRuntimePromise) {
+    generationRuntimePromise = Promise.all([
+      import("./smart-preprocessing/palette-engine.mjs"),
+      import("./services/srgb-canvas.mjs?v=20261007-v3-srgb").then(mod => { window.LibmsSrgbCanvas = mod; }),
+      import("./smart-preprocessing/pixel-ready-stylizer.mjs"),
+      import("./smart-preprocessing/render-policy.mjs?v=20260928-v3"),
+      import("./smart-preprocessing/structural-transition-analyzer.mjs?v=20260915-detection-only"),
+      import("./smart-preprocessing/regional-block-v2.mjs?v=20260915-regional-v2"),
+      import("./smart-preprocessing/region-aware-quantizer.mjs?v=20260915-contour-aware"),
+      import("./smart-preprocessing/portrait-preprocessor.mjs"),
+      import("./smart-preprocessing/structure-analyzer.mjs"),
+      import("./smart-preprocessing/pattern-optimizer.mjs"),
+      import("./smart-preprocessing/pattern-quality.mjs"),
+      // Stage B0：尺寸模型 / Worker-ready 生成契约。
+      // app.js 是 classic script，不能静态 import，所以沿用本仓库既有的
+      // 「动态 import 后挂 window.Libms*」约定。
+      import("./services/generation-size.mjs?v=20261001-stage-b0").then((mod) => { window.LibmsGenerationSize = mod; }),
+      // query 必须与 processImage / processProductionV2 里的动态 import 完全一致，
+      // 否则同一个模块会被实例化两份（两份模块级状态），这是很难查的隐性分叉。
+      import("./services/source-editor-service.js?v=20261007-v3-srgb").then((mod) => { window.LibmsSourceEditor = mod; }),
+      import("./services/generation-request.mjs?v=20261001-stage-b0").then((mod) => { window.LibmsGenerationRequest = mod; }),
+      import("./services/generation-job.mjs?v=20261001-stage-b0").then((mod) => { window.LibmsGenerationJob = mod; }),
+      // Stage B0.1：尺寸权威链。结构化工程 / 人工标定 / 网格识别给出的尺寸是绝对值，
+      // 不允许被长边、裁剪比例或像素倍数再算一遍。
+      import("./services/source-dimensions.mjs?v=20261003-stage-b4").then((mod) => { window.LibmsSourceDimensions = mod; }),
+      // Stage B3：紧凑结果契约 + 生成 Worker 客户端。
+      // worker 的 URL 在 generation-worker-client.mjs 里，必须与这里同一份（含 query），
+      // 否则 Worker 会加载到第二份模块图。
+      import("./services/generation-result-codec.mjs?v=20261002-stage-b3").then((mod) => { window.LibmsGenerationResultCodec = mod; }),
+      import("./services/generation-worker-client.mjs?v=20261002-stage-b3").then((mod) => { window.LibmsGenerationWorkerClient = mod; }),
+    ]).catch((error) => { generationRuntimePromise = null; throw error; });
+  }
+  return generationRuntimePromise;
+}
+
+function ensureQrRuntime() {
+  if (typeof window.qrcode === "function") return Promise.resolve();
+  if (!qrRuntimePromise) qrRuntimePromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "./vendor/qrcode.js";
+    script.onload = resolve;
+    script.onerror = () => { qrRuntimePromise = null; reject(new Error("二维码组件加载失败")); };
+    document.head.append(script);
+  });
+  return qrRuntimePromise;
+}
+
+function parkWorkspaceDomForLanding() {
+  const nodes = [
+    ...document.querySelectorAll(".studio-main > .preview-column, .studio-main > .settings-grid, .studio-main > .smart-tools-panel"),
+    ...document.querySelectorAll(".workspace-grid > .side-panel, .gallery-section"),
+    ...[...document.querySelectorAll("body > dialog")].filter((node) => node.id !== "blank-board-modal"),
+  ];
+  for (const node of [...new Set(nodes)]) {
+    if (!node.isConnected) continue;
+    const marker = document.createComment(`lazy:${node.id || node.className || node.tagName}`);
+    node.before(marker);
+    node.remove();
+    parkedWorkspaceNodes.push({ node, marker });
+  }
+}
+
+function restoreWorkspaceDom() {
+  while (parkedWorkspaceNodes.length) {
+    const { node, marker } = parkedWorkspaceNodes.shift();
+    marker.replaceWith(node);
+  }
+}
+
+function setWorkspaceLoading(message, failed = false) {
+  let status = document.querySelector("#workspace-entry-status");
+  if (!status) {
+    status = document.createElement("div");
+    status.id = "workspace-entry-status";
+    status.className = "workspace-entry-status";
+    status.setAttribute("role", "status");
+    document.body.append(status);
+  }
+  status.classList.toggle("is-failed", failed);
+  status.innerHTML = failed
+    ? '<span>工作台加载失败</span><button type="button" id="workspace-entry-retry">重新加载</button>'
+    : `<span class="workspace-entry-spinner" aria-hidden="true"></span><span>${message}</span>`;
+  if (failed) status.querySelector("#workspace-entry-retry")?.addEventListener("click", drainWorkspaceEntries);
+}
+
+function initializeWorkspaceRuntime() {
+  if (workspaceRuntimeInitialized) return;
+  workspaceRuntimeInitialized = true;
+  restoreWorkspaceDom();
+  setupProfessionalEditorLayout();
   validateMardPalette();
+  loadExternalBrandPalettes();
   preloadPixelFont();
   if (els.boardSelect) {
     BOARD_SIZES.forEach(([value, label]) => {
@@ -795,19 +984,231 @@ function init() {
     });
     els.boardSelect.value = "custom";
   }
-  syncRangeControls("granularity", DEFAULT_GRANULARITY, MIN_GRANULARITY, MAX_GRANULARITY);
+  syncRangeControls("granularity", DEFAULT_GRANULARITY, 10, 500);
   syncRangeControls("similarity", 30, 0, 100);
-  syncIsolationControl();
-  updateCompositionUi();
-  updateRatioLockUi();
   updatePaletteOptions();
   updateEditorPaletteOptions();
   updatePaletteCount();
+  updateMaxColorPresetUi();
   updateVisitCount();
+  updateInviteUi();
   renderGeneratedGallery();
   renderEditorLibraryOptions();
   bindEvents();
   updateResultUi();
+}
+
+async function loadWorkspaceOnce() {
+  if (workspaceMounted) return workspaceController;
+  if (!workspaceLoadPromise) {
+    setWorkspaceLoading("正在打开工作台…");
+    workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261008-palette-location-r23"), ensureGenerationRuntime()])
+      .then(([{ bootstrapWorkspace }]) => {
+        workspaceLoaded = true;
+        initializeWorkspaceRuntime();
+        const mounted = bootstrapWorkspace({ bridge: window.LibmsWorkspaceBridge, prepareLegacyShell: prepareCompatibilityShell });
+        if (!mounted) throw new Error("工作台挂载失败");
+        workspaceController = mounted;
+        workspaceMounted = true;
+        document.querySelector("#workspace-entry-status")?.remove();
+        return mounted;
+      })
+      .catch((error) => {
+        workspaceLoadPromise = null;
+        document.body.dataset.workspaceState = "failed";
+        setWorkspaceLoading("工作台加载失败", true);
+        console.error("Workspace bootstrap module failed", error);
+        throw error;
+      });
+  }
+  return workspaceLoadPromise;
+}
+
+async function applyWorkspaceEntry(entry) {
+  const controller = await loadWorkspaceOnce();
+  if (entry.reason === "image-upload") return loadFile(entry.payload.file);
+  if (entry.reason === "blank-canvas") return createBlankBoard(entry.payload);
+  if (entry.reason === "open-project") return controller.openProjectFile?.(entry.payload.file);
+  throw new Error(`未知工作台入口：${entry.reason}`);
+}
+
+function drainWorkspaceEntries() {
+  if (workspaceDrainPromise) return workspaceDrainPromise;
+  workspaceDrainPromise = (async () => {
+    try {
+      while (workspaceEntryQueue.length) {
+        await applyWorkspaceEntry(workspaceEntryQueue[0]);
+        workspaceEntryQueue.shift();
+      }
+    } catch (_) {
+      // 队首 payload 保留，点击“重新加载”后从同一项继续。
+    } finally {
+      workspaceDrainPromise = null;
+    }
+  })();
+  return workspaceDrainPromise;
+}
+
+function enterWorkspace(reason, payload = {}) {
+  workspaceEntryQueue.push({ reason, payload });
+  drainWorkspaceEntries();
+  return workspaceLoadPromise;
+}
+
+function init() {
+  updateVisitCount();
+  updateBlankBoardSummary();
+  bindLandingCreationEvents();
+  parkWorkspaceDomForLanding();
+  document.body.dataset.workspaceState = "landing";
+}
+
+function prepareCompatibilityShell() {
+  const wrap = document.querySelector(".workspace-wrap");
+  const grid = wrap?.querySelector(".workspace-grid");
+  const studio = grid?.querySelector(".studio-main");
+  const preview = studio?.querySelector(".preview-column");
+  const settings = studio?.querySelector(".settings-grid");
+  const intro = studio?.querySelector(".generator-intro");
+  const smartTools = studio?.querySelector(".smart-tools-panel");
+  const stats = preview?.querySelector(".preview-stats-panel");
+  if (!wrap || !grid || !studio || !preview || !settings || grid.dataset.layoutReady) return;
+  grid.dataset.layoutReady = "true";
+
+  const topTools = document.createElement("nav");
+  topTools.className = "main-global-toolbar";
+  topTools.setAttribute("aria-label", "全局操作");
+  const title = document.createElement("strong");
+  title.textContent = "当前作品";
+  const unsaved = document.createElement("small");
+  unsaved.textContent = "本地编辑";
+  topTools.append(title, unsaved);
+  [els.tutorialButton, els.smartPhotoButton, els.blankBoardButton, els.downloadButton, els.startAssemblyButton]
+    .filter(Boolean).forEach((button) => topTools.append(button));
+  wrap.prepend(topTools);
+
+  const left = document.createElement("aside");
+  left.className = "main-left-toolbar";
+  left.setAttribute("aria-label", "快捷工具");
+  [els.editButton, els.mainPatternAdjustButton, els.smartRestoreButton, els.smartDirectButton, els.smartLinkButton]
+    .filter(Boolean).forEach((button) => left.append(button));
+
+  const center = document.createElement("section");
+  center.className = "main-center-workspace";
+  const tabs = document.createElement("nav");
+  tabs.className = "main-view-tabs";
+  tabs.innerHTML = '<button type="button" data-main-view="focus">专注模式</button><button type="button" data-main-view="source">原图</button><button class="active" type="button" data-main-view="pattern">拼豆图</button><button type="button" data-main-view="codes">色号</button>';
+  center.append(tabs, preview);
+  const uploadZone = intro.querySelector("#upload-zone");
+  preview.querySelector(".workspace-stage")?.append(uploadZone);
+  intro.remove();
+
+  const right = document.createElement("aside");
+  right.className = "main-right-inspector";
+  const rightTitle = document.createElement("div");
+  rightTitle.className = "main-inspector-title";
+  rightTitle.innerHTML = "<strong>图纸设置</strong><small>当前参数与色卡</small>";
+  right.append(rightTitle);
+  [...settings.children].forEach((panel) => right.append(panel));
+  if (stats) right.append(stats);
+  const invite = grid.querySelector(".side-panel");
+  if (invite) right.append(invite);
+  if (smartTools) smartTools.remove();
+
+  [...studio.children].filter((node) => node.matches?.("input, select[hidden]")).forEach((node) => center.prepend(node));
+  grid.replaceChildren(left, center, right);
+
+  tabs.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-main-view]");
+    if (!button) return;
+    tabs.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item === button));
+    const view = button.dataset.mainView;
+    grid.classList.toggle("focus-view", view === "focus");
+    uploadZone.classList.toggle("source-view", view === "source");
+    uploadZone.style.setProperty("display", view === "source" || !state.grid.length ? "grid" : "none", "important");
+    preview.classList.toggle("source-hidden", view === "source");
+    if (view === "codes" && state.grid.length) openPreview();
+  });
+}
+
+function setupProfessionalEditorLayout() {
+  const body = document.querySelector("#editor-modal .editor-body");
+  const sidebar = body?.querySelector(".editor-sidebar");
+  const canvasWrap = body?.querySelector(".editor-canvas-wrap");
+  const toolDock = sidebar?.querySelector("#editor-tool-dock");
+  if (!body || !sidebar || !canvasWrap || !toolDock || body.dataset.layoutReady) return;
+  body.dataset.layoutReady = "true";
+
+  const left = document.createElement("aside");
+  left.className = "editor-left-toolbar";
+  left.setAttribute("aria-label", "编辑工具栏");
+  left.append(toolDock);
+  [
+    els.clearColorButton,
+    document.querySelector("#reference-image-button"),
+    els.patternAdjustButton,
+    document.querySelector("#grid-align-button"),
+  ].filter(Boolean).forEach((button) => {
+    button.classList.add("left-tool-action");
+    left.append(button);
+  });
+
+  const center = document.createElement("section");
+  center.className = "editor-center-workspace";
+  const tabs = document.createElement("nav");
+  tabs.className = "editor-view-tabs";
+  tabs.setAttribute("aria-label", "画布视图");
+  tabs.innerHTML = [
+    ["focus", "专注模式"], ["pattern", "拼豆图"], ["preview", "成品预览"], ["codes", "色号"],
+  ].map(([view, label]) => `<button type="button" data-editor-view="${view}" class="${view === "codes" ? "active" : ""}">${label}</button>`).join("");
+
+  const bottom = document.createElement("div");
+  bottom.className = "editor-canvas-toolbar";
+  bottom.setAttribute("aria-label", "画布快捷操作");
+  const movable = [
+    els.undoPaintButton,
+    els.undoReplaceButton,
+    document.querySelector("#flip-horizontal-button"),
+    document.querySelector("#flip-vertical-button"),
+    document.querySelector("#trim-artwork-button"),
+    document.querySelector("#fit-editor-button"),
+    document.querySelector("#toggle-editor-grid")?.closest("label"),
+    document.querySelector("#toggle-editor-codes")?.closest("label"),
+    document.querySelector("#toggle-editor-coords")?.closest("label"),
+  ].filter(Boolean);
+  movable.forEach((node) => bottom.append(node));
+
+  center.append(tabs, canvasWrap, bottom);
+  sidebar.classList.add("editor-inspector");
+  const inspectorTitle = document.createElement("div");
+  inspectorTitle.className = "editor-inspector-title";
+  inspectorTitle.innerHTML = "<strong>图纸设置与调色板</strong><small>当前作品</small>";
+  sidebar.prepend(inspectorTitle);
+  body.replaceChildren(left, center, sidebar);
+  const projectToolbar = document.querySelector("#editor-modal > .modal-foot");
+  if (projectToolbar) {
+    projectToolbar.classList.add("editor-global-toolbar");
+    body.before(projectToolbar);
+  }
+
+  tabs.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-editor-view]");
+    if (!button) return;
+    const view = button.dataset.editorView;
+    tabs.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item === button));
+    if (view === "focus") {
+      body.classList.toggle("focus-view");
+      return;
+    }
+    body.classList.remove("focus-view");
+    const showGrid = view !== "preview";
+    const showCodes = view === "codes";
+    state.editorPrefs.showGrid = showGrid;
+    state.editorPrefs.showCodes = showCodes;
+    if (els.toggleEditorGrid) els.toggleEditorGrid.checked = showGrid;
+    if (els.toggleEditorCodes) els.toggleEditorCodes.checked = showCodes;
+    renderEditorCanvas();
+  });
 }
 
 function preloadPixelFont() {
@@ -821,12 +1222,56 @@ function preloadPixelFont() {
   });
 }
 
+function bindLandingCreationEvents() {
+  document.querySelector("[data-focus-blank]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    openBlankBoardDialog();
+  });
+  els.fileInput?.addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) enterWorkspace("image-upload", { file });
+  });
+  els.fileInput?.addEventListener("cancel", () => { state.importApproved = false; });
+  els.uploadZone?.addEventListener("click", (event) => {
+    event.preventDefault(); state.importMode = "photo"; state.autoProcessAfterLoad = true;
+    state.restoreAutoSizePending = false; els.fileInput.value = ""; els.fileInput.click();
+  });
+  els.uploadZone?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault(); state.importMode = "photo"; state.autoProcessAfterLoad = true; els.fileInput.click();
+  });
+  ["dragenter", "dragover"].forEach((name) => els.uploadZone?.addEventListener(name, (event) => {
+    event.preventDefault(); els.uploadZone.classList.add("drag-over");
+  }));
+  els.uploadZone?.addEventListener("dragleave", () => els.uploadZone.classList.remove("drag-over"));
+  els.uploadZone?.addEventListener("drop", (event) => {
+    event.preventDefault(); els.uploadZone.classList.remove("drag-over"); state.importMode = "photo";
+    state.autoProcessAfterLoad = true; const file = event.dataTransfer?.files?.[0];
+    if (file) enterWorkspace("image-upload", { file });
+  });
+  els.blankBoardButton?.addEventListener("click", openBlankBoardDialog);
+  els.blankBoardPresets.forEach((button) => button.addEventListener("click", () => {
+    const [width, height] = String(button.dataset.size || "52,52").split(",").map(Number);
+    els.blankBoardWidth.value = String(width); els.blankBoardHeight.value = String(height); updateBlankBoardSummary();
+  }));
+  els.blankBoardWidth?.addEventListener("input", updateBlankBoardSummary);
+  els.blankBoardHeight?.addEventListener("input", updateBlankBoardSummary);
+  els.createBlankBoardButton?.addEventListener("click", () => {
+    const width = parseBlankBoardSize(els.blankBoardWidth.value), height = parseBlankBoardSize(els.blankBoardHeight.value);
+    if (width !== null && height !== null) { els.blankBoardModal?.close(); enterWorkspace("blank-canvas", { width, height }); }
+  });
+  els.openProjectButton?.addEventListener("click", () => { els.landingProjectInput.value = ""; els.landingProjectInput.click(); });
+  els.landingProjectInput?.addEventListener("change", (event) => {
+    const file = event.target.files?.[0]; event.target.value = "";
+    if (file) enterWorkspace("open-project", { file });
+  });
+}
+
 function bindEvents() {
   els.resetButton?.addEventListener("click", resetAll);
   els.importButton?.addEventListener("click", startManualImport);
   els.mobileImportButton?.addEventListener("click", startManualImport);
-  els.mobileProjectImportButton?.addEventListener("click", openProjectImport);
-  els.mobileProjectExportButton?.addEventListener("click", exportLocalProject);
   els.mobileProcessButton?.addEventListener("click", processImage);
   els.mobileDownloadButton?.addEventListener("click", downloadPattern);
   els.mobileStartAssemblyButton?.addEventListener("click", openAssemblyPlayer);
@@ -834,12 +1279,9 @@ function bindEvents() {
   els.mobileChartDownloadButton?.addEventListener("click", downloadPattern);
   els.mobilePrintA4Button?.addEventListener("click", downloadA4PrintPattern);
   els.fullscreenButton?.addEventListener("click", toggleFullscreen);
-  els.historyButton?.addEventListener("click", scrollToHistory);
-  els.projectImportButton?.addEventListener("click", openProjectImport);
-  els.projectImportButtonSide?.addEventListener("click", openProjectImport);
-  els.projectExportButton?.addEventListener("click", exportLocalProject);
-  els.projectExportButtonSide?.addEventListener("click", exportLocalProject);
-  els.projectFileInput?.addEventListener("change", importLocalProject);
+  els.registerOpenButton?.addEventListener("click", openRegisterModal);
+  els.registerOpenButtonSide?.addEventListener("click", openRegisterModal);
+  els.registerForm?.addEventListener("submit", registerWithInvite);
   els.smartPhotoButton?.addEventListener("click", startPhotoImport);
   els.smartRestoreButton?.addEventListener("click", startRestoreImport);
   els.smartDirectButton?.addEventListener("click", startDirectPatternImport);
@@ -849,29 +1291,34 @@ function bindEvents() {
   els.linkImportForm?.addEventListener("submit", importImageFromLink);
   els.directPatternFileInput?.addEventListener("change", handleDirectPatternFileChange);
   els.directPatternForm?.addEventListener("submit", handleDirectPatternSubmit);
-  els.directPatternDetectButton?.addEventListener("click", detectDirectPatternSize);
   els.gallerySearch?.addEventListener("input", renderGeneratedGallery);
   els.galleryClearButton?.addEventListener("click", clearGeneratedGallery);
   els.downloadButtonTop?.addEventListener("click", downloadPattern);
-  els.blankBoardButton?.addEventListener("click", createBlankBoard);
+  els.maxColorsInput?.addEventListener("change", () => {
+    updateMaxColorPresetUi();
+    scheduleLivePreview("颜色数量已更新");
+  });
+  els.maxColorPresetButtons.forEach((button) => button.addEventListener("click", () => {
+    els.maxColorsInput.value = String(button.dataset.maxColors || 0);
+    updateMaxColorPresetUi();
+    scheduleLivePreview(button.dataset.maxColors === "30" ? "人物配色已限制为 30 色" : "颜色数量已更新");
+  }));
+  els.regionStrengthInput?.addEventListener("input", () => {
+    if (els.regionStrengthOutput) els.regionStrengthOutput.value = els.regionStrengthInput.value;
+    scheduleLivePreview("规整度已更新");
+  });
+  els.detailProtectionSelect?.addEventListener("change", () => scheduleLivePreview("细节保护已更新"));
+  els.patternOptimizerEnabled?.addEventListener("change", () => scheduleLivePreview("净化设置已更新"));
+  els.toggleOptimizedButton?.addEventListener("click", toggleGeneratedOptimization);
   els.brandButtons.forEach((button) => {
     button.addEventListener("click", () => selectBrand(button.dataset.brand || DEFAULT_BRAND));
   });
-  bindRangePair("granularity", MIN_GRANULARITY, MAX_GRANULARITY);
+  bindRangePair("granularity", 10, 500);
   els.mobileGranularityInput?.addEventListener("input", () => {
-    syncRangeControls("granularity", els.mobileGranularityInput.value, MIN_GRANULARITY, MAX_GRANULARITY);
+    syncRangeControls("granularity", els.mobileGranularityInput.value, 10, 500);
     scheduleLivePreview("宽度已更新");
   });
-  els.gridHeightNumber?.addEventListener("input", handleGridHeightInput);
-  els.gridHeightNumber?.addEventListener("change", handleGridHeightInput);
-  els.ratioLockButton?.addEventListener("click", toggleRatioLock);
   bindRangePair("similarity", 0, 100);
-  els.colorLimitSelect?.addEventListener("change", () => scheduleLivePreview("颜色聚类已更新"));
-  els.isolationInput?.addEventListener("input", () => {
-    syncIsolationControl();
-    scheduleLivePreview("孤立色块阈值已更新");
-  });
-  document.addEventListener("click", handleSmartOptimizationClick);
   els.paletteSelect.addEventListener("change", () => {
     updatePaletteCount();
     updateEditorPaletteOptions();
@@ -881,95 +1328,35 @@ function bindEvents() {
   els.backgroundModeSelect?.addEventListener("change", () => {
     scheduleLivePreview("背景处理已更新");
   });
-  [els.cropModeSelect, els.cropZoomInput, els.cropXInput, els.cropYInput].forEach((control) => {
-    control?.addEventListener("input", () => {
-      updateCompositionUi();
-      scheduleLivePreview("构图已更新");
-    });
-  });
-  els.compositionResetButton?.addEventListener("click", resetComposition);
-  els.portraitSamplePresetButton?.addEventListener("click", applyPortraitSamplePreset);
   els.modeSelect?.addEventListener("change", () => {
-    if (els.modeSelect.value === "portrait") {
-      applyPortraitModeDefaults();
-    }
     scheduleLivePreview("处理模式已更新");
   });
   els.tileSizeSelect?.addEventListener("change", updateResultUi);
   els.mirrorSelect?.addEventListener("change", updateResultUi);
   els.printLayoutSelect?.addEventListener("change", updateResultUi);
   els.printMarginInput?.addEventListener("change", updateResultUi);
-  els.fileInput.addEventListener("change", (event) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      loadFile(file);
-      return;
-    }
-    state.autoProcessAfterLoad = false;
-    state.restoreAutoSizePending = false;
-  });
-
-  ["dragenter", "dragover"].forEach((name) => {
-    els.uploadZone.addEventListener(name, (event) => {
-      event.preventDefault();
-      els.uploadZone.classList.add("drag-over");
-    });
-  });
-
-  ["dragleave", "drop"].forEach((name) => {
-    els.uploadZone.addEventListener(name, () => {
-      els.uploadZone.classList.remove("drag-over");
-    });
-  });
-
-  els.uploadZone.addEventListener("drop", (event) => {
-    event.preventDefault();
-    state.importMode = "photo";
-    state.autoProcessAfterLoad = true;
-    state.restoreAutoSizePending = false;
-    const file = event.dataTransfer?.files?.[0];
-    if (file) loadFile(file);
-  });
-  els.uploadZone.addEventListener("click", () => {
-    state.importMode = "photo";
-    state.autoProcessAfterLoad = true;
-    state.restoreAutoSizePending = false;
-  });
-  els.uploadZone.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();
-    state.importMode = "photo";
-    state.autoProcessAfterLoad = true;
-    state.restoreAutoSizePending = false;
-    els.fileInput.click();
-  });
-
   els.processButton.addEventListener("click", processImage);
-  els.previewStage.addEventListener("click", openPreview);
+  // The V3 workspace owns preview and export interactions. Keeping the legacy
+  // stage click handler active here caused bottom-dock controls to reopen the
+  // obsolete full-screen preview because that stage spans the workspace.
   els.previewDownloadButton?.addEventListener("click", downloadPreviewImage);
   enableMiddleButtonPan(els.previewStage);
   enableMiddleButtonPan(els.previewViewport);
+  enableMiddleButtonPan(document.querySelector("#editor-modal .editor-canvas-wrap"));
   els.downloadButton.addEventListener("click", downloadPattern);
   els.printA4Button?.addEventListener("click", downloadA4PrintPattern);
   els.editButton.addEventListener("click", openEditor);
+  els.mainPatternAdjustButton?.addEventListener("click", () => {
+    if (!state.grid.length) return;
+    openPatternAdjustDialog("main");
+  });
   els.startAssemblyButton?.addEventListener("click", openAssemblyPlayer);
   els.startAssemblyPanelButton?.addEventListener("click", openAssemblyPlayer);
-  els.assemblyBoard?.addEventListener("pointerdown", handleAssemblyBoardPointerDown);
-  els.assemblyBoard?.addEventListener("pointermove", handleAssemblyBoardPointerMove);
-  els.assemblyBoard?.addEventListener("pointerup", handleAssemblyBoardPointerUp);
-  els.assemblyBoard?.addEventListener("pointercancel", handleAssemblyBoardPointerCancel);
-  els.assemblyBoard?.addEventListener("pointerleave", handleAssemblyBoardPointerLeave);
-  els.assemblyBoard?.addEventListener("wheel", handleAssemblyBoardWheel, { passive: false });
+  els.assemblyBoard?.addEventListener("click", handleAssemblyBoardClick);
+  els.assemblyBoard?.addEventListener("pointerover", handleAssemblyBoardPointerOver);
+  els.assemblyBoard?.addEventListener("pointerleave", clearAssemblyCrosshair);
   els.assemblyClearFocusButton?.addEventListener("click", () => selectAssemblyColor(""));
   els.assemblyResetProgressButton?.addEventListener("click", resetAssemblyProgress);
-  els.assemblyTimerToggle?.addEventListener("click", toggleAssemblyTimer);
-  els.assemblyModeButtons.forEach((button) => {
-    button.addEventListener("click", () => setAssemblyNavigationMode(button.dataset.assemblyMode || "color"));
-  });
-  els.assemblyPrevButton?.addEventListener("click", () => navigateAssembly(-1));
-  els.assemblyNextButton?.addEventListener("click", () => navigateAssembly(1));
-  els.assemblyNextIncompleteButton?.addEventListener("click", navigateToNextIncomplete);
-  els.assemblyUndoButton?.addEventListener("click", undoAssemblyCompletion);
   els.exitConfirmButton?.addEventListener("click", confirmAssemblyExit);
   els.exitCancelButton?.addEventListener("click", hideExitModal);
   els.exitModal?.addEventListener("click", (event) => {
@@ -984,13 +1371,12 @@ function bindEvents() {
     if (event.target === els.donateModal) closeDonateModal();
   });
   els.donateQrcode?.addEventListener("load", () => {
-    els.donateQrcode.closest(".qrcode-container, .bmc-qr-wrapper")?.classList.add("has-qrcode");
+    els.donateQrcode.closest(".qrcode-container")?.classList.add("has-qrcode");
   });
   els.donateQrcode?.addEventListener("error", () => {
-    els.donateQrcode.closest(".qrcode-container, .bmc-qr-wrapper")?.classList.add("is-missing");
+    els.donateQrcode.closest(".qrcode-container")?.classList.add("is-missing");
   });
   window.addEventListener("popstate", handleAssemblyPopState);
-  window.addEventListener("keydown", handleEditorHistoryShortcut);
 
   els.previewZoomOut.addEventListener("click", () => setPreviewZoom(state.previewZoom - 0.2));
   els.previewZoomIn.addEventListener("click", () => setPreviewZoom(state.previewZoom + 0.2));
@@ -1011,13 +1397,13 @@ function bindEvents() {
     button.addEventListener("click", () => setEditorTool(button.dataset.editorTool || "pencil"));
   });
   els.clearColorButton.addEventListener("click", () => selectEditorColor(null));
-  els.undoPaintButton.addEventListener("click", undoEditor);
-  els.redoEditorButton?.addEventListener("click", redoEditor);
-  els.applySelectionColorButton?.addEventListener("click", applyColorToEditorSelection);
+  els.undoPaintButton.addEventListener("click", undoPaint);
   els.replaceFrom.addEventListener("change", updateEditorControls);
   els.replaceTo.addEventListener("change", updateEditorControls);
   els.replaceButton.addEventListener("click", replaceColor);
-  els.undoReplaceButton.addEventListener("click", undoEditor);
+  els.undoReplaceButton.addEventListener("click", undoReplace);
+  els.fillSelectionButton?.addEventListener("click", () => applyColorToSelection(state.selectedColor));
+  els.clearSelectionButton?.addEventListener("click", () => applyColorToSelection(null));
   els.applyFloatingButton?.addEventListener("click", applyFloatingPattern);
   els.cancelFloatingButton?.addEventListener("click", cancelFloatingPattern);
   els.toggleEditorGrid?.addEventListener("change", updateEditorPrefsFromControls);
@@ -1027,16 +1413,28 @@ function bindEvents() {
   els.editorToolbarPosition?.addEventListener("change", updateEditorPrefsFromControls);
   els.flipHorizontalButton?.addEventListener("click", () => transformEditorGrid("flip-horizontal"));
   els.flipVerticalButton?.addEventListener("click", () => transformEditorGrid("flip-vertical"));
-  els.rotateLeftButton?.addEventListener("click", () => transformEditorGrid("rotate-left"));
-  els.rotateRightButton?.addEventListener("click", () => transformEditorGrid("rotate-right"));
-  els.editorSymmetrySelect?.addEventListener("change", () => {
-    state.editorSymmetry = els.editorSymmetrySelect.value || "none";
-  });
   els.scaleDownButton?.addEventListener("click", () => transformEditorGrid("scale-down"));
   els.scaleUpButton?.addEventListener("click", () => transformEditorGrid("scale-up"));
   els.referenceImageButton?.addEventListener("click", () => els.referenceImageInput?.click());
   els.clearReferenceButton?.addEventListener("click", clearEditorReferenceImage);
   els.referenceImageInput?.addEventListener("change", loadEditorReferenceImage);
+  els.referenceOpacity?.addEventListener("input", updateReferenceControls);
+  els.referenceScale?.addEventListener("input", updateReferenceControls);
+  els.referenceRotation?.addEventListener("input", updateReferenceControls);
+  els.referenceVisibleButton?.addEventListener("click", toggleReferenceVisibility);
+  els.referenceLockButton?.addEventListener("click", toggleReferenceLock);
+  els.referenceNudgeButtons.forEach((button) => button.addEventListener("click", () => nudgeReference(button.dataset.referenceNudge)));
+  [els.referenceOpacity, els.referenceScale, els.referenceRotation].forEach((input) => input?.addEventListener("pointerdown", pushReferenceUndo));
+  els.patternAdjustButton?.addEventListener("click", () => openPatternAdjustDialog("editor"));
+  els.patternAdjustInputs.forEach((input) => input.addEventListener("input", previewPatternAdjustment));
+  els.resetPatternAdjustButton?.addEventListener("click", resetPatternAdjustment);
+  els.applyPatternAdjustButton?.addEventListener("click", applyPatternAdjustment);
+  els.gridAlignButton?.addEventListener("click", openGridAlignDialog);
+  [els.gridOffsetX, els.gridOffsetY, els.gridCellWidth, els.gridCellHeight].forEach((input) => input?.addEventListener("input", previewGridAlignment));
+  els.autoAlignGridButton?.addEventListener("click", autoEstimateReferenceGrid);
+  els.applyGridAlignButton?.addEventListener("click", applyGridAlignment);
+  els.patternAdjustModal?.addEventListener("close", cancelPatternAdjustmentPreview);
+  els.gridAlignModal?.addEventListener("close", cancelGridAlignmentPreview);
   els.libraryImportSelect?.addEventListener("change", updateLibraryImportButton);
   els.importLibraryButton?.addEventListener("click", importSelectedLibraryItem);
   els.trimArtworkButton?.addEventListener("click", trimEditorArtwork);
@@ -1045,13 +1443,14 @@ function bindEvents() {
   els.assemblyModeButton?.addEventListener("click", startAssemblyMode);
   els.saveLibraryButton?.addEventListener("click", saveEditorToLibrary);
   els.downloadEditorButton?.addEventListener("click", downloadEditorArtwork);
+  els.publishCommunityButton?.addEventListener("click", publishEditorArtwork);
   els.cancelEditButton.addEventListener("click", () => els.editorModal.close());
   els.saveEditButton.addEventListener("click", saveEditor);
 
   els.editorCanvas.addEventListener("pointerdown", (event) => {
     state.isPainting = true;
     state.lastPaintKey = "";
-    beginEditorPointerAction();
+    state.currentPaintAction = [];
     els.editorCanvas.setPointerCapture(event.pointerId);
     handleEditorPointerDown(event);
   });
@@ -1075,10 +1474,14 @@ function bindEvents() {
 
   [
     els.previewModal,
+    els.registerModal,
     els.linkImportModal,
     els.directPatternModal,
     els.assemblyModal,
     els.editorModal,
+    els.blankBoardModal,
+    els.patternAdjustModal,
+    els.gridAlignModal,
   ].forEach((modal) => {
     if (!modal) return;
     modal.addEventListener("click", (event) => {
@@ -1112,21 +1515,8 @@ function bindRangePair(name, min, max) {
     syncRangeControls(name, number.value, min, max);
     scheduleLivePreview(name === "granularity" ? "宽度已更新" : "颜色合并已更新");
   };
-  if (name === "granularity") number.addEventListener("input", commit);
   number.addEventListener("change", commit);
   apply?.addEventListener("click", commit);
-}
-
-function handleEditorHistoryShortcut(event) {
-  if (!els.editorModal?.open || (!event.metaKey && !event.ctrlKey)) return;
-  const key = event.key.toLowerCase();
-  if (key === "z" && !event.shiftKey) {
-    event.preventDefault();
-    undoEditor();
-  } else if (key === "y" || (key === "z" && event.shiftKey)) {
-    event.preventDefault();
-    redoEditor();
-  }
 }
 
 function syncRangeControls(name, value, min, max) {
@@ -1140,7 +1530,6 @@ function syncRangeControls(name, value, min, max) {
   if (name === "granularity") {
     if (els.mobileGranularityInput) els.mobileGranularityInput.value = String(next);
     if (els.mobileGranularityOutput) els.mobileGranularityOutput.textContent = String(next);
-    if (state.ratioLocked) syncDimensionHeightFromWidth(next);
   }
   return next;
 }
@@ -1149,191 +1538,9 @@ function getGranularity() {
   return syncRangeControls(
     "granularity",
     els.granularityInput?.value || DEFAULT_GRANULARITY,
-    MIN_GRANULARITY,
-    MAX_GRANULARITY,
+    10,
+    500,
   );
-}
-
-function getGridHeight() {
-  if (state.ratioLocked) {
-    return syncDimensionHeightFromWidth(getGranularity());
-  }
-  const next = Math.round(
-    clamp(Number(els.gridHeightNumber?.value) || DEFAULT_GRANULARITY, MIN_GRANULARITY, MAX_GRANULARITY),
-  );
-  if (els.gridHeightNumber) els.gridHeightNumber.value = String(next);
-  return next;
-}
-
-function syncDimensionHeightFromWidth(width) {
-  const ratio = Math.max(0.001, Number(state.sourceAspectRatio) || 1);
-  const next = Math.round(clamp(width / ratio, MIN_GRANULARITY, MAX_GRANULARITY));
-  if (els.gridHeightNumber) els.gridHeightNumber.value = String(next);
-  updateRatioLockUi();
-  return next;
-}
-
-function handleGridHeightInput() {
-  const requested = Number(els.gridHeightNumber?.value || 0);
-  if (!Number.isFinite(requested) || requested < MIN_GRANULARITY) return;
-  const height = Math.round(clamp(requested, MIN_GRANULARITY, MAX_GRANULARITY));
-  if (els.gridHeightNumber) els.gridHeightNumber.value = String(height);
-  if (state.ratioLocked) {
-    const width = Math.round(height * Math.max(0.001, Number(state.sourceAspectRatio) || 1));
-    syncRangeControls("granularity", width, MIN_GRANULARITY, MAX_GRANULARITY);
-  } else {
-    updateRatioLockUi();
-  }
-  scheduleLivePreview("高度已更新");
-}
-
-function toggleRatioLock() {
-  state.ratioLocked = !state.ratioLocked;
-  if (state.ratioLocked) syncDimensionHeightFromWidth(getGranularity());
-  updateRatioLockUi();
-  scheduleLivePreview(state.ratioLocked ? "已锁定原图比例" : "已解锁比例");
-}
-
-function updateRatioLockUi() {
-  const ratio = Math.max(0.001, Number(state.sourceAspectRatio) || 1);
-  const width = Number(els.granularityNumber?.value || DEFAULT_GRANULARITY);
-  const height = Number(els.gridHeightNumber?.value || DEFAULT_GRANULARITY);
-  if (els.ratioLockButton) {
-    els.ratioLockButton.classList.toggle("is-locked", state.ratioLocked);
-    els.ratioLockButton.setAttribute("aria-pressed", String(state.ratioLocked));
-    els.ratioLockButton.setAttribute("aria-label", state.ratioLocked ? "解锁长宽比例" : "锁定长宽比例");
-    const icon = els.ratioLockButton.querySelector(".lock-icon");
-    if (icon) icon.textContent = state.ratioLocked ? "🔗" : "🔓";
-  }
-  if (els.ratioHelp) {
-    const ratioLabel = ratio >= 1 ? `${ratio.toFixed(2)}:1` : `1:${(1 / ratio).toFixed(2)}`;
-    els.ratioHelp.textContent = state.ratioLocked
-      ? `已锁定原图比例 ${ratioLabel}，当前 ${width} × ${height} 格。`
-      : `比例已解锁，当前将强制输出 ${width} × ${height} 格。`;
-  }
-}
-
-function captureSourceAspectRatio(image) {
-  const width = Number(image?.naturalWidth || image?.width || 1);
-  const height = Number(image?.naturalHeight || image?.height || 1);
-  state.sourceAspectRatio = width > 0 && height > 0 ? width / height : 1;
-  if (state.ratioLocked) syncDimensionHeightFromWidth(getGranularity());
-  updateRatioLockUi();
-}
-
-function updateCompositionUi() {
-  if (els.cropZoomOutput) {
-    els.cropZoomOutput.textContent = `${Math.round(Number(els.cropZoomInput?.value || 100))}%`;
-  }
-  const movable = (els.cropModeSelect?.value || "cover") !== "stretch";
-  if (els.cropZoomInput) els.cropZoomInput.disabled = !movable;
-  if (els.cropXInput) els.cropXInput.disabled = !movable;
-  if (els.cropYInput) els.cropYInput.disabled = !movable;
-}
-
-function resetComposition() {
-  if (els.cropModeSelect) els.cropModeSelect.value = "cover";
-  if (els.cropZoomInput) els.cropZoomInput.value = "100";
-  if (els.cropXInput) els.cropXInput.value = "0";
-  if (els.cropYInput) els.cropYInput.value = "0";
-  updateCompositionUi();
-  scheduleLivePreview("构图已重置");
-}
-
-function drawImageWithComposition(context, image, width, height) {
-  const mode = els.cropModeSelect?.value || "cover";
-  if (mode === "stretch") {
-    context.drawImage(image, 0, 0, width, height);
-    return;
-  }
-  const sourceWidth = Number(image.naturalWidth || image.width || width);
-  const sourceHeight = Number(image.naturalHeight || image.height || height);
-  const zoom = clamp(Number(els.cropZoomInput?.value || 100) / 100, 1, 3);
-  const offsetX = clamp(Number(els.cropXInput?.value || 0) / 100, -1, 1);
-  const offsetY = clamp(Number(els.cropYInput?.value || 0) / 100, -1, 1);
-
-  if (mode === "contain") {
-    const scale = Math.min(width / sourceWidth, height / sourceHeight) * zoom;
-    const drawWidth = sourceWidth * scale;
-    const drawHeight = sourceHeight * scale;
-    const travelX = Math.max(0, width - drawWidth) / 2;
-    const travelY = Math.max(0, height - drawHeight) / 2;
-    context.drawImage(
-      image,
-      (width - drawWidth) / 2 + travelX * offsetX,
-      (height - drawHeight) / 2 + travelY * offsetY,
-      drawWidth,
-      drawHeight,
-    );
-    return;
-  }
-
-  const targetRatio = width / height;
-  const sourceRatio = sourceWidth / sourceHeight;
-  let cropWidth = sourceWidth;
-  let cropHeight = sourceHeight;
-  if (sourceRatio > targetRatio) cropWidth = sourceHeight * targetRatio;
-  else cropHeight = sourceWidth / targetRatio;
-  cropWidth /= zoom;
-  cropHeight /= zoom;
-  const maxX = Math.max(0, sourceWidth - cropWidth);
-  const maxY = Math.max(0, sourceHeight - cropHeight);
-  const sourceX = maxX * (offsetX + 1) / 2;
-  const sourceY = maxY * (offsetY + 1) / 2;
-  context.drawImage(image, sourceX, sourceY, cropWidth, cropHeight, 0, 0, width, height);
-}
-
-function syncIsolationControl(value = els.isolationInput?.value || 1) {
-  const next = Math.round(clamp(Number(value) || 1, 1, 10));
-  if (els.isolationInput) els.isolationInput.value = String(next);
-  if (els.isolationOutput) els.isolationOutput.textContent = next <= 1 ? "关闭" : `< ${next} 格`;
-  return next;
-}
-
-function getOptimizationOptions() {
-  const isPortraitMode = els.modeSelect?.value === "portrait";
-  return {
-    colorLimit: isPortraitMode
-      ? PORTRAIT_COLOR_LIMIT
-      : Math.max(0, Number(els.colorLimitSelect?.value || 0)),
-    isolationThreshold: isPortraitMode ? 1 : syncIsolationControl(),
-    preserveDetails: isPortraitMode,
-  };
-}
-
-function applyPortraitModeDefaults() {
-  if (els.colorLimitSelect) els.colorLimitSelect.value = String(PORTRAIT_COLOR_LIMIT);
-  syncIsolationControl(1);
-  syncRangeControls("similarity", 12, 0, 100);
-}
-
-function applyPortraitSamplePreset() {
-  if (els.modeSelect) els.modeSelect.value = "portrait";
-  if (!state.ratioLocked) {
-    // 已经是解锁状态时不需要再次切换按钮语义，只更新尺寸即可。
-  } else {
-    state.ratioLocked = false;
-  }
-  syncRangeControls("granularity", 112, MIN_GRANULARITY, MAX_GRANULARITY);
-  if (els.gridHeightNumber) els.gridHeightNumber.value = "85";
-  if (els.cropModeSelect) els.cropModeSelect.value = "cover";
-  if (els.cropZoomInput) els.cropZoomInput.value = "100";
-  if (els.cropXInput) els.cropXInput.value = "0";
-  if (els.cropYInput) els.cropYInput.value = "0";
-  applyPortraitModeDefaults();
-  updateCompositionUi();
-  updateRatioLockUi();
-  scheduleLivePreview("已切换参考样图比例 112 × 85");
-}
-
-function handleSmartOptimizationClick(event) {
-  if (event.target.closest("#smart-preset-button")) {
-    applySmartPreset();
-    return;
-  }
-  if (event.target.closest("#apply-cleanup-button")) {
-    applyOptimizationToCurrentGrid();
-  }
 }
 
 function getSimilarityThreshold() {
@@ -1356,6 +1563,41 @@ function getCurrentPaletteKey() {
 
 function getCurrentPalette() {
   return PALETTES[getCurrentPaletteKey()] || PALETTES[getPaletteKey(DEFAULT_BRAND, DEFAULT_PALETTE_SIZE)];
+}
+
+let availablePalettePreferencesLoaded = false;
+function getAvailablePaletteIds() {
+  if (!availablePalettePreferencesLoaded) {
+    availablePalettePreferencesLoaded = true;
+    try {
+      const saved = JSON.parse(localStorage.getItem("libms.available-palettes.v1") || "{}");
+      if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+        window.libmsStore.patchState("paletteState", { availableColorsByPalette: saved });
+      }
+    } catch (_) { /* 损坏或不可用的本机偏好不会阻止打开作品。 */ }
+  }
+  const map = window.libmsStore.getState().paletteState.availableColorsByPalette || {};
+  const ids = map[getCurrentPaletteKey()];
+  return Array.isArray(ids) ? [...ids] : null;
+}
+function setAvailablePaletteIds(ids) {
+  getAvailablePaletteIds();
+  const palette = getCurrentPalette();
+  const valid = new Set(palette.map(color => color.paletteId || color.code));
+  const selected = ids === null ? null : [...new Set(ids)].filter(id => valid.has(id));
+  const map = { ...window.libmsStore.getState().paletteState.availableColorsByPalette, [getCurrentPaletteKey()]: selected };
+  window.libmsStore.patchState("paletteState", { availableColorsByPalette: map });
+  try { localStorage.setItem("libms.available-palettes.v1", JSON.stringify(map)); }
+  catch (_) { setStatus("可用颜色已更新，但浏览器无法保存此偏好"); }
+  return { ids: selected, count: selected === null ? palette.length : selected.length, total: palette.length };
+}
+function getGenerationPaletteColors() {
+  const ids = getAvailablePaletteIds();
+  const palette = getCurrentPalette();
+  const allowed = ids === null ? null : new Set(ids);
+  const result = allowed ? palette.filter(color => allowed.has(color.paletteId || color.code)) : palette;
+  if (!result.length) throw new Error("请先在可用颜色中至少选择一种真实拼豆颜色");
+  return result;
 }
 
 function getEditorPalette() {
@@ -1391,7 +1633,14 @@ function updatePaletteOptions() {
       .sort((a, b) => b - a)
       .map((count) => new Option(`${count} 色`, String(count))),
   );
-  els.paletteSelect.value = String(profile.options.includes(current) ? current : DEFAULT_PALETTE_SIZE);
+  // 原来的回落写死 DEFAULT_PALETTE_SIZE(221)。第三方品牌的可用档位是它自己的官方色数
+  // （优肯 197 / COCO 官方 291 等根本没有 221 这一档），回落到一个不存在的 option 会让
+  // select.value 变空，进而静默掉回默认 mard-221 色板。这里改为：优先原尺寸 → 默认尺寸
+  // → 该品牌自己的第一个档位（内建 5 个品牌都含 221，行为完全不变）。
+  const fallback = profile.options.includes(DEFAULT_PALETTE_SIZE)
+    ? DEFAULT_PALETTE_SIZE
+    : profile.options[0] ?? DEFAULT_PALETTE_SIZE;
+  els.paletteSelect.value = String(profile.options.includes(current) ? current : fallback);
 }
 
 function updateEditorPaletteOptions() {
@@ -1410,7 +1659,8 @@ function updateEditorPaletteOptions() {
 function selectBrand(brand) {
   if (!BRAND_PROFILES[brand]) return;
   state.selectedBrand = brand;
-  els.brandButtons.forEach((button) => {
+  // 动态查询而非复用 els.brandButtons 快照 —— 第三方品牌 chip 是异步追加的。
+  document.querySelectorAll("[data-brand]").forEach((button) => {
     const active = button.dataset.brand === brand;
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
@@ -1443,6 +1693,19 @@ function updatePaletteCount() {
   els.paletteCount.textContent = String(getCurrentPalette().length);
 }
 
+function updateMaxColorPresetUi() {
+  const value = String(clamp(Number(els.maxColorsInput?.value || 0), 0, getSelectedPaletteSize()));
+  if (els.maxColorsInput) els.maxColorsInput.value = value;
+  els.maxColorPresetButtons.forEach((button) => {
+    const active = button.dataset.maxColors === value;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  if (els.paletteBudgetStatus && !state.grid.length) {
+    els.paletteBudgetStatus.textContent = value === "0" ? "自动：根据画布与图像复杂度推荐。" : `最大颜色：${value}；生成结果将严格不超过该数量。`;
+  }
+}
+
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
     document.documentElement.requestFullscreen?.();
@@ -1451,102 +1714,64 @@ function toggleFullscreen() {
   document.exitFullscreen?.();
 }
 
-function openProjectImport() {
-  if (!els.projectFileInput) return;
-  els.projectFileInput.value = "";
-  els.projectFileInput.click();
+function openRegisterModal() {
+  const profile = getInviteProfile();
+  els.registerName.value = profile?.name || "";
+  els.inviteCode.value = profile?.code || DEFAULT_INVITE_CODE;
+  els.registerMessage.textContent = profile
+    ? `已注册：${profile.name}`
+    : "邀请码由项目维护者发放。公益项目不展示购买入口。";
+  els.registerModal?.showModal();
 }
 
-function exportLocalProject() {
-  if (!state.grid.length) return;
-  const project = {
-    type: "libai-maker-project",
-    version: PROJECT_FILE_VERSION,
-    exportedAt: new Date().toISOString(),
-    name: getSchemeName() || buildGalleryTitle(),
-    sourceName: state.sourceName,
-    sourceDataUrl: state.sourceDataUrl || "",
-    gridData: serializeGridForLibrary(state.grid),
-    paletteKey: getActivePaletteKeyForStorage(),
-    width: state.width,
-    height: state.height,
-    settings: {
-      brand: state.selectedBrand,
-      paletteSize: getSelectedPaletteSize(),
-      similarity: getSimilarityThreshold(),
-      colorLimit: Number(els.colorLimitSelect?.value || 0),
-      isolation: syncIsolationControl(),
-      tileSize: els.tileSizeSelect?.value || "smart",
-      mirror: els.mirrorSelect?.value || "normal",
-      cropMode: els.cropModeSelect?.value || "cover",
-      cropZoom: Number(els.cropZoomInput?.value || 100),
-      cropX: Number(els.cropXInput?.value || 0),
-      cropY: Number(els.cropYInput?.value || 0),
-    },
-  };
-  const blob = new Blob([JSON.stringify(project)], { type: "application/json" });
-  const base = sanitizeFileName(project.name || "libai-project");
-  downloadBlob(blob, `${base}.libai.json`);
-  setStatus("已导出本地项目");
+function registerWithInvite(event) {
+  event.preventDefault();
+  const name = els.registerName.value.trim();
+  const code = els.inviteCode.value.trim().toUpperCase();
+
+  if (!name) {
+    els.registerMessage.textContent = "请先填写创作者名称。";
+    return;
+  }
+
+  if (!isValidInviteCode(code)) {
+    els.registerMessage.textContent = `邀请码无效。当前默认邀请码为 ${DEFAULT_INVITE_CODE}。`;
+    return;
+  }
+
+  localStorage.setItem(
+    "libai-maker-invite-profile",
+    JSON.stringify({ name, code, registeredAt: new Date().toISOString() }),
+  );
+  updateInviteUi();
+  els.registerModal.close();
 }
 
-async function importLocalProject(event) {
-  const file = event.target.files?.[0];
-  if (!file) return;
+function isValidInviteCode(code) {
+  return code === DEFAULT_INVITE_CODE;
+}
+
+function getInviteProfile() {
   try {
-    window.clearTimeout(state.livePreviewTimer);
-    state.livePreviewTimer = 0;
-    const project = JSON.parse(await file.text());
-    if (project?.type !== "libai-maker-project" || !project.gridData) {
-      throw new Error("不是有效的时里白造物项目文件");
-    }
-    const grid = deserializeGridFromLibrary(project);
-    if (!grid?.length || !grid[0]?.length) throw new Error("项目网格为空");
-    const settings = project.settings || {};
-    if (BRAND_PROFILES[settings.brand]) selectBrand(settings.brand);
-    window.clearTimeout(state.livePreviewTimer);
-    state.livePreviewTimer = 0;
-    if (els.paletteSelect && settings.paletteSize) {
-      els.paletteSelect.value = String(settings.paletteSize);
-      updateEditorPaletteOptions();
-    }
-    state.grid = cloneGrid(grid);
-    state.width = grid[0].length;
-    state.height = grid.length;
-    state.sourceName = project.sourceName || project.name || file.name;
-    state.sourceDataUrl = typeof project.sourceDataUrl === "string" ? project.sourceDataUrl : "";
-    state.sourceSafetyChecked = true;
-    state.paletteLabel = getPaletteLabelForKey(project.paletteKey);
-    state.stats = calculateStats(state.grid);
-    state.optimizationSummary = "";
-    state.ratioLocked = false;
-    syncRangeControls("granularity", state.width, MIN_GRANULARITY, MAX_GRANULARITY);
-    if (els.gridHeightNumber) els.gridHeightNumber.value = String(state.height);
-    syncRangeControls("similarity", settings.similarity ?? 30, 0, 100);
-    if (els.colorLimitSelect) els.colorLimitSelect.value = String(settings.colorLimit || 0);
-    syncIsolationControl(settings.isolation || 1);
-    if (els.tileSizeSelect) els.tileSizeSelect.value = settings.tileSize || "smart";
-    if (els.mirrorSelect) els.mirrorSelect.value = settings.mirror || "normal";
-    if (els.cropModeSelect) els.cropModeSelect.value = settings.cropMode || "cover";
-    if (els.cropZoomInput) els.cropZoomInput.value = String(settings.cropZoom || 100);
-    if (els.cropXInput) els.cropXInput.value = String(settings.cropX || 0);
-    if (els.cropYInput) els.cropYInput.value = String(settings.cropY || 0);
-    if (els.schemeNameInput) els.schemeNameInput.value = project.name || "时里白造物图纸";
-    updateCompositionUi();
-    updateRatioLockUi();
-    refreshChartUrl();
-    updateResultUi();
-    saveCurrentToGallery();
-    setStatus("已导入本地项目");
-  } catch (error) {
-    console.error(error);
-    setStatus("项目导入失败");
-    window.alert(error.message || "项目文件无法读取");
+    const raw = localStorage.getItem("libai-maker-invite-profile");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
   }
 }
 
-function scrollToHistory() {
-  document.querySelector(".gallery-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+function updateInviteUi() {
+  const profile = getInviteProfile();
+  if (els.inviteStatus) {
+    els.inviteStatus.textContent = profile ? `已注册：${profile.name}` : "未注册";
+    els.inviteStatus.classList.toggle("registered", Boolean(profile));
+  }
+  if (els.registerOpenButton) {
+    els.registerOpenButton.textContent = profile ? "已注册" : "邀请注册";
+  }
+  if (els.registerOpenButtonSide) {
+    els.registerOpenButtonSide.textContent = profile ? "查看注册信息" : "输入邀请码注册";
+  }
 }
 
 function startManualImport() {
@@ -1554,6 +1779,7 @@ function startManualImport() {
   state.autoProcessAfterLoad = false;
   state.restoreAutoSizePending = false;
   state.backgroundDecision = "";
+  state.paletteBudget = null;
   if (els.modeSelect) els.modeSelect.value = "dominant";
   if (els.backgroundModeSelect) els.backgroundModeSelect.value = "auto";
   syncRangeControls("similarity", 30, 0, 100);
@@ -1601,7 +1827,7 @@ function startDirectPatternImport() {
   }
 }
 
-async function handleDirectPatternFileChange(event) {
+function handleDirectPatternFileChange(event) {
   const file = event.target.files?.[0];
   if (!file) return;
   if (!isImageFile(file)) {
@@ -1610,38 +1836,13 @@ async function handleDirectPatternFileChange(event) {
   }
   state.directPatternFile = file;
   const defaultWidth = Number(els.granularityInput?.value || DEFAULT_GRANULARITY);
-  if (els.directPatternWidth) els.directPatternWidth.value = String(clamp(defaultWidth, 1, MAX_DIRECT_PATTERN_GRID));
-  if (els.directPatternHeight) els.directPatternHeight.value = String(clamp(defaultWidth, 1, MAX_DIRECT_PATTERN_GRID));
+  if (els.directPatternWidth) els.directPatternWidth.value = String(clamp(defaultWidth, 1, 500));
+  if (els.directPatternHeight) els.directPatternHeight.value = String(clamp(defaultWidth, 1, 500));
   if (els.directPatternMessage) {
     els.directPatternMessage.textContent = `已选择：${file.name}。请填写图纸实际格数。`;
   }
   els.directPatternModal?.showModal();
-  await detectDirectPatternSize();
   els.directPatternWidth?.focus();
-}
-
-async function detectDirectPatternSize() {
-  if (!state.directPatternFile) return;
-  try {
-    const image = await loadImage(await readFileAsDataUrl(state.directPatternFile));
-    const detectedWidth =
-      detectPixelArtLogicalWidth(image) ||
-      (image.naturalWidth <= MAX_DIRECT_PATTERN_GRID ? image.naturalWidth : null);
-    if (!detectedWidth) throw new Error("未检测到稳定像素格");
-    const detectedHeight = Math.round(detectedWidth * image.naturalHeight / image.naturalWidth);
-    if (els.directPatternWidth) els.directPatternWidth.value = String(clamp(detectedWidth, 1, MAX_DIRECT_PATTERN_GRID));
-    if (els.directPatternHeight) {
-      els.directPatternHeight.value = String(clamp(detectedHeight, 1, MAX_DIRECT_PATTERN_GRID));
-    }
-    if (els.directPatternMessage) {
-      els.directPatternMessage.textContent = `已自动检测：${detectedWidth} × ${detectedHeight} 格。请确认后开始扫描。`;
-    }
-  } catch (error) {
-    console.warn("Direct pattern auto detection unavailable", error);
-    if (els.directPatternMessage) {
-      els.directPatternMessage.textContent = "未能自动检测稳定格数，请手动输入后开始扫描。";
-    }
-  }
 }
 
 async function handleDirectPatternSubmit(event) {
@@ -1653,15 +1854,8 @@ async function handleDirectPatternSubmit(event) {
     if (els.directPatternMessage) els.directPatternMessage.textContent = "请先选择一张图纸图片。";
     return;
   }
-  if (
-    gridWidth < 1 ||
-    gridHeight < 1 ||
-    gridWidth > MAX_DIRECT_PATTERN_GRID ||
-    gridHeight > MAX_DIRECT_PATTERN_GRID
-  ) {
-    if (els.directPatternMessage) {
-      els.directPatternMessage.textContent = `格数需要在 1 到 ${MAX_DIRECT_PATTERN_GRID} 之间。`;
-    }
+  if (gridWidth < 1 || gridHeight < 1 || gridWidth > 500 || gridHeight > 500) {
+    if (els.directPatternMessage) els.directPatternMessage.textContent = "格数需要在 1 到 500 之间。";
     return;
   }
   try {
@@ -1800,6 +1994,8 @@ function enableMiddleButtonPan(element) {
 }
 
 async function loadFile(file) {
+  if (state.manualEdited && !state.importApproved) { setStatus("手动修改尚未确认覆盖，请先使用工作台的换图操作"); return; }
+  state.importApproved = false;
   if (!isImageFile(file)) {
     setStatus("请用 PNG/JPG");
     state.autoProcessAfterLoad = false;
@@ -1837,9 +2033,23 @@ async function loadFile(file) {
     }
 
     state.sourceDataUrl = prepared.dataUrl;
+    state.processedSourceDataUrl = "";
+    state.sourceTransform = { crop: null, cropRatio: "free", rotation: 0, flipX: false, flipY: false,
+      brightness: 0, contrast: 0, saturation: 0, sharpen: 0,
+      expand: { top: 0, bottom: 0, left: 0, right: 0 }, background: "#ffffff" };
+    // 换图 = 换尺寸。先把尺寸打回未解析，新图的新证据才写得进来；
+    // 否则上一张图的绝对权威（例如 222×295 的工程）会把新图的弱证据全部挡掉。
+    resetSourceDimensions("source-replaced");
+    const loadedSource = await loadImage(prepared.dataUrl);
+    state.sourceNaturalWidth = loadedSource.naturalWidth;
+    state.sourceNaturalHeight = loadedSource.naturalHeight;
     state.sourceName = file.name;
+    // restore / OCR：源图一落地就把识别结果交给权威链，**早于** libms:source-loaded
+    // 触发的工作台首帧流程。这样工作台的像素倍数识别（pixel-multiple）会被
+    // grid-detection 挡下，不会拿一个更弱的证据把图纸尺寸改掉。
+    applyRestoreSizing(loadedSource);
+    window.dispatchEvent(new CustomEvent("libms:source-loaded", { detail: { name: file.name, url: prepared.dataUrl, width: state.sourceNaturalWidth, height: state.sourceNaturalHeight } }));
     state.sourceSafetyChecked = true;
-    captureSourceAspectRatio(await loadImage(prepared.dataUrl));
     els.sourcePreview.src = state.sourceDataUrl;
     els.sourcePreview.hidden = false;
     els.uploadZone.classList.add("has-image");
@@ -1855,9 +2065,11 @@ async function loadFile(file) {
     setStatus(uploadStatus);
     if (state.autoProcessAfterLoad) {
       state.autoProcessAfterLoad = false;
-      requestAnimationFrame(() => {
-        processImage();
-      });
+      // 工作台已挂载时，出图由工作台的「等像素倍数识别落地 → 只跑一次」流程接管
+      // （ui/workspace.js scheduleInitialGeneration）。
+      // 这里再调一次 processImage() 就是**绕过 single-flight 漏斗的第二次生成**：
+      // 一次导入出两版图（先按挂载默认尺寸、再按识别尺寸），500 档下等于白烧几分钟。
+      if (!workspaceMounted) requestAnimationFrame(() => { processImage(); });
     }
   } catch (error) {
     console.error(error);
@@ -1905,9 +2117,14 @@ async function loadLocalSafetyModel() {
   if (state.safetyModelLoading) return state.safetyModelLoading;
   state.safetyModelLoading = (async () => {
     try {
+      if (!window.tf) await loadScriptOnce(TFJS_SCRIPT_URL);
+      // 顺序不可调换：nsfwjs.load() 依赖前两个 script 挂上的全局量
+      // （window.model / window.group1_shard1of1）。
+      if (!window.model) await loadScriptOnce(NSFWJS_MODEL_URL);
+      if (!window.group1_shard1of1) await loadScriptOnce(NSFWJS_WEIGHTS_URL);
       if (!window.nsfwjs) await loadScriptOnce(NSFWJS_SCRIPT_URL);
       if (!window.nsfwjs?.load) return null;
-      state.safetyModel = await withTimeout(window.nsfwjs.load(NSFW_MODEL_URL), SAFETY_MODEL_LOAD_TIMEOUT);
+      state.safetyModel = await withTimeout(window.nsfwjs.load(), SAFETY_MODEL_LOAD_TIMEOUT);
       return state.safetyModel;
     } catch (error) {
       console.warn("Local content safety model unavailable", error);
@@ -1970,11 +2187,799 @@ function withTimeout(promise, timeout) {
   });
 }
 
+function imageToImageData(image) {
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth || image.width;
+  canvas.height = image.naturalHeight || image.height;
+  const srgb = window.LibmsSrgbCanvas;
+  const boundary = srgb?.getSrgbContext(canvas, { willReadFrequently: true });
+  const context = boundary?.context || canvas.getContext("2d", { colorSpace: "srgb", willReadFrequently: true });
+  if (!context) throw new Error("canvas context unavailable");
+  context.drawImage(image, 0, 0);
+  const read = srgb?.readSrgbImageData(context, 0, 0, canvas.width, canvas.height);
+  console.debug("[V3 color space]", { inputColorSpace: "browser-decoded; ICC handled by browser", paletteColorSpace: "srgb", ...boundary?.diagnostics, ...read?.diagnostics });
+  return read?.imageData || context.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+function mapDetailProtectionValue(value) {
+  return value === "low" ? 0.5 : value === "high" ? 0.9 : 0.7;
+}
+
+/**
+ * 生产链路 V2.5 的**模式档案**（Stage B4 §2）。
+ *
+ * 返回值就是 `services/mode-profile.mjs` 的 ModeProfile 形状：**0–100 口径**，
+ * 字段名与 `MODE_PROFILE_FIELDS` 一一对应。它有两个用途，两个都走**同一个**
+ * 单位换算边界（`toEngineOptions`）：
+ *   1. 作为 `runGenerationJob` 的 `overrides` —— 管线内部自己换算；
+ *   2. 给算法实验室直调 `generateV2` 时先过 `toEngineOptions`。
+ *
+ * 历史坑（别加回来）：这里曾经自己把 detailProtection/edgeProtection 除以 100，
+ * 然后 `processImageV2` 又乘回 100 当 overrides，管线再除以 100 —— 三次换算
+ * 换出同一个数，纯属运气。而且它漏掉了 `cleanupStrength`，导致 A/B 对比器
+ * 里的 current 一侧用的是引擎默认清理阈值，跟生产不是同一条链路。
+ */
+function buildV25Options(options = {}, maxColors = 0) {
+  const legacyDetail = mapDetailProtectionValue(els.detailProtectionSelect?.value || "standard") * 100;
+  return {
+    // `mode` 是**生成模式载体**，不是引擎选项 —— 引擎侧已经不再读模式名。
+    // 曾经这个键叫 `preset`，而引擎的 `options.preset` 另有含义（自适应采样的
+    // 内容预设提示），一个键两个意思是实打实的坑，B4 §2 顺手改名拆开。
+    mode: options.preset || state.generationPreset || "auto",
+    sampling: options.sampling || state.generationSampling || "auto",
+    detailProtection: options.detailProtection == null ? legacyDetail : Number(options.detailProtection),
+    edgeProtection: options.edgeProtection == null ? legacyDetail : Number(options.edgeProtection),
+    cleanupStrength: options.cleanupStrength == null ? 50 : Number(options.cleanupStrength),
+    preserveEyes: options.preserveEyes !== false,
+    preserveHighlights: options.preserveHighlights !== false,
+    preserveMicroDetails: options.preserveMicroDetails !== false,
+    subjectCrop: options.subjectCrop === true,
+    autoBackground: options.autoBackground === true,
+    strokeProtection: options.strokeProtection === true,
+    accentProtection: options.accentProtection === true,
+  };
+}
+
+/** 实验室直调 generateV2 用：把模式档案换算成引擎口径。换算逻辑只有一份。 */
+async function v25EngineOptions(options = {}, maxColors = 0) {
+  const { resolveGenerationPipeline, toEngineOptions } = await import("./services/mode-profile.mjs?v=20261003-stage-b4");
+  const profile = buildV25Options(options, maxColors);
+  return toEngineOptions(resolveGenerationPipeline(profile.mode, null, profile), { maxColors });
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * §13 Auto Tune —— 只在「智能」模式下启用（§26 第一阶段）
+ *
+ * 它做的事只有一件：在小尺寸上把**允许的几套候选**各跑一遍，
+ * 按该模式的字典序目标挑一套，再用原始目标尺寸正式生成一次。
+ * 不创造新算法、不做连续参数搜索、不做 grid search。
+ *
+ * ── 为什么接在这里而不是管线内部 ─────────────────────────────────
+ * 候选是**多次生成**，每次都要过 Worker 契约。把「跑 N 次」塞进管线
+ * 等于把 Worker 契约改成「跑 N 次」，而 §13 明确不动 Worker 契约。
+ * 所以编排留在主线程这一层，管线那一层只多认一个纯字符串
+ * （`overrides.labCandidate`），函数不跨进程。
+ * ───────────────────────────────────────────────────────────── */
+
+const AUTO_TUNE_MODULE_QUERY = "?v=20261003-stage-b4-s13";
+let autoTuneModulePromise = null;
+let autoTuner = null;
+
+/**
+ * 每一次调优的请求上下文，按 requestId 存。
+ *
+ * ── 为什么必须是「每次刷新」而不是闭包（§13 真机验收抓到的缺陷）──────────
+ * `autoTuner` 是模块级单例（下面那个 `if (!autoTuner)` 只建一次），但它的
+ * `runCandidate` 需要读**这一次**的图 / 色板 / 模式 / maxColors。
+ * 把这四项直接闭包进 `runCandidate`，它们就会被**第一次调用**的值冻住，
+ * 后果按严重程度排：
+ *
+ *   ① 「颜色数量」从 0 改成 12 → 点生成
+ *      报告里 `maxColors: 12`（`tune()` 拿到的确实是新值），
+ *      但每个候选和最终出图都跑在 `maxColors: 0` 上 → **出图突破上限**。
+ *      这正是 §7-A 那条硬约束存在的理由，而报告看起来完全正常。
+ *   ② 再上传一张新图 → 候选与最终出图**还是上一张图**。
+ *
+ * 真机探针抓到的就是 ①：界面 12 / 请求里 0 / 出图 18 色。
+ * 以前没发现，是因为每张夹具都整页重载 —— 单例每次都是新建的，
+ * 闭包被冻住这件事在「一个页面只跑一次调优」的探针里根本不显形。
+ *
+ * 按 requestId 存、而不是存一个「当前值」：新请求会顶掉旧请求（§19），
+ * 两个调优可能短暂并存，只留一个槽位会让旧调优的后半程读到新请求的图。
+ */
+const autoTuneContexts = new Map();
+
+/**
+ * §15 调优报告（不含网格）。
+ *
+ * ── 为什么是模块级变量，不是 `state.autoTuneReport` ────────────────────
+ * `state` 是 `window.libmsStore.compat()` 返回的 **Proxy**（见 app.js 顶部），
+ * 它的 `get` 一律走 `LEGACY_MAP`，**未登记的键读回来永远是 `undefined`**，
+ * 写入只会落到 Proxy 的载体对象上 —— 也就是「只写不读」。
+ *
+ * 2026-10-04 真机实测踩过：这里原本写 `state.autoTuneReport = rest`，
+ * 调优器其实**跑得好好的**（`__s13diag` 记到 3 次全部 `decision=standard-is-best`、
+ * 有网格），但 `getAutoTuneReport()` 永远返回 null，看起来像「§13 根本没接上」。
+ * 单测全绿也抓不到 —— 单测直接构造调优器，不经过这条兼容层。
+ *
+ * 换成模块级变量还顺带解决另一个问题：报告里有每个候选的 metrics，
+ * 放进 store 会被序列化进工程文件，那不是我们想要的。
+ * 回归守卫见 `tests/auto-tune-report-wiring.test.mjs`。
+ */
+let autoTuneReport = null;
+
+function loadAutoTuneModule() {
+  if (!autoTuneModulePromise) {
+    autoTuneModulePromise = import(`./services/auto-tune.mjs${AUTO_TUNE_MODULE_QUERY}`)
+      .catch((error) => { autoTuneModulePromise = null; throw error; });
+  }
+  return autoTuneModulePromise;
+}
+
+/** 调优阶段也要走同一条进度广播 —— 工作台只认 store / 事件，不认 console。 */
+function reportTunePhase(phase) {
+  const label = GENERATION_PHASE_LABELS[phase] || "正在生成…";
+  setStatus(label);
+  window.dispatchEvent(new CustomEvent("libms:generation-phase", { detail: { phase, label } }));
+}
+
+/**
+ * 源图裁剪/旋转/翻转的指纹（§18「crop 变化必须失效」）。
+ *
+ * 排序后拼串，不直接 `JSON.stringify` —— 后者对键顺序敏感，
+ * 同一个变换换个书写顺序就成了另一个键，表现是「缓存时灵时不灵」。
+ */
+function sourceTransformFingerprint(transform) {
+  if (!transform || typeof transform !== "object") return null;
+  return Object.keys(transform).sort()
+    .map((key) => `${key}=${JSON.stringify(transform[key] ?? null)}`)
+    .join("|");
+}
+
+/**
+ * 跑一次 Auto Tune。
+ *
+ * @returns {Promise<null|{grid,width,height,diagnostics,pipeline}>}
+ *   `null` = 这次不该调优（模式不适用 / 只有一个候选 / 调优器不可用），
+ *   调用方照常走单次生成。
+ */
+async function runAutoTuneV2({ sourceImageData, resolved, palette, maxColors, width, height, requestId }) {
+  const mod = await loadAutoTuneModule();
+  if (!mod.isAutoTuneEnabledFor(resolved.mode)) return null;
+  if (!autoTuner) {
+    autoTuner = mod.createAutoTuner({
+      cache: mod.createTuneCache({ max: 4 }),
+      // §26 第一阶段：只跑生产白名单里的 lab 候选（当前是空集，见 auto-tune-profiles.mjs）。
+      limits: { productionOnly: true },
+      runCandidate: async ({ size, overrides, labCandidate, maxColors: candidateCap, requestId: rid }) => {
+        // ⚠️ 这里**只能**从 autoTuneContexts 取本次请求的图 / 色板 / 模式，
+        // 绝不能用本函数的形参。原因见 autoTuneContexts 的注释：
+        // 本闭包只在第一次调优时建一次，形参会被那一次的值冻住。
+        const ctx = autoTuneContexts.get(Number(rid));
+        if (!ctx) {
+          // 没有上下文 = 这次调优已经被更新的请求顶掉了（§19）。
+          // 抛 AbortError 让调优器按「预期结局」处理；绝不能拿错图去算。
+          const error = new Error("Auto Tune 请求已过期");
+          error.name = "AbortError";
+          throw error;
+        }
+        // maxColors 是**每次调用各不相同**的，所以它只能从入参取，不能从 ctx 取：
+        //   · 预览候选 → §6 比例缩放后的 `previewMaxColors`（104 档 / 目标 156 时是 8）
+        //   · 正式赢家 → 界面上的原始值
+        // 调优器两个都传了（见 auto-tune.mjs 的 `maxColors: previewCap` / `maxColors`）。
+        // 早先这里读的是闭包里的那个值，等于**§6 的预览缩放从未生效**：
+        // 预览和正式都跑在同一个上限上，候选之间可比性变差，
+        // 而且预览会突破它自己声明的 `previewMaxColors`（真机探针抓到过：
+        // 报告写 previewMaxColors=8，赢家指标却是 12 色）。
+        // ctx.maxColors 只在调优器没给这个字段时兜底。
+        const callMaxColors = Number.isFinite(Number(candidateCap))
+          ? Number(candidateCap)
+          : ctx.maxColors;
+        const t0 = performance.now();
+        const out = await runGenerationJob({
+          image: ctx.sourceImageData,
+          mode: ctx.mode,
+          size,
+          palette: ctx.palette,
+          maxColors: callMaxColors,
+          // 候选增量已经在调优器里合并好了；这里只把纯字符串的候选名带上。
+          overrides: labCandidate ? { ...overrides, labCandidate } : overrides,
+          requestId: rid,
+          // **不转移** image buffer：调优要在一张图上连跑 3–4 次，
+          // 转移之后主线程那份就 detach 了，第二个候选会拿到空 buffer。
+          transfer: [],
+        });
+        return { ...out, timingMs: performance.now() - t0 };
+      },
+    });
+  }
+  // 归一化一次，键和 tune() 收到的必须是**同一个数** —— 不一致的话
+  // `autoTuneContexts.get(rid)` 会查不到，每个候选都变成「已过期」。
+  const tuneRequestId = Number(requestId) > 0 ? Number(requestId) : 1;
+  autoTuneContexts.set(tuneRequestId, {
+    sourceImageData, mode: resolved.mode, palette, maxColors,
+  });
+  let report;
+  try {
+    report = await autoTuner.tune({
+      source: sourceImageData,
+      mode: resolved.mode,
+      size: { width, height },
+      palette,
+      maxColors,
+      overrides: resolved,
+      // §18：裁剪变化必须让缓存失效。`sourceTransform` 是纯数据小对象，
+      // 排序后拼串即可 —— 不排序的话，同一个变换换个书写顺序就是另一个键，
+      // 表现是「缓存时灵时不灵」这种查起来很累的 bug。
+      cropKey: sourceTransformFingerprint(state.sourceTransform),
+      // background decision 不再单独传：去背景意图在 `resolved.autoBackground` 上，
+      // 它已经被 overrides 指纹覆盖（见 auto-tune.mjs 的 overridesFingerprint）。
+      requestId: tuneRequestId,
+      onPhase: reportTunePhase,
+    });
+  } finally {
+    autoTuneContexts.delete(tuneRequestId);
+  }
+  // §19：一次调优要跑几秒（400 档更久），回来时这一轮很可能已经被更新的请求取代
+  // ——用户切了模式、或者又点了一次生成。结果当然由上层丢弃（提交前还有一次
+  // `isStaleGenerationRequest`），但**报告不能留下**：它会以「这一轮是这么选的」
+  // 的身份被 `getAutoTuneReport()` 读走，而画布上是另一个请求的图。
+  //
+  // 抛「过期」而不是静默 return null：静默返回会让上层退回单次生成，
+  // 白跑一遍注定要被丢掉的计算；而过期是既定纪律里的**预期结局**，
+  // 原样上抛即可（`processImageV2` → `processProductionV2` 按 name 识别，只提示不报错）。
+  if (isStaleGenerationRequest(requestId)) {
+    const error = new Error("Auto Tune 结果已被更新的请求取代");
+    error.name = "StaleGenerationError";
+    throw error;
+  }
+  // 报告去掉 grid 再落 state：那是一整张网格，不该跟着快照到处走。
+  const { grid, ...rest } = report;
+  autoTuneReport = rest;
+  window.dispatchEvent(new CustomEvent("libms:auto-tune", { detail: rest }));
+  if (!grid) return null;
+  // 诊断必须取**赢家那一次**的，不能填 null —— `processImageV2` 靠它回填
+  // `state.smartFeatures` / `state.smartReport`（主体裁剪、自动背景、描边/点缀保护）。
+  // 填 null 的表现是「智能模式下这四个报告全空」，看起来像功能坏了，其实是这里丢了。
+  return {
+    grid,
+    width: report.width,
+    height: report.height,
+    diagnostics: report.diagnostics ?? null,
+    pipeline: { autoTune: true, selectedProfileId: report.selectedProfileId },
+    // Stage C0 §15：这条返回体以前没有 decodeMs，所以 commit profile 的
+    // `decodeMs(workerClient)` 在智能模式下恒为 null（单次生成路径一直有值）。
+    // 现在把调优报告里的反序列化耗时原样带出去，两条路径的 §14 性能表可比。
+    // 命中缓存时是 null —— 那一轮确实没有发生反序列化，见 auto-tune.mjs 的 decodeMsSource。
+    decodeMs: Number.isFinite(Number(report.decodeMs)) ? Number(report.decodeMs) : null,
+    decodeMsSource: report.decodeMsSource ?? null,
+  };
+}
+
+/* =========================================================
+ * §12 提交路径 profile
+ * ======================================================= */
+
+/**
+ * 提交阶段的分段计时。**默认关闭**，用 `window.__libmsProfileCommit = true` 打开。
+ *
+ * ── 为什么要有它 ──────────────────────────────────────────────────────
+ * B3 已知：500×375 的提交阶段约 1.15s 停顿。这个数字当时只能定位到
+ * 「最后一次进度广播 → generate 落地」这一段，无法回答**到底是哪一步慢**。
+ * 而「提交慢」的候选步骤有七八个（decode / 建格 / 深拷 / 统计 / 渲染 …），
+ * 它们的修法完全不同 —— 不分解就动手，等于随机重构。
+ *
+ * ── 纪律 ──────────────────────────────────────────────────────────────
+ *  ① **关闭时零成本**：每处只多一次布尔读取，`performance.now()` 一次都不调。
+ *  ② **不改行为**：只记录，不参与任何判断、不改变任何赋值顺序。
+ *  ③ **只在显式打开时挂 window**：生产用户不会莫名其妙多一个全局数组。
+ */
+function commitProfileOn() {
+  return typeof window !== "undefined" && window.__libmsProfileCommit === true;
+}
+
+/**
+ * 记一段。`startedAt` 由调用方在段首取（关闭时是 0，`mark` 直接返回）。
+ *
+ * 数组**按需自建**：`refreshChartUrl()` 也会记账，而它不止被提交路径调用
+ * （改色板 / 打开工程 / 恢复会话都会走到）。那些路径上 `__libmsCommitProfile`
+ * 还没被建出来，直接 push 会炸 —— 而记账代码炸掉会污染被观测的流程本身。
+ */
+function commitMark(label, startedAt) {
+  if (startedAt === 0) return;
+  if (!window.__libmsCommitProfile) window.__libmsCommitProfile = [];
+  const at = performance.now();
+  window.__libmsCommitProfile.push({ label, ms: Number((at - startedAt).toFixed(2)) });
+}
+
+/** 开一段：关闭时返回 0，`commitMark` 靠它跳过。 */
+function commitPhase(on) {
+  return on ? performance.now() : 0;
+}
+
+async function processImageV2(image, palette, { width, height, requestId = null, maxColors, options = {}, saveGallery = true }) {
+  const startedAt = performance.now();
+  // ⚠️ 2026-10-04 修：`requestId` 必须**在这里解构**。
+  //
+  // 调用方（processProductionV2）传的是**顶层**字段：
+  //   processImageV2(image, palette, { …, requestId: options.requestId, options: state.productionGenerationOptions })
+  // 而 `options` 是 `state.productionGenerationOptions`（＝ store 里的模式档案，
+  // 里面**没有** requestId）。原来的形参漏解构了 requestId，于是本函数里读的
+  // `options.requestId` 恒为 undefined —— 实测证据：§12 profile 的
+  // `__libmsCommitProfileMeta.requestId` 一直是 null。
+  //
+  // 这一个丢参让三处设计好的守卫同时变成死代码（都是「看起来在防，其实没防」）：
+  //   · `runAutoTuneV2` 的 `tuneRequestId` 恒为 1 → autoTuneContexts 只按 1 存
+  //   · `runAutoTuneV2` 末尾的 `isStaleGenerationRequest` 恒 false
+  //     → **§19「被取代的调优不留报告」在生产里从未生效**（B4 §13 defect ③）
+  //   · 本函数 await 之后的 `isStaleGenerationRequest` 恒 false
+  //     → 旧请求的结果会照常提交（§11「旧结果绝不覆盖新图纸」的最后一道闸）
+  //
+  // 修法是**只补接线**，不动任何算法与提交语义：把顶层 requestId 解构出来，
+  // 并在 options 里没有时兜底读一次（兼容直调工具的旧写法）。
+  const reqId = requestId ?? options?.requestId ?? null;
+  const profiling = commitProfileOn();
+  if (profiling) {
+    window.__libmsCommitProfile = [];
+    window.__libmsCommitProfileMeta = {
+      width, height, cells: width * height, maxColors, mode: options?.mode ?? null,
+      requestId: reqId, at: Date.now(),
+    };
+  }
+  // 上一轮的调优报告不能留在这一轮里 —— 它会被读成「这次也是这么选的」。
+  autoTuneReport = null;
+  const sourceImageData = imageToImageData(image);
+  const resolved = buildV25Options(options, maxColors);
+  // §13：智能模式先跑 Auto Tune（小尺寸上比几套候选，再按目标尺寸生成一次）。
+  // 返回 null = 「这次不调优」（模式不适用 / 只有一个候选），照常走下面的单次生成。
+  let result = null;
+  try {
+    result = await runAutoTuneV2({
+      sourceImageData, resolved, palette, maxColors, width, height, requestId: reqId,
+    });
+  } catch (error) {
+    // 取消 / 过期是**预期结局**，原样上抛 —— 绝不能退回单次生成重跑一遍
+    // （那等于「点了取消反而又开始算」）。
+    if (error?.name === "AbortError" || error?.name === "StaleGenerationError") throw error;
+    // 调优本身出问题**不能变成一次生成失败**。记一条告警、退回单次生成：
+    // 「优化坏了也不丢功能」是这条链路从 B3 起的既定纪律。
+    console.warn("Auto Tune 失败，退回单次生成", error);
+    autoTuneReport = { error: String(error?.message || error) };
+  }
+  if (!result) {
+    result = await runGenerationJob({
+      image: sourceImageData,
+      mode: resolved.mode,
+      size: { width, height },
+      palette,
+      maxColors,
+      // 整份模式档案直接当 overrides 透传 —— 0–100 口径，换算由管线内部那一个边界做。
+      overrides: resolved,
+      requestId: reqId,
+    });
+  }
+  // 执行体是一个 await 边界（未来换成 Worker 后更是），回来时可能已经有更新的请求在跑。
+  if (isStaleGenerationRequest(reqId)) return false;
+  // ── 提交路径分段计时（§12，默认关闭）──────────────────────────────
+  // 段的切法与「修法」一一对应，而不是按代码块随意切：
+  //   gridObjectConstruction —— 建 w×h 个新对象。要省它只能让 renderer
+  //                             接受紧凑表示，不是「少写几行」。
+  //   materialStats          —— 全图统计。可延迟/增量。
+  //   originalGridClone      —— 整图深拷。§13-B 的「无必要深 clone」指的就是它。
+  //   chartUrl / uiUpdate / eventDispatch / gallery / status —— 渲染与广播。
+  let t = commitPhase(profiling);
+  state.grid = result.grid.map((row) => row.map((cell) => {
+    if (!cell) return null;
+    const rgbValue = Array.isArray(cell.rgb) ? cell.rgb : [cell.rgb?.[0] ?? 0, cell.rgb?.[1] ?? 0, cell.rgb?.[2] ?? 0];
+    return { code: cell.code, rgb: [...rgbValue], hex: cell.hex || rgbToHex(rgbValue) };
+  }));
+  commitMark("gridObjectConstruction", t);
+  state.width = result.width;
+  state.height = result.height;
+  state.manualEdited = false;
+  t = commitPhase(profiling);
+  state.stats = calculateStats(state.grid);
+  commitMark("materialStats", t);
+  state.generationMilliseconds = Math.round(performance.now() - startedAt);
+  state.generationEngineLast = "v2.5";
+  state.algorithmEngineLast = "current";
+  t = commitPhase(profiling);
+  state.generationOriginalGrid = cloneGrid(state.grid);
+  commitMark("originalGridClone", t);
+  state.generationOptimizedGrid = null;
+  state.optimizerReport = null;
+  state.showingOptimizedGrid = true;
+  state.paletteBudget = { mode: maxColors ? "fixed" : "auto", requested: maxColors || null, recommended: result.diagnostics?.colorsAfterBudget || state.stats.length, effective: maxColors || 0 };
+  state.smartFeatures = result.diagnostics?.smartFeatures || null;
+  state.smartReport = {
+    subjectCrop: result.diagnostics?.subjectCrop || null,
+    autoBackground: result.diagnostics?.autoBackground || null,
+    strokeProtection: result.diagnostics?.strokeProtection || null,
+    accentProtection: result.diagnostics?.accentProtection || null,
+  };
+  state.backgroundDecision = "";
+  state.paletteLabel = getCurrentPaletteLabel();
+  state.assemblyHideCellText = false;
+  t = commitPhase(profiling);
+  refreshChartUrl();
+  commitMark("chartUrl", t);
+  t = commitPhase(profiling);
+  updateResultUi();
+  updateOptimizationToggle();
+  commitMark("uiUpdate", t);
+  // detail 的构造与广播分开记。`getResult()` 每次都要重算 totalBeads（全图统计求和），
+  // 而广播本身要同步跑完所有监听者（含 paint）。两者混在一段里，
+  // 「429ms 到底是构造还是监听」这个问题永远答不上来 —— 而这两件事的修法完全不同。
+  t = commitPhase(profiling);
+  const resultDetail = window.LibmsWorkspaceBridge?.getResult();
+  commitMark("eventPayload", t);
+  t = commitPhase(profiling);
+  window.dispatchEvent(new CustomEvent("libms:project-result", { detail: resultDetail }));
+  commitMark("eventDispatch", t);
+  t = commitPhase(profiling);
+  if (saveGallery) saveCurrentToGallery();
+  commitMark("gallery", t);
+  t = commitPhase(profiling);
+  setStatus(getGeneratedStatus());
+  commitMark("status", t);
+  if (profiling) {
+    // decode 发生在 Worker 客户端里（Worker 算完 → 主线程拿到 grid），
+    // 所以它**不在**上面的段里 —— 单列一项，因为它是「计算」与「提交」的分界线：
+    // 这一项大 = Worker 回包后主线程还要重建一遍图；这一项小 = Worker 真的搬走了计算。
+    //
+    // Stage C0 §15：智能模式（Auto Tune）以前这里**恒为 null**，因为
+    // `runAutoTuneV2` 的返回体没带 decodeMs。现在两条路径都有值了。
+    // `source` 说明这个数来自哪一次运行（final / preview / cache-hit）：
+    // 缓存命中时 null 是**正确答案**（那一轮没有反序列化），不是「没量到」。
+    window.__libmsCommitProfile.push({ label: "decodeMs(workerClient)", ms: result.decodeMs ?? null, source: result.decodeMsSource ?? null });
+    window.__libmsCommitProfile.push({
+      label: "commitTotal",
+      // 过滤掉：非段项（decode / 汇总本身）、以及 `chart.*` 子段 ——
+      // 它们已经含在外层 `chartUrl` 里，算进去就是重复计数。
+      ms: Number(window.__libmsCommitProfile
+        .filter((row) => row.label !== "decodeMs(workerClient)" && row.label !== "commitTotal"
+          && !row.label.startsWith("chart."))
+        .reduce((sum, row) => sum + (Number(row.ms) || 0), 0).toFixed(2)),
+    });
+    window.__libmsCommitProfile.push({ label: "processImageV2Total", ms: Number((performance.now() - startedAt).toFixed(2)) });
+  }
+  return true;
+}
+
+async function processProductionV2(options = {}) {
+  if (!state.sourceDataUrl) throw new Error("请先上传图片");
+  if (state.manualEdited && !options.overwriteApproved) throw new Error("手动编辑尚未确认覆盖");
+  if (state.isProcessingImage) throw new Error("正在生成，请稍候");
+  state.isProcessingImage = true;
+  state.lastGenerationError = "";
+  setStatus("V2.5 正在生成");
+  els.processButton.disabled = true;
+  try {
+    const original = await loadImage(state.sourceDataUrl);
+    const sourceEditor = await loadSourceEditor();
+    if (isStaleGenerationRequest(options.requestId)) return false;
+    state.processedSourceDataUrl = sourceEditor.hasSourceTransform(state.sourceTransform)
+      ? sourceEditor.renderSourceTransform(original, state.sourceTransform).toDataURL("image/png") : state.sourceDataUrl;
+    const image = state.processedSourceDataUrl === state.sourceDataUrl ? original : await loadImage(state.processedSourceDataUrl);
+    if (isStaleGenerationRequest(options.requestId)) return false;
+    state.sourceNaturalWidth = image.naturalWidth;
+    state.sourceNaturalHeight = image.naturalHeight;
+    const palette = getGenerationPaletteColors();
+    // 尺寸只由「长边 + 有效比例」派生；比例未就绪就延后，不猜方图。
+    const size = resolveGenerationDimensions(getGenerationLongEdge());
+    if (!size) return deferGenerationForUnresolvedSize();
+    return await processImageV2(image, palette, {
+      width: size.width, height: size.height, requestId: options.requestId,
+      maxColors: clamp(Number(els.maxColorsInput?.value || 0), 0, palette.length),
+      options: state.productionGenerationOptions || {}, saveGallery: options.saveGallery !== false,
+    });
+  } catch (error) {
+    // 主动取消 / 被更新的请求取代 —— 都是**预期结局**，不是失败。
+    // 不能写 lastGenerationError，否则界面上会出现一个用户没犯过的「生成失败」。
+    // 但也不能只 return false：适配层会把 false 读成「链路没返回结果」并抛错。
+    // 所以这里留下标记，由 bridge.generate() 转成带正确 name 的错误。
+    if (error?.name === "AbortError") { markExpectedGenerationOutcome("cancelled"); setStatus("已取消生成"); return false; }
+    if (error?.name === "StaleGenerationError") { markExpectedGenerationOutcome("stale"); return false; }
+    state.lastGenerationError = error.message || String(error);
+    setStatus(`V2.5 失败：${state.lastGenerationError}。可选择 Legacy 重试`);
+    window.dispatchEvent(new CustomEvent("libms:generation-error", { detail: state.lastGenerationError }));
+    console.error("Production V2.5 generation failed", error);
+    return false;
+  } finally {
+    state.isProcessingImage = false;
+    els.processButton.disabled = false;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 算法引擎 BGS（Batch E）
+ *
+ * 纯算法模块 src/algorithms/bgs 的宿主适配层。它只做两件事：
+ *   1. 把 libms 的运行时上下文（源图 imageData、调色板、目标尺寸、颜色上限）翻译成
+ *      convertImageToBeads(imageData, options) 的参数；
+ *   2. 把返回的「纯拼豆颜色矩阵」写回唯一事实源 state.grid。
+ *
+ * 模块本身不碰 DOM / Canvas / state —— 矩阵之外没有任何 UI 状态，所以它能被 Node 直接单测。
+ * 这条链路是**平行新增**的：processProductionV2 与 processImage 的既有分支一行未改。
+ * ───────────────────────────────────────────────────────────── */
+
+const BGS_MODULE_QUERY = "?v=20260918-bgs1";
+
+/** bgs 的白/黑锚点按色号声明；libms 的色卡品牌不同，色号不存在时传空串让它自动挑最亮/最暗中性色。 */
+function bgsAnchorCodes(palette) {
+  const codes = new Set(palette.map((color) => String(color.code).toUpperCase()));
+  return {
+    whiteCode: codes.has("H2") ? "H2" : "",
+    blackCode: codes.has("H7") ? "H7" : "",
+  };
+}
+
+/** 把当前界面的保护档位（0–100）折算成 bgs 的口径。 */
+function bgsProtectionOptions() {
+  const options = state.productionGenerationOptions || {};
+  const detail = Number.isFinite(Number(options.detailProtection)) ? Number(options.detailProtection) : mapDetailProtectionValue(els.detailProtectionSelect?.value || "standard");
+  const edge = Number.isFinite(Number(options.edgeProtection)) ? Number(options.edgeProtection) : detail;
+  return {
+    edgeProtection: clamp(edge * 2, 0, 2),
+    cleanupStrength: clamp(Number.isFinite(Number(options.cleanupStrength)) ? Number(options.cleanupStrength) : 0.5, 0, 1),
+  };
+}
+
+/** 加载「与生产链路完全一致」的源图 imageData：同一份 sourceTransform 结果，两个引擎共用。 */
+async function loadProductionRaster() {
+  if (!state.sourceDataUrl) throw new Error("请先上传图片");
+  const original = await loadImage(state.sourceDataUrl);
+  const sourceEditor = await loadSourceEditor();
+  state.processedSourceDataUrl = sourceEditor.hasSourceTransform(state.sourceTransform)
+    ? sourceEditor.renderSourceTransform(original, state.sourceTransform).toDataURL("image/png") : state.sourceDataUrl;
+  const image = state.processedSourceDataUrl === state.sourceDataUrl ? original : await loadImage(state.processedSourceDataUrl);
+  state.sourceNaturalWidth = image.naturalWidth;
+  state.sourceNaturalHeight = image.naturalHeight;
+  return { image, imageData: imageToImageData(image) };
+}
+
+/** 纯矩阵 → state.grid 单元。bgs 的 matrix 单元是色号（或 null），这里换回 libms 的色对象。 */
+function gridFromBgsMatrix(matrix, palette) {
+  const byCode = new Map(palette.map((color) => [String(color.code), color]));
+  let unknown = 0;
+  const grid = matrix.map((row) => row.map((code) => {
+    if (code == null) return null;
+    const color = byCode.get(String(code));
+    if (!color) { unknown++; return null; }
+    const cell = { code: color.code, rgb: [...color.rgb], hex: color.hex || rgbToHex(color.rgb) };
+    if (color.name) cell.name = color.name;
+    return cell;
+  }));
+  return { grid, unknown };
+}
+
+/** 把一次 bgs 结果落到 state（与 processImageV2 的收尾逐项对应）。 */
+function applyBgsResult(result, { maxColors, startedAt, unknownCodes }) {
+  state.grid = result.grid;
+  state.width = result.width;
+  state.height = result.height;
+  state.manualEdited = false;
+  state.stats = calculateStats(state.grid);
+  state.generationMilliseconds = Math.round(performance.now() - startedAt);
+  state.algorithmEngineLast = "bgs";
+  state.generationOriginalGrid = cloneGrid(state.grid);
+  state.generationOptimizedGrid = null;
+  state.optimizerReport = null;
+  state.showingOptimizedGrid = true;
+  state.paletteBudget = {
+    mode: maxColors ? "fixed" : "auto",
+    requested: maxColors || null,
+    recommended: result.diagnostics?.colors?.usedAfterLimit ?? state.stats.length,
+    effective: maxColors || 0,
+  };
+  // BGS 不使用 V2.5 的四个智能开关，显式清空以免上一轮的诊断被误读成这一轮的。
+  state.smartFeatures = null;
+  state.smartReport = { subjectCrop: null, autoBackground: null, strokeProtection: null, accentProtection: null };
+  state.bgsReport = {
+    engine: result.diagnostics?.engine || "bgs",
+    moduleVersion: result.diagnostics?.moduleVersion || null,
+    unknownCodes,
+    statistics: result.statistics,
+    diagnostics: result.diagnostics,
+  };
+  state.backgroundDecision = "";
+  state.paletteLabel = getCurrentPaletteLabel();
+  state.assemblyHideCellText = false;
+  refreshChartUrl();
+  updateResultUi();
+  updateOptimizationToggle();
+  window.dispatchEvent(new CustomEvent("libms:project-result", { detail: window.LibmsWorkspaceBridge?.getResult() }));
+}
+
+async function processProductionBgs(options = {}) {
+  if (!state.sourceDataUrl) throw new Error("请先上传图片");
+  if (state.manualEdited && !options.overwriteApproved) throw new Error("手动编辑尚未确认覆盖");
+  if (state.isProcessingImage) throw new Error("正在生成，请稍候");
+  state.isProcessingImage = true;
+  state.lastGenerationError = "";
+  setStatus("BGS 算法正在生成");
+  els.processButton.disabled = true;
+  const startedAt = performance.now();
+  try {
+    const { convertImageToBeads } = await import(`./src/algorithms/bgs/index.mjs${BGS_MODULE_QUERY}`);
+    const { image, imageData } = await loadProductionRaster();
+    const palette = getGenerationPaletteColors();
+    const size = resolveGenerationDimensions(getGenerationLongEdge());
+    if (!size) throw new Error("源图比例尚未就绪，暂不能生成");
+    const width = size.width, height = size.height;
+    const maxColors = clamp(Number(els.maxColorsInput?.value || 0), 0, palette.length);
+    const protection = bgsProtectionOptions();
+
+    const result = convertImageToBeads(imageData, {
+      width,
+      height,
+      maxColors,
+      palette,
+      // libms 的高度已经按原图比例算好，所以这里让 bgs 直接采用这对尺寸，不再二次缩放。
+      preserveAspectRatio: false,
+      samplingMode: state.productionGenerationOptions?.sampling || state.generationSampling || "auto",
+      topologyProtection: "auto",
+      edgeProtection: protection.edgeProtection,
+      cleanupStrength: protection.cleanupStrength,
+      autoCrop: state.productionGenerationOptions?.subjectCrop === true,
+      ...bgsAnchorCodes(palette),
+    });
+
+    const { grid, unknown } = gridFromBgsMatrix(result.matrix, palette);
+    if (isStaleGenerationRequest(options.requestId)) return false;
+    applyBgsResult({ ...result, grid }, { maxColors, startedAt, unknownCodes: unknown });
+    if (options.saveGallery !== false) saveCurrentToGallery();
+    setStatus(getGeneratedStatus());
+    return true;
+  } catch (error) {
+    state.lastGenerationError = error.message || String(error);
+    setStatus(`BGS 算法失败：${state.lastGenerationError}`);
+    window.dispatchEvent(new CustomEvent("libms:generation-error", { detail: state.lastGenerationError }));
+    console.error("BGS algorithm generation failed", error);
+    return false;
+  } finally {
+    state.isProcessingImage = false;
+    els.processButton.disabled = false;
+  }
+}
+
+/* ============================================================
+ * Batch F —— pindou-workbench 算法模块的宿主适配层
+ *
+ * 与 BGS 完全同一套写法：只做「上下文翻译」+「写回 state.grid」。
+ * 两个新引擎（pindou-workbench / hybrid-pw）都是**平行新增**：
+ * 既有分支一行未改，默认仍是 current，不选它们就完全走不到这里。
+ *
+ * 上游是单文件 27KB 小工具，README 宣传的 5×5 Sobel / 背景 K-means /
+ * 边缘直方图 / 高斯羽化在代码里并不存在（详见
+ * docs/algorithm-audit-pindou-workbench.md §1）。本模块只借鉴其**已存在**
+ * 的算法思想，标 LIBMS_FILL 的部分是本仓库补全，不含上游代码。
+ * ───────────────────────────────────────────────────────────── */
+
+const PW_MODULE_QUERY = "?v=20260918-pw1";
+
+/** 四套算法引擎并存，默认 current。任何一套都不能静默替换另一套的结果。 */
+const ALGORITHM_ENGINES = new Set(["current", "bgs", "pindou-workbench", "hybrid-pw"]);
+
+/** pw 矩阵单元同样是「色号字符串或 null」，与 bgs 同形，直接复用同一套换色逻辑。 */
+function gridFromPwMatrix(matrix, palette) {
+  return gridFromBgsMatrix(matrix, palette);
+}
+
+/** 把一次 pw / hybrid-pw 结果落到 state（与 BGS 收尾逐项对应）。 */
+function applyPwResult(result, { engine, maxColors, startedAt, unknownCodes }) {
+  state.grid = result.grid;
+  state.width = result.width;
+  state.height = result.height;
+  state.manualEdited = false;
+  state.stats = calculateStats(state.grid);
+  state.generationMilliseconds = Math.round(performance.now() - startedAt);
+  state.algorithmEngineLast = engine;
+  state.generationOriginalGrid = cloneGrid(state.grid);
+  state.generationOptimizedGrid = null;
+  state.optimizerReport = null;
+  state.showingOptimizedGrid = true;
+  state.paletteBudget = {
+    mode: maxColors ? "fixed" : "auto",
+    requested: maxColors || null,
+    recommended: result.statistics?.usedColors?.length ?? state.stats.length,
+    effective: maxColors || 0,
+  };
+  // 与 BGS 同理：不使用 V2.5 的四个智能开关，显式清空以免上一轮诊断被误读。
+  state.smartFeatures = null;
+  state.smartReport = { subjectCrop: null, autoBackground: null, strokeProtection: null, accentProtection: null };
+  state.pwReport = {
+    engine,
+    moduleVersion: result.diagnostics?.moduleVersion || null,
+    unknownCodes,
+    statistics: result.statistics,
+    diagnostics: result.diagnostics,
+  };
+  state.backgroundDecision = "";
+  state.paletteLabel = getCurrentPaletteLabel();
+  state.assemblyHideCellText = false;
+  refreshChartUrl();
+  updateResultUi();
+  updateOptimizationToggle();
+  window.dispatchEvent(new CustomEvent("libms:project-result", { detail: window.LibmsWorkspaceBridge?.getResult() }));
+}
+
+/**
+ * pindou-workbench / hybrid-pw 的生产链路入口。
+ *
+ * 两个引擎共用这套上下文翻译，只在最后一步分流：
+ *   - pindou-workbench：纯上游思路复现（同步）
+ *   - hybrid-pw：pw 多尺度 Sobel → 结构 Mask → libms Linear RGB 采样
+ *     → libms CIEDE2000 匹配 → 保护 → 降色 → 清理（异步，动态 import libms 模块）
+ */
+async function processProductionPw(options = {}) {
+  const engine = state.algorithmEngine === "hybrid-pw" ? "hybrid-pw" : "pindou-workbench";
+  if (!state.sourceDataUrl) throw new Error("请先上传图片");
+  if (state.manualEdited && !options.overwriteApproved) throw new Error("手动编辑尚未确认覆盖");
+  if (state.isProcessingImage) throw new Error("正在生成，请稍候");
+  state.isProcessingImage = true;
+  state.lastGenerationError = "";
+  setStatus(engine === "hybrid-pw" ? "HYBRID-PW 混合管线正在生成" : "PW 算法正在生成");
+  els.processButton.disabled = true;
+  const startedAt = performance.now();
+  try {
+    const { image, imageData } = await loadProductionRaster();
+    const palette = getGenerationPaletteColors();
+    const size = resolveGenerationDimensions(getGenerationLongEdge());
+    if (!size) throw new Error("源图比例尚未就绪，暂不能生成");
+    const width = size.width, height = size.height;
+    const maxColors = clamp(Number(els.maxColorsInput?.value || 0), 0, palette.length);
+
+    const shared = {
+      width,
+      height,
+      maxColors,
+      palette,
+      preserveAspectRatio: false,
+      // 色板匹配三档中的哪一档由界面档位决定；默认 CIEDE2000（与 libms 既有色差口径一致）。
+      paletteMatchMode: state.pwPaletteMatchMode || "ciede2000",
+    };
+
+    let result;
+    if (engine === "hybrid-pw") {
+      const { runHybridPw } = await import(`./src/algorithms/pindou-workbench/index.js${PW_MODULE_QUERY}`);
+      result = await runHybridPw(imageData, { ...shared, ...(state.pwHybridOptions || {}) });
+    } else {
+      const { convertImageToBeadsPw } = await import(`./src/algorithms/pindou-workbench/index.js${PW_MODULE_QUERY}`);
+      // 默认走 improved 档（面积平均采样 + 背景 K-means）；要纯上游口径请显式传 profile。
+      result = convertImageToBeadsPw(imageData, { ...shared, ...(state.pwOptions || {}) });
+    }
+
+    const { grid, unknown } = gridFromPwMatrix(result.matrix, palette);
+    if (isStaleGenerationRequest(options.requestId)) return false;
+    applyPwResult({ ...result, grid }, { engine, maxColors, startedAt, unknownCodes: unknown });
+    if (options.saveGallery !== false) saveCurrentToGallery();
+    setStatus(getGeneratedStatus());
+    return true;
+  } catch (error) {
+    state.lastGenerationError = error.message || String(error);
+    setStatus(`PW 算法失败：${state.lastGenerationError}`);
+    window.dispatchEvent(new CustomEvent("libms:generation-error", { detail: state.lastGenerationError }));
+    console.error("pindou-workbench algorithm generation failed", error);
+    return false;
+  } finally {
+    state.isProcessingImage = false;
+    els.processButton.disabled = false;
+  }
+}
+
 async function processImage(options = {}) {
+  // 算法引擎开关：只有显式选到新引擎才走新模块，否则完全落到原有分支。
+  if (state.algorithmEngine === "pindou-workbench" || state.algorithmEngine === "hybrid-pw") {
+    return processProductionPw(options);
+  }
+  if (state.algorithmEngine === "bgs") return processProductionBgs(options);
+  if (state.generationEngine === "v2.5") return processProductionV2(options);
   if (!state.sourceDataUrl) {
     setStatus("请先上传");
     return false;
   }
+  if (state.manualEdited && !options.overwriteApproved) { setStatus("手动修改尚未确认覆盖"); return false; }
   if (state.isProcessingImage) {
     if (options.autoPreview) state.livePreviewPending = true;
     return false;
@@ -1996,21 +3001,123 @@ async function processImage(options = {}) {
       }
       state.sourceSafetyChecked = true;
     }
-    const image = await loadImage(state.sourceDataUrl);
-    applyRestoreSizing(image);
-    const palette = getCurrentPalette();
-    const result = rasterizeImage(image, palette);
-    const optimized = optimizeGrid(result.grid, getOptimizationOptions());
-    state.grid = optimized.grid;
+    if (isStaleGenerationRequest(options.requestId)) return false;
+    const originalImage = await loadImage(state.sourceDataUrl);
+    const sourceEditor = await loadSourceEditor();
+    if (isStaleGenerationRequest(options.requestId)) return false;
+    state.processedSourceDataUrl = sourceEditor.hasSourceTransform(state.sourceTransform)
+      ? sourceEditor.renderSourceTransform(originalImage, state.sourceTransform).toDataURL("image/png") : state.sourceDataUrl;
+    const image = state.processedSourceDataUrl === state.sourceDataUrl ? originalImage : await loadImage(state.processedSourceDataUrl);
+    if (isStaleGenerationRequest(options.requestId)) return false;
+    state.sourceNaturalWidth = image.naturalWidth;
+    state.sourceNaturalHeight = image.naturalHeight;
+    // 尺寸恢复**不在这里**做：它属于「载入源图」这一步，与生成引擎无关。
+    // 留在这里等于只有选 legacy 引擎时才恢复尺寸（v2.5 默认走 processProductionV2，
+    // 根本不经过本函数）—— 这正是 B0.1 之前 restore/OCR 尺寸失效的第二个原因。
+    // 现在统一由 loadFile() 在源图落地时提交给尺寸权威链。
+    const palette = getGenerationPaletteColors();
+    const regionalBlockV2 = els.modeSelect?.value === "regional-block-v2";
+    const portraitPremium = els.modeSelect?.value === "portrait-premium" || regionalBlockV2;
+    const startedAt = performance.now();
+    const rawMaxColors = clamp(Number(els.maxColorsInput?.value || 0), 0, palette.length);
+    const size = resolveGenerationDimensions(getGenerationLongEdge());
+    if (!size) return deferGenerationForUnresolvedSize();
+    const targetHeight = size.height;
+    const result = portraitPremium ? rasterizePortraitPremium(image, palette, {
+      targetHeight,
+      maxColors: rawMaxColors || null,
+      autoMaxColors: rawMaxColors === 0,
+      simplificationStrength: clamp(Number(els.regionStrengthInput?.value || 60), 0, 100),
+      detailProtection: els.detailProtectionSelect?.value || "standard",
+      regionalBlockV2,
+    }) : rasterizeImage(image, palette, { height: targetHeight });
+    let generatedGrid = result.grid;
+    const recommendedMaxColors = result.regionAwareReport?.recommendedMaxColors || window.LibmsRegionAwareQuantizer?.recommendMaxColors?.(
+      result.width, result.height, generatedGrid.flat().map((color) => color?.rgb || null), 0,
+    ) || Math.min(palette.length, 40);
+    const effectiveMaxColors = rawMaxColors || recommendedMaxColors;
+    const budgetResult = applyFinalPaletteBudget(generatedGrid, effectiveMaxColors, result);
+    generatedGrid = budgetResult.grid;
+    state.paletteBudget = { mode: rawMaxColors ? "fixed" : "auto", requested: rawMaxColors || null, recommended: recommendedMaxColors, effective: effectiveMaxColors, ...budgetResult.report };
+    state.generationOriginalGrid = cloneGrid(generatedGrid);
+    state.generationOptimizedGrid = null;
+    state.optimizerReport = null;
+    state.showingOptimizedGrid = true;
+    if (els.patternOptimizerEnabled?.checked && window.LibmsPatternOptimizer?.createPatternOptimizer) {
+      const protection = result.protectionMask || createPatternProtectionMask(generatedGrid);
+      const optimized = window.LibmsPatternOptimizer.createPatternOptimizer().optimize(generatedGrid, {
+        protectionMask: protection,
+        cleanupStrength: portraitPremium ? PORTRAIT_PREMIUM.blockCleanup / 100 : 0.22,
+        maxComponentSize: portraitPremium ? 3 : 3,
+        maxHoleSize: portraitPremium ? 0 : 1,
+      });
+      state.generationOptimizedGrid = cloneGrid(optimized.grid);
+      state.optimizerReport = optimized;
+      generatedGrid = optimized.grid;
+    }
+    // 陈旧结果保护：这一路已经过了多个 await（安全审查 / 加载图片 / 动态 import），
+    // 期间可能有更新的请求发出。只有仍是最新请求才允许写回 state。
+    if (options.requestId != null && Number(options.requestId) !== Number(state.generationRequestId)) {
+      setStatus("已放弃过期的生成结果");
+      return false;
+    }
+    state.grid = cloneGrid(generatedGrid);
+    state.manualEdited = false;
+    state.regionalBlockReport = result.regionalBlockReport ? {
+      ...result.regionalBlockReport,
+      finalAfterOptimizer: window.LibmsRegionalBlockV2.calculateRegionalBlockMetrics(state.grid, result.regionalBlockMacro),
+    } : null;
+    if (state.regionalBlockReport) window.getRegionalBlockV2Report = () => state.regionalBlockReport;
     state.width = result.width;
     state.height = result.height;
     state.backgroundDecision = result.backgroundDecision || "";
-    state.optimizationSummary = [result.summary, optimized.summary].filter(Boolean).join(" · ");
+    state.paletteEngine = result.paletteEngine || null;
     state.paletteLabel = getCurrentPaletteLabel();
     state.stats = calculateStats(state.grid);
+    validateCurrentPatternOrThrow(state.grid, effectiveMaxColors);
+    if (["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)) {
+      document.body.dataset.generationBaseline = JSON.stringify(window.captureLegacyGenerationBaseline());
+      document.body.dataset.generationRuns = String(Number(document.body.dataset.generationRuns || 0) + 1);
+    }
+    state.structuralDetectionBaseline = {
+      grid: cloneGrid(state.grid),
+      usedColorCount: state.stats.length,
+      quality: window.LibmsPatternQuality?.calculatePatternQualityMetrics?.(state.grid) || null,
+      algorithmVersion: result.regionAwareReport?.version || "legacy",
+    };
+    const transitionAnalyzer = window.LibmsStructuralTransitionAnalyzer;
+    state.structuralTransitionReport = result.sourceFeatures && transitionAnalyzer?.detectStructuralTransitions
+      ? transitionAnalyzer.detectStructuralTransitions(state.grid, result.sourceFeatures, window.LibmsRegionAwareQuantizer.rgbToOKLab, {
+        regionIds: result.regionIds, roles: result.regionRoles, contourLockedMask: result.contourLockedMask,
+      }) : null;
+    if (state.structuralTransitionReport) {
+      window.getStructuralTransitionReport = () => state.structuralTransitionReport;
+      window.downloadStructuralDetectionDebug = () => downloadStructuralDetectionDebug(state.grid, result.sourceFeatures, state.structuralTransitionReport);
+      console.info("Structural transitions (detection-only; no cells modified)", state.structuralTransitionReport.metrics);
+      const baselineCells = state.structuralDetectionBaseline.grid.flat();
+      if (state.grid.flat().some((color, i) => color?.code !== baselineCells[i]?.code)) throw new Error("Detection-only modified pattern matrix");
+    }
+    state.generationQuality = window.LibmsPatternQuality?.calculatePatternQualityMetrics?.(state.grid, {
+      baseline: state.generationOriginalGrid,
+      protectedMask: result.protectionMask,
+    }) || null;
+    state.generationMilliseconds = performance.now() - startedAt;
+    // 这两行是「上一次实际跑的是谁」的记分牌：legacy 分支以前没写 generationEngineLast，
+    // 会让诊断报告在跑过 legacy 之后仍显示 v2.5；算法引擎轴同理必须一起记。
+    state.generationEngineLast = "legacy";
+    state.algorithmEngineLast = "current";
+    if (portraitPremium) console.info("PORTRAIT_PREMIUM V1", {
+      milliseconds: Math.round(state.generationMilliseconds * 10) / 10,
+      regionAware: result.regionAwareReport,
+      before: window.LibmsPatternQuality?.calculatePatternQualityMetrics?.(state.generationOriginalGrid),
+      after: state.generationQuality,
+    });
+    if (state.regionalBlockReport) console.info("REGIONAL_BLOCK_V2 A/B", state.regionalBlockReport);
     state.assemblyHideCellText = false;
     refreshChartUrl();
     updateResultUi();
+    updateOptimizationToggle();
+    window.dispatchEvent(new CustomEvent("libms:project-result", { detail: window.LibmsWorkspaceBridge?.getResult() }));
     if (options.saveGallery !== false) saveCurrentToGallery();
     setStatus(options.autoPreview ? `${getGeneratedStatus()} · 实时预览` : getGeneratedStatus());
     return true;
@@ -2029,6 +3136,29 @@ async function processImage(options = {}) {
   }
 }
 
+window.compareCurrentAndRegionalBlockV2 = async () => {
+  if (!state.sourceDataUrl || state.isProcessingImage) throw new Error("请先上传原图，并等待当前生成结束");
+  const originalMode = els.modeSelect.value;
+  try {
+    els.modeSelect.value = "portrait-premium";
+    if (!await processImage({ saveGallery: false })) throw new Error("CURRENT 生成失败");
+    const current = { preview: state.previewUrl, actualColors: state.stats.length };
+    els.modeSelect.value = "regional-block-v2";
+    if (!await processImage({ saveGallery: false })) throw new Error("REGIONAL_BLOCK_V2 生成失败");
+    const report = state.regionalBlockReport;
+    const comparison = {
+      current: { preview: current.preview, actualColors: current.actualColors, metricsOnSameMacro: report?.currentOnSameMacro },
+      v2: { preview: state.previewUrl, actualColors: state.stats.length, metrics: report?.finalAfterOptimizer },
+      report,
+    };
+    window.lastRegionalBlockComparison = comparison;
+    return comparison;
+  } catch (error) {
+    els.modeSelect.value = originalMode;
+    throw error;
+  }
+};
+
 function getProcessErrorMessage(error) {
   const message = String(error?.message || error || "");
   if (/decode|load|读取|解码|broken/i.test(message)) return "图片无法读取";
@@ -2043,34 +3173,56 @@ function isImageFile(file) {
   return /\.(jpe?g|png|webp|gif|bmp)$/i.test(file.name || "");
 }
 
+/**
+ * restore / OCR 导入：把**识别出的图纸尺寸**交给尺寸权威链。
+ *
+ * 唯一出口是 applySourceDimensions()。这里**不再**直接写 #granularity-input ——
+ * 那个 input 只是尺寸的 UI 投影，写它等于让一个 DOM 控件成为尺寸真源，
+ * 而真正决定生成尺寸的 generationLongEdge 根本读不到它（B0.1 §8 要拆的就是这条）。
+ *
+ * 权威分级：
+ *   · 显式格距检测成功 → grid-detection（绝对）：直接得到 W×H，不再换算成长边
+ *   · 只拿到原图宽度   → logical-heuristic（弱）：仅在没有更强证据时作为初值
+ *
+ * @returns {{applied:boolean, dimensions:object, blockedBy:string|null}|null}
+ */
 function applyRestoreSizing(image) {
-  if (state.importMode !== "restore" && state.importMode !== "ocr") return;
-  if (!state.restoreAutoSizePending) return;
+  if (state.importMode !== "restore" && state.importMode !== "ocr") return null;
+  if (!state.restoreAutoSizePending) return null;
   state.restoreAutoSizePending = false;
   const naturalWidth = Number(image.naturalWidth || 0);
   const naturalHeight = Number(image.naturalHeight || 0);
-  if (naturalWidth < 10 || naturalHeight < 10) return;
-  const detectedWidth = detectPixelArtLogicalWidth(image);
-  if (detectedWidth) {
-    syncRangeControls("granularity", detectedWidth, MIN_GRANULARITY, MAX_GRANULARITY);
-    return;
+  if (naturalWidth < 10 || naturalHeight < 10) return null;
+  const detected = detectPixelArtLogicalSize(image);
+  if (detected) {
+    return applySourceDimensions({
+      width: detected.width, height: detected.height,
+      authority: "grid-detection", source: `cell-spacing:${detected.cell}`,
+    });
   }
-  if (naturalWidth <= MAX_GRANULARITY) {
-    syncRangeControls("granularity", naturalWidth, MIN_GRANULARITY, MAX_GRANULARITY);
+  // 原图本身就不大于 500 格宽 → 它很可能已经是 1:1 的图纸，不需要再折算。
+  if (naturalWidth <= 500) {
+    return applySourceDimensions({
+      width: naturalWidth, height: naturalHeight,
+      authority: "logical-heuristic", source: "natural-size",
+    });
   }
+  return null;
 }
 
-function detectPixelArtLogicalWidth(image) {
+/**
+ * 从位图里检测「一格豆子占多少像素」，并据此还原整幅图纸的格数。
+ *
+ * 与像素倍数识别（ui/pixel-multiple.js 的边界格点判据）是两条独立证据：
+ * 这条走**游程长度**，对「格线细、格内同色」的现成图纸更敏感；
+ * 那条走**边界落格点**，对放大过的像素画更稳。两者都失败才轮到启发式。
+ *
+ * @returns {{width:number, height:number, cell:number}|null}
+ */
+function detectPixelArtLogicalSize(image) {
   const width = Number(image.naturalWidth || 0);
   const height = Number(image.naturalHeight || 0);
-  if (
-    width < 48 ||
-    height < 48 ||
-    width > MAX_PIXEL_ART_DETECTION_SIDE ||
-    height > MAX_PIXEL_ART_DETECTION_SIDE
-  ) {
-    return null;
-  }
+  if (width < 48 || height < 48 || width > 1800 || height > 1800) return null;
 
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d", { willReadFrequently: true });
@@ -2096,9 +3248,15 @@ function detectPixelArtLogicalWidth(image) {
   const bestCellSize = pickLikelyPixelCellSize(runLengths, Math.min(width, height));
   if (!bestCellSize) return null;
   const logicalWidth = Math.round(width / bestCellSize);
-  if (logicalWidth < MIN_GRANULARITY || logicalWidth > MAX_GRANULARITY) return null;
-  const fitError = Math.abs(width / bestCellSize - logicalWidth);
-  return fitError <= 0.18 ? logicalWidth : null;
+  const logicalHeight = Math.round(height / bestCellSize);
+  if (logicalWidth < 1 || logicalWidth > 500) return null;
+  if (logicalHeight < 1 || logicalHeight > 500) return null;
+  // 两个方向都必须整除得上：只有宽度对得上、高度差得远，说明这不是等方格图纸，
+  // 多半是普通照片被误判，此时应当退回启发式而不是报一个假的 W×H。
+  const widthError = Math.abs(width / bestCellSize - logicalWidth);
+  const heightError = Math.abs(height / bestCellSize - logicalHeight);
+  if (widthError > 0.18 || heightError > 0.18) return null;
+  return { width: logicalWidth, height: logicalHeight, cell: bestCellSize };
 }
 
 function collectPixelRuns(data, width, height, fixed, horizontal, output) {
@@ -2201,7 +3359,9 @@ async function scanReadyMadePattern(file, gridWidth, gridHeight) {
   for (let rowIndex = 0; rowIndex < gridHeight; rowIndex += 1) {
     const row = [];
     for (let colIndex = 0; colIndex < gridWidth; colIndex += 1) {
-      const pixel = sampleDirectPatternCell(context, colIndex, rowIndex, cellPixelWidth, cellPixelHeight, canvas);
+      const centerX = clamp(Math.floor((colIndex + 0.5) * cellPixelWidth), 0, canvas.width - 1);
+      const centerY = clamp(Math.floor((rowIndex + 0.5) * cellPixelHeight), 0, canvas.height - 1);
+      const pixel = context.getImageData(centerX, centerY, 1, 1).data;
       if (pixel[3] < 24 || isNearWhiteRgb(pixel)) {
         row.push(null);
       } else {
@@ -2219,8 +3379,13 @@ async function scanReadyMadePattern(file, gridWidth, gridHeight) {
   state.grid = simplified.grid;
   state.width = gridWidth;
   state.height = gridHeight;
-  state.optimizationSummary = "";
   state.stats = simplified.stats;
+  // 「已有图纸直接拼」：格数是用户在表单里**亲手填的**，属人工标定（权威级 2）。
+  // 任何自动识别（像素倍数 / 网格检测 / 启发式）都不得覆盖它。
+  applySourceDimensions({
+    width: gridWidth, height: gridHeight,
+    authority: "manual-calibration", source: "direct-pattern-form",
+  });
   state.sourceDataUrl = dataUrl;
   state.sourceName = file.name || "direct-pattern";
   state.sourceSafetyChecked = true;
@@ -2237,21 +3402,6 @@ async function scanReadyMadePattern(file, gridWidth, gridHeight) {
   updateResultUi();
   saveCurrentToGallery();
   setStatus("已扫描，可开始拼");
-}
-
-function sampleDirectPatternCell(context, column, row, cellWidth, cellHeight, canvas) {
-  const samples = [];
-  for (const offsetY of [0.38, 0.5, 0.62]) {
-    for (const offsetX of [0.38, 0.5, 0.62]) {
-      const x = clamp(Math.floor((column + offsetX) * cellWidth), 0, canvas.width - 1);
-      const y = clamp(Math.floor((row + offsetY) * cellHeight), 0, canvas.height - 1);
-      const pixel = context.getImageData(x, y, 1, 1).data;
-      if (pixel[3] >= 24) samples.push([pixel[0], pixel[1], pixel[2], pixel[3]]);
-    }
-  }
-  if (!samples.length) return [255, 255, 255, 0];
-  samples.sort((a, b) => getBrightness(a) - getBrightness(b));
-  return samples[Math.floor(samples.length / 2)];
 }
 
 function sanitizeAndSimplifyDirectColors(rawMatrix, options = {}) {
@@ -2361,33 +3511,566 @@ function isNearWhiteRgb(pixel) {
   return red >= 248 && green >= 248 && blue >= 248;
 }
 
-function rasterizeImage(image, palette) {
+/**
+ * 有效生成比例 = 输出几何的 height / width。
+ *
+ * 优先取「裁剪 / 旋转 / 扩展」之后的真实输出尺寸（sourceOutputGeometry），
+ * 退化到源图自然尺寸。**拿不到就返回 null**，绝不返回 1。
+ *
+ * 为什么必须有 null：历史上这里没有「未解析」这个状态，调用方只好拿 width 兜底，
+ * 于是任何尚未确定比例的时刻都会生成一张方图。null 让这种错误在类型层面不可能。
+ */
+function resolveEffectiveSourceRatio() {
+  const ratioApi = window.LibmsGenerationSize;
+  if (!ratioApi) return null;
+  const width = Number(state.sourceNaturalWidth) || 0;
+  const height = Number(state.sourceNaturalHeight) || 0;
+  if (!width || !height) return null;
+  const geometry = window.LibmsSourceEditor?.sourceOutputGeometry?.(width, height, state.sourceTransform);
+  if (geometry && geometry.width > 0 && geometry.height > 0) {
+    return ratioApi.ratioFromDimensions(geometry.width, geometry.height);
+  }
+  return ratioApi.ratioFromDimensions(width, height);
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 尺寸权威链（Stage B0.1）
+ *
+ * 尺寸不是一个裸数字，而是带来源标签的值：
+ *   structured-project > manual-calibration > grid-detection
+ *   > pixel-multiple > logical-heuristic > unresolved
+ *
+ * 前三级是**绝对**的：它们给出的就是图纸格数，生成时直接采用，
+ * 不许经过长边、裁剪比例或像素倍数再算一遍。
+ * 后两级只是「推导出的建议值」，为「普通图片生成」的长边提供初值。
+ *
+ * 唯一写入口是 applySourceDimensions()。#granularity-input 从此只是**投影**：
+ * 从尺寸真源单向推出去，不再被任何人当作尺寸真源读回来。
+ * ───────────────────────────────────────────────────────────── */
+
+/** 当前尺寸是否为「绝对权威」（工程文件 / 人工标定 / 网格识别）。 */
+function isAbsoluteSourceSize(dimensions = state.sourceDimensions) {
+  const api = window.LibmsSourceDimensions;
+  return api ? api.isAbsoluteAuthority(dimensions?.authority) : false;
+}
+
+/** 换图 / 新建时把尺寸打回未解析。**必须**先重置再写新证据，否则上一张图的
+ *  绝对权威会把新图的弱证据全部挡掉（rank 规则的另一面）。
+ *
+ *  必须广播 `libms:source-dimensions`：这是**同一份状态**的写入，
+ *  和 applySourceDimensions() 一样会让 UI 投影失效。不广播的话，
+ *  工作台会停在「222×295 · 已锁定」，滑杆一直禁用 —— 真机探针抓到过。 */
+function resetSourceDimensions(reason = "") {
+  const api = window.LibmsSourceDimensions;
+  state.sourceDimensions = api
+    ? api.createUnresolvedDimensions(reason)
+    : { width: 0, height: 0, authority: "unresolved", source: reason };
+  window.dispatchEvent(new CustomEvent("libms:source-dimensions", { detail: { ...state.sourceDimensions } }));
+  return state.sourceDimensions;
+}
+
+/**
+ * 提交一份尺寸证据。**这是尺寸的唯一写入口。**
+ *
+ * 由 services/source-dimensions.mjs 的权威链裁决：更弱的证据会被拒，
+ * 并把现有尺寸原样退回 —— 调用方必须检查 `applied`，不能假定自己写成功了。
+ *
+ * @param {{width:number, height:number, authority:string, source?:string}} input
+ * @returns {{applied:boolean, dimensions:object, blockedBy:string|null}}
+ */
+function applySourceDimensions(input) {
+  const api = window.LibmsSourceDimensions;
+  if (!api) return { applied: false, dimensions: state.sourceDimensions, blockedBy: null };
+  const next = api.normalizeSourceDimensions(input);
+  if (!next) return { applied: false, dimensions: state.sourceDimensions, blockedBy: null };
+  const outcome = api.adoptSourceDimensions(state.sourceDimensions, next);
+  if (!outcome.applied) return outcome;
+  state.sourceDimensions = outcome.dimensions;
+  // #granularity-input 是 UI 投影，单向：真源 → DOM。
+  // 反过来读它当尺寸真源，就是 B0.1 要拆掉的那条旧链路。
+  syncRangeControls("granularity", Math.max(next.width, next.height), 10, 500);
+  window.dispatchEvent(new CustomEvent("libms:source-dimensions", { detail: outcome.dimensions }));
+  return outcome;
+}
+
+/**
+ * 由长边格数派生生成尺寸。
+ *
+ * 绝对权威在位时**直接返回它的 W×H**，不经过长边、不经过裁剪比例。
+ * 否则按「长边 + 有效比例」派生。
+ *
+ * @returns {{longEdge:number,width:number,height:number}|null}
+ *   **null = 比例尚不可用**。调用方必须延后生成，不得回退成 width（那会出方图）。
+ */
+function resolveGenerationDimensions(longEdge) {
+  const ratioApi = window.LibmsGenerationSize;
+  if (!ratioApi) return null;
+  const edge = ratioApi.clampLongEdge(longEdge);
+  const ratio = resolveEffectiveSourceRatio();
+  const derive = (edgeValue, ratioValue) => (edgeValue == null ? null : ratioApi.deriveGenerationSize(edgeValue, ratioValue));
+  const authorityApi = window.LibmsSourceDimensions;
+  const size = authorityApi
+    ? authorityApi.resolveSizeFromEvidence(state.sourceDimensions, { longEdge: edge, ratio, derive })
+    : derive(edge, ratio);
+  if (!size) return null;
+  // 派生出来的长边回写 state；绝对权威不回写 —— 那不是「用户选的长边」。
+  if (!size.absolute) state.generationLongEdge = size.longEdge;
+  return { longEdge: size.longEdge, width: size.width, height: size.height };
+}
+
+/** 尺寸尚未解析时统一走这里：只提示，不生成。 */
+function deferGenerationForUnresolvedSize() {
+  setStatus("等待源图比例，暂不生成");
+  window.dispatchEvent(new CustomEvent("libms:generation-deferred", { detail: { reason: "unresolved-ratio" } }));
+  // 「延后」也是一种预期结局：上层不该把它读成链路故障。
+  markExpectedGenerationOutcome("deferred");
+  return false;
+}
+
+/**
+ * 生成用的长边格数。
+ *
+ * 以 `state.generationLongEdge` 为唯一事实源（工作台顶栏 / bridge 只写这一处），
+ * 只有它还是「未解析」（<= 0）时才退回旧滑杆，保证非工作台入口行为不变。
+ */
+function getGenerationLongEdge() {
+  const api = window.LibmsGenerationSize;
+  const raw = Number(state.generationLongEdge) || 0;
+  if (api && raw > 0) return api.clampLongEdge(raw);
+  return getGranularity();
+}
+
+/**
+ * 源图编辑器模块。
+ *
+ * 优先取启动时预载的那一份：模块单例由 ensureGenerationRuntime() 保证，
+ * 这里再按需 import 会拿到第二个实例（两份模块级状态），所以 query 必须一致。
+ */
+async function loadSourceEditor() {
+  if (window.LibmsSourceEditor) return window.LibmsSourceEditor;
+  const mod = await import("./services/source-editor-service.js?v=20261007-v3-srgb");
+  window.LibmsSourceEditor = mod;
+  return mod;
+}
+
+/**
+ * 陈旧请求判定。
+ *
+ * `generate()` 每次调用都会推进 `state.generationRequestId`，而生成链路上有多个
+ * await 边界（内容审查 / 读图 / 动态 import / 流水线）。任何 await 之后都必须重新
+ * 比对，否则旧任务的结果会覆盖新任务 —— 现在同步执行时这只是「慢一步的脏写」，
+ * 一旦把生成挪进 Worker 就会变成确定的错图。
+ *
+ * requestId 为 null/undefined 表示调用方不参与竞态（工具、测试直调），一律视为最新。
+ */
+function isStaleGenerationRequest(requestId) {
+  if (requestId == null) return false;
+  return Number(requestId) !== (Number(state.generationRequestId) || 0);
+}
+
+/* ── 「预期结局」与「真失败」必须分开（Stage B3 §29 / §31）────────────────
+ *
+ * 取消、过期、延后**都不是错误**。但它们在链路上都表现为「这次没有产出图纸」，
+ * 与「算法炸了」长得一模一样。上一版代码就是在这里栽的：
+ * processProductionV2 把取消咽下去、返回 false，适配层看见 false 就抛
+ * 「现有生成链路未返回结果」—— 用户主动点了取消，界面却报了一条他没犯过的错。
+ *
+ * 所以这里用一个模块级标记，把「为什么没结果」从深层函数带回到
+ * bridge.generate() 的出口，再由它抛**带正确 name 的**错误：
+ *   AbortError            → 用户取消 / Worker 被 terminate
+ *   StaleGenerationError  → 已被更新的请求取代
+ *   GenerationDeferred    → 尺寸还没解析，本轮不该生成
+ * 上层（generation-service / runAutoGenerate）按 name 识别，只提示、不报错。
+ */
+const GENERATION_OUTCOME_ERROR_NAMES = Object.freeze({
+  cancelled: "AbortError",
+  stale: "StaleGenerationError",
+  deferred: "GenerationDeferredError",
+});
+
+const GENERATION_OUTCOME_MESSAGES = Object.freeze({
+  cancelled: "生成已取消",
+  stale: "已丢弃过期结果",
+  deferred: "等待源图比例，暂不生成",
+});
+
+let expectedGenerationOutcome = null;
+
+function markExpectedGenerationOutcome(outcome) { expectedGenerationOutcome = outcome; }
+
+/** 取走并清空标记。必须「取走」：残留会让下一次真实失败被误判成取消。 */
+function takeExpectedGenerationOutcome() {
+  const outcome = expectedGenerationOutcome;
+  expectedGenerationOutcome = null;
+  return outcome;
+}
+
+function generationOutcomeError(outcome) {
+  const error = new Error(GENERATION_OUTCOME_MESSAGES[outcome] || "生成未产出结果");
+  error.name = GENERATION_OUTCOME_ERROR_NAMES[outcome] || "GenerationOutcomeError";
+  return error;
+}
+
+/** 取消 / 过期 / 延后是不是「预期结局」。上层据此决定提示还是报错。 */
+function isExpectedGenerationOutcome(error) {
+  return Object.values(GENERATION_OUTCOME_ERROR_NAMES).includes(error?.name);
+}
+
+/**
+ * 阶段 → 用户可见文案（Stage B3 §30）。
+ * **不暴露内部算法名**：用户看到的是「正在匹配真实色号…」，不是「palette matching」。
+ */
+const GENERATION_PHASE_LABELS = Object.freeze({
+  analyze: "正在分析图片…",
+  sampling: "正在分析图片…",
+  matching: "正在匹配真实色号…",
+  cleanup: "正在整理色块…",
+  finalize: "正在完成图纸…",
+  // §13 Auto Tune 的三个阶段。**刻意不出现算法术语**（§16）：
+  // 用户看到的是「正在选择合适的生成方式…」，不是「Auto Tune Profile 3」。
+  "tune-analyze": "正在分析图片…",
+  "tune-preview": "正在选择合适的生成方式…",
+  "tune-final": "正在生成图纸…",
+});
+
+/** 生成 Worker 客户端单例。懒创建：没走到生成就不起 Worker。 */
+let generationWorkerClient = null;
+function getGenerationWorkerClient() {
+  const api = window.LibmsGenerationWorkerClient;
+  if (!api) return null;
+  if (!generationWorkerClient) generationWorkerClient = api.createGenerationWorkerClient();
+  return generationWorkerClient;
+}
+
+/**
+ * 取消当前生成（Stage B3 §29 / §31）。
+ *
+ * 真 terminate Worker，不是在跑完之后再丢弃结果 —— 500×375 要跑几分钟，
+ * 「假装取消、其实还在算」既浪费电又占着 CPU。
+ * 被取消的那次以 AbortError 结束，processProductionV2 把它当正常结局处理。
+ *
+ * 主线程兜底路径（Worker 不可用 / 还没起）没有 terminate 可杀，退而求其次：
+ * 推进 `generationRequestId` 让这一轮**作废** —— 链路上每个 await 边界都会
+ * 把它判为过期，结果照常算完但绝不提交。同时留下 cancelled 标记，
+ * 让上层显示「已取消」而不是「过期」。
+ *
+ * @returns {boolean} 是否真有任务被取消
+ */
+function cancelGeneration(reason = "生成已取消") {
+  // §13：调优过程中可能有 2–4 个候选在排队。先给调优器打上取消标记，
+  // 否则杀掉当前 Worker 之后，循环里的下一个候选会**接着跑** ——
+  // 用户点了取消，界面却在继续生成，正是 B3 §29 要消灭的那种行为。
+  if (autoTuner?.cancel(reason)) { /* 标记已置，下面的 terminate 负责真停 */ }
+  if (generationWorkerClient?.cancel(reason)) return true;
+  if (state.isProcessingImage) {
+    state.generationRequestId = (Number(state.generationRequestId) || 0) + 1;
+    markExpectedGenerationOutcome("cancelled");
+    return true;
+  }
+  return false;
+}
+
+/**
+ * 走 Worker-ready 契约执行一次生成。
+ *
+ * 请求 / 结果 / 错误都是纯数据（见 services/generation-request.mjs）。
+ * B3 之后默认走**真实 Web Worker**：主线程只组装请求、转发进度、提交结果，
+ * 不再跑 generateV2 —— 300/400/500 档位下界面仍然可滚动、可取消。
+ *
+ * 三级降级，保证「优化坏了也不丢功能」：
+ *   ① 契约模块未加载（非工作台入口）→ 直调流水线
+ *   ② Worker 不可用 / 起不来         → 主线程 executeGenerationJob
+ *   ③ Worker 跑到一半真失败          → 原样抛，由上层报可读原因
+ */
+async function runGenerationJob({ image, mode, size, palette, maxColors, overrides, requestId, transfer }) {
+  const job = window.LibmsGenerationJob;
+  const contract = window.LibmsGenerationRequest;
+  if (!job || !contract) {
+    const { runGenerationPipeline } = await import("./services/generation-pipeline.mjs?v=20260930-pipeline");
+    return runGenerationPipeline({ image, mode, size, palette, maxColors, overrides });
+  }
+  const request = contract.createGenerationRequest({
+    requestId: Number(requestId) > 0 ? Number(requestId) : 1,
+    image, size, mode, palette, maxColors, overrides,
+  });
+
+  const client = getGenerationWorkerClient();
+  if (client?.supported) {
+    try {
+      return await client.run(request, {
+        // §13：Auto Tune 要在一张图上连跑 3–4 个候选，**不能转移** image buffer
+        // —— Transferable 是不可逆的，转移之后主线程那份就 detach 了，
+        // 第二个候选会拿到空 buffer（表现为「data 长度不匹配」，看不出根因）。
+        // 多一次克隆（几 MB）换「候选能连续跑」，值。
+        transfer,
+        onProgress: (phase) => {
+          const label = GENERATION_PHASE_LABELS[phase] || "正在生成…";
+          setStatus(label);
+          // 工作台顶栏的状态位由 ui/workspace.js 渲染。它只认 store，
+          // 所以进度必须**同时**以事件广播出去 —— 只写 legacy 状态栏的话，
+          // 用户在工作台上完全看不到阶段变化（B3 实测：只有「正在生成 → 已生成」）。
+          window.dispatchEvent(new CustomEvent("libms:generation-phase", { detail: { phase, label } }));
+        },
+      });
+    } catch (error) {
+      // 取消 / 被新请求取代：这是**预期结局**，绝不能退回主线程重跑一遍
+      // —— 那等于「点了取消反而又开始算」。
+      if (error?.name === "AbortError" || error?.name === "StaleGenerationError") throw error;
+      console.warn("生成 Worker 失败，退回主线程执行", error);
+    }
+  }
+
+  const envelope = job.executeGenerationJob(request);
+  if (!envelope.ok) throw new Error(envelope.message);
+  return {
+    grid: envelope.grid, width: envelope.width, height: envelope.height,
+    diagnostics: envelope.diagnostics, pipeline: envelope.pipeline,
+  };
+}
+
+function rasterizePortraitPremium(image, palette, regionOptions = {}) {
   const width = getGranularity();
-  const height = getGridHeight();
+  const ratio = image.naturalWidth ? image.naturalHeight / image.naturalWidth : 1;
+  const height = regionOptions.targetHeight ?? Math.max(1, Math.min(500, Math.round(width * ratio)));
+  const scale = 3;
+  const sampleWidth = width * scale;
+  const sampleHeight = height * scale;
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("canvas context unavailable");
+  canvas.width = sampleWidth; canvas.height = sampleHeight;
+  context.imageSmoothingEnabled = true; context.imageSmoothingQuality = "high";
+  context.drawImage(image, 0, 0, sampleWidth, sampleHeight);
+  const sourcePixels = context.getImageData(0, 0, sampleWidth, sampleHeight).data;
+  const preprocessor = window.LibmsPortraitPreprocessor;
+  const structure = window.LibmsStructureAnalyzer;
+  if (!preprocessor?.preprocessPortrait || !structure?.buildEdgeImportanceMap) {
+    throw new Error("精品人像模块尚未加载，请刷新页面后重试");
+  }
+  const stylized = window.LibmsPixelReadyStylizer?.stylizePixelReady
+    ? window.LibmsPixelReadyStylizer.stylizePixelReady(sourcePixels, sampleWidth, sampleHeight, {
+      mode: "pixel_ready",
+      strength: 35,
+      shadowSimplification: 55,
+      regionMergeStrength: 40,
+      targetGridWidth: width,
+      targetGridHeight: height,
+      edgeProtection: true,
+    })
+    : { pixels: sourcePixels };
+  const prepared = preprocessor.preprocessPortrait(stylized.pixels, sampleWidth, sampleHeight, PORTRAIT_PREMIUM);
+  const edgeMap = structure.buildEdgeImportanceMap(prepared.pixels, sampleWidth, sampleHeight);
+  const detailMask = structure.buildDetailProtectionMask(edgeMap, prepared.pixels, sampleWidth, sampleHeight, {
+    edgeThreshold: 0.56 - (PORTRAIT_PREMIUM.detailPreservation + PORTRAIT_PREMIUM.outlineStrength) / 1000,
+  });
+
+  // Keep the established background detector on the final grid resolution.
+  const smallCanvas = document.createElement("canvas");
+  const smallContext = smallCanvas.getContext("2d", { willReadFrequently: true });
+  smallCanvas.width = width; smallCanvas.height = height;
+  smallContext.drawImage(image, 0, 0, width, height);
+  const smallPixels = smallContext.getImageData(0, 0, width, height).data;
+  const background = getBackgroundMask(smallPixels, width, height);
+  const highResolutionBackground = getBackgroundMask(prepared.pixels, sampleWidth, sampleHeight);
+  const highBackgroundMask = highResolutionBackground.mask;
+  const grid = Array.from({ length: height }, () => Array(width).fill(null));
+  const gridEdgeMap = new Float32Array(width * height);
+  const protectionMask = new Uint8Array(width * height);
+  const semanticMap = new Array(width * height).fill("subject");
+  const sampledRgbGrid = new Array(width * height).fill(null);
+  const originalSourceRgbGrid = new Array(width * height).fill(null);
+  const samplingProvenance = new Array(width * height).fill(null);
+  const paletteEngine = getPaletteEngine(palette);
+
+  for (let gy = 0; gy < height; gy += 1) for (let gx = 0; gx < width; gx += 1) {
+    const gridIndex = gy * width + gx;
+    let sumR = 0; let sumG = 0; let sumB = 0; let originalR = 0; let originalG = 0; let originalB = 0; let originalWeight = 0; let weightSum = 0; let foregroundSamples = 0; let alphaSum = 0; let skin = 0; let edge = 0; let protectedCount = 0;
+    const bins = new Map();
+    for (let sy = 0; sy < scale; sy += 1) for (let sx = 0; sx < scale; sx += 1) {
+      const i = (gy * scale + sy) * sampleWidth + gx * scale + sx; const p = i * 4;
+      const alpha = prepared.pixels[p + 3];
+      if (alpha < 24 || highBackgroundMask?.[i]) continue;
+      const weight = alpha / 255;
+      const r = prepared.pixels[p]; const g = prepared.pixels[p + 1]; const b = prepared.pixels[p + 2];
+      const originalAlpha = sourcePixels[p + 3] / 255;
+      if (originalAlpha >= 0.094) { originalR += sourcePixels[p] * originalAlpha; originalG += sourcePixels[p + 1] * originalAlpha; originalB += sourcePixels[p + 2] * originalAlpha; originalWeight += originalAlpha; }
+      sumR += r * weight; sumG += g * weight; sumB += b * weight; weightSum += weight; foregroundSamples += 1; alphaSum += alpha; skin += prepared.skinMask[i] * weight; edge = Math.max(edge, edgeMap[i]); protectedCount += detailMask[i];
+      const key = `${r >> 5},${g >> 5},${b >> 5}`;
+      const bin = bins.get(key) || { count: 0, r: 0, g: 0, b: 0 };
+      bin.count += weight; bin.r += r * weight; bin.g += g * weight; bin.b += b * weight; bins.set(key, bin);
+    }
+    const foregroundCoverage = weightSum / (scale * scale);
+    if (!weightSum || foregroundCoverage < 0.16) continue;
+    const dominant = [...bins.values()].sort((a, b) => b.count - a.count)[0];
+    const average = [sumR / weightSum, sumG / weightSum, sumB / weightSum];
+    const dominantRgb = [dominant.r / dominant.count, dominant.g / dominant.count, dominant.b / dominant.count];
+    const dominance = dominant.count / weightSum;
+    // Strong boundaries favor a real local color instead of creating a gray average.
+    const smoothing = PORTRAIT_PREMIUM.gradientSmoothing / 100;
+    const useDominant = edge > 0.24 + smoothing * 0.08 || dominance >= 0.45 + smoothing * 0.08;
+    const sample = useDominant ? dominantRgb : average;
+    const skinScore = skin / weightSum;
+    const max = Math.max(...sample); const min = Math.min(...sample); const saturation = max ? (max - min) / max : 0;
+    const neutralScore = 1 - clamp(saturation / 0.2, 0, 1);
+    const warmRedScore = clamp((sample[0] - Math.max(sample[1], sample[2]) - 10) / 55, 0, 1) * (1 - skinScore);
+    const region = skinScore > 0.34 ? "skin" : neutralScore > 0.62 ? "neutral" : warmRedScore > 0.45 ? "warm-red" : "subject";
+    sampledRgbGrid[gridIndex] = sample;
+    originalSourceRgbGrid[gridIndex] = originalWeight ? [originalR / originalWeight, originalG / originalWeight, originalB / originalWeight] : sample;
+    samplingProvenance[gridIndex] = {
+      sourceSamplingRectangle: { x: gx * scale, y: gy * scale, width: scale, height: scale },
+      sourceRgb: average.map((value) => Math.round(value * 100) / 100),
+      sourceAlpha: foregroundSamples ? Math.round(alphaSum / foregroundSamples * 100) / 100 : 0,
+      foregroundCoverage: Math.round(foregroundCoverage * 10000) / 10000,
+    };
+    grid[gy][gx] = cloneColor(nearestColor(sample[0], sample[1], sample[2], palette, {
+      importance: Math.max(0.55, edge), region, protected: protectedCount > 0, skinScore, neutralScore, warmRedScore,
+    }));
+    gridEdgeMap[gridIndex] = edge; protectionMask[gridIndex] = protectedCount > 0 || edge > 0.55 ? 1 : 0; semanticMap[gridIndex] = region;
+  }
+  let finalGrid = grid;
+  let regionAwareReport = null;
+  let regionIds = null;
+  let regionRoles = null;
+  let boundaryRings = null;
+  let contourLockedMask = null;
+  if (window.LibmsRegionAwareQuantizer?.quantizeRegionAware) {
+    const quantized = window.LibmsRegionAwareQuantizer.quantizeRegionAware(sampledRgbGrid, width, height, palette, {
+      simplificationStrength: regionOptions.simplificationStrength ?? 60,
+      detailProtection: regionOptions.detailProtection || "standard",
+      maxColors: regionOptions.maxColors,
+      autoMaxColors: regionOptions.autoMaxColors,
+      coverageMap: samplingProvenance.map((item) => item?.foregroundCoverage || 0),
+      samplingProvenance,
+    });
+    finalGrid = quantized.grid;
+    regionAwareReport = quantized.report;
+    regionIds = quantized.regionIds;
+    regionRoles = quantized.roles;
+    boundaryRings = quantized.boundaryRings;
+    contourLockedMask = quantized.contourLockedMask;
+    window.tracePixel = quantized.tracePixel;
+    window.traceBeadCode = (code) => quantized.grid.flatMap((row, y) => row.map((color, x) => color?.code === code ? quantized.tracePixel(x, y) : null)).filter(Boolean);
+    window.getRegionBoundaryReport = () => quantized.report.boundaryAfter;
+    window.getContourDebugArtifacts = () => createContourDebugArtifacts(quantized, sampledRgbGrid, palette, width, height);
+    window.downloadContourDebugArtifacts = () => downloadContourDebugArtifacts(window.getContourDebugArtifacts());
+    for (let i = 0; i < gridEdgeMap.length; i += 1) gridEdgeMap[i] = Math.max(gridEdgeMap[i], quantized.edgeMap[i] || 0);
+  }
+  const sourceFeatures = window.LibmsStructuralTransitionAnalyzer?.buildSourceFeatureMap?.(
+    originalSourceRgbGrid, width, height, window.LibmsRegionAwareQuantizer.rgbToOKLab, { regionIds },
+  ) || null;
+  let regionalBlockReport = null;
+  let regionalBlockMacro = null;
+  if (regionOptions.regionalBlockV2 && sourceFeatures && window.LibmsRegionalBlockV2?.generateRegionalBlockV2) {
+    const v2 = window.LibmsRegionalBlockV2.generateRegionalBlockV2(originalSourceRgbGrid, width, height, palette, sourceFeatures, finalGrid, {
+      rgbToOKLab: window.LibmsRegionAwareQuantizer.rgbToOKLab,
+      oklabToRgb: window.LibmsRegionAwareQuantizer.oklabToRgb,
+      enforceMaxPaletteColors: window.LibmsRegionAwareQuantizer.enforceMaxPaletteColors,
+      maxColors: regionOptions.maxColors || regionAwareReport?.effectiveMaxColors || null,
+      lockedMask: contourLockedMask,
+    });
+    const currentGrid = finalGrid;
+    finalGrid = v2.grid;
+    regionalBlockReport = v2.report;
+    regionalBlockMacro = v2.macro;
+    window.downloadRegionalBlockV2Debug = () => downloadRegionalBlockV2Debug(originalSourceRgbGrid, currentGrid, v2, palette, width, height);
+  }
+  return { width, height, grid: finalGrid, gridEdgeMap, protectionMask, semanticMap, regionIds, regionRoles, boundaryRings, contourLockedMask, regionAwareReport, regionalBlockReport, regionalBlockMacro, sourceFeatures, samplingProvenance, backgroundDecision: highResolutionBackground.decision || background.decision, paletteEngine: paletteEngine?.getReport?.() || null };
+}
+
+function downloadRegionalBlockV2Debug(sourceRgb, currentGrid, v2, palette, width, height) {
+  const current = currentGrid.flat(), before = v2.beforeGrid.flat(), final = v2.grid.flat();
+  const artifacts = {
+    "source.png": createContourDebugCanvas(width, height, (_x, _y, i) => sourceRgb[i]),
+    "posterized_source.png": createContourDebugCanvas(width, height, (_x, _y, i) => v2.posterizedRgbGrid[i]),
+    "region_palette_preview.png": createContourDebugCanvas(width, height, (_x, _y, i) => v2.localPalettes.get(v2.macro.ids[i])?.primaryPalette[0]?.rgb || null),
+    "current_clean_preview.png": createContourDebugCanvas(width, height, (_x, _y, i) => current[i]?.rgb),
+    "before_block_consolidation.png": createContourDebugCanvas(width, height, (_x, _y, i) => before[i]?.rgb),
+    "after_block_consolidation.png": createContourDebugCanvas(width, height, (_x, _y, i) => final[i]?.rgb),
+    "final_clean_preview.png": createContourDebugCanvas(width, height, (_x, _y, i) => final[i]?.rgb),
+  };
+  Object.entries(artifacts).forEach(([name, dataUrl]) => downloadUrl(dataUrl, name));
+  const chart = renderBeadPattern({ matrix: v2.grid, stats: calculateStats(v2.grid), preset: "PATTERN_EXPORT", cell: getDownloadCellSize(), margin: 88, minLongSide: EXPORT_MIN_LONG_SIDE });
+  downloadUrl(chart.toDataURL("image/png"), "final_pattern.png");
+}
+
+function downloadStructuralDetectionDebug(grid, features, detection) {
+  const { width, height } = features;
+  const flat = grid.flat();
+  const suspectedCells = new Set(detection.suspectedArtifacts.flatMap((component) => component.pixels));
+  const images = {
+    "01_final_before_transition_cleanup.png": createContourDebugCanvas(width, height, (_x, _y, i) => flat[i]?.rgb || null),
+    "02_source_edges.png": createContourDebugCanvas(width, height, (_x, _y, i) => { const value = Math.round(features.sourceEdgeMap[i] * 255); return features.labs[i] ? [value, value, value] : null; }),
+    "03_structural_evidence.png": createContourDebugCanvas(width, height, (_x, _y, i) => features.labs[i] ? [Math.round(detection.structuralEvidenceMap[i] * 255), 20, 40] : null),
+    "04_unsupported_transitions.png": createContourDebugCanvas(width, height, (_x, _y, i) => detection.unsupportedTransitionMap[i] ? "#ff1744" : flat[i]?.rgb || null),
+    "05_suspected_artifact_components.png": createContourDebugCanvas(width, height, (_x, _y, i) => suspectedCells.has(i) ? "#ff1744" : flat[i]?.rgb || null),
+  };
+  Object.entries(images).forEach(([name, dataUrl]) => downloadUrl(dataUrl, name));
+  downloadBlob(new Blob([JSON.stringify({ metrics: detection.metrics, suspectedArtifacts: detection.suspectedArtifacts, unsupportedTransitions: detection.unsupportedTransitions }, null, 2)], { type: "application/json" }), "structural_detection.json");
+}
+
+function createContourDebugCanvas(width, height, paint) {
+  const scale = Math.max(3, Math.min(8, Math.floor(832 / Math.max(width, height)))); const canvas = document.createElement("canvas"); const context = canvas.getContext("2d");
+  canvas.width = width * scale; canvas.height = height * scale; context.imageSmoothingEnabled = false; context.fillStyle = "#ffffff"; context.fillRect(0, 0, canvas.width, canvas.height);
+  for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) { const fill = paint(x, y, y * width + x); if (!fill) continue; context.fillStyle = Array.isArray(fill) ? `rgb(${fill.join(",")})` : fill; context.fillRect(x * scale, y * scale, scale, scale); }
+  return canvas.toDataURL("image/png");
+}
+
+function createContourDebugArtifacts(quantized, sampledRgbGrid, palette, width, height) {
+  const flat = quantized.grid.flat(); const rings = quantized.boundaryRings; const debug = quantized.contourDebug; const contourSet = new Set(debug.sequences.flat()); const locked = quantized.contourLockedMask; const paletteByCode = new Map(palette.map((color) => [color.code, color]));
+  const segmentColors = new Map(); debug.segments.forEach((segment, index) => segment.indices.forEach((i) => segmentColors.set(i, `hsl(${index * 67 % 360} 78% 52%)`)));
+  const trace = debug.sequences.flat().map((index) => quantized.tracePixel(index % width, Math.floor(index / width)));
+  return {
+    "contour_trace.json": JSON.stringify(trace, null, 2),
+    "01_foreground_mask.png": createContourDebugCanvas(width, height, (_x, _y, i) => sampledRgbGrid[i] ? "#111111" : null),
+    "02_outer_contour.png": createContourDebugCanvas(width, height, (_x, _y, i) => contourSet.has(i) ? "#ff1744" : sampledRgbGrid[i] ? "#e8e8e8" : null),
+    "03_contour_band.png": createContourDebugCanvas(width, height, (_x, _y, i) => rings[i] === 0 ? "#ef233c" : rings[i] === 1 ? "#ff9f1c" : rings[i] === 2 ? "#ffd166" : sampledRgbGrid[i] ? "#eeeeee" : null),
+    "04_interior_reference_colors.png": createContourDebugCanvas(width, height, (_x, _y, i) => debug.interiorReferences[i]?.lab ? window.LibmsRegionAwareQuantizer.oklabToRgb(debug.interiorReferences[i].lab) : null),
+    "05_contour_segments.png": createContourDebugCanvas(width, height, (_x, _y, i) => segmentColors.get(i) || (sampledRgbGrid[i] ? "#eeeeee" : null)),
+    "06_raw_contour_palette.png": createContourDebugCanvas(width, height, (_x, _y, i) => contourSet.has(i) ? paletteByCode.get(debug.rawCodes[i])?.rgb : null),
+    "07_contour_runs_before.png": createContourDebugCanvas(width, height, (_x, _y, i) => contourSet.has(i) ? paletteByCode.get(debug.rawCodes[i])?.rgb : null),
+    "08_contour_runs_after.png": createContourDebugCanvas(width, height, (_x, _y, i) => contourSet.has(i) ? flat[i]?.rgb : null),
+    "09_locked_contour.png": createContourDebugCanvas(width, height, (_x, _y, i) => locked[i] === 1 ? "#00a878" : locked[i] === 2 ? "#7ae582" : sampledRgbGrid[i] ? "#eeeeee" : null),
+    "10_final_max38.png": createContourDebugCanvas(width, height, (_x, _y, i) => flat[i]?.rgb || null),
+  };
+}
+
+function downloadContourDebugArtifacts(artifacts) {
+  Object.entries(artifacts).forEach(([name, value]) => {
+    if (name.endsWith(".json")) downloadBlob(new Blob([value], { type: "application/json" }), name);
+    else downloadUrl(value, name);
+  });
+}
+
+function rasterizeImage(image, palette, dimensions = {}) {
+  const width = getGranularity();
+  const ratio = image.naturalWidth ? image.naturalHeight / image.naturalWidth : 1;
+  const height = dimensions.height ?? Math.max(1, Math.min(500, Math.round(width * ratio)));
   const mode = els.modeSelect?.value || "dominant";
   const threshold = getSimilarityThreshold();
 
-  const pixels = mode === "portrait"
-    ? renderPortraitAnalysisPixels(image, width, height)
-    : renderRasterPixels(image, width, height, mode);
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("canvas context unavailable");
+  canvas.width = width;
+  canvas.height = height;
+  context.clearRect(0, 0, width, height);
+  context.imageSmoothingEnabled = mode !== "palette";
+  context.imageSmoothingQuality = mode === "smooth" ? "high" : "medium";
+  context.drawImage(image, 0, 0, width, height);
+
+  const pixels = context.getImageData(0, 0, width, height).data;
   const background = getBackgroundMask(pixels, width, height);
   const backgroundMask = background.mask;
+  const paletteEngine = getPaletteEngine(palette);
   const grid = Array.from({ length: height }, () => Array(width).fill(null));
-  if (mode === "portrait") {
-    return {
-      width,
-      height,
-      grid: rasterizePortraitPixels(pixels, width, height, palette, backgroundMask),
-      backgroundDecision: background.decision,
-      summary: `不超过${PORTRAIT_COLOR_LIMIT}色 · 人像精细`,
-    };
-  }
   if (mode === "dither") {
+    const ditherGrid = ditherPixels(pixels, width, height, palette, threshold, backgroundMask);
     return {
       width,
       height,
-      grid: ditherPixels(pixels, width, height, palette, threshold, backgroundMask),
+      grid: ditherGrid,
       backgroundDecision: background.decision,
+      paletteEngine: paletteEngine?.getReport?.() || null,
     };
   }
 
@@ -2406,20 +4089,27 @@ function rasterizeImage(image, palette) {
         threshold,
         mode,
       );
-      grid[y][x] = cloneColor(nearestColor(red, green, blue, palette));
+      grid[y][x] = cloneColor(nearestColor(red, green, blue, palette, {
+        importance: backgroundMask?.[y * width + x] ? 0.2 : 0.65,
+        region: backgroundMask?.[y * width + x] ? "background" : "subject",
+      }));
     }
   }
 
-  return { width, height, grid, backgroundDecision: background.decision };
+  return {
+    width,
+    height,
+    grid,
+    backgroundDecision: background.decision,
+    paletteEngine: paletteEngine?.getReport?.() || null,
+  };
 }
 
 function getGeneratedStatus() {
-  const details = [];
-  if (state.backgroundDecision === "auto-removed") details.push("已智能去背景");
-  if (state.backgroundDecision === "auto-kept") details.push("已保留完整背景");
-  if (state.backgroundDecision === "force-removed") details.push("已强制去背景");
-  if (state.optimizationSummary) details.push(state.optimizationSummary);
-  return ["已生成", ...details].join(" · ");
+  if (state.backgroundDecision === "auto-removed") return "已生成 · 已智能去背景";
+  if (state.backgroundDecision === "auto-kept") return "已生成 · 已保留完整背景";
+  if (state.backgroundDecision === "force-removed") return "已生成 · 已强制去背景";
+  return "已生成";
 }
 
 function getBackgroundMode() {
@@ -2493,96 +4183,6 @@ function analyzeConnectedBackground(pixels, width, height) {
     maskedRatio,
     shouldRemove,
   };
-}
-
-function renderRasterPixels(image, width, height, mode) {
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) throw new Error("canvas context unavailable");
-  canvas.width = width;
-  canvas.height = height;
-  context.clearRect(0, 0, width, height);
-  context.imageSmoothingEnabled = mode !== "palette";
-  context.imageSmoothingQuality = mode === "smooth" ? "high" : "medium";
-  drawImageWithComposition(context, image, width, height);
-  return context.getImageData(0, 0, width, height).data;
-}
-
-/**
- * 人像模式先在放大的分析网格上完成构图，再按每个豆子格做区域平均。
- * 这样比直接把原图缩到目标尺寸更能保留眼睛、嘴唇、发丝等局部色块；
- * 区域平均使用线性光 RGB，减少暗部被 sRGB 平均后发灰的问题。
- */
-function renderPortraitAnalysisPixels(image, width, height) {
-  const scale = Math.max(
-    1,
-    Math.min(PORTRAIT_ANALYSIS_SCALE, Math.floor(900 / Math.max(width, height)) || 1),
-  );
-  const analysisWidth = width * scale;
-  const analysisHeight = height * scale;
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) throw new Error("canvas context unavailable");
-  canvas.width = analysisWidth;
-  canvas.height = analysisHeight;
-  context.clearRect(0, 0, analysisWidth, analysisHeight);
-  context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = "high";
-  drawImageWithComposition(context, image, analysisWidth, analysisHeight);
-  return downsamplePortraitAnalysis(
-    context.getImageData(0, 0, analysisWidth, analysisHeight).data,
-    analysisWidth,
-    analysisHeight,
-    width,
-    height,
-  );
-}
-
-function downsamplePortraitAnalysis(source, sourceWidth, sourceHeight, width, height) {
-  const output = new Uint8ClampedArray(width * height * 4);
-  const toLinear = (value) => {
-    const channel = value / 255;
-    return channel > 0.04045 ? ((channel + 0.055) / 1.055) ** 2.4 : channel / 12.92;
-  };
-  const toSrgb = (value) => {
-    const channel = clamp(value, 0, 1);
-    return channel > 0.0031308 ? 1.055 * channel ** (1 / 2.4) - 0.055 : 12.92 * channel;
-  };
-
-  for (let y = 0; y < height; y += 1) {
-    const y0 = Math.floor((y * sourceHeight) / height);
-    const y1 = Math.max(y0 + 1, Math.floor(((y + 1) * sourceHeight) / height));
-    for (let x = 0; x < width; x += 1) {
-      const x0 = Math.floor((x * sourceWidth) / width);
-      const x1 = Math.max(x0 + 1, Math.floor(((x + 1) * sourceWidth) / width));
-      let red = 0;
-      let green = 0;
-      let blue = 0;
-      let alpha = 0;
-      let weight = 0;
-
-      for (let sy = y0; sy < Math.min(y1, sourceHeight); sy += 1) {
-        for (let sx = x0; sx < Math.min(x1, sourceWidth); sx += 1) {
-          const sourceIndex = (sy * sourceWidth + sx) * 4;
-          const sampleAlpha = source[sourceIndex + 3] / 255;
-          if (sampleAlpha <= 0) continue;
-          red += toLinear(source[sourceIndex]) * sampleAlpha;
-          green += toLinear(source[sourceIndex + 1]) * sampleAlpha;
-          blue += toLinear(source[sourceIndex + 2]) * sampleAlpha;
-          alpha += sampleAlpha;
-          weight += sampleAlpha;
-        }
-      }
-
-      const targetIndex = (y * width + x) * 4;
-      if (!weight) continue;
-      output[targetIndex] = Math.round(toSrgb(red / weight) * 255);
-      output[targetIndex + 1] = Math.round(toSrgb(green / weight) * 255);
-      output[targetIndex + 2] = Math.round(toSrgb(blue / weight) * 255);
-      output[targetIndex + 3] = Math.round((alpha / weight) * 255);
-    }
-  }
-  return output;
 }
 
 function createConnectedBackgroundMask(
@@ -2880,7 +4480,10 @@ function ditherPixels(pixels, width, height, palette, threshold, backgroundMask 
         threshold,
         "dominant",
       );
-      const color = nearestColor(red, green, blue, palette);
+      const color = nearestColor(red, green, blue, palette, {
+        importance: backgroundMask?.[pixelIndex] ? 0.2 : 0.65,
+        region: backgroundMask?.[pixelIndex] ? "background" : "subject",
+      });
       grid[y][x] = cloneColor(color);
       const er = red - color.rgb[0];
       const eg = green - color.rgb[1];
@@ -2895,464 +4498,6 @@ function ditherPixels(pixels, width, height, palette, threshold, backgroundMask 
   return grid;
 }
 
-function rasterizePortraitPixels(pixels, width, height, palette, backgroundMask = null) {
-  const portrait = enhancePortraitPixels(pixels, width, height, backgroundMask);
-  const samples = getPortraitColorSamples(portrait.values, portrait.alpha, width, height, backgroundMask);
-  const portraitPalette = buildAdaptivePortraitPalette(
-    portrait.values,
-    portrait.alpha,
-    width,
-    height,
-    palette,
-    backgroundMask,
-    PORTRAIT_COLOR_LIMIT,
-    samples,
-  );
-  return ditherPortraitValues(
-    portrait.values,
-    portrait.alpha,
-    width,
-    height,
-    portraitPalette,
-    backgroundMask,
-    PORTRAIT_DITHER_STRENGTH,
-    samples,
-  );
-}
-
-function enhancePortraitPixels(pixels, width, height, backgroundMask = null) {
-  const total = width * height;
-  const values = new Float32Array(total * 3);
-  const alpha = new Uint8Array(total);
-
-  for (let pixelIndex = 0; pixelIndex < total; pixelIndex += 1) {
-    const sourceIndex = pixelIndex * 4;
-    alpha[pixelIndex] = pixels[sourceIndex + 3];
-    let red = pixels[sourceIndex];
-    let green = pixels[sourceIndex + 1];
-    let blue = pixels[sourceIndex + 2];
-    if (alpha[pixelIndex] >= 24 && !backgroundMask?.[pixelIndex]) {
-      [red, green, blue] = enhancePortraitRgb(red, green, blue);
-    }
-    const targetIndex = pixelIndex * 3;
-    values[targetIndex] = red;
-    values[targetIndex + 1] = green;
-    values[targetIndex + 2] = blue;
-  }
-
-  return {
-    values: sharpenPortraitLuma(values, alpha, width, height, backgroundMask),
-    alpha,
-  };
-}
-
-function enhancePortraitRgb(red, green, blue) {
-  const luma = 0.299 * red + 0.587 * green + 0.114 * blue;
-  const skinLike = isSkinLikeRgb(red, green, blue);
-  // 人像模式只做轻微校正。大幅拉对比会把肤色、粉色和暗部推向错误的珠子颜色。
-  let contrast = 1.03;
-  let saturation = 1.03;
-  let lift = 0;
-
-  if (skinLike) {
-    contrast = 1.02;
-    saturation = 1.02;
-    lift = 1;
-  } else if (luma < 70) {
-    contrast = 1.06;
-    saturation = 1.02;
-    lift = -2;
-  } else if (luma > 210) {
-    contrast = 1.02;
-    saturation = 1.0;
-    lift = 2;
-  }
-
-  red = (red - 128) * contrast + 128 + lift;
-  green = (green - 128) * contrast + 128 + lift;
-  blue = (blue - 128) * contrast + 128 + lift;
-  const gray = 0.299 * red + 0.587 * green + 0.114 * blue;
-  return [
-    clamp(gray + (red - gray) * saturation, 0, 255),
-    clamp(gray + (green - gray) * saturation, 0, 255),
-    clamp(gray + (blue - gray) * saturation, 0, 255),
-  ];
-}
-
-function isSkinLikeRgb(red, green, blue) {
-  const max = Math.max(red, green, blue);
-  const min = Math.min(red, green, blue);
-  return red > 80 && green > 45 && blue > 32 && red >= green && green >= blue && max - min > 12;
-}
-
-function sharpenPortraitLuma(values, alpha, width, height, backgroundMask = null) {
-  const output = new Float32Array(values);
-  const getLumaAt = (x, y) => {
-    const offset = (y * width + x) * 3;
-    return 0.299 * values[offset] + 0.587 * values[offset + 1] + 0.114 * values[offset + 2];
-  };
-
-  for (let y = 1; y < height - 1; y += 1) {
-    for (let x = 1; x < width - 1; x += 1) {
-      const pixelIndex = y * width + x;
-      if (alpha[pixelIndex] < 24 || backgroundMask?.[pixelIndex]) continue;
-      const luma = getLumaAt(x, y);
-      const neighborLuma =
-        (getLumaAt(x - 1, y) + getLumaAt(x + 1, y) + getLumaAt(x, y - 1) + getLumaAt(x, y + 1)) / 4;
-      // 只保留轻微轮廓增强，避免把照片纹理放大成孤立色块。
-      const detail = clamp(luma - neighborLuma, -46, 46) * 0.12;
-      const offset = pixelIndex * 3;
-      output[offset] = clamp(output[offset] + detail, 0, 255);
-      output[offset + 1] = clamp(output[offset + 1] + detail, 0, 255);
-      output[offset + 2] = clamp(output[offset + 2] + detail, 0, 255);
-    }
-  }
-
-  return output;
-}
-
-function buildAdaptivePortraitPalette(values, alpha, width, height, palette, backgroundMask, maxColors, samples = null) {
-  const colorSamples = samples || getPortraitColorSamples(values, alpha, width, height, backgroundMask);
-  if (!colorSamples.length) return palette.slice(0, maxColors);
-
-  // 30 色是上限，不是固定目标。照片越简单，自动使用的颜色越少。
-  const targetColorCount = getAdaptivePortraitColorTarget(colorSamples, maxColors);
-  const centroids = getWeightedPortraitCentroids(colorSamples, targetColorCount);
-  const paletteLabs = getPortraitPaletteCandidates(getPaletteLabEntries(palette), colorSamples);
-  const selected = [];
-  const seen = new Set();
-  const addColor = (color) => {
-    if (!color || seen.has(color.code) || selected.length >= targetColorCount) return;
-    seen.add(color.code);
-    selected.push(color);
-  };
-
-  centroids.forEach((centroid) => addColor(nearestPortraitColorByLab(centroid.rgb, paletteLabs)));
-  colorSamples
-    .slice()
-    .sort((a, b) => b.count - a.count)
-    .forEach((sample) => addColor(nearestPortraitColorByLab(sample.rgb, paletteLabs)));
-
-  return selected.length ? selected : palette.slice(0, maxColors);
-}
-
-function getPortraitPaletteCandidates(paletteLabs, samples) {
-  const total = samples.reduce((sum, sample) => sum + sample.count, 0);
-  if (!total) return paletteLabs;
-
-  const greenCount = samples.reduce((sum, sample) => {
-    const [red, green, blue] = sample.rgb;
-    const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
-    return sum + (green > red + 12 && green > blue + 8 && chroma > 18 ? sample.count : 0);
-  }, 0);
-
-  // 人像色板默认不引入绿色。只有源图中绿色确实占有明显面积时才保留绿色珠子，
-  // 防止 MARD 中相邻的橄榄色把肤色、粉发或暗棕色映射偏。
-  if (greenCount / total >= 0.03) return paletteLabs;
-  const filtered = paletteLabs.filter((entry) => {
-    const [red, green, blue] = entry.color.rgb;
-    return !(green > red + 10 && green > blue + 7 && green - Math.max(red, blue) > 10);
-  });
-  return filtered.length >= 8 ? filtered : paletteLabs;
-}
-
-function getAdaptivePortraitColorTarget(samples, maxColors) {
-  const safeMax = Math.max(1, Math.floor(maxColors));
-  if (samples.length <= safeMax) return samples.length;
-
-  const total = samples.reduce((sum, sample) => sum + sample.count, 0);
-  if (!total) return safeMax;
-
-  // 只把占比足够的颜色视为“有实际画面贡献”的颜色，避免噪声把色数推到上限。
-  const meaningfulCount = samples.filter((sample) => sample.count / total >= 0.003).length;
-  const diversity = clamp(meaningfulCount / 60, 0, 1);
-  const target = Math.round(20 + diversity * (safeMax - 20));
-  return clamp(target, Math.min(20, safeMax), safeMax);
-}
-
-function getPortraitColorSamples(values, alpha, width, height, backgroundMask = null) {
-  const buckets = new Map();
-  const total = width * height;
-  const getLuma = (pixelIndex) => {
-    const offset = pixelIndex * 3;
-    return 0.299 * values[offset] + 0.587 * values[offset + 1] + 0.114 * values[offset + 2];
-  };
-  for (let pixelIndex = 0; pixelIndex < total; pixelIndex += 1) {
-    if (alpha[pixelIndex] < 24 || backgroundMask?.[pixelIndex]) continue;
-    const offset = pixelIndex * 3;
-    const red = clamp(Math.round(values[offset]), 0, 255);
-    const green = clamp(Math.round(values[offset + 1]), 0, 255);
-    const blue = clamp(Math.round(values[offset + 2]), 0, 255);
-    const x = pixelIndex % width;
-    const y = Math.floor(pixelIndex / width);
-    const centerLuma = getLuma(pixelIndex);
-    let edge = 0;
-    let edgeSamples = 0;
-    for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) {
-      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-      const neighborIndex = ny * width + nx;
-      if (alpha[neighborIndex] < 24 || backgroundMask?.[neighborIndex]) continue;
-      edge += Math.abs(centerLuma - getLuma(neighborIndex));
-      edgeSamples += 1;
-    }
-    // 轻微提高轮廓像素在自适应调色板中的权重，避免五官和发丝被大面积背景色吞掉。
-    const edgeWeight = 1 + clamp(edgeSamples ? edge / edgeSamples / 72 : 0, 0, 1) * 0.55;
-    const key = `${red >> 3}-${green >> 3}-${blue >> 3}`;
-    const bucket = buckets.get(key) || { red: 0, green: 0, blue: 0, count: 0 };
-    bucket.red += red * edgeWeight;
-    bucket.green += green * edgeWeight;
-    bucket.blue += blue * edgeWeight;
-    bucket.count += edgeWeight;
-    buckets.set(key, bucket);
-  }
-
-  return [...buckets.values()]
-    .map((bucket) => {
-      const rgbValue = [
-        bucket.red / bucket.count,
-        bucket.green / bucket.count,
-        bucket.blue / bucket.count,
-      ];
-      return {
-        rgb: rgbValue,
-        lab: rgbToLab(rgbValue[0], rgbValue[1], rgbValue[2]),
-        count: bucket.count,
-      };
-    })
-    .sort((a, b) => b.count - a.count)
-    .slice(0, PORTRAIT_CLUSTER_SAMPLE_LIMIT);
-}
-
-function getWeightedPortraitCentroids(samples, maxColors) {
-  const targetCount = Math.min(maxColors, samples.length);
-  const centroids = [clonePortraitCentroid(samples[0])];
-
-  while (centroids.length < targetCount) {
-    let bestSample = samples[centroids.length] || samples[0];
-    let bestScore = -Infinity;
-    for (const sample of samples) {
-      const minDistance = Math.min(...centroids.map((centroid) => labDistanceSquared(sample.lab, centroid.lab)));
-      const score = minDistance * Math.log2(sample.count + 2);
-      if (score > bestScore) {
-        bestScore = score;
-        bestSample = sample;
-      }
-    }
-    centroids.push(clonePortraitCentroid(bestSample));
-  }
-
-  for (let iteration = 0; iteration < 8; iteration += 1) {
-    const groups = centroids.map(() => ({ red: 0, green: 0, blue: 0, weight: 0 }));
-    for (const sample of samples) {
-      let bestIndex = 0;
-      let bestDistance = Infinity;
-      centroids.forEach((centroid, index) => {
-        const distance = labDistanceSquared(sample.lab, centroid.lab);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestIndex = index;
-        }
-      });
-      const group = groups[bestIndex];
-      group.red += sample.rgb[0] * sample.count;
-      group.green += sample.rgb[1] * sample.count;
-      group.blue += sample.rgb[2] * sample.count;
-      group.weight += sample.count;
-    }
-
-    groups.forEach((group, index) => {
-      if (!group.weight) return;
-      const rgbValue = [group.red / group.weight, group.green / group.weight, group.blue / group.weight];
-      centroids[index] = {
-        rgb: rgbValue,
-        lab: rgbToLab(rgbValue[0], rgbValue[1], rgbValue[2]),
-      };
-    });
-  }
-
-  return centroids;
-}
-
-function clonePortraitCentroid(sample) {
-  return {
-    rgb: [...sample.rgb],
-    lab: [...sample.lab],
-  };
-}
-
-function ditherPortraitValues(values, alpha, width, height, palette, backgroundMask, diffusionStrength, samples = null) {
-  const work = new Float32Array(values);
-  const grid = Array.from({ length: height }, () => Array(width).fill(null));
-  const paletteLabs = getPortraitPaletteCandidates(
-    getPaletteLabEntries(palette),
-    samples || [],
-  );
-  const addError = (x, y, er, eg, eb, factor) => {
-    if (x < 0 || y < 0 || x >= width || y >= height) return;
-    const pixelIndex = y * width + x;
-    if (alpha[pixelIndex] < 24 || backgroundMask?.[pixelIndex]) return;
-    const offset = pixelIndex * 3;
-    work[offset] += er * factor * diffusionStrength;
-    work[offset + 1] += eg * factor * diffusionStrength;
-    work[offset + 2] += eb * factor * diffusionStrength;
-  };
-
-  for (let y = 0; y < height; y += 1) {
-    const leftToRight = y % 2 === 0;
-    for (let step = 0; step < width; step += 1) {
-      const x = leftToRight ? step : width - 1 - step;
-      const pixelIndex = y * width + x;
-      if (alpha[pixelIndex] < 24 || backgroundMask?.[pixelIndex]) continue;
-      const offset = pixelIndex * 3;
-      const red = clamp(work[offset], 0, 255);
-      const green = clamp(work[offset + 1], 0, 255);
-      const blue = clamp(work[offset + 2], 0, 255);
-      const color = nearestPortraitColorByLab([red, green, blue], paletteLabs);
-      grid[y][x] = cloneColor(color);
-      const er = red - color.rgb[0];
-      const eg = green - color.rgb[1];
-      const eb = blue - color.rgb[2];
-      if (leftToRight) {
-        addError(x + 1, y, er, eg, eb, 7 / 16);
-        addError(x - 1, y + 1, er, eg, eb, 3 / 16);
-        addError(x, y + 1, er, eg, eb, 5 / 16);
-        addError(x + 1, y + 1, er, eg, eb, 1 / 16);
-      } else {
-        addError(x - 1, y, er, eg, eb, 7 / 16);
-        addError(x + 1, y + 1, er, eg, eb, 3 / 16);
-        addError(x, y + 1, er, eg, eb, 5 / 16);
-        addError(x - 1, y + 1, er, eg, eb, 1 / 16);
-      }
-    }
-  }
-
-  return cleanupPortraitGrid(grid, width, height);
-}
-
-/**
- * 清理人像量化后的单格噪点。
- *
- * 只处理“上下左右至少 3 格完全一致”的孤立色块，并且要求中心色与多数色
- * 的差异不大。这样可以消除抖动造成的脏点，同时保留眼睛、嘴唇、发丝等真正
- * 的高对比细节，不做整幅图的模糊或大范围平滑。
- */
-function cleanupPortraitGrid(grid, width, height) {
-  const output = grid.map((row) => row.slice());
-  const getCell = (x, y) => (x < 0 || y < 0 || x >= width || y >= height ? null : grid[y][x]);
-
-  for (let y = 1; y < height - 1; y += 1) {
-    for (let x = 1; x < width - 1; x += 1) {
-      const center = grid[y][x];
-      if (!center) continue;
-      const neighbors = [getCell(x - 1, y), getCell(x + 1, y), getCell(x, y - 1), getCell(x, y + 1)].filter(Boolean);
-      const counts = new Map();
-      neighbors.forEach((color) => counts.set(color.code, (counts.get(color.code) || 0) + 1));
-      const majority = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-      if (!majority || majority[1] < 3 || majority[0] === center.code) continue;
-      const majorityColor = neighbors.find((color) => color.code === majority[0]);
-      if (!majorityColor) continue;
-      if (getColorDistance(center.rgb, majorityColor.rgb) <= 82) output[y][x] = cloneColor(majorityColor);
-    }
-  }
-
-  return output;
-}
-
-function getPaletteLabEntries(palette) {
-  return palette.map((color) => ({
-    color,
-    lab: rgbToLab(color.rgb[0], color.rgb[1], color.rgb[2]),
-  }));
-}
-
-function nearestPaletteColorByLab(rgbValue, paletteLabs) {
-  const lab = rgbToLab(rgbValue[0], rgbValue[1], rgbValue[2]);
-  let best = paletteLabs[0]?.color;
-  let bestDistance = Infinity;
-  for (const entry of paletteLabs) {
-    const distance = labDistanceSquared(lab, entry.lab);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = entry.color;
-    }
-  }
-  return best;
-}
-
-function nearestPortraitColorByLab(rgbValue, paletteLabs) {
-  const sourceLab = rgbToLab(rgbValue[0], rgbValue[1], rgbValue[2]);
-  const sourceLuma = 0.299 * rgbValue[0] + 0.587 * rgbValue[1] + 0.114 * rgbValue[2];
-  const sourceChroma = Math.max(...rgbValue) - Math.min(...rgbValue);
-  let best = paletteLabs[0]?.color;
-  let bestDistance = Infinity;
-
-  for (const entry of paletteLabs) {
-    const target = entry.color.rgb;
-    const targetLuma = 0.299 * target[0] + 0.587 * target[1] + 0.114 * target[2];
-    const targetChroma = Math.max(...target) - Math.min(...target);
-    let distance = labDistanceSquared(sourceLab, entry.lab) + (sourceLuma - targetLuma) ** 2 * 0.18;
-
-    const sourceWarm = rgbValue[0] - rgbValue[2];
-    const targetWarm = target[0] - target[2];
-    const sourceGreenBias = rgbValue[1] - Math.max(rgbValue[0], rgbValue[2]);
-    const targetGreenBias = target[1] - Math.max(target[0], target[2]);
-
-    // 暗部优先保持黑、灰、深棕的连续关系，避免背景和头发被替换成绿色。
-    if (sourceLuma < 72 && sourceGreenBias < 8 && targetGreenBias > 8) {
-      distance += 1800 + (targetGreenBias - sourceGreenBias) ** 2 * 8;
-    }
-    // 暖色人像区域不能跳到冷绿，尤其是肤色、粉发和棕色衣物的边缘。
-    if (sourceWarm > 14 && targetGreenBias > 8) {
-      distance += 1400 + targetGreenBias ** 2 * 5;
-    }
-    if (sourceWarm < -14 && targetGreenBias < -8) {
-      distance += 700 + Math.abs(targetGreenBias - sourceGreenBias) ** 2 * 2;
-    }
-
-    // 人像中的黑发、深棕衣服和中性阴影不能被误替换为绿色色块。
-    if (sourceChroma < 38 && targetChroma > 48) distance += (targetChroma - sourceChroma) ** 2 * 0.42;
-    if (sourceLuma < 92 && target[1] > target[0] + 8 && target[1] > target[2] + 8) {
-      distance += (target[1] - Math.max(target[0], target[2]) + 8) ** 2 * 2.8;
-    }
-
-    if (Math.abs(sourceWarm) > 10 && sourceWarm * targetWarm < 0) {
-      distance += Math.abs(sourceWarm - targetWarm) ** 2 * 0.55;
-    }
-
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = entry.color;
-    }
-  }
-
-  return best;
-}
-
-function rgbToLab(red, green, blue) {
-  const toLinear = (value) => {
-    const channel = clamp(value, 0, 255) / 255;
-    return channel > 0.04045 ? ((channel + 0.055) / 1.055) ** 2.4 : channel / 12.92;
-  };
-  const r = toLinear(red);
-  const g = toLinear(green);
-  const b = toLinear(blue);
-  const x = (r * 0.4124564 + g * 0.3575761 + b * 0.1804375) / 0.95047;
-  const y = (r * 0.2126729 + g * 0.7151522 + b * 0.072175) / 1;
-  const z = (r * 0.0193339 + g * 0.119192 + b * 0.9503041) / 1.08883;
-  const pivot = (value) => (value > 0.008856 ? Math.cbrt(value) : 7.787 * value + 16 / 116);
-  const fx = pivot(x);
-  const fy = pivot(y);
-  const fz = pivot(z);
-  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
-}
-
-function labDistanceSquared(a, b) {
-  const dl = a[0] - b[0];
-  const da = a[1] - b[1];
-  const db = a[2] - b[2];
-  return dl * dl * 1.18 + da * da + db * db;
-}
-
 function getFixedBoardSize() {
   const value = els.boardSelect.value;
   if (value === "custom") return null;
@@ -3360,7 +4505,7 @@ function getFixedBoardSize() {
   return { width, height };
 }
 
-function nearestColor(red, green, blue, palette) {
+function legacyNearestColor(red, green, blue, palette) {
   let best = palette[0];
   let bestDistance = Infinity;
   const luma = 0.299 * red + 0.587 * green + 0.114 * blue;
@@ -3396,398 +4541,137 @@ function nearestColor(red, green, blue, palette) {
   return best;
 }
 
+function nearestColor(red, green, blue, palette, context = {}) {
+  const engine = getPaletteEngine(palette);
+  if (engine) {
+    try {
+      return engine.match([red, green, blue], context) || legacyNearestColor(red, green, blue, palette);
+    } catch (error) {
+      if (!paletteEngineWarningShown) {
+        console.warn("Professional palette engine failed; using legacy RGB matching.", error);
+        paletteEngineWarningShown = true;
+      }
+    }
+  }
+  return legacyNearestColor(red, green, blue, palette);
+}
+
 function calculateStats(grid) {
   const map = new Map();
   for (const row of grid) {
     for (const color of row) {
       if (!color) continue;
-      const existing = map.get(color.code);
+      const key = color.paletteId || color.code;
+      const existing = map.get(key);
       if (existing) {
         existing.count += 1;
       } else {
-        map.set(color.code, { ...cloneColor(color), count: 1 });
+        map.set(key, { ...cloneColor(color), count: 1 });
       }
     }
   }
   return [...map.values()].sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
 }
 
-function optimizeGrid(grid, options = {}) {
-  const colorLimit = Math.max(0, Number(options.colorLimit || 0));
-  const isolationThreshold = Math.max(1, Number(options.isolationThreshold || 1));
-  const preserveDetails = Boolean(options.preserveDetails);
-  if (!grid.length || (colorLimit <= 0 && isolationThreshold <= 1)) {
-    return { grid, summary: "", changedCount: 0 };
-  }
-
-  const beforeColors = calculateStats(grid).length;
-  let output = grid;
-  let changedCount = 0;
-  let clusterApplied = false;
-
-  if (colorLimit > 0 && beforeColors > colorLimit) {
-    const limited = limitGridColorsWithWeightedKMeans(output, colorLimit);
-    output = limited.grid;
-    changedCount += limited.changedCount;
-    clusterApplied = true;
-  }
-
-  if (!preserveDetails) {
-    const filtered = applyMajorityColorFilter(output);
-    output = filtered.grid;
-    changedCount += filtered.changedCount;
-  }
-
-  if (isolationThreshold > 1) {
-    const cleaned = removeIsolatedColorComponents(output, isolationThreshold);
-    output = cleaned.grid;
-    changedCount += cleaned.changedCount;
-  }
-
-  const afterColors = calculateStats(output).length;
-  const summaryParts = [];
-  if (beforeColors !== afterColors) {
-    summaryParts.push(`${clusterApplied ? "聚类" : "降噪"} ${beforeColors}→${afterColors} 色`);
-  }
-  if (changedCount > 0) summaryParts.push(`优化 ${formatCount(changedCount)} 格`);
-  return {
-    grid: output,
-    summary: summaryParts.join(" · "),
-    changedCount,
-  };
+function applyFinalPaletteBudget(grid, maxColors, context = {}) {
+  const quantizer = window.LibmsRegionAwareQuantizer;
+  if (!quantizer?.enforceMaxPaletteColors || maxColors == null) return { grid: cloneGrid(grid), report: { finalColorCount: calculateStats(grid).length } };
+  const width = grid[0]?.length || 0; const height = grid.length; const matrix = grid.flat().map((color) => color ? cloneColor(color) : null);
+  const cells = matrix.map((color) => color ? { rgb: color.rgb, oklab: quantizer.rgbToOKLab(color.rgb) } : null);
+  const reduced = quantizer.enforceMaxPaletteColors(matrix, width, height, {
+    maxColors,
+    cells,
+    edgeMap: context.gridEdgeMap,
+    regionIds: context.regionIds,
+    roles: context.regionRoles,
+    boundaryRings: context.boundaryRings,
+    lockedMask: context.contourLockedMask,
+  });
+  return { grid: Array.from({ length: height }, (_, row) => matrix.slice(row * width, (row + 1) * width)), report: reduced.report };
 }
 
-function limitGridColorsWithWeightedKMeans(grid, maxColors) {
-  const stats = calculateStats(grid);
-  if (stats.length <= maxColors) return { grid, changedCount: 0 };
-  const representatives = getWeightedKMeansRepresentatives(stats, maxColors);
-  const replacements = new Map();
-  for (const color of stats) {
-    replacements.set(color.code, nearestColor(color.rgb[0], color.rgb[1], color.rgb[2], representatives));
-  }
-
-  let changedCount = 0;
-  const output = grid.map((row) =>
-    row.map((color) => {
-      if (!color) return null;
-      const replacement = replacements.get(color.code) || color;
-      if (replacement.code !== color.code) changedCount += 1;
-      return cloneColor(replacement);
-    }),
-  );
-  return { grid: output, changedCount };
+function validateCurrentPatternOrThrow(grid, maxColors) {
+  const validation = window.LibmsRegionAwareQuantizer?.validateFinalPattern?.(grid, maxColors) || { valid: calculateStats(grid).length <= maxColors, actualColors: calculateStats(grid).length, maxColors };
+  if (!validation.valid) throw new Error(`最终颜色校验失败：${validation.actualColors} > ${validation.maxColors}`);
+  return validation;
 }
 
-function getWeightedKMeansRepresentatives(stats, maxColors) {
-  const samples = stats.map((color) => ({
-    color,
-    rgb: [...color.rgb],
-    weight: Math.max(1, color.count || 1),
-  }));
-  const centroids = [[...samples[0].rgb]];
-
-  while (centroids.length < Math.min(maxColors, samples.length)) {
-    let bestSample = null;
-    let bestScore = -1;
-    for (const sample of samples) {
-      const minDistance = Math.min(...centroids.map((centroid) => squaredRgbDistance(sample.rgb, centroid)));
-      const score = minDistance * Math.log2(sample.weight + 1);
-      if (score > bestScore) {
-        bestScore = score;
-        bestSample = sample;
+function createPatternProtectionMask(grid) {
+  const height = grid.length;
+  const width = grid[0]?.length || 0;
+  const mask = new Array(width * height).fill(false);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const color = grid[y][x];
+      if (!color) continue;
+      let strongestEdge = 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const neighbor = grid[y + dy]?.[x + dx];
+        if (!neighbor) continue;
+        strongestEdge = Math.max(strongestEdge, Math.hypot(
+          color.rgb[0] - neighbor.rgb[0],
+          color.rgb[1] - neighbor.rgb[1],
+          color.rgb[2] - neighbor.rgb[2],
+        ));
       }
-    }
-    if (!bestSample || bestScore <= 0) break;
-    centroids.push([...bestSample.rgb]);
-  }
-
-  for (let iteration = 0; iteration < 8; iteration += 1) {
-    const sums = centroids.map(() => [0, 0, 0, 0]);
-    for (const sample of samples) {
-      const clusterIndex = getNearestCentroidIndex(sample.rgb, centroids);
-      const sum = sums[clusterIndex];
-      sum[0] += sample.rgb[0] * sample.weight;
-      sum[1] += sample.rgb[1] * sample.weight;
-      sum[2] += sample.rgb[2] * sample.weight;
-      sum[3] += sample.weight;
-    }
-    for (let index = 0; index < centroids.length; index += 1) {
-      const sum = sums[index];
-      if (!sum[3]) continue;
-      centroids[index] = [sum[0] / sum[3], sum[1] / sum[3], sum[2] / sum[3]];
+      const luminance = 0.299 * color.rgb[0] + 0.587 * color.rgb[1] + 0.114 * color.rgb[2];
+      mask[y * width + x] = strongestEdge >= 58 || luminance <= 34 || luminance >= 244;
     }
   }
-
-  const representatives = [];
-  const usedCodes = new Set();
-  for (const centroid of centroids) {
-    const nearest = samples
-      .map((sample) => ({ sample, distance: squaredRgbDistance(sample.rgb, centroid) }))
-      .sort((a, b) => a.distance - b.distance || b.sample.weight - a.sample.weight)[0]?.sample.color;
-    if (nearest && !usedCodes.has(nearest.code)) {
-      usedCodes.add(nearest.code);
-      representatives.push(nearest);
-    }
-  }
-  for (const color of stats) {
-    if (representatives.length >= maxColors) break;
-    if (usedCodes.has(color.code)) continue;
-    usedCodes.add(color.code);
-    representatives.push(color);
-  }
-  return representatives;
+  return mask;
 }
 
-function getNearestCentroidIndex(rgbValue, centroids) {
-  let bestIndex = 0;
-  let bestDistance = Infinity;
-  for (let index = 0; index < centroids.length; index += 1) {
-    const distance = squaredRgbDistance(rgbValue, centroids[index]);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestIndex = index;
-    }
-  }
-  return bestIndex;
+function updateOptimizationToggle() {
+  if (!els.toggleOptimizedButton) return;
+  const hasAlternative = Boolean(state.generationOriginalGrid && state.generationOptimizedGrid && state.optimizerReport?.changed);
+  els.toggleOptimizedButton.hidden = !hasAlternative;
+  els.toggleOptimizedButton.textContent = state.showingOptimizedGrid ? "查看优化前" : "查看优化后";
 }
 
-function squaredRgbDistance(a, b) {
-  return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
-}
-
-function applyMajorityColorFilter(grid) {
-  const rows = grid.length;
-  const columns = grid[0]?.length || 0;
-  if (!rows || !columns) return { grid, changedCount: 0 };
-  const colorsByCode = new Map(calculateStats(grid).map((color) => [color.code, color]));
-  const output = cloneGrid(grid);
-  let changedCount = 0;
-
-  for (let y = 0; y < rows; y += 1) {
-    for (let x = 0; x < columns; x += 1) {
-      const current = grid[y][x];
-      if (!current) continue;
-      const counts = new Map();
-      for (let dy = -1; dy <= 1; dy += 1) {
-        for (let dx = -1; dx <= 1; dx += 1) {
-          const neighbor = grid[y + dy]?.[x + dx];
-          if (!neighbor) continue;
-          counts.set(neighbor.code, (counts.get(neighbor.code) || 0) + 1);
-        }
-      }
-      const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-      const [winnerCode, winnerCount] = ranked[0] || [];
-      const currentCount = counts.get(current.code) || 0;
-      if (!winnerCode || winnerCode === current.code || winnerCount < 4 || winnerCount <= currentCount + 1) continue;
-      output[y][x] = cloneColor(colorsByCode.get(winnerCode));
-      changedCount += 1;
-    }
-  }
-  return { grid: output, changedCount };
-}
-
-function removeIsolatedColorComponents(grid, minSize) {
-  const rows = grid.length;
-  const columns = grid[0]?.length || 0;
-  if (!rows || !columns || minSize <= 1) return { grid, changedCount: 0 };
-  const totalPixels = rows * columns;
-  const output = cloneGrid(grid);
-  const visited = new Uint8Array(totalPixels);
-  const queue = new Int32Array(totalPixels);
-  let changedCount = 0;
-
-  for (let startIndex = 0; startIndex < totalPixels; startIndex += 1) {
-    if (visited[startIndex] !== 0) continue;
-    const startY = Math.floor(startIndex / columns);
-    const startColor = grid[startY][startIndex % columns];
-    if (!startColor) continue;
-
-    const targetCode = startColor.code;
-    let head = 0;
-    let tail = 0;
-    visited[startIndex] = 1;
-    queue[tail++] = startIndex;
-
-    /*
-     * 使用 head 指针模拟队列出队，并直接内联四邻域检查。
-     * 禁止使用 shift()、方向数组和回调，降低滑块高频调用时的 GC 与函数调用开销。
-     */
-    while (head < tail) {
-      const currentIndex = queue[head++];
-      const x = currentIndex % columns;
-      const y = Math.floor(currentIndex / columns);
-
-      // 1. 上方邻居
-      if (currentIndex >= columns) {
-        const nIdx = currentIndex - columns;
-        const neighbor = grid[y - 1][x];
-        if (visited[nIdx] === 0 && neighbor && neighbor.code === targetCode) {
-          visited[nIdx] = 1;
-          queue[tail++] = nIdx;
-        }
-      }
-
-      // 2. 下方邻居
-      if (currentIndex < totalPixels - columns) {
-        const nIdx = currentIndex + columns;
-        const neighbor = grid[y + 1][x];
-        if (visited[nIdx] === 0 && neighbor && neighbor.code === targetCode) {
-          visited[nIdx] = 1;
-          queue[tail++] = nIdx;
-        }
-      }
-
-      // 3. 左侧邻居
-      if (x > 0) {
-        const nIdx = currentIndex - 1;
-        const neighbor = grid[y][x - 1];
-        if (visited[nIdx] === 0 && neighbor && neighbor.code === targetCode) {
-          visited[nIdx] = 1;
-          queue[tail++] = nIdx;
-        }
-      }
-
-      // 4. 右侧邻居
-      if (x < columns - 1) {
-        const nIdx = currentIndex + 1;
-        const neighbor = grid[y][x + 1];
-        if (visited[nIdx] === 0 && neighbor && neighbor.code === targetCode) {
-          visited[nIdx] = 1;
-          queue[tail++] = nIdx;
-        }
-      }
-    }
-
-    if (tail >= minSize) continue;
-
-    const neighborCounts = new Map();
-    let replacement = null;
-    let replacementCount = 0;
-
-    for (let componentIndex = 0; componentIndex < tail; componentIndex += 1) {
-      const currentIndex = queue[componentIndex];
-      const x = currentIndex % columns;
-      const y = Math.floor(currentIndex / columns);
-
-      // 上方外围颜色
-      if (currentIndex >= columns) {
-        const neighbor = grid[y - 1][x];
-        if (neighbor && neighbor.code !== targetCode) {
-          const nextCount = (neighborCounts.get(neighbor.code) || 0) + 1;
-          neighborCounts.set(neighbor.code, nextCount);
-          if (
-            nextCount > replacementCount ||
-            (nextCount === replacementCount && replacement && neighbor.code.localeCompare(replacement.code) < 0)
-          ) {
-            replacement = neighbor;
-            replacementCount = nextCount;
-          }
-        }
-      }
-
-      // 下方外围颜色
-      if (currentIndex < totalPixels - columns) {
-        const neighbor = grid[y + 1][x];
-        if (neighbor && neighbor.code !== targetCode) {
-          const nextCount = (neighborCounts.get(neighbor.code) || 0) + 1;
-          neighborCounts.set(neighbor.code, nextCount);
-          if (
-            nextCount > replacementCount ||
-            (nextCount === replacementCount && replacement && neighbor.code.localeCompare(replacement.code) < 0)
-          ) {
-            replacement = neighbor;
-            replacementCount = nextCount;
-          }
-        }
-      }
-
-      // 左侧外围颜色
-      if (x > 0) {
-        const neighbor = grid[y][x - 1];
-        if (neighbor && neighbor.code !== targetCode) {
-          const nextCount = (neighborCounts.get(neighbor.code) || 0) + 1;
-          neighborCounts.set(neighbor.code, nextCount);
-          if (
-            nextCount > replacementCount ||
-            (nextCount === replacementCount && replacement && neighbor.code.localeCompare(replacement.code) < 0)
-          ) {
-            replacement = neighbor;
-            replacementCount = nextCount;
-          }
-        }
-      }
-
-      // 右侧外围颜色
-      if (x < columns - 1) {
-        const neighbor = grid[y][x + 1];
-        if (neighbor && neighbor.code !== targetCode) {
-          const nextCount = (neighborCounts.get(neighbor.code) || 0) + 1;
-          neighborCounts.set(neighbor.code, nextCount);
-          if (
-            nextCount > replacementCount ||
-            (nextCount === replacementCount && replacement && neighbor.code.localeCompare(replacement.code) < 0)
-          ) {
-            replacement = neighbor;
-            replacementCount = nextCount;
-          }
-        }
-      }
-    }
-
-    if (!replacement) continue;
-    for (let componentIndex = 0; componentIndex < tail; componentIndex += 1) {
-      const index = queue[componentIndex];
-      output[Math.floor(index / columns)][index % columns] = cloneColor(replacement);
-      changedCount += 1;
-    }
-  }
-  return { grid: output, changedCount };
-}
-
-function applySmartPreset() {
-  if (els.modeSelect) els.modeSelect.value = "portrait";
-  applyPortraitModeDefaults();
-  if (state.sourceDataUrl) {
-    processImage();
-    return;
-  }
-  if (state.grid.length) {
-    applyOptimizationToCurrentGrid();
-    return;
-  }
-  setStatus("已设为推荐参数，请上传图片");
-}
-
-function applyOptimizationToCurrentGrid() {
-  if (!state.grid.length) {
-    setStatus("请先生成图纸");
-    return;
-  }
-  const optimized = optimizeGrid(state.grid, getOptimizationOptions());
-  state.grid = optimized.grid;
-  state.optimizationSummary = optimized.summary || "当前图纸无需进一步优化";
+function toggleGeneratedOptimization() {
+  if (state.manualEdited) { window.alert("当前图纸已有手动修改。重新生成前不会切换自动优化结果，以免覆盖编辑。 "); return; }
+  const next = state.showingOptimizedGrid ? state.generationOriginalGrid : state.generationOptimizedGrid;
+  if (!next) return;
+  state.showingOptimizedGrid = !state.showingOptimizedGrid;
+  state.grid = cloneGrid(next);
   state.stats = calculateStats(state.grid);
   refreshChartUrl();
   updateResultUi();
-  saveCurrentToGallery();
-  setStatus(state.optimizationSummary);
+  updateOptimizationToggle();
+  window.dispatchEvent(new CustomEvent("libms:project-result", { detail: window.LibmsWorkspaceBridge?.getResult() }));
+  setStatus(state.showingOptimizedGrid ? "正在查看优化后" : "正在查看优化前");
 }
 
+/**
+ * 预览图 + 图纸图（都编码成 data URL）。
+ *
+ * §12 实测：500 长边时这一段占提交阶段 460ms / 1003ms，是最大的单项。
+ * 所以内部再切四段 —— 渲染（画格子）和编码（toDataURL）是两件完全不同的事，
+ * 修法也不同：
+ *   · 渲染大 → 画布尺寸/格数的问题，可以降采样或换 compact 表示。
+ *   · 编码大 → PNG 压缩的问题，可以延后（只在真的要看图时才编码）。
+ * 子段一律用 `chart.` 前缀，外层汇总会按前缀排除，避免重复计数。
+ */
 function refreshChartUrl() {
   const maxSide = Math.max(state.width, state.height);
-  const cell = maxSide > 260 ? 6 : maxSide > 160 ? 10 : maxSide > 90 ? 18 : 30;
+  const cell = maxSide > 260 ? 4 : maxSide > 160 ? 6 : 8;
+  state.previewRenderCell = cell;
+  const profiling = commitProfileOn();
+  let t = commitPhase(profiling);
   try {
-    const previewCanvas = createChartCanvas(state.grid, state.stats, {
-      cell,
-      margin: 50,
-      showLegend: false,
-    });
-    const canvas = createChartCanvas(state.grid, state.stats, {
-      cell,
-      margin: 50,
-    });
+    const previewCanvas = renderBeadPattern({ matrix: state.grid, stats: state.stats, preset: "PREVIEW_CLEAN", cell });
+    commitMark("chart.previewRender", t);
+    t = commitPhase(profiling);
     state.previewUrl = previewCanvas.toDataURL("image/png");
+    commitMark("chart.previewEncode", t);
+    t = commitPhase(profiling);
+    // 图纸图按「导出级」格子尺寸画：maxSide > 160 时 cell=10。
+    // 500 长边 → 5100×5100 画布（500×10 + 50×2 边距），编码一次就是千万级像素。
+    const canvas = renderBeadPattern({ matrix: state.grid, stats: state.stats, preset: "PATTERN_EXPORT", cell: maxSide > 160 ? 10 : maxSide > 90 ? 18 : 30, margin: 50 });
+    commitMark("chart.exportRender", t);
+    t = commitPhase(profiling);
     state.chartUrl = canvas.toDataURL("image/png");
+    commitMark("chart.exportEncode", t);
   } catch (error) {
     console.warn("Chart preview fallback", error);
     const fallbackUrl = createLightPreviewCanvas(state.grid).toDataURL("image/png");
@@ -3857,6 +4741,12 @@ function saveCurrentToGallery() {
     palette: getChartPaletteLabel(),
     size: formatFinishedSize(state.width, state.height),
     createdAt: new Date().toISOString(),
+    generation: {
+      algorithmVersion: window.LibmsRegionAwareQuantizer?.REGION_AWARE_VERSION || "legacy",
+      maxColorsMode: state.paletteBudget?.mode || "auto",
+      maxColors: state.paletteBudget?.effective || null,
+      actualColors: state.stats.length,
+    },
   };
   const items = [item, ...getGeneratedGallery().filter((entry) => entry.title !== title)].slice(
     0,
@@ -3905,7 +4795,7 @@ function getActivePaletteKeyForStorage() {
 
 function serializeGridForLibrary(grid) {
   return grid
-    .map((row) => row.map((color) => (color ? `${color.code}|${rgbToHex(color.rgb)}` : ".")).join(","))
+    .map((row) => row.map((color) => (color ? `${color.code}|${rgbToHex(color.rgb)}${color.paletteId ? `|${color.paletteId}` : ""}` : ".")).join(","))
     .join(";");
 }
 
@@ -3916,8 +4806,8 @@ function deserializeGridFromLibrary(item) {
     .map((row) =>
       row.split(",").map((token) => {
         if (!token || token === ".") return null;
-        const [code, hex] = token.split("|");
-        if (hex && /^#[0-9a-f]{6}$/i.test(hex)) return colorFromHex(code, hex);
+        const [code, hex, paletteId] = token.split("|");
+        if (hex && /^#[0-9a-f]{6}$/i.test(hex)) return { ...colorFromHex(code, hex), ...(paletteId ? { paletteId } : {}) };
         return cloneColor(findColorByCode(code, item.paletteKey));
       }),
     );
@@ -4003,6 +4893,7 @@ function renderEditorLibraryOptions() {
 function openGalleryPreview(item) {
   if (!els.previewModal || !els.modalPreviewImage) return;
   state.previewZoom = 1;
+  state.previewModalUsesCurrentGrid = false;
   els.modalPreviewImage.src = item.image;
   els.modalPreviewImage.alt = item.title;
   setPreviewZoom(1);
@@ -4023,14 +4914,33 @@ function escapeHtml(value) {
   });
 }
 
+function renderBeadPattern(options) {
+  const policy = window.LibmsRenderPolicy;
+  const preset = policy?.RENDER_PRESETS?.[options.preset] || {};
+  const cell = options.cell || 30;
+  const zoom = options.zoom || 1;
+  const showCodes = options.showCodes ?? (preset.showCodes === "auto"
+    ? Boolean(policy?.shouldShowBeadCode?.(zoom, cell))
+    : preset.showCodes);
+  return createChartCanvas(options.matrix, options.stats || calculateStats(options.matrix), {
+    ...preset,
+    ...options,
+    showCodes,
+    cell,
+  });
+}
+
 function createChartCanvas(grid, stats, options = {}) {
   const rows = grid.length;
   const columns = grid[0]?.length || 0;
   const cell = options.cell || 30;
-  const margin = options.margin || 54;
-  const headerHeight = options.headerHeight || (options.subtitle ? 196 : 166);
+  const showHeader = options.showHeader ?? true;
+  const showCoordinates = options.showCoordinates ?? true;
+  const showGrid = options.showGrid ?? true;
+  const margin = options.margin ?? (showHeader || showCoordinates ? 54 : 0);
+  const headerHeight = showHeader ? (options.headerHeight || (options.subtitle ? 196 : 166)) : margin;
   const showCodes = options.showCodes ?? cell >= 22;
-  const title = options.title || "时里白造物拼豆图纸生成器";
+  const title = options.title || "里白造物拼豆图纸生成器";
   const paletteLabel = options.paletteLabel || getChartPaletteLabel();
   const totalBeads = stats.reduce((sum, item) => sum + item.count, 0);
   const finishedSize = formatFinishedSize(columns, rows);
@@ -4038,13 +4948,19 @@ function createChartCanvas(grid, stats, options = {}) {
   const boardY = headerHeight;
   const boardWidth = columns * cell;
   const boardHeight = rows * cell;
-  const width = Math.max(960, boardWidth + margin * 2);
+  const width = Math.max(options.minWidth ?? (showHeader ? 960 : 1), boardWidth + margin * 2);
   const showLegend = options.showLegend ?? true;
   const legendLayout = showLegend ? getLegendLayout(width, stats.length, margin) : null;
-  const legendTop = boardY + boardHeight + 54;
+  // 图案下方、色块图例上方的用量汇总行（与 doudou-up 的图例表头同构）。
+  // 只在出「图纸」时出现：预览类渲染走 showLegend=false，不占任何高度，
+  // 布局与旧版逐像素一致，所以 PREVIEW_CLEAN / PREVIEW_EXPORT / ZOOM_DETAIL 不受影响。
+  const summaryText = showLegend && stats.length ? `已使用颜色 ${stats.length} 种 / ${formatCount(totalBeads)} 颗` : "";
+  const summaryBandHeight = summaryText ? 30 : 0;
+  const summaryY = boardY + boardHeight + 46;
+  const legendTop = boardY + boardHeight + 54 + summaryBandHeight;
   const height = showLegend
     ? legendTop + legendLayout.rows * legendLayout.itemHeight + 58
-    : boardY + boardHeight + 46;
+    : boardY + boardHeight + (showHeader || showCoordinates ? 46 : margin);
   const outputScale = getCanvasOutputScale(width, height, options.minLongSide);
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
@@ -4054,10 +4970,11 @@ function createChartCanvas(grid, stats, options = {}) {
   canvas.style.width = `${width}px`;
   canvas.style.height = `${height}px`;
   context.scale(outputScale, outputScale);
+  context.imageSmoothingEnabled = false;
 
   context.fillStyle = "#fffdf7";
   context.fillRect(0, 0, width, height);
-  drawChartHeader(context, {
+  if (showHeader) drawChartHeader(context, {
     title,
     paletteLabel,
     totalBeads,
@@ -4072,7 +4989,7 @@ function createChartCanvas(grid, stats, options = {}) {
   context.textBaseline = "middle";
   const labelStep = Math.max(columns, rows) <= 30 ? 1 : 5;
 
-  for (let x = 0; x < columns; x += 1) {
+  if (showCoordinates) for (let x = 0; x < columns; x += 1) {
     const label = x + 1;
     if (!shouldShowCoordinateLabel(label, 1, columns, labelStep)) continue;
     const cx = boardX + x * cell + cell / 2;
@@ -4081,7 +4998,7 @@ function createChartCanvas(grid, stats, options = {}) {
     context.fillText(label, cx, boardY + boardHeight + 18);
   }
 
-  for (let y = 0; y < rows; y += 1) {
+  if (showCoordinates) for (let y = 0; y < rows; y += 1) {
     const label = y + 1;
     if (!shouldShowCoordinateLabel(label, 1, rows, labelStep)) continue;
     const cy = boardY + y * cell + cell / 2;
@@ -4102,11 +5019,16 @@ function createChartCanvas(grid, stats, options = {}) {
         context.fillStyle = rgb(color);
         context.fillRect(px, py, cell, cell);
       } else {
-        drawEmptyCell(context, px, py, cell);
+        if (state.editorReferenceImage && state.editorReference?.visible !== false) {
+          context.fillStyle = "rgba(255, 253, 247, 0.18)";
+          context.fillRect(px, py, cell, cell);
+        } else {
+          drawEmptyCell(context, px, py, cell);
+        }
       }
     }
   }
-  drawCountingGrid(context, boardX, boardY, columns, rows, cell);
+  if (showGrid) drawCountingGrid(context, boardX, boardY, columns, rows, cell);
 
   if (options.watermark !== false) {
     drawChartWatermark(context, boardX, boardY, boardWidth, boardHeight);
@@ -4128,6 +5050,18 @@ function createChartCanvas(grid, stats, options = {}) {
     }
   }
 
+  if (summaryText) {
+    context.save();
+    // 水平居中：图例框左上/右上角各有一个半径 10 的黑色角点（legendTop-22），
+    // 左对齐会正好压在左角点上，居中则与两者都不相交，观感也更像图例表头。
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillStyle = "#111827";
+    context.font = `900 16px ${CANVAS_FONT_STACK}`;
+    context.fillText(summaryText, width / 2, summaryY);
+    context.restore();
+  }
+
   if (showLegend) {
     drawLegendPanel(context, stats, {
       x: margin,
@@ -4141,117 +5075,31 @@ function createChartCanvas(grid, stats, options = {}) {
 }
 
 function createA4PageCanvas(tile, details) {
-  const { pageWidth, pageHeight, marginPx, pageIndex, pageCount, orientation, mirrorLabel } =
-    details;
-  const headerHeight = 218;
-  const footerHeight = 92;
-  const labelBand = 34;
-  const grid = tile.grid;
-  const rows = grid.length;
-  const columns = grid[0]?.length || 0;
-  const availableWidth = pageWidth - marginPx * 2 - labelBand * 2;
-  const availableHeight = pageHeight - marginPx * 2 - headerHeight - footerHeight - labelBand * 2;
-  const cell = Math.max(
-    14,
-    Math.floor(Math.min(availableWidth / Math.max(1, columns), availableHeight / Math.max(1, rows))),
-  );
-  const boardWidth = columns * cell;
-  const boardHeight = rows * cell;
-  const boardX = marginPx + labelBand + Math.max(0, (availableWidth - boardWidth) / 2);
-  const boardY = marginPx + headerHeight + labelBand;
+  const { pageWidth, pageHeight, marginPx, pageIndex, pageCount, mirrorLabel } = details;
+  const options = {
+    title: `${buildGalleryTitle()}${mirrorLabel ? " · 镜像" : ""} · 第 ${pageIndex}/${pageCount} 页`,
+    pageCount,
+    coordinateX: tile.x0,
+    coordinateY: tile.y0,
+    artworkColumns: details.fullWidth,
+    artworkRows: details.fullHeight,
+  };
+  let cellSize = 48;
+  let size = constructionSheetPixelSize(tile.grid, cellSize, { constructionSheet: true, showCoordinates: true });
+  const width = pageWidth - marginPx * 2, height = pageHeight - marginPx * 2;
+  while (cellSize > 1 && (size.width > width || size.height > height)) {
+    cellSize--;
+    size = constructionSheetPixelSize(tile.grid, cellSize, { constructionSheet: true, showCoordinates: true });
+  }
+  const sheet = renderLegacyConstructionSheet(tile.grid, { ...options, cellSize });
   const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("canvas context unavailable");
   canvas.width = pageWidth;
   canvas.height = pageHeight;
-
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("canvas context unavailable");
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, pageWidth, pageHeight);
-  context.strokeStyle = "rgba(38, 38, 34, 0.3)";
-  context.setLineDash([12, 12]);
-  context.strokeRect(marginPx + 0.5, marginPx + 0.5, pageWidth - marginPx * 2, pageHeight - marginPx * 2);
-  context.setLineDash([]);
-
-  drawLogoMark(context, marginPx, marginPx, 96);
-  context.textAlign = "left";
-  context.textBaseline = "alphabetic";
-  context.fillStyle = "#111827";
-  context.font = `900 42px ${CANVAS_FONT_STACK}`;
-  context.fillText("时里白造物拼豆图纸", marginPx + 118, marginPx + 43);
-  context.fillStyle = "#4b5563";
-  context.font = `800 24px ${CANVAS_FONT_STACK}`;
-  context.fillText(
-    `A4打印分版 · 第 ${pageIndex} / ${pageCount} 页 · ${orientation === "landscape" ? "横版" : "竖版"}${mirrorLabel ? ` · ${mirrorLabel}` : ""}`,
-    marginPx + 118,
-    marginPx + 82,
-  );
-  context.font = `700 20px ${CANVAS_FONT_STACK}`;
-  context.fillText(
-    `全图 ${details.fullWidth} x ${details.fullHeight} · 本页列 ${tile.x0 + 1}-${tile.x1} · 行 ${tile.y0 + 1}-${tile.y1} · 边距 ${details.marginMm}mm`,
-    marginPx + 118,
-    marginPx + 118,
-  );
-
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  const labelStep = Math.max(columns, rows) <= 30 ? 1 : 5;
-  context.font = `700 15px ${CANVAS_FONT_STACK}`;
-  for (let x = 0; x < columns; x += 1) {
-    const label = tile.x0 + x + 1;
-    if (!shouldShowCoordinateLabel(label, tile.x0 + 1, tile.x1, labelStep)) continue;
-    const cx = boardX + x * cell + cell / 2;
-    context.fillStyle = "#69716e";
-    context.fillText(label, cx, boardY - 18);
-    context.fillText(label, cx, boardY + boardHeight + 18);
-  }
-  for (let y = 0; y < rows; y += 1) {
-    const label = tile.y0 + y + 1;
-    if (!shouldShowCoordinateLabel(label, tile.y0 + 1, tile.y1, labelStep)) continue;
-    const cy = boardY + y * cell + cell / 2;
-    context.fillStyle = "#69716e";
-    context.textAlign = "right";
-    context.fillText(label, boardX - 12, cy);
-    context.textAlign = "left";
-    context.fillText(label, boardX + boardWidth + 12, cy);
-    context.textAlign = "center";
-  }
-
-  for (let y = 0; y < rows; y += 1) {
-    for (let x = 0; x < columns; x += 1) {
-      const color = grid[y][x];
-      const px = boardX + x * cell;
-      const py = boardY + y * cell;
-      if (color) {
-        context.fillStyle = rgb(color);
-        context.fillRect(px, py, cell, cell);
-      } else {
-        drawEmptyCell(context, px, py, cell);
-      }
-    }
-  }
-  drawCountingGrid(context, boardX, boardY, columns, rows, cell);
-
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  for (let y = 0; y < rows; y += 1) {
-    for (let x = 0; x < columns; x += 1) {
-      const color = grid[y][x];
-      if (!color) continue;
-      const px = boardX + x * cell;
-      const py = boardY + y * cell;
-      context.fillStyle = isDark(color.rgb) ? "#ffffff" : "#1f2422";
-      context.font = `900 ${getCodeFontSize(color.code, cell)}px ${CANVAS_FONT_STACK}`;
-      context.fillText(color.code, px + cell / 2, py + cell / 2 + 1);
-    }
-  }
-
-  context.fillStyle = "#4b5563";
-  context.font = `700 18px ${CANVAS_FONT_STACK}`;
-  context.fillText(
-    "虚线框为A4页边距预留区域，请按页面顺序拼接使用。",
-    pageWidth / 2,
-    pageHeight - marginPx - 28,
-  );
+  context.drawImage(sheet, Math.floor((pageWidth - sheet.width) / 2), marginPx);
   return canvas;
 }
 
@@ -4272,10 +5120,10 @@ function drawChartHeader(context, details) {
   context.textBaseline = "alphabetic";
   context.fillStyle = "#111827";
   context.font = `900 30px ${CANVAS_FONT_STACK}`;
-  context.fillText("时里白造物拼豆图纸", textX, 50, textMaxWidth);
+  context.fillText("里白造物拼豆图纸", textX, 50, textMaxWidth);
   context.fillStyle = "#4b5563";
   context.font = `800 14px ${CANVAS_FONT_STACK}`;
-  context.fillText("时里白造物", textX, 73, textMaxWidth);
+  context.fillText("LiBai Maker Studio", textX, 73, textMaxWidth);
 
   context.fillStyle = "#111827";
   context.font = `900 18px ${CANVAS_FONT_STACK}`;
@@ -4297,7 +5145,7 @@ function drawChartHeader(context, details) {
   context.textAlign = "right";
   context.fillStyle = "rgba(17, 24, 39, 0.52)";
   context.font = `800 14px ${CANVAS_FONT_STACK}`;
-  context.fillText("时里白造物", details.width - details.margin, 42);
+  context.fillText("LiBai Maker Studio", details.width - details.margin, 42);
 
   context.strokeStyle = "rgba(17, 24, 39, 0.16)";
   context.lineWidth = 1;
@@ -4381,7 +5229,7 @@ function drawChartWatermark(context, x, y, width, height) {
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.font = `900 ${Math.max(54, Math.min(170, width / 7))}px ${CANVAS_FONT_STACK}`;
-  context.fillText("时里白造物", 0, 0);
+  context.fillText("LiBai Maker Studio", 0, 0);
   context.restore();
 
   const timestamp = `${getLocalTimestamp()} 客户端本地生成`;
@@ -4501,8 +5349,10 @@ function formatCm(value) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
+// 站内所有「颗数 / 色数 / 格数」一律不带千分位（与图纸汇总行、工作台统计条一致）。
+// 金额不归这里管：pricing.js 的 formatMoney 保留千分位。
 function formatCount(value) {
-  return new Intl.NumberFormat("zh-CN").format(value);
+  return new Intl.NumberFormat("zh-CN", { useGrouping: false }).format(value);
 }
 
 function roundedRect(context, x, y, width, height, radius) {
@@ -4583,6 +5433,10 @@ function drawCountingGrid(context, x, y, columns, rows, cell, options = {}) {
 
 function updateResultUi() {
   const hasResult = Boolean(state.grid.length);
+  const mainUploadZone = document.querySelector(".main-center-workspace .workspace-stage > #upload-zone");
+  if (mainUploadZone && !mainUploadZone.classList.contains("source-view")) {
+    mainUploadZone.style.setProperty("display", hasResult ? "none" : "grid", "important");
+  }
   els.resultPreview.hidden = !hasResult;
   els.emptyResult.hidden = hasResult;
   els.previewStage.disabled = !hasResult;
@@ -4597,15 +5451,11 @@ function updateResultUi() {
   if (els.mobileChartDownloadButton) els.mobileChartDownloadButton.disabled = !hasResult;
   if (els.mobilePrintA4Button) els.mobilePrintA4Button.disabled = !hasResult;
   els.editButton.disabled = !hasResult;
+  if (els.mainPatternAdjustButton) els.mainPatternAdjustButton.disabled = !hasResult;
   if (els.startAssemblyButton) els.startAssemblyButton.disabled = !hasResult;
   if (els.startAssemblyPanelButton) els.startAssemblyPanelButton.disabled = !hasResult;
-  if (els.applyCleanupButton) els.applyCleanupButton.disabled = !hasResult;
-  els.downloadButton.disabled = !hasResult;
-  if (els.downloadButtonTop) els.downloadButtonTop.disabled = !hasResult;
-  if (els.projectExportButton) els.projectExportButton.disabled = !hasResult;
-  if (els.projectExportButtonSide) els.projectExportButtonSide.disabled = !hasResult;
-  if (els.mobileProjectExportButton) els.mobileProjectExportButton.disabled = !hasResult;
-  if (els.printA4Button) els.printA4Button.disabled = !hasResult;
+  els.downloadButton.disabled = false;
+  if (els.downloadButtonTop) els.downloadButtonTop.disabled = false;
   document.body.classList.toggle("has-result", hasResult);
 
   if (hasResult) {
@@ -4626,6 +5476,11 @@ function updateResultUi() {
     if (els.statsTotalLabel) {
       els.statsTotalLabel.textContent = `共${state.stats.length}色 · ${formatCount(total)}颗`;
     }
+    if (els.paletteBudgetStatus && state.paletteBudget) {
+      const budget = state.paletteBudget;
+      const mode = budget.mode === "auto" ? `自动（建议 ${budget.effective}）` : `最大 ${budget.effective}`;
+      els.paletteBudgetStatus.textContent = `${mode} · 实际颜色 ${state.stats.length} / ${budget.effective}`;
+    }
   } else {
     els.resultPreview.removeAttribute("src");
     els.resultMetrics.innerHTML = `
@@ -4635,6 +5490,7 @@ function updateResultUi() {
       <span class="metric-card metric-size"><small>尺寸</small><strong>-</strong></span>
     `;
     if (els.statsTotalLabel) els.statsTotalLabel.textContent = "未生成";
+    updateMaxColorPresetUi();
   }
   updateStatsList();
 }
@@ -4652,11 +5508,8 @@ function updateStatsList() {
   } 最多`;
 
   for (const item of state.stats) {
-    const row = document.createElement("button");
-    row.type = "button";
+    const row = document.createElement("div");
     row.className = "stat-row";
-    row.title = `高亮 ${item.code}，共 ${formatCount(item.count)} 颗`;
-    row.setAttribute("aria-label", `高亮色号 ${item.code}，${formatCount(item.count)} 颗`);
 
     const swatch = document.createElement("span");
     swatch.className = "stat-swatch";
@@ -4668,13 +5521,9 @@ function updateStatsList() {
 
     const count = document.createElement("span");
     count.className = "stat-count";
-    count.textContent = formatCount(item.count);
+    count.textContent = `${formatCount(item.count)} · ${(item.count / total * 100).toFixed(1)}%`;
 
     row.append(swatch, code, count);
-    row.addEventListener("click", () => {
-      openAssemblyPlayer();
-      selectAssemblyColor(item.code);
-    });
     els.statsList.append(row);
   }
 }
@@ -4717,6 +5566,8 @@ function getPatternDifficulty(grid, stats) {
 function openPreview() {
   if (!state.previewUrl && !state.chartUrl) return;
   state.previewZoom = 1;
+  state.previewModalUsesCurrentGrid = true;
+  state.previewDetailCodesVisible = false;
   els.modalPreviewImage.src = state.previewUrl || state.chartUrl;
   setPreviewZoom(1);
   els.previewModal.showModal();
@@ -4724,16 +5575,80 @@ function openPreview() {
 
 function setPreviewZoom(value) {
   state.previewZoom = clamp(value, 0.25, 5);
+  if (state.previewModalUsesCurrentGrid && state.grid.length) {
+    const showDetailGrid = state.previewZoom > 1;
+    const showCodes = Boolean(window.LibmsRenderPolicy?.shouldShowBeadCode?.(state.previewZoom, state.previewRenderCell));
+    if (showDetailGrid) {
+      els.modalPreviewImage.src = renderBeadPattern({
+        matrix: state.grid,
+        stats: state.stats,
+        preset: "ZOOM_DETAIL",
+        cell: state.previewRenderCell,
+        zoom: state.previewZoom,
+      }).toDataURL("image/png");
+    } else {
+      els.modalPreviewImage.src = state.previewUrl;
+    }
+    state.previewDetailCodesVisible = showCodes;
+  }
   els.modalPreviewImage.style.transform = `scale(${state.previewZoom})`;
 }
 
-function downloadPreviewImage() {
-  if (!state.chartUrl) return;
-  downloadUrl(state.chartUrl, buildPreviewDownloadName());
+let constructionSheetRenderer;
+let constructionSheetPixelSize;
+const constructionSheetRendererReady = import("./services/png-pattern-export-renderer.js?v=20261008-palette-location-r23").then((module) => {
+  constructionSheetRenderer = module.renderPngPatternCanvas;
+  constructionSheetPixelSize = module.pngPatternPixelSize;
+});
+
+function renderLegacyConstructionSheet(grid, options = {}) {
+  if (!constructionSheetRenderer) throw new Error("图纸渲染器正在加载，请稍后重试");
+  return constructionSheetRenderer(grid, {
+    cellSize: getDownloadCellSize(),
+    title: `${buildGalleryTitle()}${getMirrorLabel() ? " · 镜像" : ""}`,
+    paletteLabel: getChartPaletteLabel(),
+    showGrid: true,
+    showCodes: true,
+    ...options,
+    constructionSheet: true,
+    showCoordinates: true,
+  });
+}
+
+async function downloadLegacyPatternPdf(settings = {}) {
+  if (state.generationEngine !== "v2.5" && !ensureInviteRegistered()) return false;
+  if (!state.grid.length) throw new Error("请先生成图纸");
+  const grid = getExportGrid();
+  const { buildPatternPdfWithCjk } = await import("./services/export-v2-service.js?v=20261008-palette-location-r23");
+  const blob = await buildPatternPdfWithCjk(grid, {
+    title: `${settings.name || buildGalleryTitle()}${getMirrorLabel() ? " · 镜像" : ""}`,
+    paletteLabel: getChartPaletteLabel(),
+    artworkColumns: grid[0]?.length || 0,
+    artworkRows: grid.length,
+    cellSize: 24,
+    showGrid: settings.grid !== false,
+    showCodes: settings.codes !== false,
+    showCoordinates: true,
+    pageCount: 1,
+  });
+  downloadBlob(blob, buildPatternDownloadName("pdf"));
+  setStatus("已导出矢量 PDF 图纸（含作品信息、材料清单与四边坐标）");
+  return true;
+}
+
+async function downloadPreviewImage() {
+  if (!state.grid.length) return;
+  const exportGrid = getExportGrid();
+  recordLocalExportGrid(exportGrid, "preview", { showCodes: false, showGrid: false });
+  await constructionSheetRendererReady;
+  const canvas = renderLegacyConstructionSheet(exportGrid, { showCodes: false, showGrid: false });
+  downloadUrl(canvas.toDataURL("image/png"), buildPreviewDownloadName());
   setStatus("已下载预览图");
 }
 
-async function downloadPattern() {
+async function downloadPattern(renderOptions = {}) {
+  if (state.generationEngine !== "v2.5" && !ensureInviteRegistered()) return;
+
   if (!state.grid.length) {
     if (state.sourceDataUrl) {
       const generated = await processImage();
@@ -4744,38 +5659,47 @@ async function downloadPattern() {
   }
 
   const exportGrid = getExportGrid();
-  const exportStats = calculateStats(exportGrid);
+  recordLocalExportGrid(exportGrid, "pattern", renderOptions);
+  await constructionSheetRendererReady;
   const tileSize = getSelectedTileSize();
   if (tileSize && (exportGrid[0]?.length > tileSize || exportGrid.length > tileSize)) {
     await downloadSplitPattern(tileSize, exportGrid);
     return;
   }
 
-  const canvas = createChartCanvas(exportGrid, exportStats, {
-    cell: getDownloadCellSize(),
-    margin: 88,
-    showCodes: true,
-    minLongSide: EXPORT_MIN_LONG_SIDE,
-    subtitle: getExportSubtitle(),
+  const canvas = renderLegacyConstructionSheet(exportGrid, {
+    ...(renderOptions?.showGrid == null ? {} : { showGrid: renderOptions.showGrid }),
+    ...(renderOptions?.showCodes == null ? {} : { showCodes: renderOptions.showCodes }),
+    ...(renderOptions?.showCoordinates == null ? {} : { showCoordinates: renderOptions.showCoordinates }),
   });
   downloadUrl(canvas.toDataURL("image/png"), buildDownloadName());
   setStatus("已下载");
 }
 
+function ensureInviteRegistered() {
+  if (getInviteProfile()) return true;
+  openRegisterModal();
+  els.registerMessage.textContent = "请先完成邀请注册，再下载 8K 高清图纸。";
+  return false;
+}
+
 async function downloadSplitPattern(tileSize, grid = getExportGrid()) {
+  await constructionSheetRendererReady;
   const split = splitGridIntoTiles(grid, tileSize);
   const files = [];
   const cell = getSplitDownloadCellSize(tileSize);
   const mirrorLabel = getMirrorLabel();
 
   for (const tile of split.tiles) {
-    const canvas = createChartCanvas(tile.grid, tile.stats, {
-      cell,
-      margin: 88,
+    const canvas = renderLegacyConstructionSheet(tile.grid, {
+      cellSize: cell,
       showCodes: true,
-      minLongSide: EXPORT_MIN_LONG_SIDE,
-      title: `第 ${tile.index} / ${split.tiles.length} 版 (R${tile.row} C${tile.col})`,
-      subtitle: `全图 ${grid[0]?.length || 0} x ${grid.length}${mirrorLabel ? ` · ${mirrorLabel}` : ""} · 本版 ${tile.width} x ${tile.height} · 列 ${tile.x0 + 1}-${tile.x1} · 行 ${tile.y0 + 1}-${tile.y1} · ${tile.stats.length} 色 · ${getChartPaletteLabel()}`,
+      title: `${buildGalleryTitle()}${mirrorLabel ? " · 镜像" : ""} · 第 ${tile.index}/${split.tiles.length} 版 (R${tile.row} C${tile.col})`,
+      pageCount: split.tiles.length,
+      coordinateX: tile.x0,
+      coordinateY: tile.y0,
+      artworkColumns: grid[0]?.length || 0,
+      artworkRows: grid.length,
     });
     files.push({
       name: `board-r${padNumber(tile.row)}-c${padNumber(tile.col)}_cols-${tile.x0 + 1}-${tile.x1}_rows-${tile.y0 + 1}-${tile.y1}.png`,
@@ -4789,6 +5713,8 @@ async function downloadSplitPattern(tileSize, grid = getExportGrid()) {
 }
 
 async function downloadA4PrintPattern() {
+  if (!ensureInviteRegistered()) return;
+
   if (!state.grid.length) {
     if (state.sourceDataUrl) {
       const generated = await processImage();
@@ -4799,11 +5725,12 @@ async function downloadA4PrintPattern() {
   }
 
   const grid = getExportGrid();
+  await constructionSheetRendererReady;
   const orientation = getPrintOrientation();
   const marginMm = getPrintMarginMm();
   const printSet = splitGridIntoA4Pages(grid, orientation, marginMm);
+  const files = [];
   const mirrorLabel = getMirrorLabel();
-  const pageCanvases = [];
 
   for (const tile of printSet.tiles) {
     const canvas = createA4PageCanvas(tile, {
@@ -4818,277 +5745,19 @@ async function downloadA4PrintPattern() {
       fullWidth: grid[0]?.length || 0,
       fullHeight: grid.length,
     });
-    pageCanvases.push(canvas);
-  }
-
-  const materialCanvases = createA4MaterialListCanvases(printSet, grid, {
-    marginMm,
-    mirrorLabel,
-  });
-
-  try {
-    setStatus("正在生成A4打印 PDF...");
-    await exportA4PrintPdf(materialCanvases, pageCanvases, orientation);
-    setStatus(`已生成A4打印 PDF：${materialCanvases.length} 页清单，${pageCanvases.length} 页图纸`);
-  } catch (error) {
-    console.error("A4 PDF export failed", error);
-    alert("PDF 导出失败，请检查网络后重试。");
-    setStatus("A4 PDF 导出失败");
-  }
-}
-
-let jsPdfLoadPromise = null;
-
-function loadJsPdf() {
-  if (window.jspdf?.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
-  if (jsPdfLoadPromise) return jsPdfLoadPromise;
-
-  jsPdfLoadPromise = new Promise((resolve, reject) => {
-    const existing = document.querySelector("script[data-libms-jspdf]");
-    if (existing) {
-      existing.addEventListener("load", () => resolve(window.jspdf?.jsPDF), { once: true });
-      existing.addEventListener("error", reject, { once: true });
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = JSPDF_SCRIPT_URL;
-    script.async = true;
-    script.dataset.libmsJspdf = "true";
-    script.onload = () => {
-      if (window.jspdf?.jsPDF) resolve(window.jspdf.jsPDF);
-      else reject(new Error("jsPDF 未正确加载"));
-    };
-    script.onerror = () => reject(new Error("jsPDF 加载失败"));
-    document.head.append(script);
-  });
-
-  return jsPdfLoadPromise;
-}
-
-async function exportA4PrintPdf(materialCanvases, pageCanvases, orientation) {
-  const JsPDF = await loadJsPdf();
-  const isLandscape = orientation === "landscape";
-  const doc = new JsPDF({
-    orientation,
-    unit: "mm",
-    format: "a4",
-    compress: true,
-  });
-  const pageWidthMm = isLandscape ? A4_SIZE_MM.height : A4_SIZE_MM.width;
-  const pageHeightMm = isLandscape ? A4_SIZE_MM.width : A4_SIZE_MM.height;
-  const pages = [...materialCanvases, ...pageCanvases];
-
-  pages.forEach((canvas, index) => {
-    if (index > 0) doc.addPage();
-    doc.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pageWidthMm, pageHeightMm, undefined, "FAST");
-  });
-
-  doc.save(buildA4DownloadName("pdf"));
-}
-
-function createA4MaterialListCanvases(printSet, grid, details = {}) {
-  const pageWidth = printSet.pageWidth;
-  const pageHeight = printSet.pageHeight;
-  const margin = Math.max(96, Math.round(printSet.marginPx * 0.88));
-  const stats = calculateStats(grid);
-  const total = stats.reduce((sum, item) => sum + item.count, 0);
-  const difficulty = getPatternDifficulty(grid, stats);
-  const columns = Math.max(3, Math.floor((pageWidth - margin * 2) / 420));
-  const itemHeight = 92;
-  const startY = 650;
-  const rowsPerPage = Math.max(8, Math.floor((pageHeight - startY - margin) / itemHeight));
-  const itemsPerPage = Math.max(columns, columns * rowsPerPage);
-  const pageCount = Math.max(1, Math.ceil(stats.length / itemsPerPage));
-  const canvases = [];
-  const generatedAt = new Date().toLocaleString("zh-CN");
-
-  for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
-    const canvas = document.createElement("canvas");
-    canvas.width = pageWidth;
-    canvas.height = pageHeight;
-    const context = canvas.getContext("2d");
-    const slice = stats.slice(pageIndex * itemsPerPage, (pageIndex + 1) * itemsPerPage);
-
-    context.fillStyle = "#fffefa";
-    context.fillRect(0, 0, pageWidth, pageHeight);
-    drawMaterialListHeader(context, {
-      pageWidth,
-      pageHeight,
-      margin,
-      pageIndex,
-      pageCount,
-      generatedAt,
-      total,
-      statsCount: stats.length,
-      difficulty,
-      mirrorLabel: details.mirrorLabel,
-      marginMm: details.marginMm,
-      pages: printSet.tiles.length,
-      columns: grid[0]?.length || 0,
-      rows: grid.length,
+    files.push({
+      name: `a4-page-${padNumber(tile.index)}_cols-${tile.x0 + 1}-${tile.x1}_rows-${tile.y0 + 1}-${tile.y1}.png`,
+      blob: await canvasToBlob(canvas),
     });
-
-    drawMaterialListItems(context, slice, {
-      margin,
-      startY,
-      pageWidth,
-      columns,
-      itemHeight,
-      indexOffset: pageIndex * itemsPerPage,
-    });
-
-    context.fillStyle = "rgba(17, 24, 39, 0.48)";
-    context.font = `700 24px ${CANVAS_FONT_STACK}`;
-    context.textAlign = "center";
-    context.fillText(
-      `材料清单 ${pageIndex + 1} / ${pageCount}`,
-      pageWidth / 2,
-      pageHeight - Math.max(44, margin * 0.4),
-    );
-
-    canvases.push(canvas);
   }
 
-  return canvases;
-}
-
-function drawMaterialListHeader(context, details) {
-  const {
-    pageWidth,
-    margin,
-    pageIndex,
-    pageCount,
-    generatedAt,
-    total,
-    statsCount,
-    difficulty,
-    mirrorLabel,
-    marginMm,
-    pages,
-    columns,
-    rows,
-  } = details;
-  const logoSize = 108;
-  const logoX = margin;
-  const logoY = 68;
-  drawLogoMark(context, logoX, logoY, logoSize);
-
-  const textX = logoX + logoSize + 28;
-  context.textAlign = "left";
-  context.fillStyle = "#111827";
-  context.font = `900 42px ${CANVAS_FONT_STACK}`;
-  context.fillText("时里白造物拼豆图纸 - 精确材料清单", textX, 108, pageWidth - textX - margin);
-  context.fillStyle = "#4b5563";
-  context.font = `800 24px ${CANVAS_FONT_STACK}`;
-  context.fillText("时里白造物 · A4 Printable PDF", textX, 148, pageWidth - textX - margin);
-  context.font = `700 20px ${CANVAS_FONT_STACK}`;
-  context.fillText(`生成时间：${generatedAt}`, textX, 186, pageWidth - textX - margin);
-
-  context.textAlign = "right";
-  context.fillStyle = "rgba(17, 24, 39, 0.52)";
-  context.font = `800 22px ${CANVAS_FONT_STACK}`;
-  context.fillText(`清单 ${pageIndex + 1}/${pageCount}`, pageWidth - margin, 112);
-
-  context.strokeStyle = "rgba(17, 24, 39, 0.16)";
-  context.lineWidth = 2;
-  context.beginPath();
-  context.moveTo(margin, 228);
-  context.lineTo(pageWidth - margin, 228);
-  context.stroke();
-
-  const cards = [
-    ["格数", `${columns}×${rows}`],
-    ["难度", difficulty.label],
-    ["预计耗时", difficulty.timeLabel],
-    ["尺寸", formatFinishedSize(columns, rows).replace(" x ", "×")],
-    ["A4", `${pages} 页`],
-    ["材料", `${statsCount} 色 · ${formatCount(total)} 颗`],
-  ];
-  const gap = 18;
-  const cardColumns = Math.min(3, cards.length);
-  const cardWidth = (pageWidth - margin * 2 - gap * (cardColumns - 1)) / cardColumns;
-  const cardHeight = 118;
-  cards.forEach(([label, value], index) => {
-    const row = Math.floor(index / cardColumns);
-    const col = index % cardColumns;
-    const x = margin + col * (cardWidth + gap);
-    const y = 276 + row * (cardHeight + gap);
-    context.fillStyle = "#ffffff";
-    roundedRect(context, x, y, cardWidth, cardHeight, 28);
-    context.fill();
-    context.strokeStyle = "rgba(17, 24, 39, 0.10)";
-    context.lineWidth = 2;
-    context.stroke();
-    context.fillStyle = "#8ba0bc";
-    context.font = `800 22px ${CANVAS_FONT_STACK}`;
-    context.textAlign = "center";
-    context.fillText(label, x + cardWidth / 2, y + 42);
-    context.fillStyle = "#111827";
-    context.font = `900 30px ${CANVAS_FONT_STACK}`;
-    context.fillText(value, x + cardWidth / 2, y + 84, cardWidth - 28);
-  });
-
-  const noteY = 276 + 2 * (cardHeight + gap) + 8;
-  context.fillStyle = "#f4f5f7";
-  roundedRect(context, margin, noteY, pageWidth - margin * 2, 64, 26);
-  context.fill();
-  context.fillStyle = "#6b7280";
-  context.font = `800 20px ${CANVAS_FONT_STACK}`;
-  context.textAlign = "center";
-  context.fillText(
-    `${getChartPaletteLabel()} · 页边距 ${marginMm}mm${mirrorLabel ? ` · ${mirrorLabel}` : ""} · 请按色号和数量备料`,
-    pageWidth / 2,
-    noteY + 40,
-    pageWidth - margin * 2 - 48,
-  );
-}
-
-function drawMaterialListItems(context, items, details) {
-  const { margin, startY, pageWidth, columns, itemHeight, indexOffset } = details;
-  const columnWidth = (pageWidth - margin * 2) / columns;
-  context.textAlign = "left";
-
-  items.forEach((item, index) => {
-    const col = index % columns;
-    const row = Math.floor(index / columns);
-    const x = margin + col * columnWidth;
-    const y = startY + row * itemHeight;
-    const swatch = 54;
-    const color = rgb(item);
-
-    context.fillStyle = "#ffffff";
-    roundedRect(context, x + 5, y + 5, columnWidth - 18, itemHeight - 14, 20);
-    context.fill();
-    context.strokeStyle = "rgba(17, 24, 39, 0.10)";
-    context.lineWidth = 2;
-    context.stroke();
-
-    context.fillStyle = color;
-    roundedRect(context, x + 22, y + 19, swatch, swatch, 14);
-    context.fill();
-    context.strokeStyle = "rgba(17, 24, 39, 0.20)";
-    context.lineWidth = 2;
-    context.stroke();
-
-    context.fillStyle = isDark(item.rgb) ? "#ffffff" : "#111827";
-    context.font = `900 16px ${CANVAS_FONT_STACK}`;
-    context.textAlign = "center";
-    context.fillText(item.code, x + 22 + swatch / 2, y + 52, swatch - 8);
-
-    context.textAlign = "left";
-    context.fillStyle = "#111827";
-    context.font = `900 22px ${CANVAS_FONT_STACK}`;
-    context.fillText(item.code, x + 92, y + 42, columnWidth - 110);
-    context.fillStyle = "#8ba0bc";
-    context.font = `900 20px ${CANVAS_FONT_STACK}`;
-    context.fillText(`${formatCount(item.count)} 颗`, x + 92, y + 70, columnWidth - 110);
-
-    context.fillStyle = "rgba(17, 24, 39, 0.35)";
-    context.font = `700 14px ${CANVAS_FONT_STACK}`;
-    context.textAlign = "right";
-    context.fillText(`#${indexOffset + index + 1}`, x + columnWidth - 24, y + 38);
-  });
+  if (files.length === 1) {
+    downloadBlob(files[0].blob, buildA4DownloadName("png"));
+  } else {
+    const zipBlob = await createZipBlob(files);
+    downloadBlob(zipBlob, buildA4DownloadName("zip"));
+  }
+  setStatus(`已生成A4打印 ${files.length} 页`);
 }
 
 function splitGridIntoTiles(grid, tileSize) {
@@ -5184,24 +5853,7 @@ function splitGridIntoTilesBySize(grid, tileWidth, tileHeight, extra = {}) {
 }
 
 function getSelectedTileSize() {
-  const value = els.tileSizeSelect?.value || "0";
-  return value === "smart" ? getSmartTileSize(state.grid) : Number(value);
-}
-
-function getSmartTileSize(grid) {
-  const rows = grid.length;
-  const columns = grid[0]?.length || 0;
-  if (!rows || !columns) return 52;
-  const candidates = [52, 78, 104];
-  return candidates
-    .map((size) => {
-      const count = Math.ceil(columns / size) * Math.ceil(rows / size);
-      const capacity = count * size * size;
-      const wasteRatio = (capacity - columns * rows) / capacity;
-      const oversizePenalty = size > Math.max(columns, rows) ? 0.12 : 0;
-      return { size, score: count + wasteRatio + oversizePenalty };
-    })
-    .sort((a, b) => a.score - b.score || a.size - b.size)[0].size;
+  return Number(els.tileSizeSelect?.value || 0);
 }
 
 function isMirrorEnabled() {
@@ -5217,7 +5869,21 @@ function getExportSubtitle() {
 }
 
 function getExportGrid() {
-  return isMirrorEnabled() ? mirrorGrid(state.grid) : cloneGrid(state.grid);
+  let grid = isMirrorEnabled() ? mirrorGrid(state.grid) : cloneGrid(state.grid);
+  const maxColors = state.paletteBudget?.effective || null;
+  if (maxColors != null && !state.manualEdited) {
+    const validation = window.LibmsRegionAwareQuantizer?.validateFinalPattern?.(grid, maxColors);
+    if (validation && !validation.valid) grid = applyFinalPaletteBudget(grid, maxColors).grid;
+    validateCurrentPatternOrThrow(grid, maxColors);
+  }
+  return grid;
+}
+
+function recordLocalExportGrid(grid, kind, settings) {
+  if (!["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)) return;
+  document.body.dataset.lastExportGrid = JSON.stringify({ kind, settings,
+    width: grid[0]?.length || 0, height: grid.length,
+    matrix: grid.map((row) => row.map((color) => color?.code || null)) });
 }
 
 function mirrorGrid(grid) {
@@ -5237,8 +5903,7 @@ function getTileSummary() {
   if (!tileSize || !state.width || !state.height) return "";
   const columns = Math.ceil(state.width / tileSize);
   const rows = Math.ceil(state.height / tileSize);
-  const smart = els.tileSizeSelect?.value === "smart" ? "智能 · " : "";
-  return `${smart}${tileSize} 版 · ${columns * rows} 块`;
+  return `${tileSize} 版 · ${columns * rows} 块`;
 }
 
 function getA4PrintSummary() {
@@ -5299,13 +5964,6 @@ function downloadUrl(url, filename) {
   link.remove();
 }
 
-function sanitizeFileName(value) {
-  return String(value || "libai-project")
-    .replace(/[\\/:*?"<>|]+/g, "-")
-    .replace(/\s+/g, "-")
-    .slice(0, 80);
-}
-
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   downloadUrl(url, filename);
@@ -5313,8 +5971,27 @@ function downloadBlob(blob, filename) {
 }
 
 function buildDownloadName() {
-  const base = getSafeSchemeFilename() || state.sourceName.replace(/\.[^.]+$/, "") || "bead-pattern";
+  const base = getExportBaseName();
   return `${base}${isMirrorEnabled() ? "-mirror" : ""}-bead-pattern.png`;
+}
+
+function getExportBaseName() {
+  return getSafeSchemeFilename() || state.sourceName.replace(/\.[^.]+$/, "") || "bead-pattern";
+}
+
+function buildPatternDownloadName(extension) {
+  return `${getExportBaseName()}${isMirrorEnabled() ? "-mirror" : ""}-bead-pattern.${extension}`;
+}
+
+function hexFromRgb(rgbValue) {
+  return `#${rgbValue
+    .map((channel) => clamp(Math.round(Number(channel) || 0), 0, 255).toString(16).padStart(2, "0"))
+    .join("")}`.toUpperCase();
+}
+
+function csvCell(value) {
+  const text = String(value ?? "");
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 function buildPreviewDownloadName() {
@@ -5459,538 +6136,6 @@ const CRC_TABLE = (() => {
   return table;
 })();
 
-class HardCodedEngine {
-  constructor(canvas, matrix, config = {}) {
-    this.canvas = typeof canvas === "string" ? document.getElementById(canvas) : canvas;
-    this.ctx = this.canvas?.getContext("2d");
-    this.matrix = matrix;
-    this.totalCols = matrix[0]?.length || 0;
-    this.totalRows = matrix.length;
-    this.boardSize = config.boardSize || Math.max(this.totalCols, this.totalRows, 1);
-    this.currentBoardRow = config.currentBoardRow || 0;
-    this.currentBoardCol = config.currentBoardCol || 0;
-    this.fixedCellSize = Boolean(config.cellSize);
-    this.cellSize = config.cellSize || this.getDefaultCellSize(this.boardSize);
-    this.axisSize = config.axisSize || 34;
-    this.config = {
-      maskColor: "rgba(30, 30, 30, 0.85)",
-      highlightColor: null,
-      showCellText: true,
-      completedSets: new Set(),
-      onToggle: null,
-      onHover: null,
-      ...config,
-    };
-    this.refreshBoardBounds();
-    this.completedSets = new Set(this.config.completedSets || []);
-    this.hoverCell = null;
-    this.pointers = new Map();
-    this.pinchState = null;
-    this.scale = 1;
-    this.offsetX = 0;
-    this.offsetY = 0;
-    this.minScale = 0.18;
-    this.maxScale = 5;
-    this.dpr = this.getDevicePixelRatio();
-    this.offscreenCanvas = document.createElement("canvas");
-    this.offscreenCtx = this.offscreenCanvas.getContext("2d");
-    this.configureOffscreenCanvas(true);
-    this.resizeObserver = new ResizeObserver(() => this.resize());
-    if (this.canvas?.parentElement) this.resizeObserver.observe(this.canvas.parentElement);
-    this.resize({ fit: true });
-    this.preRenderStaticMap();
-    this.render();
-  }
-
-  getDefaultCellSize(boardSize) {
-    if (boardSize <= 52) return 32;
-    if (boardSize <= 78) return 28;
-    if (boardSize <= 104) return 24;
-    return 20;
-  }
-
-  getDevicePixelRatio() {
-    return Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
-  }
-
-  getOffscreenPixelRatio() {
-    const maxCanvasSide = 8192;
-    const maxCanvasPixels = 32000000;
-    const sideScale = Math.min(maxCanvasSide / this.boardWidth, maxCanvasSide / this.boardHeight);
-    const areaScale = Math.sqrt(maxCanvasPixels / Math.max(1, this.boardWidth * this.boardHeight));
-    return Math.max(1, Math.min(this.dpr, sideScale, areaScale));
-  }
-
-  disableImageSmoothing(context) {
-    if (!context) return;
-    context.imageSmoothingEnabled = false;
-    context.mozImageSmoothingEnabled = false;
-    context.webkitImageSmoothingEnabled = false;
-    context.msImageSmoothingEnabled = false;
-  }
-
-  configureOffscreenCanvas(force = false) {
-    if (!this.offscreenCanvas || !this.offscreenCtx) return;
-    this.offscreenDpr = this.getOffscreenPixelRatio();
-    const width = Math.max(1, Math.round(this.boardWidth * this.offscreenDpr));
-    const height = Math.max(1, Math.round(this.boardHeight * this.offscreenDpr));
-    if (force || this.offscreenCanvas.width !== width || this.offscreenCanvas.height !== height) {
-      this.offscreenCanvas.width = width;
-      this.offscreenCanvas.height = height;
-    }
-    this.offscreenCtx.setTransform(this.offscreenDpr, 0, 0, this.offscreenDpr, 0, 0);
-    this.disableImageSmoothing(this.offscreenCtx);
-  }
-
-  refreshBoardBounds() {
-    this.boardSize = Math.max(1, Number(this.config.boardSize || this.boardSize || 52));
-    if (!this.fixedCellSize) this.cellSize = this.getDefaultCellSize(this.boardSize);
-    const maxBoardRow = Math.max(0, Math.ceil(this.totalRows / this.boardSize) - 1);
-    const maxBoardCol = Math.max(0, Math.ceil(this.totalCols / this.boardSize) - 1);
-    this.currentBoardRow = clamp(Number(this.config.currentBoardRow || 0), 0, maxBoardRow);
-    this.currentBoardCol = clamp(Number(this.config.currentBoardCol || 0), 0, maxBoardCol);
-    this.startRow = this.currentBoardRow * this.boardSize;
-    this.startCol = this.currentBoardCol * this.boardSize;
-    this.endRow = Math.min(this.startRow + this.boardSize, this.totalRows);
-    this.endCol = Math.min(this.startCol + this.boardSize, this.totalCols);
-    this.rows = Math.max(0, this.endRow - this.startRow);
-    this.cols = Math.max(0, this.endCol - this.startCol);
-    this.boardWidth = this.axisSize + this.cols * this.cellSize;
-    this.boardHeight = this.axisSize + this.rows * this.cellSize;
-  }
-
-  destroy() {
-    this.resizeObserver?.disconnect();
-    this.pointers.clear();
-    this.pinchState = null;
-  }
-
-  resize(options = {}) {
-    if (!this.canvas || !this.ctx) return;
-    const parent = this.canvas.parentElement;
-    const width = Math.max(320, parent?.clientWidth || window.innerWidth);
-    const height = Math.max(320, parent?.clientHeight || window.innerHeight - 120);
-    this.viewportWidth = width;
-    this.viewportHeight = height;
-    const nextDpr = this.getDevicePixelRatio();
-    const shouldRebake = nextDpr !== this.dpr;
-    this.dpr = nextDpr;
-    this.canvas.width = Math.round(width * this.dpr);
-    this.canvas.height = Math.round(height * this.dpr);
-    this.canvas.style.width = `${width}px`;
-    this.canvas.style.height = `${height}px`;
-    if (shouldRebake) {
-      this.configureOffscreenCanvas(true);
-      this.preRenderStaticMap();
-    }
-    if (options.fit) this.fitToViewport();
-    else this.clampViewport();
-    this.render();
-  }
-
-  fitToViewport() {
-    const fitScale = Math.min(
-      (this.viewportWidth - 28) / this.boardWidth,
-      (this.viewportHeight - 28) / this.boardHeight,
-      1.35,
-    );
-    this.scale = clamp(fitScale, this.minScale, this.maxScale);
-    this.offsetX = (this.viewportWidth - this.boardWidth * this.scale) / 2;
-    this.offsetY = (this.viewportHeight - this.boardHeight * this.scale) / 2;
-    this.clampViewport();
-  }
-
-  updateConfig(newConfig = {}) {
-    const nextHighlight = newConfig.highlightColor ?? this.config.highlightColor;
-    const nextShowText = newConfig.showCellText ?? this.config.showCellText;
-    const nextBoardSize = newConfig.boardSize ?? this.config.boardSize ?? this.boardSize;
-    const nextBoardRow = newConfig.currentBoardRow ?? this.config.currentBoardRow ?? this.currentBoardRow;
-    const nextBoardCol = newConfig.currentBoardCol ?? this.config.currentBoardCol ?? this.currentBoardCol;
-    const nextFocusKey = newConfig.focusKey ?? this.config.focusKey ?? "";
-    const needsBake =
-      nextHighlight !== this.config.highlightColor ||
-      nextShowText !== this.config.showCellText ||
-      nextBoardSize !== (this.config.boardSize ?? this.boardSize) ||
-      nextBoardRow !== (this.config.currentBoardRow ?? this.currentBoardRow) ||
-      nextBoardCol !== (this.config.currentBoardCol ?? this.currentBoardCol) ||
-      nextFocusKey !== (this.config.focusKey ?? "") ||
-      newConfig.matrix;
-    this.config = { ...this.config, ...newConfig };
-    if (newConfig.matrix) {
-      this.matrix = newConfig.matrix;
-      this.totalCols = this.matrix[0]?.length || 0;
-      this.totalRows = this.matrix.length;
-    }
-    if (needsBake) {
-      this.refreshBoardBounds();
-      this.configureOffscreenCanvas(true);
-      this.fitToViewport();
-    }
-    if (newConfig.completedSets) this.completedSets = new Set(newConfig.completedSets);
-    if (needsBake) this.preRenderStaticMap();
-    this.render();
-  }
-
-  preRenderStaticMap() {
-    const ctx = this.offscreenCtx;
-    const size = this.cellSize;
-    const axis = this.axisSize;
-    const { highlightColor, maskColor, showCellText, focusCells } = this.config;
-
-    this.configureOffscreenCanvas();
-    ctx.clearRect(0, 0, this.boardWidth, this.boardHeight);
-    this.disableImageSmoothing(ctx);
-    ctx.fillStyle = "#fffdf7";
-    ctx.fillRect(0, 0, this.boardWidth, this.boardHeight);
-
-    ctx.fillStyle = "#e8eefb";
-    ctx.fillRect(0, 0, this.boardWidth, axis);
-    ctx.fillRect(0, 0, axis, this.boardHeight);
-    ctx.fillStyle = "#526078";
-    ctx.font = `900 11px ${CANVAS_FONT_STACK}`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    for (let c = 0; c < this.cols; c += 1) {
-      if (c % 10 === 0) ctx.fillText(String(c + 1), axis + c * size + size / 2, axis / 2);
-    }
-    for (let r = 0; r < this.rows; r += 1) {
-      if (r % 10 === 0) ctx.fillText(String(r + 1), axis / 2, axis + r * size + size / 2);
-    }
-
-    const sequenceMap = new Map();
-    if (highlightColor) {
-      let counter = 1;
-      for (let r = 0; r < this.totalRows; r += 1) {
-        for (let c = 0; c < this.totalCols; c += 1) {
-          const beadColor = this.getCellColor(this.matrix[r]?.[c]);
-          if (beadColor === highlightColor) {
-            if (r >= this.startRow && r < this.endRow && c >= this.startCol && c < this.endCol) {
-              sequenceMap.set(`${r}_${c}`, counter);
-            }
-            counter += 1;
-          }
-        }
-      }
-    }
-
-    for (let r = this.startRow; r < this.endRow; r += 1) {
-      for (let c = this.startCol; c < this.endCol; c += 1) {
-        const bead = this.matrix[r][c];
-        const beadColor = this.getCellColor(bead);
-        const localCol = c - this.startCol;
-        const localRow = r - this.startRow;
-        const x = axis + localCol * size;
-        const y = axis + localRow * size;
-        ctx.save();
-
-        if (beadColor) {
-          ctx.fillStyle = beadColor;
-          ctx.fillRect(x, y, size, size);
-          if ((highlightColor && beadColor !== highlightColor) || (focusCells && !focusCells.has(`${r}_${c}`))) {
-            ctx.fillStyle = maskColor;
-            ctx.fillRect(x, y, size, size);
-          }
-        } else {
-          ctx.fillStyle = "#fffdf7";
-          ctx.fillRect(x, y, size, size);
-        }
-
-        if (highlightColor && beadColor === highlightColor) {
-          const seqNum = sequenceMap.get(`${r}_${c}`);
-          const seqText = String(seqNum || "");
-          ctx.fillStyle = this.getContrastColor(beadColor);
-          const seqSize = seqText.length >= 5 ? 9 : seqText.length >= 4 ? 11 : size >= 28 ? 14 : 10;
-          ctx.font = `900 ${seqSize}px ${CANVAS_FONT_STACK}`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(seqText, x + size / 2, y + size / 2, size * 0.82);
-          ctx.strokeStyle = "#00ff66";
-          ctx.lineWidth = 2;
-          ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
-        } else if (showCellText && bead?.code && size >= 18) {
-          ctx.fillStyle = this.getContrastColor(beadColor);
-          ctx.globalAlpha = highlightColor ? 0.22 : 0.72;
-          ctx.font = `900 ${size >= 22 ? 9 : 7}px ${CANVAS_FONT_STACK}`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(bead.code, x + size / 2, y + size / 2, size * 0.82);
-        }
-
-        ctx.restore();
-      }
-    }
-
-    this.drawGridLines(ctx);
-  }
-
-  drawGridLines(ctx) {
-    const size = this.cellSize;
-    const axis = this.axisSize;
-    const width = this.cols * size;
-    const height = this.rows * size;
-    ctx.save();
-    ctx.lineCap = "butt";
-
-    for (let c = 0; c <= this.cols; c += 1) {
-      const x = axis + c * size + 0.5;
-      const isTen = c % 10 === 0;
-      const isFive = c % 5 === 0;
-      ctx.beginPath();
-      ctx.setLineDash(isFive && !isTen ? [6, 5] : []);
-      ctx.strokeStyle = isTen ? "rgba(75, 85, 99, 0.92)" : isFive ? "rgba(92, 101, 116, 0.74)" : "rgba(107, 114, 128, 0.48)";
-      ctx.lineWidth = isTen ? 2.5 : isFive ? 1.6 : 1;
-      ctx.moveTo(x, axis);
-      ctx.lineTo(x, axis + height);
-      ctx.stroke();
-    }
-
-    for (let r = 0; r <= this.rows; r += 1) {
-      const y = axis + r * size + 0.5;
-      const isTen = r % 10 === 0;
-      const isFive = r % 5 === 0;
-      ctx.beginPath();
-      ctx.setLineDash(isFive && !isTen ? [6, 5] : []);
-      ctx.strokeStyle = isTen ? "rgba(75, 85, 99, 0.92)" : isFive ? "rgba(92, 101, 116, 0.74)" : "rgba(107, 114, 128, 0.48)";
-      ctx.lineWidth = isTen ? 2.5 : isFive ? 1.6 : 1;
-      ctx.moveTo(axis, y);
-      ctx.lineTo(axis + width, y);
-      ctx.stroke();
-    }
-
-    ctx.setLineDash([]);
-    ctx.strokeStyle = "rgba(17, 24, 39, 0.82)";
-    ctx.lineWidth = 2.8;
-    ctx.strokeRect(axis + 0.5, axis + 0.5, width, height);
-    ctx.restore();
-  }
-
-  render() {
-    if (!this.ctx) return;
-    const ctx = this.ctx;
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    ctx.clearRect(0, 0, this.viewportWidth, this.viewportHeight);
-    this.disableImageSmoothing(ctx);
-    ctx.save();
-    ctx.translate(this.offsetX, this.offsetY);
-    ctx.scale(this.scale, this.scale);
-    ctx.drawImage(
-      this.offscreenCanvas,
-      0,
-      0,
-      this.offscreenCanvas.width,
-      this.offscreenCanvas.height,
-      0,
-      0,
-      this.boardWidth,
-      this.boardHeight,
-    );
-    this.drawHoverOverlay(ctx);
-    this.completedSets.forEach((coordKey) => {
-      const [r, c] = coordKey.split("_").map(Number);
-      if (r >= this.startRow && r < this.endRow && c >= this.startCol && c < this.endCol) {
-        this.drawCheckMark(c, r);
-      }
-    });
-    ctx.restore();
-  }
-
-  drawHoverOverlay(ctx) {
-    if (!this.hoverCell) return;
-    const { row, col } = this.hoverCell;
-    if (row < this.startRow || row >= this.endRow || col < this.startCol || col >= this.endCol) return;
-    const localRow = row - this.startRow;
-    const localCol = col - this.startCol;
-    const size = this.cellSize;
-    const axis = this.axisSize;
-    ctx.save();
-    ctx.fillStyle = "rgba(0, 113, 227, 0.16)";
-    ctx.fillRect(axis, axis + localRow * size, this.cols * size, size);
-    ctx.fillRect(axis + localCol * size, axis, size, this.rows * size);
-    ctx.fillStyle = "rgba(255, 179, 64, 0.30)";
-    ctx.fillRect(axis + localCol * size, axis + localRow * size, size, size);
-    ctx.strokeStyle = "rgba(17, 24, 39, 0.72)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(axis + localCol * size + 1, axis + localRow * size + 1, size - 2, size - 2);
-    ctx.restore();
-  }
-
-  drawCheckMark(col, row) {
-    const ctx = this.ctx;
-    const size = this.cellSize;
-    const x = this.axisSize + (col - this.startCol) * size;
-    const y = this.axisSize + (row - this.startRow) * size;
-    ctx.save();
-    ctx.fillStyle = "rgba(255, 255, 255, 0.72)";
-    ctx.fillRect(x, y, size, size);
-    ctx.fillStyle = "#00a552";
-    ctx.font = `900 ${Math.max(10, size * 0.55)}px ${CANVAS_FONT_STACK}`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("✓", x + size / 2, y + size / 2 + 0.5);
-    ctx.restore();
-  }
-
-  handlePointerDown(event) {
-    event.preventDefault();
-    this.canvas.setPointerCapture?.(event.pointerId);
-    this.pointers.set(event.pointerId, {
-      x: event.clientX,
-      y: event.clientY,
-      startX: event.clientX,
-      startY: event.clientY,
-      dragged: false,
-    });
-    if (this.pointers.size === 2) this.startPinch();
-  }
-
-  handlePointerMove(event) {
-    const pointer = this.pointers.get(event.pointerId);
-    if (!pointer) {
-      this.updateHover(event.clientX, event.clientY);
-      return;
-    }
-    event.preventDefault();
-    const dx = event.clientX - pointer.x;
-    const dy = event.clientY - pointer.y;
-    pointer.x = event.clientX;
-    pointer.y = event.clientY;
-    if (Math.hypot(pointer.x - pointer.startX, pointer.y - pointer.startY) > 5) pointer.dragged = true;
-
-    if (this.pointers.size >= 2 && this.pinchState) {
-      this.updatePinch();
-      return;
-    }
-
-    this.offsetX += dx;
-    this.offsetY += dy;
-    this.clampViewport();
-    this.updateHover(event.clientX, event.clientY);
-    this.render();
-  }
-
-  handlePointerUp(event) {
-    const pointer = this.pointers.get(event.pointerId);
-    this.pointers.delete(event.pointerId);
-    this.canvas.releasePointerCapture?.(event.pointerId);
-    if (this.pinchState && this.pointers.size < 2) {
-      this.pinchState = null;
-      return;
-    }
-    if (pointer && !pointer.dragged) {
-      const cell = this.getCellAtClient(event.clientX, event.clientY);
-      if (cell && this.matrix[cell.row]?.[cell.col]) {
-        this.config.onToggle?.(cell.row, cell.col);
-      }
-    }
-  }
-
-  handlePointerCancel(event) {
-    this.pointers.delete(event.pointerId);
-    if (this.pointers.size < 2) this.pinchState = null;
-  }
-
-  handlePointerLeave() {
-    this.hoverCell = null;
-    this.config.onHover?.("", "");
-    this.render();
-  }
-
-  handleWheel(event) {
-    event.preventDefault();
-    const factor = event.deltaY > 0 ? 0.9 : 1.1;
-    this.zoomAt(event.clientX, event.clientY, this.scale * factor);
-  }
-
-  startPinch() {
-    const [a, b] = [...this.pointers.values()];
-    const center = this.getPointerCenter(a, b);
-    const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
-    this.pinchState = {
-      distance,
-      scale: this.scale,
-      boardX: (center.x - this.canvas.getBoundingClientRect().left - this.offsetX) / this.scale,
-      boardY: (center.y - this.canvas.getBoundingClientRect().top - this.offsetY) / this.scale,
-    };
-  }
-
-  updatePinch() {
-    const [a, b] = [...this.pointers.values()];
-    const center = this.getPointerCenter(a, b);
-    const rect = this.canvas.getBoundingClientRect();
-    const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
-    const nextScale = clamp((this.pinchState.scale * distance) / this.pinchState.distance, this.minScale, this.maxScale);
-    this.scale = nextScale;
-    this.offsetX = center.x - rect.left - this.pinchState.boardX * nextScale;
-    this.offsetY = center.y - rect.top - this.pinchState.boardY * nextScale;
-    a.dragged = true;
-    b.dragged = true;
-    this.clampViewport();
-    this.render();
-  }
-
-  getPointerCenter(a, b) {
-    return {
-      x: (a.x + b.x) / 2,
-      y: (a.y + b.y) / 2,
-    };
-  }
-
-  zoomAt(clientX, clientY, nextScale) {
-    const rect = this.canvas.getBoundingClientRect();
-    const sx = clientX - rect.left;
-    const sy = clientY - rect.top;
-    const boardX = (sx - this.offsetX) / this.scale;
-    const boardY = (sy - this.offsetY) / this.scale;
-    this.scale = clamp(nextScale, this.minScale, this.maxScale);
-    this.offsetX = sx - boardX * this.scale;
-    this.offsetY = sy - boardY * this.scale;
-    this.clampViewport();
-    this.render();
-  }
-
-  updateHover(clientX, clientY) {
-    const cell = this.getCellAtClient(clientX, clientY);
-    const nextKey = cell ? `${cell.row}_${cell.col}` : "";
-    const currentKey = this.hoverCell ? `${this.hoverCell.row}_${this.hoverCell.col}` : "";
-    if (nextKey === currentKey) return;
-    this.hoverCell = cell;
-    this.config.onHover?.(cell ? String(cell.row) : "", cell ? String(cell.col) : "");
-    this.render();
-  }
-
-  getCellAtClient(clientX, clientY) {
-    const rect = this.canvas.getBoundingClientRect();
-    const boardX = (clientX - rect.left - this.offsetX) / this.scale;
-    const boardY = (clientY - rect.top - this.offsetY) / this.scale;
-    const localCol = Math.floor((boardX - this.axisSize) / this.cellSize);
-    const localRow = Math.floor((boardY - this.axisSize) / this.cellSize);
-    if (localRow < 0 || localCol < 0 || localRow >= this.rows || localCol >= this.cols) return null;
-    return { row: this.startRow + localRow, col: this.startCol + localCol };
-  }
-
-  getCellColor(bead) {
-    return bead ? rgb(bead) : "";
-  }
-
-  getContrastColor(color) {
-    const match = String(color || "").match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/i);
-    const values = match
-      ? [Number(match[1]), Number(match[2]), Number(match[3])]
-      : /^#([a-f\d]{6})$/i.test(color)
-        ? [parseInt(color.slice(1, 3), 16), parseInt(color.slice(3, 5), 16), parseInt(color.slice(5, 7), 16)]
-        : [255, 255, 255];
-    const yiq = (values[0] * 299 + values[1] * 587 + values[2] * 114) / 1000;
-    return yiq >= 128 ? "#111827" : "#ffffff";
-  }
-
-  clampViewport() {
-    const slackX = this.viewportWidth * 0.72;
-    const slackY = this.viewportHeight * 0.72;
-    this.offsetX = clamp(this.offsetX, this.viewportWidth - this.boardWidth * this.scale - slackX, slackX);
-    this.offsetY = clamp(this.offsetY, this.viewportHeight - this.boardHeight * this.scale - slackY, slackY);
-  }
-}
-
 function openAssemblyPlayer() {
   if (!state.grid.length) {
     setStatus("请先生成图纸，再开始拼");
@@ -6000,22 +6145,12 @@ function openAssemblyPlayer() {
   state.playCompletedBeads = loadAssemblyProgress(state.playStorageKey);
   state.playActiveCode = "";
   state.currentSelectedColor = null;
-  state.assemblyBoardRow = 0;
-  state.assemblyBoardCol = 0;
-  state.assemblyNavigationMode = "color";
-  state.assemblyNavigationIndex = 0;
-  state.assemblyUndo = [];
-  startAssemblyTimer();
-  updateAssemblyNavigationUi();
   syncAssemblyFocusMode();
-  renderAssemblyBoardPicker();
   renderAssemblyColorList();
+  renderInteractiveBoard();
+  updateAssemblyProgressUi();
   pushAssemblyHistoryState();
   els.assemblyModal?.showModal();
-  requestAnimationFrame(() => {
-    renderInteractiveBoard();
-    updateAssemblyProgressUi();
-  });
 }
 
 function pushAssemblyHistoryState() {
@@ -6094,72 +6229,16 @@ function getAssemblyStorageKey() {
 function loadAssemblyProgress(key) {
   try {
     const raw = localStorage.getItem(key);
-    const saved = raw ? JSON.parse(raw) : [];
-    if (Array.isArray(saved)) {
-      state.assemblyElapsedMs = 0;
-      return new Set(saved);
-    }
-    state.assemblyElapsedMs = Math.max(0, Number(saved?.elapsedMs || 0));
-    return new Set(Array.isArray(saved?.completed) ? saved.completed : []);
+    const values = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(values) ? values : []);
   } catch {
-    state.assemblyElapsedMs = 0;
     return new Set();
   }
 }
 
 function saveAssemblyProgress() {
   if (!state.playStorageKey) return;
-  localStorage.setItem(
-    state.playStorageKey,
-    JSON.stringify({
-      completed: [...state.playCompletedBeads],
-      elapsedMs: getAssemblyElapsedMs(),
-    }),
-  );
-}
-
-function getAssemblyElapsedMs() {
-  return state.assemblyElapsedMs + (state.assemblyTimerRunning ? Date.now() - state.assemblyTimerStartedAt : 0);
-}
-
-function startAssemblyTimer() {
-  state.assemblyTimerRunning = true;
-  state.assemblyTimerStartedAt = Date.now();
-  window.clearInterval(state.assemblyTimerInterval);
-  state.assemblyTimerInterval = window.setInterval(updateAssemblyTimerUi, 1000);
-  updateAssemblyTimerUi();
-}
-
-function toggleAssemblyTimer() {
-  if (state.assemblyTimerRunning) {
-    state.assemblyElapsedMs = getAssemblyElapsedMs();
-    state.assemblyTimerRunning = false;
-    state.assemblyTimerStartedAt = 0;
-  } else {
-    state.assemblyTimerRunning = true;
-    state.assemblyTimerStartedAt = Date.now();
-  }
-  saveAssemblyProgress();
-  updateAssemblyTimerUi();
-}
-
-function stopAssemblyTimer() {
-  if (state.assemblyTimerRunning) state.assemblyElapsedMs = getAssemblyElapsedMs();
-  state.assemblyTimerRunning = false;
-  state.assemblyTimerStartedAt = 0;
-  window.clearInterval(state.assemblyTimerInterval);
-  state.assemblyTimerInterval = 0;
-  saveAssemblyProgress();
-  updateAssemblyTimerUi();
-}
-
-function updateAssemblyTimerUi() {
-  const seconds = Math.floor(getAssemblyElapsedMs() / 1000);
-  const hours = String(Math.floor(seconds / 3600)).padStart(2, "0");
-  const minutes = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
-  const rest = String(seconds % 60).padStart(2, "0");
-  if (els.assemblyTimer) els.assemblyTimer.textContent = `${hours}:${minutes}:${rest}`;
-  if (els.assemblyTimerToggle) els.assemblyTimerToggle.textContent = state.assemblyTimerRunning ? "暂停计时" : "继续计时";
+  localStorage.setItem(state.playStorageKey, JSON.stringify([...state.playCompletedBeads]));
 }
 
 function renderAssemblyColorList() {
@@ -6189,9 +6268,6 @@ function selectAssemblyColor(code) {
     const activeItem = state.stats.find((item) => item.code === code);
     state.playActiveCode = code;
     state.currentSelectedColor = activeItem ? rgb(activeItem) : null;
-    if (state.assemblyNavigationMode === "color") {
-      state.assemblyNavigationIndex = Math.max(0, state.stats.findIndex((item) => item.code === code));
-    }
   }
   syncAssemblyFocusMode();
   renderAssemblyColorList();
@@ -6214,8 +6290,6 @@ function clearAssemblyFocusMode() {
   state.playActiveCode = "";
   state.currentSelectedColor = null;
   state.assemblyHistoryActive = false;
-  stopAssemblyTimer();
-  destroyAssemblyEngine();
   document.body.classList.remove("is-focus-mode");
   document.body.dataset.activeBeadColor = "";
   document.documentElement.style.setProperty("--active-bead-color", "transparent");
@@ -6223,315 +6297,156 @@ function clearAssemblyFocusMode() {
   renderAssemblyColorList();
 }
 
-function destroyAssemblyEngine() {
-  state.assemblyEngine?.destroy();
-  state.assemblyEngine = null;
-}
-
-function getAssemblyBoardSize() {
-  const selectedSize = getSelectedTileSize();
-  if (selectedSize > 0) return selectedSize;
-  return Math.max(state.grid.length, state.grid[0]?.length || 0, 1);
-}
-
-function getAssemblyBoardMeta() {
-  const rows = state.grid.length;
-  const columns = state.grid[0]?.length || 0;
-  const boardSize = getAssemblyBoardSize();
-  const tileRows = Math.max(1, Math.ceil(rows / boardSize));
-  const tileColumns = Math.max(1, Math.ceil(columns / boardSize));
-  state.assemblyBoardRow = clamp(state.assemblyBoardRow || 0, 0, tileRows - 1);
-  state.assemblyBoardCol = clamp(state.assemblyBoardCol || 0, 0, tileColumns - 1);
-  const startRow = state.assemblyBoardRow * boardSize;
-  const startCol = state.assemblyBoardCol * boardSize;
-  const endRow = Math.min(startRow + boardSize, rows);
-  const endCol = Math.min(startCol + boardSize, columns);
-  const index = state.assemblyBoardRow * tileColumns + state.assemblyBoardCol + 1;
-  const total = tileRows * tileColumns;
-  return {
-    boardSize,
-    tileRows,
-    tileColumns,
-    startRow,
-    startCol,
-    endRow,
-    endCol,
-    index,
-    total,
-  };
-}
-
-function renderAssemblyBoardPicker() {
-  if (!els.assemblyBoardPicker || !els.assemblyBoardButtons) return null;
-  const meta = getAssemblyBoardMeta();
-  els.assemblyBoardPicker.hidden = !state.grid.length;
-  if (!state.grid.length) {
-    els.assemblyBoardButtons.replaceChildren();
-    return meta;
+function getAssemblyLineClasses(rowIndex, colIndex) {
+  const classes = [];
+  if (Number.isInteger(colIndex)) {
+    if ((colIndex + 1) % 10 === 0) classes.push("line-10-col");
+    else if ((colIndex + 1) % 5 === 0) classes.push("line-5-col");
   }
-
-  const rangeText = `第 ${meta.index} / ${meta.total} 板 · 行 ${meta.startRow + 1}-${meta.endRow} · 列 ${
-    meta.startCol + 1
-  }-${meta.endCol}`;
-  if (els.assemblyBoardLabel) els.assemblyBoardLabel.textContent = `${meta.boardSize} x ${meta.boardSize} 分版`;
-  if (els.assemblyBoardRange) els.assemblyBoardRange.textContent = rangeText;
-
-  els.assemblyBoardButtons.replaceChildren();
-  for (let row = 0; row < meta.tileRows; row += 1) {
-    for (let col = 0; col < meta.tileColumns; col += 1) {
-      const button = document.createElement("button");
-      const index = row * meta.tileColumns + col + 1;
-      button.type = "button";
-      button.className = `assembly-board-chip${
-        row === state.assemblyBoardRow && col === state.assemblyBoardCol ? " active" : ""
-      }`;
-      button.textContent = `${index}`;
-      button.title = `第 ${index} 板，R${row + 1} C${col + 1}`;
-      button.addEventListener("click", () => switchActiveBoard(row, col));
-      els.assemblyBoardButtons.append(button);
-    }
+  if (Number.isInteger(rowIndex)) {
+    if ((rowIndex + 1) % 10 === 0) classes.push("line-10-row");
+    else if ((rowIndex + 1) % 5 === 0) classes.push("line-5-row");
   }
-  return meta;
+  return classes.join(" ");
 }
 
-function switchActiveBoard(boardRow, boardCol) {
-  state.assemblyBoardRow = boardRow;
-  state.assemblyBoardCol = boardCol;
-  if (state.assemblyNavigationMode === "block") {
-    const meta = getAssemblyBoardMeta();
-    state.assemblyNavigationIndex = boardRow * meta.tileColumns + boardCol;
-  }
-  renderAssemblyBoardPicker();
-  renderInteractiveBoard();
-  updateAssemblyProgressUi();
+function createAxisCell(type, label, rowIndex, colIndex) {
+  const axis = document.createElement("span");
+  const lineClasses = getAssemblyLineClasses(rowIndex, colIndex);
+  axis.className = `axis-cell ${type}${lineClasses ? ` ${lineClasses}` : ""}`;
+  axis.textContent = label;
+  axis.setAttribute("aria-hidden", "true");
+  if (Number.isInteger(rowIndex)) axis.dataset.assemblyRow = String(rowIndex);
+  if (Number.isInteger(colIndex)) axis.dataset.assemblyCol = String(colIndex);
+  return axis;
 }
 
 function renderInteractiveBoard() {
-  const canvas = els.assemblyBoard;
-  if (!canvas) return;
+  const container = els.assemblyBoard;
+  if (!container) return;
   const rows = state.grid.length;
   const columns = state.grid[0]?.length || 0;
   const activeColor = getAssemblyActiveColor();
-  const meta = renderAssemblyBoardPicker();
-  const focusCells = getAssemblyFocusCells();
   state.playHoverRow = "";
   state.playHoverCol = "";
-  const signature = `${columns}x${rows}:${meta?.boardSize || 0}:${state.assemblyBoardRow}:${state.assemblyBoardCol}:${
-    state.paletteLabel
-  }:${state.stats
-    .map((item) => `${item.code}:${item.count}`)
-    .join(",")}`;
-  const config = {
-    boardSize: meta?.boardSize || Math.max(columns, rows, 1),
-    currentBoardRow: state.assemblyBoardRow,
-    currentBoardCol: state.assemblyBoardCol,
-    highlightColor: activeColor || null,
-    focusCells,
-    focusKey: focusCells ? `${state.assemblyNavigationMode}:${state.assemblyNavigationIndex}` : "",
-    showCellText: !state.assemblyHideCellText,
-    completedSets: state.playCompletedBeads,
-    onToggle: toggleAssemblyCoord,
-    onHover: setAssemblyCrosshair,
-  };
+  container.replaceChildren();
+  container.style.setProperty("--assembly-columns", String(columns));
+  container.classList.toggle("hide-cell-text", state.assemblyHideCellText);
 
-  if (!state.assemblyEngine || state.assemblyEngine.signature !== signature) {
-    destroyAssemblyEngine();
-    state.assemblyEngine = new HardCodedEngine(canvas, state.grid, config);
-    state.assemblyEngine.signature = signature;
-  } else {
-    state.assemblyEngine.updateConfig(config);
+  container.append(createAxisCell("axis-corner", "", null, null));
+  for (let colIndex = 0; colIndex < columns; colIndex += 1) {
+    const label = colIndex % 10 === 0 ? String(colIndex + 1) : "";
+    container.append(createAxisCell("axis-top", label, null, colIndex));
+  }
+
+  for (let rowIndex = 0; rowIndex < rows; rowIndex += 1) {
+    const axisLabel = rowIndex % 10 === 0 ? String(rowIndex + 1) : "";
+    container.append(createAxisCell("axis-left", axisLabel, rowIndex, null));
+
+    for (let colIndex = 0; colIndex < columns; colIndex += 1) {
+      const bead = state.grid[rowIndex][colIndex];
+      const cell = document.createElement("button");
+      const coordKey = `${rowIndex}_${colIndex}`;
+      const lineClasses = getAssemblyLineClasses(rowIndex, colIndex);
+      cell.type = "button";
+      cell.className = `bead-cell${lineClasses ? ` ${lineClasses}` : ""}`;
+      cell.dataset.coord = coordKey;
+      cell.dataset.row = String(rowIndex);
+      cell.dataset.col = String(colIndex);
+      cell.dataset.assemblyRow = String(rowIndex);
+      cell.dataset.assemblyCol = String(colIndex);
+      cell.setAttribute("aria-label", `行 ${rowIndex + 1}，列 ${colIndex + 1}`);
+
+      if (!bead) {
+        cell.classList.add("is-empty");
+        cell.setAttribute("aria-disabled", "true");
+      } else {
+        const beadColor = rgb(bead);
+        cell.dataset.code = bead.code;
+        cell.dataset.color = beadColor;
+        cell.style.backgroundColor = beadColor;
+        cell.title = `${bead.code} · 行 ${rowIndex + 1} · 列 ${colIndex + 1}`;
+        if (!state.assemblyHideCellText) {
+          cell.innerHTML = `<span class="bead-code">${escapeHtml(bead.code)}</span>`;
+        }
+        if (state.playCompletedBeads.has(coordKey)) cell.classList.add("is-completed");
+        if (activeColor && beadColor === activeColor) cell.classList.add("is-focus-target");
+      }
+
+      container.append(cell);
+    }
   }
 }
 
-function handleAssemblyBoardPointerDown(event) {
-  state.assemblyEngine?.handlePointerDown(event);
-}
-
-function handleAssemblyBoardPointerMove(event) {
-  state.assemblyEngine?.handlePointerMove(event);
-}
-
-function handleAssemblyBoardPointerUp(event) {
-  state.assemblyEngine?.handlePointerUp(event);
-}
-
-function handleAssemblyBoardPointerCancel(event) {
-  state.assemblyEngine?.handlePointerCancel(event);
-}
-
-function handleAssemblyBoardPointerLeave() {
-  state.assemblyEngine?.handlePointerLeave();
-}
-
-function handleAssemblyBoardWheel(event) {
-  state.assemblyEngine?.handleWheel(event);
+function handleAssemblyBoardPointerOver(event) {
+  const cell = event.target.closest?.(".bead-cell");
+  if (!cell || !els.assemblyBoard?.contains(cell)) return;
+  setAssemblyCrosshair(cell.dataset.row || "", cell.dataset.col || "");
 }
 
 function setAssemblyCrosshair(row, col) {
+  if (state.playHoverRow === row && state.playHoverCol === col) return;
+  clearAssemblyCrosshair();
+  const container = els.assemblyBoard;
+  if (!container || row === "" || col === "") return;
   state.playHoverRow = row;
   state.playHoverCol = col;
+  container.querySelectorAll(`[data-assembly-row="${row}"]`).forEach((node) => {
+    node.classList.add("is-row-hover");
+  });
+  container.querySelectorAll(`[data-assembly-col="${col}"]`).forEach((node) => {
+    node.classList.add("is-col-hover");
+  });
 }
 
 function clearAssemblyCrosshair() {
+  const container = els.assemblyBoard;
+  if (!container) return;
+  container.querySelectorAll(".is-row-hover, .is-col-hover").forEach((node) => {
+    node.classList.remove("is-row-hover", "is-col-hover");
+  });
   state.playHoverRow = "";
   state.playHoverCol = "";
-  if (state.assemblyEngine) {
-    state.assemblyEngine.hoverCell = null;
-    state.assemblyEngine.render();
-  }
 }
 
-function toggleAssemblyCoord(row, col) {
-  const coordKey = `${row}_${col}`;
-  state.assemblyUndo.push({ coordKey, completed: state.playCompletedBeads.has(coordKey) });
-  if (state.assemblyUndo.length > 100) state.assemblyUndo.shift();
+function handleAssemblyBoardClick(event) {
+  const cell = event.target.closest?.(".bead-cell");
+  if (!cell || cell.classList.contains("is-empty")) return;
+  const coordKey = cell.dataset.coord;
+  if (!coordKey) return;
   if (state.playCompletedBeads.has(coordKey)) {
     state.playCompletedBeads.delete(coordKey);
   } else {
     state.playCompletedBeads.add(coordKey);
   }
   saveAssemblyProgress();
-  state.assemblyEngine?.updateConfig({ completedSets: state.playCompletedBeads });
+  renderInteractiveBoard();
   updateAssemblyProgressUi();
-  updateAssemblyNavigationUi();
-}
-
-function undoAssemblyCompletion() {
-  const action = state.assemblyUndo.pop();
-  if (!action) return;
-  if (action.completed) state.playCompletedBeads.add(action.coordKey);
-  else state.playCompletedBeads.delete(action.coordKey);
-  saveAssemblyProgress();
-  state.assemblyEngine?.updateConfig({ completedSets: state.playCompletedBeads });
-  updateAssemblyProgressUi();
-  updateAssemblyNavigationUi();
-}
-
-function setAssemblyNavigationMode(mode) {
-  state.assemblyNavigationMode = ["color", "row", "block"].includes(mode) ? mode : "color";
-  state.assemblyNavigationIndex = 0;
-  if (state.assemblyNavigationMode !== "color") selectAssemblyColor("");
-  applyAssemblyNavigation();
-}
-
-function navigateAssembly(direction) {
-  const count = getAssemblyNavigationCount();
-  if (!count) return;
-  state.assemblyNavigationIndex = (state.assemblyNavigationIndex + direction + count) % count;
-  applyAssemblyNavigation();
-}
-
-function getAssemblyNavigationCount() {
-  if (state.assemblyNavigationMode === "color") return state.stats.length;
-  if (state.assemblyNavigationMode === "row") return state.grid.length;
-  const meta = getAssemblyBoardMeta();
-  return meta.total;
-}
-
-function applyAssemblyNavigation() {
-  if (state.assemblyNavigationMode === "color") {
-    selectAssemblyColor(state.stats[state.assemblyNavigationIndex]?.code || "");
-  } else if (state.assemblyNavigationMode === "row") {
-    const boardSize = getAssemblyBoardSize();
-    state.assemblyBoardRow = Math.floor(state.assemblyNavigationIndex / boardSize);
-    renderInteractiveBoard();
-    updateAssemblyProgressUi();
-  } else {
-    const meta = getAssemblyBoardMeta();
-    state.assemblyBoardRow = Math.floor(state.assemblyNavigationIndex / meta.tileColumns);
-    state.assemblyBoardCol = state.assemblyNavigationIndex % meta.tileColumns;
-    renderInteractiveBoard();
-    updateAssemblyProgressUi();
-  }
-  updateAssemblyNavigationUi();
-}
-
-function getAssemblyFocusCells() {
-  if (state.assemblyNavigationMode !== "row") return null;
-  const row = clamp(state.assemblyNavigationIndex, 0, state.grid.length - 1);
-  const cells = new Set();
-  for (let col = 0; col < (state.grid[row]?.length || 0); col += 1) {
-    if (state.grid[row][col]) cells.add(`${row}_${col}`);
-  }
-  return cells;
-}
-
-function updateAssemblyNavigationUi() {
-  els.assemblyModeButtons.forEach((button) => {
-    const active = button.dataset.assemblyMode === state.assemblyNavigationMode;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-pressed", String(active));
-  });
-  if (els.assemblyUndoButton) els.assemblyUndoButton.disabled = state.assemblyUndo.length === 0;
-}
-
-function navigateToNextIncomplete() {
-  const rows = state.grid.length;
-  const columns = state.grid[0]?.length || 0;
-  if (!rows || !columns) return;
-  const meta = getAssemblyBoardMeta();
-  const start = meta.startRow * columns + meta.startCol;
-  for (let offset = 1; offset <= rows * columns; offset += 1) {
-    const index = (start + offset) % (rows * columns);
-    const row = Math.floor(index / columns);
-    const col = index % columns;
-    if (!state.grid[row]?.[col] || state.playCompletedBeads.has(`${row}_${col}`)) continue;
-    const boardSize = getAssemblyBoardSize();
-    state.assemblyBoardRow = Math.floor(row / boardSize);
-    state.assemblyBoardCol = Math.floor(col / boardSize);
-    if (state.assemblyNavigationMode === "row") state.assemblyNavigationIndex = row;
-    if (state.assemblyNavigationMode === "color") {
-      const codeIndex = state.stats.findIndex((item) => item.code === state.grid[row][col].code);
-      state.assemblyNavigationIndex = Math.max(0, codeIndex);
-      selectAssemblyColor(state.grid[row][col].code);
-    }
-    renderInteractiveBoard();
-    state.assemblyEngine.hoverCell = { row, col };
-    state.assemblyEngine.render();
-    updateAssemblyProgressUi();
-    updateAssemblyNavigationUi();
-    return;
-  }
-  setStatus("当前图纸已全部完成");
 }
 
 function resetAssemblyProgress() {
   if (!state.playCompletedBeads.size) return;
   if (!window.confirm("确认清空当前图纸的拼豆进度？")) return;
   state.playCompletedBeads.clear();
-  state.assemblyUndo = [];
   saveAssemblyProgress();
   renderInteractiveBoard();
   updateAssemblyProgressUi();
 }
 
 function updateAssemblyProgressUi() {
-  const meta = getAssemblyBoardMeta();
   const total = state.stats.reduce((sum, item) => sum + item.count, 0);
   let completed = 0;
-  let boardTotal = 0;
-  let boardCompleted = 0;
   state.playCompletedBeads.forEach((key) => {
     const [row, col] = key.split("_").map(Number);
     if (state.grid[row]?.[col]) completed += 1;
   });
-  for (let row = meta.startRow; row < meta.endRow; row += 1) {
-    for (let col = meta.startCol; col < meta.endCol; col += 1) {
-      if (!state.grid[row]?.[col]) continue;
-      boardTotal += 1;
-      if (state.playCompletedBeads.has(`${row}_${col}`)) boardCompleted += 1;
-    }
-  }
   const percent = total ? Math.round((completed / total) * 100) : 0;
   const activeText = state.playActiveCode ? ` · 当前高亮 ${state.playActiveCode}` : "";
   if (els.assemblyProgressLabel) {
     els.assemblyProgressLabel.textContent = `${formatCount(completed)} / ${formatCount(total)} · ${percent}%`;
   }
   if (els.assemblySummary) {
-    const modeLabel = { color: "按颜色", row: "逐行", block: "按区块" }[state.assemblyNavigationMode] || "按颜色";
-    els.assemblySummary.textContent = `当前第 ${meta.index}/${meta.total} 板：${formatCount(boardCompleted)} / ${formatCount(
-      boardTotal,
-    )}。${modeLabel}模式，点击格子标记已拼${activeText}。`;
+    els.assemblySummary.textContent = `点击色号可高亮同色，点击格子可标记已拼${activeText}。进度只保存在本机浏览器。`;
   }
 }
 
@@ -6547,18 +6462,14 @@ function openEditor() {
   state.editorTool = "pencil";
   state.editorFloating = null;
   state.editorSelection = null;
-  state.editorSelectedCells = new Set();
-  state.editorLassoPoints = [];
-  state.editorHistory = [];
-  state.editorRedo = [];
-  state.editorActionSnapshot = null;
-  state.editorSymmetry = "none";
+  state.activeEditorSelection = null;
   state.editorReferenceImage = null;
+  state.editorReference = null;
+  state.referenceUndo = [];
   state.assemblyMode = false;
   state.assemblyHighlightCode = "";
   state.paintUndo = [];
   state.replaceUndo = [];
-  if (els.editorSymmetrySelect) els.editorSymmetrySelect.value = "none";
   if (els.artworkNameInput) els.artworkNameInput.value = buildGalleryTitle();
   updateEditorPaletteOptions();
   els.editorPaletteSelect.value = getCurrentPaletteKey();
@@ -6567,6 +6478,7 @@ function openEditor() {
   updateEditorToolUi();
   updateEditorFloatingUi();
   updateAssemblyUi();
+  syncReferenceControls();
   renderPaletteGroups();
   updateCurrentSelection();
   updateReplaceOptions();
@@ -6589,11 +6501,9 @@ function syncEditorPalette() {
 }
 
 function setEditorTool(tool) {
-  state.editorTool = ["pencil", "eraser", "eyedropper", "fill", "magic", "lasso", "cut", "copy"].includes(tool)
+  state.editorTool = ["pencil", "eraser", "eyedropper", "fill", "rectangle", "cut", "copy"].includes(tool)
     ? tool
     : "pencil";
-  state.editorSelection = null;
-  state.editorLassoPoints = [];
   state.assemblyMode = false;
   state.assemblyHighlightCode = "";
   updateEditorToolUi();
@@ -6705,8 +6615,9 @@ function getEditorCellFromPointer(event) {
   const scaleY = canvas.height / rect.height;
   const x = (event.clientX - rect.left) * scaleX;
   const y = (event.clientY - rect.top) * scaleY;
-  const column = Math.floor((x - EDITOR_MARGIN) / EDITOR_CELL_SIZE);
-  const row = Math.floor((y - EDITOR_MARGIN) / EDITOR_CELL_SIZE);
+  const cellSize = getEditorRenderCellSize();
+  const column = Math.floor((x - EDITOR_MARGIN) / cellSize);
+  const row = Math.floor((y - EDITOR_MARGIN) / cellSize);
   if (
     row < 0 ||
     column < 0 ||
@@ -6747,24 +6658,7 @@ function handleEditorPointerDown(event) {
     return;
   }
 
-  if (state.editorTool === "fill") {
-    floodFillEditor(cell.column, cell.row);
-    return;
-  }
-
-  if (state.editorTool === "magic") {
-    selectMagicRegion(cell.column, cell.row);
-    return;
-  }
-
-  if (state.editorTool === "lasso") {
-    state.editorLassoPoints = [{ x: cell.column + 0.5, y: cell.row + 0.5 }];
-    state.editorSelectedCells = new Set();
-    renderEditorCanvas();
-    return;
-  }
-
-  if (state.editorTool === "cut" || state.editorTool === "copy") {
+  if (state.editorTool === "cut" || state.editorTool === "copy" || state.editorTool === "rectangle") {
     state.editorSelection = {
       mode: state.editorTool,
       x0: cell.column,
@@ -6773,6 +6667,11 @@ function handleEditorPointerDown(event) {
       y1: cell.row,
     };
     renderEditorCanvas();
+    return;
+  }
+
+  if (state.editorTool === "fill") {
+    fillEditorRegion(cell.column, cell.row);
     return;
   }
 
@@ -6807,16 +6706,6 @@ function handleEditorPointerMove(event) {
     return;
   }
 
-  if (state.editorTool === "lasso" && state.editorLassoPoints.length) {
-    const point = { x: cell.column + 0.5, y: cell.row + 0.5 };
-    const previous = state.editorLassoPoints[state.editorLassoPoints.length - 1];
-    if (previous.x !== point.x || previous.y !== point.y) {
-      state.editorLassoPoints.push(point);
-      renderEditorCanvas();
-    }
-    return;
-  }
-
   if (state.editorTool === "pencil" || state.editorTool === "eraser") {
     paintEditorCell(cell.column, cell.row);
   }
@@ -6826,156 +6715,13 @@ function finishEditorPointerAction() {
   if (state.editorSelection) {
     finalizeEditorSelection();
   }
-  if (state.editorTool === "lasso" && state.editorLassoPoints.length) {
-    finalizeLassoSelection();
-  }
   if (state.editorFloating) {
     state.editorFloating.dragging = false;
   }
+  if (state.currentPaintAction.length) state.paintUndo.push(state.currentPaintAction);
+  state.currentPaintAction = [];
   state.isPainting = false;
   state.lastPaintKey = "";
-  commitEditorPointerAction();
-}
-
-function beginEditorPointerAction() {
-  const mutating = ["pencil", "eraser", "fill", "cut"].includes(state.editorTool);
-  state.editorActionSnapshot = mutating ? cloneGrid(state.editorGrid) : null;
-}
-
-function commitEditorPointerAction() {
-  const snapshot = state.editorActionSnapshot;
-  state.editorActionSnapshot = null;
-  if (!snapshot || gridsEqual(snapshot, state.editorGrid)) return;
-  state.editorHistory.push(snapshot);
-  if (state.editorHistory.length > 50) state.editorHistory.shift();
-  state.editorRedo = [];
-  updateEditorControls();
-}
-
-function recordEditorHistory() {
-  state.editorHistory.push(cloneGrid(state.editorGrid));
-  if (state.editorHistory.length > 50) state.editorHistory.shift();
-  state.editorRedo = [];
-}
-
-function gridsEqual(a, b) {
-  if (a.length !== b.length || (a[0]?.length || 0) !== (b[0]?.length || 0)) return false;
-  for (let y = 0; y < a.length; y += 1) {
-    for (let x = 0; x < (a[y]?.length || 0); x += 1) {
-      if (!sameColor(a[y][x], b[y][x])) return false;
-    }
-  }
-  return true;
-}
-
-function undoEditor() {
-  const previous = state.editorHistory.pop();
-  if (!previous) return;
-  state.editorRedo.push(cloneGrid(state.editorGrid));
-  state.editorGrid = cloneGrid(previous);
-  clearEditorSelection();
-  renderEditorCanvas();
-  updateReplaceOptions();
-  updateEditorControls();
-}
-
-function redoEditor() {
-  const next = state.editorRedo.pop();
-  if (!next) return;
-  state.editorHistory.push(cloneGrid(state.editorGrid));
-  state.editorGrid = cloneGrid(next);
-  clearEditorSelection();
-  renderEditorCanvas();
-  updateReplaceOptions();
-  updateEditorControls();
-}
-
-function clearEditorSelection() {
-  state.editorSelectedCells = new Set();
-  state.editorLassoPoints = [];
-}
-
-function floodFillEditor(column, row) {
-  const source = state.editorGrid[row]?.[column] || null;
-  const target = cloneColor(state.selectedColor);
-  if (sameColor(source, target)) return;
-  const queue = [[column, row]];
-  const visited = new Set();
-  while (queue.length) {
-    const [x, y] = queue.pop();
-    const key = `${x}:${y}`;
-    if (visited.has(key) || y < 0 || x < 0 || y >= state.editorGrid.length || x >= state.editorGrid[0].length) {
-      continue;
-    }
-    visited.add(key);
-    if (!sameColor(state.editorGrid[y][x], source)) continue;
-    state.editorGrid[y][x] = cloneColor(target);
-    queue.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
-  }
-  renderEditorCanvas();
-  updateReplaceOptions();
-}
-
-function selectMagicRegion(column, row) {
-  const source = state.editorGrid[row]?.[column] || null;
-  const queue = [[column, row]];
-  const selected = new Set();
-  while (queue.length) {
-    const [x, y] = queue.pop();
-    const key = `${x}:${y}`;
-    if (selected.has(key) || y < 0 || x < 0 || y >= state.editorGrid.length || x >= state.editorGrid[0].length) {
-      continue;
-    }
-    if (!sameColor(state.editorGrid[y][x], source)) continue;
-    selected.add(key);
-    queue.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
-  }
-  state.editorSelectedCells = selected;
-  state.editorLassoPoints = [];
-  renderEditorCanvas();
-  updateEditorControls();
-}
-
-function finalizeLassoSelection() {
-  const points = state.editorLassoPoints;
-  if (points.length < 3) {
-    clearEditorSelection();
-    renderEditorCanvas();
-    updateEditorControls();
-    return;
-  }
-  const selected = new Set();
-  for (let y = 0; y < state.editorGrid.length; y += 1) {
-    for (let x = 0; x < state.editorGrid[0].length; x += 1) {
-      if (isPointInPolygon(x + 0.5, y + 0.5, points)) selected.add(`${x}:${y}`);
-    }
-  }
-  state.editorSelectedCells = selected;
-  renderEditorCanvas();
-  updateEditorControls();
-}
-
-function isPointInPolygon(x, y, points) {
-  let inside = false;
-  for (let i = 0, j = points.length - 1; i < points.length; j = i, i += 1) {
-    const a = points[i];
-    const b = points[j];
-    const intersects = a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y || 0.0001) + a.x;
-    if (intersects) inside = !inside;
-  }
-  return inside;
-}
-
-function applyColorToEditorSelection() {
-  if (!state.editorSelectedCells.size) return;
-  recordEditorHistory();
-  state.editorSelectedCells.forEach((key) => {
-    const [x, y] = key.split(":").map(Number);
-    if (state.editorGrid[y]?.[x] !== undefined) state.editorGrid[y][x] = cloneColor(state.selectedColor);
-  });
-  renderEditorCanvas();
-  updateReplaceOptions();
-  updateEditorControls();
 }
 
 function isCellInsideFloating(column, row) {
@@ -6997,6 +6743,12 @@ function finalizeEditorSelection() {
   const y0 = Math.min(selection.y0, selection.y1);
   const x1 = Math.max(selection.x0, selection.x1);
   const y1 = Math.max(selection.y0, selection.y1);
+  if (selection.mode === "rectangle") {
+    state.activeEditorSelection = { x0, y0, x1, y1 };
+    renderEditorCanvas();
+    updateEditorControls();
+    return;
+  }
   const pattern = [];
   const cutAction = [];
 
@@ -7050,17 +6802,25 @@ function renderEditorCanvas() {
   const context = canvas.getContext("2d");
   const rows = state.editorGrid.length;
   const columns = state.editorGrid[0]?.length || 0;
-  const cell = EDITOR_CELL_SIZE;
+  const cell = getEditorRenderCellSize();
   const margin = EDITOR_MARGIN;
   canvas.width = columns * cell + margin * 2;
   canvas.height = rows * cell + margin * 2;
 
   context.fillStyle = "#fffdf7";
   context.fillRect(0, 0, canvas.width, canvas.height);
-  if (state.editorReferenceImage) {
+  if (state.editorReferenceImage && state.editorReference?.visible !== false) {
+    const reference = state.editorReference || createDefaultReferenceState(state.editorReferenceImage);
+    const drawWidth = columns * cell * reference.scale;
+    const drawHeight = rows * cell * reference.scale;
     context.save();
-    context.globalAlpha = 0.24;
-    context.drawImage(state.editorReferenceImage, margin, margin, columns * cell, rows * cell);
+    context.globalAlpha = reference.opacity;
+    context.translate(
+      margin + columns * cell / 2 + reference.x * cell,
+      margin + rows * cell / 2 + reference.y * cell,
+    );
+    context.rotate(reference.rotation * Math.PI / 180);
+    context.drawImage(state.editorReferenceImage, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
     context.restore();
   }
   context.font = `800 12px ${CANVAS_FONT_STACK}`;
@@ -7100,7 +6860,7 @@ function renderEditorCanvas() {
           context.fillStyle = "rgba(255,255,255,0.68)";
           context.fillRect(px, py, cell, cell);
         }
-        if (state.editorPrefs.showCodes) {
+        if (state.editorPrefs.showCodes && cell >= 14) {
           context.fillStyle = isDark(color.rgb) && !dimmed ? "#fff" : "#1f2422";
           context.font = `900 10px ${CANVAS_FONT_STACK}`;
           context.fillText(color.code, px + cell / 2, py + cell / 2 + 1);
@@ -7123,45 +6883,36 @@ function renderEditorCanvas() {
 
   drawEditorSelectionOverlay(context, margin, cell);
   drawEditorFloatingPattern(context, margin, cell);
+  drawReferenceAlignmentOverlay(context, margin, cell, columns, rows);
 
   setEditorZoom(state.editorZoom);
 }
 
+function getEditorRenderCellSize() {
+  const rows = state.editorGrid.length;
+  const columns = state.editorGrid[0]?.length || 0;
+  return Math.max(1, Math.min(EDITOR_CELL_SIZE, Math.floor((4096 - EDITOR_MARGIN * 2) / Math.max(1, rows, columns))));
+}
+
 function drawEditorSelectionOverlay(context, margin, cell) {
-  const selection = state.editorSelection;
+  const selection = state.editorSelection || state.activeEditorSelection;
+  if (!selection) return;
+  const x0 = Math.min(selection.x0, selection.x1);
+  const y0 = Math.min(selection.y0, selection.y1);
+  const x1 = Math.max(selection.x0, selection.x1);
+  const y1 = Math.max(selection.y0, selection.y1);
   context.save();
   context.fillStyle = "rgba(67, 94, 229, 0.14)";
   context.strokeStyle = "#435ee5";
   context.lineWidth = 3;
   context.setLineDash([8, 6]);
-  if (selection) {
-    const x0 = Math.min(selection.x0, selection.x1);
-    const y0 = Math.min(selection.y0, selection.y1);
-    const x1 = Math.max(selection.x0, selection.x1);
-    const y1 = Math.max(selection.y0, selection.y1);
-    context.fillRect(margin + x0 * cell, margin + y0 * cell, (x1 - x0 + 1) * cell, (y1 - y0 + 1) * cell);
-    context.strokeRect(
-      margin + x0 * cell + 1.5,
-      margin + y0 * cell + 1.5,
-      (x1 - x0 + 1) * cell - 3,
-      (y1 - y0 + 1) * cell - 3,
-    );
-  }
-  state.editorSelectedCells.forEach((key) => {
-    const [x, y] = key.split(":").map(Number);
-    context.fillRect(margin + x * cell, margin + y * cell, cell, cell);
-    context.strokeRect(margin + x * cell + 2, margin + y * cell + 2, cell - 4, cell - 4);
-  });
-  if (state.editorLassoPoints.length) {
-    context.beginPath();
-    state.editorLassoPoints.forEach((point, index) => {
-      const px = margin + point.x * cell;
-      const py = margin + point.y * cell;
-      if (index === 0) context.moveTo(px, py);
-      else context.lineTo(px, py);
-    });
-    context.stroke();
-  }
+  context.fillRect(margin + x0 * cell, margin + y0 * cell, (x1 - x0 + 1) * cell, (y1 - y0 + 1) * cell);
+  context.strokeRect(
+    margin + x0 * cell + 1.5,
+    margin + y0 * cell + 1.5,
+    (x1 - x0 + 1) * cell - 3,
+    (y1 - y0 + 1) * cell - 3,
+  );
   context.restore();
 }
 
@@ -7214,38 +6965,59 @@ function paintEditorCell(column, row) {
   const key = `${column}:${row}`;
   if (key === state.lastPaintKey) return;
   state.lastPaintKey = key;
+  const oldColor = cloneColor(state.editorGrid[row][column]);
   const nextColor = state.editorTool === "eraser" ? null : cloneColor(state.selectedColor);
-  getSymmetryCells(column, row).forEach(({ x, y }) => {
-    if (!sameColor(state.editorGrid[y][x], nextColor)) state.editorGrid[y][x] = cloneColor(nextColor);
-  });
+  if (sameColor(oldColor, nextColor)) return;
+  state.editorGrid[row][column] = nextColor;
+  state.currentPaintAction.push({ x: column, y: row, oldColor });
   renderEditorCanvas();
   updateReplaceOptions();
   updateEditorControls();
 }
 
-function getSymmetryCells(column, row) {
-  const width = state.editorGrid[0]?.length || 0;
-  const height = state.editorGrid.length;
-  const cells = new Map([[`${column}:${row}`, { x: column, y: row }]]);
-  if (state.editorSymmetry === "horizontal" || state.editorSymmetry === "both") {
-    cells.set(`${width - 1 - column}:${row}`, { x: width - 1 - column, y: row });
-  }
-  if (state.editorSymmetry === "vertical" || state.editorSymmetry === "both") {
-    cells.set(`${column}:${height - 1 - row}`, { x: column, y: height - 1 - row });
-  }
-  if (state.editorSymmetry === "both") {
-    cells.set(`${width - 1 - column}:${height - 1 - row}`, {
-      x: width - 1 - column,
-      y: height - 1 - row,
-    });
-  }
-  return [...cells.values()];
-}
-
 function undoPaint() {
   const action = state.paintUndo.pop();
-  if (!action) return;
-  state.editorGrid[action.y][action.x] = cloneColor(action.oldColor);
+  if (!action) {
+    const referenceAction = state.referenceUndo.pop();
+    if (!referenceAction) return;
+    state.editorReferenceImage = referenceAction.image || null;
+    state.editorReference = referenceAction.metadata
+      ? { ...referenceAction.metadata, image: referenceAction.image }
+      : null;
+    syncReferenceControls();
+    renderEditorCanvas();
+    updateEditorControls();
+    return;
+  }
+  const items = Array.isArray(action) ? action : [action];
+  for (const item of items) state.editorGrid[item.y][item.x] = cloneColor(item.oldColor);
+  renderEditorCanvas();
+  updateReplaceOptions();
+  updateEditorControls();
+}
+
+function fillEditorRegion(column, row) {
+  const source = state.editorGrid[row]?.[column] || null;
+  const target = cloneColor(state.selectedColor);
+  if (sameColor(source, target)) return;
+  const width = state.editorGrid[0]?.length || 0;
+  const height = state.editorGrid.length;
+  const visited = new Uint8Array(width * height);
+  const queue = [[column, row]];
+  const action = [];
+  for (let head = 0; head < queue.length; head += 1) {
+    const [x, y] = queue[head];
+    const index = y * width + x;
+    if (visited[index] || !sameColor(state.editorGrid[y]?.[x] || null, source)) continue;
+    visited[index] = 1;
+    action.push({ x, y, oldColor: cloneColor(state.editorGrid[y][x]) });
+    state.editorGrid[y][x] = cloneColor(target);
+    if (x > 0) queue.push([x - 1, y]);
+    if (x + 1 < width) queue.push([x + 1, y]);
+    if (y > 0) queue.push([x, y - 1]);
+    if (y + 1 < height) queue.push([x, y + 1]);
+  }
+  if (action.length) state.paintUndo.push(action);
   renderEditorCanvas();
   updateReplaceOptions();
   updateEditorControls();
@@ -7265,12 +7037,30 @@ function updateReplaceOptions() {
 }
 
 function updateEditorControls() {
-  els.undoPaintButton.disabled = state.editorHistory.length === 0;
-  els.undoReplaceButton.disabled = state.editorHistory.length === 0;
-  if (els.redoEditorButton) els.redoEditorButton.disabled = state.editorRedo.length === 0;
-  if (els.applySelectionColorButton) els.applySelectionColorButton.disabled = state.editorSelectedCells.size === 0;
+  els.undoPaintButton.disabled = state.paintUndo.length === 0 && state.referenceUndo.length === 0;
+  els.undoReplaceButton.disabled = state.replaceUndo.length === 0;
   els.replaceButton.disabled = !els.replaceFrom.value;
+  if (els.fillSelectionButton) els.fillSelectionButton.disabled = !state.activeEditorSelection;
+  if (els.clearSelectionButton) els.clearSelectionButton.disabled = !state.activeEditorSelection;
   updateLibraryImportButton();
+}
+
+function applyColorToSelection(color) {
+  const selection = state.activeEditorSelection;
+  if (!selection) return;
+  const action = [];
+  for (let y = selection.y0; y <= selection.y1; y += 1) {
+    for (let x = selection.x0; x <= selection.x1; x += 1) {
+      const oldColor = state.editorGrid[y][x];
+      if (sameColor(oldColor, color)) continue;
+      action.push({ x, y, oldColor: cloneColor(oldColor) });
+      state.editorGrid[y][x] = cloneColor(color);
+    }
+  }
+  if (action.length) state.replaceUndo.push(action);
+  renderEditorCanvas();
+  updateReplaceOptions();
+  updateEditorControls();
 }
 
 function updateLibraryImportButton() {
@@ -7282,7 +7072,6 @@ function updateLibraryImportButton() {
 function applyFloatingPattern() {
   const floating = state.editorFloating;
   if (!floating) return;
-  recordEditorHistory();
   const action = [];
   for (let y = 0; y < floating.height; y += 1) {
     for (let x = 0; x < floating.width; x += 1) {
@@ -7333,7 +7122,6 @@ function importSelectedLibraryItem() {
 
 function transformEditorGrid(type) {
   const oldGrid = cloneGrid(state.editorGrid);
-  recordEditorHistory();
   if (type === "flip-horizontal") {
     state.editorGrid = state.editorGrid.map((row) => row.slice().reverse().map(cloneColor));
   } else if (type === "flip-vertical") {
@@ -7342,16 +7130,6 @@ function transformEditorGrid(type) {
     state.editorGrid = scaleGridNearest(state.editorGrid, 0.5);
   } else if (type === "scale-up") {
     state.editorGrid = scaleGridNearest(state.editorGrid, 2);
-  } else if (type === "rotate-left") {
-    const columns = oldGrid[0]?.length || 0;
-    state.editorGrid = Array.from({ length: columns }, (_, y) =>
-      Array.from({ length: oldGrid.length }, (_, x) => cloneColor(oldGrid[x][columns - 1 - y])),
-    );
-  } else if (type === "rotate-right") {
-    const rows = oldGrid.length;
-    state.editorGrid = Array.from({ length: oldGrid[0]?.length || 0 }, (_, y) =>
-      Array.from({ length: rows }, (_, x) => cloneColor(oldGrid[rows - 1 - x][y])),
-    );
   }
   state.replaceUndo.push(gridToUndoAction(oldGrid));
   state.editorFloating = null;
@@ -7389,30 +7167,346 @@ function gridToUndoAction(grid) {
 function loadEditorReferenceImage(event) {
   const file = event.target.files?.[0];
   if (!file) return;
+  if (!/^image\/(png|jpeg|webp)$/i.test(file.type)) {
+    window.alert("参考图仅支持 PNG、JPG、JPEG 或 WebP。");
+    return;
+  }
+  if (els.referenceImageButton) {
+    els.referenceImageButton.disabled = true;
+    els.referenceImageButton.textContent = "读取中...";
+  }
   const reader = new FileReader();
   reader.onload = () => {
     const image = new Image();
     image.onload = () => {
+      pushReferenceUndo();
       state.editorReferenceImage = image;
+      state.editorReference = createDefaultReferenceState(image);
+      syncReferenceControls();
       renderEditorCanvas();
       setStatus("已添加参考图");
+      if (els.referenceImageButton) {
+        els.referenceImageButton.disabled = false;
+        els.referenceImageButton.textContent = "更换参考图";
+      }
+    };
+    image.onerror = () => {
+      window.alert("参考图读取失败，请换一张图片重试。");
+      if (els.referenceImageButton) {
+        els.referenceImageButton.disabled = false;
+        els.referenceImageButton.textContent = "添加参考图";
+      }
     };
     image.src = String(reader.result);
   };
+  reader.onerror = () => window.alert("参考图文件读取失败。");
   reader.readAsDataURL(file);
 }
 
 function clearEditorReferenceImage() {
+  if (!state.editorReferenceImage) return;
+  pushReferenceUndo();
   state.editorReferenceImage = null;
+  state.editorReference = null;
   if (els.referenceImageInput) els.referenceImageInput.value = "";
+  syncReferenceControls();
   renderEditorCanvas();
+}
+
+function createDefaultReferenceState(image) {
+  return {
+    image,
+    x: 0,
+    y: 0,
+    scale: 1,
+    rotation: 0,
+    opacity: 0.4,
+    visible: true,
+    locked: false,
+    gridOffsetX: 0,
+    gridOffsetY: 0,
+    gridCellWidth: EDITOR_CELL_SIZE,
+    gridCellHeight: EDITOR_CELL_SIZE,
+    showAlignment: false,
+  };
+}
+
+function pushReferenceUndo() {
+  state.referenceUndo.push({
+    image: state.editorReferenceImage,
+    metadata: state.editorReference ? { ...state.editorReference, image: undefined } : null,
+  });
+  if (state.referenceUndo.length > 20) state.referenceUndo.shift();
+}
+
+function syncReferenceControls() {
+  const reference = state.editorReference;
+  if (els.referenceControls) els.referenceControls.hidden = !reference;
+  if (els.clearReferenceButton) els.clearReferenceButton.disabled = !reference;
+  if (!reference) return;
+  els.referenceOpacity.value = String(Math.round(reference.opacity * 100));
+  els.referenceScale.value = String(Math.round(reference.scale * 100));
+  els.referenceRotation.value = String(reference.rotation);
+  els.referenceOpacityOutput.textContent = `${Math.round(reference.opacity * 100)}%`;
+  els.referenceScaleOutput.textContent = `${Math.round(reference.scale * 100)}%`;
+  els.referenceRotationOutput.textContent = `${reference.rotation}°`;
+  els.referenceVisibleButton.textContent = reference.visible ? "隐藏" : "显示";
+  els.referenceLockButton.textContent = reference.locked ? "解锁" : "锁定";
+}
+
+function updateReferenceControls() {
+  const reference = state.editorReference;
+  if (!reference) return;
+  reference.opacity = clamp(Number(els.referenceOpacity.value) / 100, 0, 1);
+  reference.scale = clamp(Number(els.referenceScale.value) / 100, 0.1, 3);
+  reference.rotation = clamp(Number(els.referenceRotation.value), -15, 15);
+  syncReferenceControls();
+  renderEditorCanvas();
+}
+
+function toggleReferenceVisibility() {
+  if (!state.editorReference) return;
+  pushReferenceUndo();
+  state.editorReference.visible = !state.editorReference.visible;
+  syncReferenceControls();
+  renderEditorCanvas();
+}
+
+function toggleReferenceLock() {
+  if (!state.editorReference) return;
+  state.editorReference.locked = !state.editorReference.locked;
+  syncReferenceControls();
+}
+
+function nudgeReference(value) {
+  const reference = state.editorReference;
+  if (!reference || reference.locked) return;
+  pushReferenceUndo();
+  const [dx, dy] = String(value || "0,0").split(",").map(Number);
+  reference.x += dx;
+  reference.y += dy;
+  renderEditorCanvas();
+}
+
+function openPatternAdjustDialog(target = "editor") {
+  const source = target === "main" ? state.grid : state.editorGrid;
+  if (!source.length) {
+    window.alert("请先创建或生成图纸。");
+    return;
+  }
+  state.patternAdjustTarget = target;
+  state.patternAdjustBase = cloneGrid(source);
+  resetPatternAdjustment();
+  els.patternAdjustModal?.showModal();
+}
+
+function getPatternAdjustments() {
+  return Object.fromEntries([...els.patternAdjustInputs].map((input) => [input.dataset.patternAdjust, Number(input.value || 0)]));
+}
+
+function resetPatternAdjustment() {
+  els.patternAdjustInputs.forEach((input) => {
+    input.value = "0";
+    const output = document.querySelector(`[data-adjust-output="${input.dataset.patternAdjust}"]`);
+    if (output) output.textContent = "0";
+  });
+  if (state.patternAdjustBase) state.patternAdjustPreviewGrid = cloneGrid(state.patternAdjustBase);
+  renderPatternAdjustmentPreview();
+}
+
+function previewPatternAdjustment() {
+  els.patternAdjustInputs.forEach((input) => {
+    const output = document.querySelector(`[data-adjust-output="${input.dataset.patternAdjust}"]`);
+    if (output) output.textContent = input.value;
+  });
+  if (!state.patternAdjustBase) return;
+  window.cancelAnimationFrame(state.patternAdjustFrame);
+  state.patternAdjustFrame = window.requestAnimationFrame(() => {
+    state.patternAdjustPreviewGrid = createAdjustedPattern(state.patternAdjustBase, getPatternAdjustments());
+    renderPatternAdjustmentPreview();
+  });
+}
+
+function renderPatternAdjustmentPreview() {
+  if (!els.patternAdjustPreviewImage || !state.patternAdjustPreviewGrid?.length) return;
+  const maxSide = Math.max(state.patternAdjustPreviewGrid.length, state.patternAdjustPreviewGrid[0]?.length || 1);
+  const cell = maxSide > 120 ? 5 : maxSide > 80 ? 8 : 12;
+  els.patternAdjustPreviewImage.src = createChartCanvas(
+    state.patternAdjustPreviewGrid,
+    calculateStats(state.patternAdjustPreviewGrid),
+    { cell, margin: 24, showLegend: false, showCodes: true },
+  ).toDataURL("image/png");
+}
+
+function createAdjustedPattern(sourceGrid, adjustments) {
+  const palette = getEditorPalette();
+  const brightness = adjustments.brightness * 1.15;
+  const exposureFactor = 2 ** (adjustments.exposure / 100);
+  const contrastFactor = (259 * (adjustments.contrast + 255)) / (255 * (259 - adjustments.contrast));
+  const saturationFactor = 1 + adjustments.saturation / 100;
+  const sharpenAmount = Math.min(0.65, adjustments.sharpen / 150);
+  return sourceGrid.map((row, y) => row.map((color, x) => {
+    if (!color) return null;
+    let channels = color.rgb.map((value) => value * exposureFactor + brightness);
+    channels = channels.map((value) => contrastFactor * (value - 128) + 128);
+    const gray = 0.299 * channels[0] + 0.587 * channels[1] + 0.114 * channels[2];
+    channels = channels.map((value) => gray + (value - gray) * saturationFactor);
+    if (sharpenAmount > 0) {
+      const neighbors = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]
+        .map(([nx, ny]) => sourceGrid[ny]?.[nx]?.rgb)
+        .filter(Boolean);
+      if (neighbors.length) {
+        const average = [0, 1, 2].map((channel) => neighbors.reduce((sum, rgbValue) => sum + rgbValue[channel], 0) / neighbors.length);
+        channels = channels.map((value, channel) => value + (color.rgb[channel] - average[channel]) * sharpenAmount);
+      }
+    }
+    return cloneColor(nearestColor(...channels.map((value) => clamp(value, 0, 255)), palette, { importance: 0.8, region: "subject" }));
+  }));
+}
+
+function applyPatternAdjustment() {
+  if (!state.patternAdjustBase) return;
+  window.cancelAnimationFrame(state.patternAdjustFrame);
+  const before = cloneGrid(state.patternAdjustBase);
+  const after = createAdjustedPattern(before, getPatternAdjustments());
+  state.replaceUndo.push(gridToUndoAction(before));
+  if (state.patternAdjustTarget === "main") {
+    state.grid = cloneGrid(after);
+    state.editorGrid = cloneGrid(after);
+    state.stats = calculateStats(state.grid);
+    state.generationOriginalGrid = null;
+    state.generationOptimizedGrid = null;
+    refreshChartUrl();
+    updateResultUi();
+    updateOptimizationToggle();
+  } else {
+    state.editorGrid = cloneGrid(after);
+    updateReplaceOptions();
+    updateEditorControls();
+    renderEditorCanvas();
+  }
+  state.patternAdjustBase = null;
+  state.patternAdjustPreviewGrid = null;
+  els.patternAdjustModal?.close();
+  setStatus("已应用图纸调节");
+}
+
+function cancelPatternAdjustmentPreview() {
+  if (!state.patternAdjustBase) return;
+  window.cancelAnimationFrame(state.patternAdjustFrame);
+  state.patternAdjustBase = null;
+  state.patternAdjustPreviewGrid = null;
+}
+
+function openGridAlignDialog() {
+  if (!state.editorReference) {
+    window.alert("请先添加参考图。");
+    return;
+  }
+  const reference = state.editorReference;
+  state.gridAlignBase = { ...reference, image: undefined };
+  els.gridOffsetX.value = String(reference.gridOffsetX || 0);
+  els.gridOffsetY.value = String(reference.gridOffsetY || 0);
+  els.gridCellWidth.value = String(reference.gridCellWidth || getEditorRenderCellSize());
+  els.gridCellHeight.value = String(reference.gridCellHeight || getEditorRenderCellSize());
+  reference.showAlignment = true;
+  renderEditorCanvas();
+  els.gridAlignModal?.showModal();
+}
+
+function previewGridAlignment() {
+  const reference = state.editorReference;
+  if (!reference) return;
+  reference.gridOffsetX = Number(els.gridOffsetX.value || 0);
+  reference.gridOffsetY = Number(els.gridOffsetY.value || 0);
+  reference.gridCellWidth = Math.max(1, Number(els.gridCellWidth.value || 1));
+  reference.gridCellHeight = Math.max(1, Number(els.gridCellHeight.value || 1));
+  reference.showAlignment = true;
+  renderEditorCanvas();
+}
+
+function autoEstimateReferenceGrid() {
+  const reference = state.editorReference;
+  const image = state.editorReferenceImage;
+  if (!reference || !image) return;
+  const width = Math.min(600, image.naturalWidth || image.width);
+  const height = Math.min(600, image.naturalHeight || image.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, 0, 0, width, height);
+  const pixels = context.getImageData(0, 0, width, height).data;
+  const vertical = new Float64Array(width);
+  const horizontal = new Float64Array(height);
+  for (let y = 1; y < height; y += 1) for (let x = 1; x < width; x += 1) {
+    const i = (y * width + x) * 4;
+    const left = i - 4;
+    const above = i - width * 4;
+    vertical[x] += Math.abs(pixels[i] - pixels[left]) + Math.abs(pixels[i + 1] - pixels[left + 1]) + Math.abs(pixels[i + 2] - pixels[left + 2]);
+    horizontal[y] += Math.abs(pixels[i] - pixels[above]) + Math.abs(pixels[i + 1] - pixels[above + 1]) + Math.abs(pixels[i + 2] - pixels[above + 2]);
+  }
+  const estimatePeriod = (projection, expected) => {
+    let best = Math.max(2, expected);
+    let bestScore = -Infinity;
+    for (let period = Math.max(2, Math.floor(expected * 0.55)); period <= Math.ceil(expected * 1.55); period += 1) {
+      let score = 0;
+      for (let i = period; i < projection.length; i += 1) score += projection[i] * projection[i - period];
+      if (score > bestScore) { bestScore = score; best = period; }
+    }
+    return best;
+  };
+  const columns = state.editorGrid[0]?.length || 1;
+  const rows = state.editorGrid.length || 1;
+  const sourceCellWidth = estimatePeriod(vertical, width / columns);
+  const sourceCellHeight = estimatePeriod(horizontal, height / rows);
+  reference.gridCellWidth = sourceCellWidth * (columns * getEditorRenderCellSize()) / width;
+  reference.gridCellHeight = sourceCellHeight * (rows * getEditorRenderCellSize()) / height;
+  els.gridCellWidth.value = reference.gridCellWidth.toFixed(2);
+  els.gridCellHeight.value = reference.gridCellHeight.toFixed(2);
+  els.gridAlignMessage.textContent = "已根据水平/垂直梯度周期估算，请检查叠加线后微调。";
+  previewGridAlignment();
+}
+
+function applyGridAlignment() {
+  previewGridAlignment();
+  if (state.editorReference) state.editorReference.showAlignment = false;
+  state.gridAlignBase = null;
+  renderEditorCanvas();
+  els.gridAlignModal?.close();
+  setStatus("已保存参考图网格对齐");
+}
+
+function cancelGridAlignmentPreview() {
+  if (!state.gridAlignBase || !state.editorReference) return;
+  Object.assign(state.editorReference, state.gridAlignBase, { showAlignment: false });
+  state.gridAlignBase = null;
+  renderEditorCanvas();
+}
+
+function drawReferenceAlignmentOverlay(context, margin, cell, columns, rows) {
+  const reference = state.editorReference;
+  if (!reference?.showAlignment || reference.visible === false) return;
+  const width = columns * cell;
+  const height = rows * cell;
+  const cellWidth = Math.max(1, reference.gridCellWidth || cell);
+  const cellHeight = Math.max(1, reference.gridCellHeight || cell);
+  context.save();
+  context.strokeStyle = "rgba(0, 122, 255, 0.78)";
+  context.lineWidth = 1;
+  for (let x = reference.gridOffsetX % cellWidth; x <= width; x += cellWidth) {
+    context.beginPath(); context.moveTo(margin + x, margin); context.lineTo(margin + x, margin + height); context.stroke();
+  }
+  for (let y = reference.gridOffsetY % cellHeight; y <= height; y += cellHeight) {
+    context.beginPath(); context.moveTo(margin, margin + y); context.lineTo(margin + width, margin + y); context.stroke();
+  }
+  context.restore();
 }
 
 function trimEditorArtwork() {
   const bounds = getGridContentBounds(state.editorGrid);
   if (!bounds) return;
   const oldGrid = cloneGrid(state.editorGrid);
-  recordEditorHistory();
   state.editorGrid = state.editorGrid
     .slice(bounds.y0, bounds.y1 + 1)
     .map((row) => row.slice(bounds.x0, bounds.x1 + 1).map(cloneColor));
@@ -7451,7 +7545,6 @@ function fitEditorToScreen() {
 function clearEditorArtwork() {
   if (!window.confirm("确认清空当前画布？")) return;
   const oldGrid = cloneGrid(state.editorGrid);
-  recordEditorHistory();
   state.editorGrid = state.editorGrid.map((row) => row.map(() => null));
   state.replaceUndo.push(gridToUndoAction(oldGrid));
   renderEditorCanvas();
@@ -7465,7 +7558,6 @@ function replaceColor() {
   const toCode = els.replaceTo.value;
   const target = toCode ? getEditorPalette().find((color) => color.code === toCode) : null;
   const action = [];
-  recordEditorHistory();
 
   state.editorGrid.forEach((row, y) => {
     row.forEach((color, x) => {
@@ -7503,7 +7595,7 @@ function undoReplace() {
 
 function saveEditor() {
   state.grid = cloneGrid(state.editorGrid);
-  state.optimizationSummary = "";
+  state.manualEdited = true;
   state.width = state.grid[0]?.length || 0;
   state.height = state.grid.length;
   if (els.artworkNameInput?.value.trim()) {
@@ -7515,12 +7607,14 @@ function saveEditor() {
   refreshChartUrl();
   updateResultUi();
   saveCurrentToGallery();
+  window.dispatchEvent(new Event("libms:legacy-editor-saved"));
+  window.dispatchEvent(new CustomEvent("libms:project-result", { detail: window.LibmsWorkspaceBridge?.getResult() }));
   els.editorModal.close();
 }
 
 function saveEditorToLibrary() {
   state.grid = cloneGrid(state.editorGrid);
-  state.optimizationSummary = "";
+  state.manualEdited = true;
   state.width = state.grid[0]?.length || 0;
   state.height = state.grid.length;
   if (els.artworkNameInput?.value.trim()) {
@@ -7532,6 +7626,8 @@ function saveEditorToLibrary() {
   refreshChartUrl();
   updateResultUi();
   saveCurrentToGallery();
+  window.dispatchEvent(new Event("libms:legacy-editor-saved"));
+  window.dispatchEvent(new CustomEvent("libms:project-result", { detail: window.LibmsWorkspaceBridge?.getResult() }));
   setStatus("已保存到作品库");
 }
 
@@ -7557,32 +7653,83 @@ function updateAssemblyUi() {
   }
 }
 
-function downloadEditorArtwork() {
-  const stats = calculateStats(state.editorGrid);
-  const canvas = createChartCanvas(state.editorGrid, stats, {
-    cell: getDownloadCellSize(),
-    margin: 88,
-    showCodes: true,
-    minLongSide: EXPORT_MIN_LONG_SIDE,
-    subtitle: "编辑器导出",
-  });
+async function downloadEditorArtwork() {
   const base = (els.artworkNameInput?.value || state.sourceName || "bead-pattern")
     .replace(/\.[^.]+$/, "")
     .trim();
+  await constructionSheetRendererReady;
+  const canvas = renderLegacyConstructionSheet(state.editorGrid, {
+    title: base || "未命名作品",
+    paletteLabel: getPaletteLabelForKey(els.editorPaletteSelect.value),
+  });
   downloadUrl(canvas.toDataURL("image/png"), `${base || "bead-pattern"}-editor.png`);
   setStatus("已下载编辑图纸");
 }
 
+function publishEditorArtwork() {
+  saveEditorToLibrary();
+  window.alert("社区发布需要账号与服务器接口。当前已先保存到本地作品库。");
+}
+
+function openBlankBoardDialog() {
+  updateBlankBoardSummary();
+  els.blankBoardModal?.showModal();
+}
+
+// 只判断合法性，不做夹取：填 10 就是 10，填 1 就是 1，不再悄悄改成 16 或 1000。
+function parseBlankBoardSize(rawValue) {
+  const text = String(rawValue ?? "").trim();
+  if (!text) return null;
+  const value = Math.round(Number(text));
+  if (!Number.isFinite(value)) return null;
+  if (value < BLANK_BOARD_MIN || value > BLANK_BOARD_MAX) return null;
+  return value;
+}
+
+function updateBlankBoardSummary() {
+  const width = parseBlankBoardSize(els.blankBoardWidth?.value);
+  const height = parseBlankBoardSize(els.blankBoardHeight?.value);
+  const valid = width !== null && height !== null;
+  if (els.blankBoardSummary) {
+    els.blankBoardSummary.textContent = valid
+      ? `${width} × ${height} 空白画板 · ${(width * height).toLocaleString("zh-CN", { useGrouping: false })} 个可编辑格子`
+      : "尺寸填写有误 · 不会按其他数值创建画板";
+  }
+  if (els.blankBoardMessage) {
+    els.blankBoardMessage.textContent = valid
+      ? `可填 ${BLANK_BOARD_MIN} 到 ${BLANK_BOARD_MAX} 之间的整数：填多少就创建多少，最小 ${BLANK_BOARD_MIN} × ${BLANK_BOARD_MIN}。`
+      : `宽度和高度都必须填 ${BLANK_BOARD_MIN} 到 ${BLANK_BOARD_MAX} 之间的整数。已填写的内容不会被自动改写，改好之后才能创建。`;
+  }
+  [[els.blankBoardWidth, width], [els.blankBoardHeight, height]].forEach(([input, value]) => {
+    input?.setAttribute("aria-invalid", value === null ? "true" : "false");
+  });
+  if (els.createBlankBoardButton) els.createBlankBoardButton.disabled = !valid;
+}
+
 function createBlankBoard(options = {}) {
-  const { openEditorAfterCreate = true } = options;
-  const width = getGranularity();
-  const height = getGridHeight();
+  const { openEditorAfterCreate = false } = options;
+  const fallbackSize = getGranularity();
+  const width = parseBlankBoardSize(options.width ?? fallbackSize);
+  const height = parseBlankBoardSize(options.height ?? fallbackSize);
+  if (width === null || height === null) {
+    updateBlankBoardSummary();
+    if (els.blankBoardMessage) {
+      els.blankBoardMessage.textContent = `宽度和高度都必须填 ${BLANK_BOARD_MIN} 到 ${BLANK_BOARD_MAX} 之间的整数，因此没有创建画板。`;
+    }
+    return false;
+  }
   state.sourceDataUrl = "";
   state.sourceName = "blank-board";
   state.autoProcessAfterLoad = false;
   state.restoreAutoSizePending = false;
   state.backgroundDecision = "";
+  state.paletteBudget = null;
   state.sourceSafetyChecked = true;
+  // 空白画板是**编辑器画布**，不是「源图尺寸」—— 没有源图，也就没有可恢复的尺寸。
+  // 所以这里打回 unresolved 而不是写入 manual-calibration：否则
+  // getGenerationSize() 会开始报一个「已解析」的尺寸，而那个尺寸跟生成毫无关系
+  // （B0 §5 的两条链路分离，在 B0.1 里依然成立）。
+  resetSourceDimensions("blank-board");
   els.fileInput.value = "";
   els.sourcePreview.hidden = true;
   els.sourcePreview.removeAttribute("src");
@@ -7590,14 +7737,19 @@ function createBlankBoard(options = {}) {
   state.grid = Array.from({ length: height }, () => Array(width).fill(null));
   state.width = width;
   state.height = height;
-  state.optimizationSummary = "";
   state.paletteLabel = getCurrentPaletteLabel();
   state.stats = [];
+  state.manualEdited = true;
   state.assemblyHideCellText = false;
   refreshChartUrl();
   updateResultUi();
-  setStatus("空白画板");
+  setStatus(`${width} × ${height} 空白画板`);
+  els.blankBoardModal?.close();
+  const detail = window.LibmsWorkspaceBridge?.getResult();
+  window.dispatchEvent(new CustomEvent("libms:project-result", { detail }));
+  window.dispatchEvent(new CustomEvent("libms:blank-canvas-created", { detail }));
   if (openEditorAfterCreate) openEditor();
+  return true;
 }
 
 function resetAll() {
@@ -7606,16 +7758,6 @@ function resetAll() {
   state.autoProcessAfterLoad = false;
   state.restoreAutoSizePending = false;
   state.backgroundDecision = "";
-  state.optimizationSummary = "";
-  state.sourceAspectRatio = 1;
-  state.ratioLocked = true;
-  if (els.cropModeSelect) els.cropModeSelect.value = "cover";
-  if (els.cropZoomInput) els.cropZoomInput.value = "100";
-  if (els.cropXInput) els.cropXInput.value = "0";
-  if (els.cropYInput) els.cropYInput.value = "0";
-  updateCompositionUi();
-  syncRangeControls("granularity", DEFAULT_GRANULARITY, MIN_GRANULARITY, MAX_GRANULARITY);
-  updateRatioLockUi();
   state.sourceSafetyChecked = false;
   els.fileInput.value = "";
   els.sourcePreview.hidden = true;
@@ -7628,12 +7770,14 @@ function resetAll() {
 
 function clearResult() {
   state.grid = [];
+  state.manualEdited = false;
   state.stats = [];
+  state.paletteEngine = null;
   state.chartUrl = "";
   state.previewUrl = "";
   state.paletteLabel = "";
   state.backgroundDecision = "";
-  state.optimizationSummary = "";
+  state.paletteBudget = null;
   state.width = 0;
   state.height = 0;
   state.assemblyHideCellText = false;
@@ -7653,7 +7797,7 @@ function cloneGrid(grid) {
 }
 
 function sameColor(a, b) {
-  return a?.code === b?.code || (!a && !b);
+  return (a?.paletteId || a?.code) === (b?.paletteId || b?.code) || (!a && !b);
 }
 
 function rgb(color) {
@@ -7668,4 +7812,887 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+// Read-only instrumentation for UI refactor regression capture; generation is unchanged.
+window.captureLegacyGenerationBaseline = () => ({
+  width: state.width,
+  height: state.height,
+  palette: getCurrentPaletteKey(),
+  maxColors: state.paletteBudget?.effective ?? null,
+  usedColors: state.stats.length,
+  totalBeads: state.stats.reduce((sum, item) => sum + item.count, 0),
+  paletteCodeDistribution: Object.fromEntries(state.stats.map((item) => [item.code, item.count])),
+  matrix: state.grid.map((row) => row.map((color) => color?.code || null)),
+});
+
+// Thin UI adapter: existing Color Grid, palette and generation functions remain authoritative.
+window.LibmsWorkspaceBridge = {
+  createBlankCanvas: ({ width, height } = {}) => createBlankBoard({ width, height }),
+  getResult: () => ({
+    width: state.width, height: state.height, grid: state.grid, colors: state.stats,
+    usedColors: state.stats.length, totalBeads: state.stats.reduce((sum, color) => sum + color.count, 0),
+    sourceUrl: state.processedSourceDataUrl || state.sourceDataUrl, sourceOriginalUrl: state.sourceDataUrl, sourceName: state.sourceName, sourceWidth: state.sourceNaturalWidth, sourceHeight: state.sourceNaturalHeight, previewUrl: state.previewUrl,
+    patternUrl: state.chartUrl, paletteKey: getCurrentPaletteKey(),
+    maxColors: Number(els.maxColorsInput?.value || 0), manualEdited: state.manualEdited,
+    algorithmEngine: state.algorithmEngine, algorithmEngineLast: state.algorithmEngineLast || null,
+  }),
+  getCell(x, y) { return cloneColor(state.grid[y]?.[x] || null); },
+  /**
+   * §13 Auto Tune 的诊断报告（不含网格）。
+   *
+   * 刻意**不放进工作台 UI**（§16：用户只看到「智能」，不该看到「Auto Tune Profile 3」）。
+   * 它服务于两件事：真机探针取证，以及出问题时能回答「这次为什么选了这一套」。
+   */
+  getAutoTuneReport: () => autoTuneReport,
+  // 上一次生成的「智能辅助」运行报告：给验收脚本与排障用，不参与任何计算。
+  getGenerationReport: () => ({
+    engine: state.generationEngineLast || null,
+    algorithmEngine: state.algorithmEngineLast || null,
+    pindo: state.pindoReport || null,
+    bgs: state.bgsReport || null,
+    smartFeatures: state.smartFeatures || null,
+    subjectCrop: state.smartReport?.subjectCrop || null,
+    autoBackground: state.smartReport?.autoBackground || null,
+    strokeProtection: state.smartReport?.strokeProtection || null,
+    accentProtection: state.smartReport?.accentProtection || null,
+    paletteBudget: state.paletteBudget || null,
+    generationMilliseconds: state.generationMilliseconds ?? null,
+  }),
+  getPaletteColors: () => getCurrentPalette().map(cloneColor),
+  getAvailablePaletteIds,
+  setAvailablePaletteIds,
+  getGenerationPaletteColors: () => getGenerationPaletteColors().map(cloneColor),
+  applyCellChanges(changes, { live = false, finalize = false } = {}) {
+    if (!state.grid.length || !Array.isArray(changes)) return 0;
+    let count = 0;
+    for (const change of changes) {
+      const x = Number(change.x), y = Number(change.y);
+      if (!Number.isInteger(x) || !Number.isInteger(y) || !state.grid[y] || x < 0 || x >= state.grid[y].length) continue;
+      const next = change.after ? cloneColor(change.after) : null;
+      if (state.grid[y][x]?.code === next?.code) continue;
+      state.grid[y][x] = next;
+      count++;
+    }
+    if (count) state.manualEdited = true;
+    if ((count || finalize) && !live) {
+      state.manualEdited = true;
+      state.stats = calculateStats(state.grid);
+      if (["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)) document.body.dataset.canonicalBaseline = JSON.stringify(window.captureLegacyGenerationBaseline());
+      refreshChartUrl();
+      updateResultUi();
+      window.dispatchEvent(new CustomEvent("libms:grid-edited", { detail: this.getResult() }));
+    }
+    return count;
+  },
+  setProductionOptions({ engine = "v2.5", generationOptions = {} } = {}) {
+    state.generationEngine = engine;
+    state.productionGenerationOptions = generationOptions;
+  },
+  /**
+   * 背景预检（Stage B2 §6）。给工作台「开启去除纯色背景 → 先问用户」用。
+   *
+   * 为什么放在 app.js 而不是工作台：源图的解码与非破坏式裁剪变换
+   * （sourceTransform）只在这里有。工作台只管显示结论。
+   *
+   * 返回 null 表示「没有可预检的源图」—— 调用方应直接走正常生成。
+   * 预检本身**不写任何 state**，也不改 `state.grid`：它是一次只读探测。
+   */
+  async previewBackgroundRemoval({ width, height } = {}) {
+    if (!state.sourceDataUrl) return null;
+    const previewModule = await import("./services/background-preview-service.mjs?v=20261003-stage-b2");
+    const original = await loadImage(state.sourceDataUrl);
+    const sourceEditor = await loadSourceEditor();
+    const processed = sourceEditor.hasSourceTransform(state.sourceTransform)
+      ? sourceEditor.renderSourceTransform(original, state.sourceTransform).toDataURL("image/png")
+      : state.sourceDataUrl;
+    const image = processed === state.sourceDataUrl ? original : await loadImage(processed);
+    const sourceImageData = imageToImageData(image);
+    // 尺寸口径与生成完全一致：显式传的优先，否则由「长边 + 裁剪比例」派生。
+    // 比例还没解析 → 没有可预检的格数，返回 null 让调用方走正常路径
+    // （生成自己会 defer，不该在这里硬编一个尺寸）。
+    const resolved = (width && height)
+      ? { width: Number(width), height: Number(height) }
+      : resolveGenerationDimensions(getGenerationLongEdge());
+    if (!resolved?.width || !resolved?.height) return null;
+    const options = state.productionGenerationOptions || {};
+    return previewModule.previewBackgroundRemoval({
+      image: sourceImageData,
+      finalSize: resolved,
+      sampling: options.sampling || state.generationSampling || "auto",
+      // **不传 preset。** 预检里的 `preset` 是「自适应采样的内容预设提示」
+      // （`{preset, autoProfile: preset === "auto"}`），跟生成模式不是一回事。
+      // 以前这里把生成模式（anime / portrait / …）当提示传进去，于是
+      // 模式为 auto 时 `autoProfile` 被打开、其余模式关着 —— 而真实生成链路
+      // 从不传这个提示，`autoProfile` 恒为 false。结果是**预检与真实生成
+      // 用的不是同一套采样**，正是 B2 要避免的那类偏差。
+      // 现在两边都不传，服务默认值与引擎兜底值一致。
+    });
+  },
+  /**
+   * 生成一次。
+   *
+   * 尺寸只有两个合法来源：
+   *   1. 调用方显式给 width/height（工具 / 测试直调）—— 本次调用**一次性**取
+   *      `max(width, height)` 当长边，调用结束立刻还原，不污染工作台顶栏的用户选择；
+   *   2. 否则由「长边格数 + 有效裁剪比例」派生；比例不可用时**不生成**。
+   *
+   * 两条来源都保持源图/裁剪比例 —— 这是 Generation Size 的硬不变量。
+   * 「宽高独立」（222×295 → 220×300）是编辑器画布调整，走另一条链路，不经过这里。
+   *
+   * 显式尺寸为什么必须是一次性的：工作台每次自动生成都会经过
+   * `services/generation-service.js`，只要那里把 `store.canvas` 的快照当尺寸传下来，
+   * 就会在**用户毫不知情**的情况下把顶栏刚算好的长边冲掉（B0 实测 100×75 → 出图 104×78）。
+   * 回写用的 `canvas.*` 绝不能反向变成入参，所以这里既不再信任传入值，也不再把它写回 state。
+   *
+   * 每次调用都会推进 `state.generationRequestId`。所有 await 边界之后都会重新比对，
+   * 陈旧请求的结果直接丢弃 —— 这是后续把生成挪进 Web Worker 的前置条件。
+   */
+  async generate({ width, height, maxColors, overwriteApproved = false } = {}) {
+    state.lastGenerationError = "";
+    // ── 单飞检查必须在**推进 requestId 之前** ──────────────────────────
+    //
+    // 2026-10-04 实测出来的真缺陷：原来这里先 `generationRequestId += 1`，再由
+    // `processProductionV2` 用 `isProcessingImage` 把重复请求拒掉。于是「被拒掉
+    // 的那个请求」**已经把 id 推过了** —— 在飞的那一轮因此被误判成「陈旧」。
+    //
+    // 为什么这个误判会要命：链路上有若干 `isStaleGenerationRequest` 守卫
+    // （`runAutoTuneV2` 发布报告前、`processImageV2` 提交前、这里出口）。
+    // 一旦它们真的生效，被误判的那一轮就会**丢弃结果**，而被拒的新请求什么都没跑
+    // —— 净效果是**一张图都出不来**（真机复现：b4 的 maxColors 轮在 320ms 去抖窗口内
+    // 又点了「重新生成」，两次 generate()，于是既没有新图也没有调优报告）。
+    //
+    // 正确语义：`generationRequestId` 是「**正在拥有生成权的那个请求**」的编号，
+    // 不是「最后一次尝试的编号」。被拒的请求不配推进它。
+    //
+    // 这一改让「陈旧」重新变回它该有的含义 ——「有更新的请求**真的接手了**」。
+    // 单飞之下那只可能来自 `cancelGeneration` 的主线程兜底分支（那里显式推进
+    // id 就是为了作废当前这轮，见 cancelGeneration 的注释）。
+    if (state.isProcessingImage) throw new Error("正在生成，请稍候");
+    state.generationRequestId = (Number(state.generationRequestId) || 0) + 1;
+    const requestId = state.generationRequestId;
+    const previousLongEdge = Number(state.generationLongEdge) || 0;
+    let scopedLongEdge = null;
+    if (width != null || height != null) {
+      const explicitWidth = clamp(Math.round(Number(width) || 0), 10, 500);
+      const explicitHeight = clamp(Math.round(Number(height) || 0), 10, 500);
+      scopedLongEdge = Math.max(explicitWidth, explicitHeight);
+      syncRangeControls("granularity", scopedLongEdge, 10, 500);
+      state.generationLongEdge = scopedLongEdge;
+    }
+    if (maxColors != null && els.maxColorsInput) els.maxColorsInput.value = String(maxColors);
+    try {
+      const generated = await processImage({ overwriteApproved, requestId });
+      // 先看深层留下的「为什么没结果」：取消 / 过期必须原样上抛（带 name），
+      // 绝不能被下面的 `!generated` 分支误判成算法失败。
+      const outcome = takeExpectedGenerationOutcome();
+      if (outcome) throw generationOutcomeError(outcome);
+      if (isStaleGenerationRequest(requestId)) throw generationOutcomeError("stale");
+      if (!generated && state.lastGenerationError) {
+        // 独立算法失败时保留原算法选择，不静默回退。
+        if (state.algorithmEngine === "bgs") throw new Error(`BGS 算法失败：${state.lastGenerationError}`);
+        if (state.algorithmEngine === "pindou-workbench" || state.algorithmEngine === "hybrid-pw") {
+          throw new Error(`PW 算法失败：${state.lastGenerationError}`);
+        }
+        throw new Error(`V2.5 失败：${state.lastGenerationError}。请选择 Legacy 重试。`);
+      }
+      return generated ? this.getResult() : null;
+    } finally {
+      // 一次性覆盖用完就还原。期间用户若自己改过长边（值已经不同）就不动它 ——
+      // 谁的值新听谁的，异步生成回来时不能把用户的最新选择倒回去。
+      if (scopedLongEdge != null && Number(state.generationLongEdge) === scopedLongEdge) {
+        state.generationLongEdge = previousLongEdge;
+      }
+    }
+  },
+  /**
+   * 取消当前生成（Stage B3 §29 / §31）。
+   *
+   * 真 terminate Worker，不是在跑完之后再丢弃结果 —— 500×375 要跑几分钟，
+   * 「假装取消、其实还在算」既浪费电又占着 CPU。
+   * 被取消的那次会以 AbortError 结束，processProductionV2 把它当正常结局处理。
+   *
+   * @returns {boolean} 是否真有任务被取消
+   */
+  cancelGeneration(reason = "生成已取消") { return cancelGeneration(reason); },
+  /** 生成是否正在跑（Worker 或主线程都算）。UI 据此决定「取消」按钮的可用性。 */
+  isGenerating() { return Boolean(generationWorkerClient?.busy) || Boolean(state.isProcessingImage); },
+  /** 这个错误是不是「预期结局」（取消 / 过期 / 延后）。适配层据此只提示、不报错。 */
+  isExpectedGenerationOutcome(error) { return isExpectedGenerationOutcome(error); },
+  setGenerationEngine(engine) { state.generationEngine = engine === "legacy" ? "legacy" : "v2.5"; },
+  // ===== 算法引擎开关（Batch E + F）=====
+  // current = 现有链路；bgs = src/algorithms/bgs；
+  // pindou-workbench / hybrid-pw = src/algorithms/pindou-workbench。
+  // 注：此前的 pindo-native（LunarXuan/Pindo 的 JS 移植，GPL-3.0-only）已剥离出仓库，
+  // 不随本站分发；备份见仓库外 libms-studio-GPL-quarantine/。
+  setAlgorithmEngine(engine) {
+    state.algorithmEngine = ALGORITHM_ENGINES.has(engine) ? engine : "current";
+    window.dispatchEvent(new CustomEvent("libms:algorithm-engine-changed", { detail: state.algorithmEngine }));
+    return state.algorithmEngine;
+  },
+  getAlgorithmEngine: () => state.algorithmEngine,
+  getAlgorithmEngines: () => [...ALGORITHM_ENGINES],
+  /** 上一次 PW / HYBRID-PW 运行的报告。没跑过就是 null。 */
+  getPwReport: () => (state.pwReport ? JSON.parse(JSON.stringify(state.pwReport)) : null),
+  /** 色板匹配档位：original-weighted-rgb / lab / ciede2000。只影响 pw 两个引擎。 */
+  setPaletteMatchMode(mode) {
+    const allowed = new Set(["original-weighted-rgb", "lab", "ciede2000"]);
+    state.pwPaletteMatchMode = allowed.has(mode) ? mode : "ciede2000";
+    return state.pwPaletteMatchMode;
+  },
+  getPaletteMatchMode: () => state.pwPaletteMatchMode,
+  /** 上一次 BGS 运行的完整报告（统计 + 诊断）。没跑过就是 null，不参与任何计算。 */
+  getAlgorithmReport: () => (state.bgsReport ? JSON.parse(JSON.stringify(state.bgsReport)) : null),
+  /**
+   * A/B 对比：同一张源图、同一套尺寸/色板/颜色上限，分别跑两个引擎。
+   *
+   * current 一侧用的就是生产链路的 generateV2 + buildV25Options（不是手抄的副本），
+   * 两侧共享**同一份 imageData**，所以差异只来自算法本身。
+   *
+   * 返回 verdict 恒为 null —— 本工具只输出 6 项指标 + 两个矩阵 + 逐格差异，不替用户选赢家。
+   */
+  async runAlgorithmAbTest({ includeMatrix = true, options = {} } = {}) {
+    if (!state.sourceDataUrl) throw new Error("请先上传图片");
+    const [{ compareEngines, normalizeMatrix, renderMatrixAsBlockArt }, { generateV2 }] = await Promise.all([
+      import(`./src/algorithms/bgs/ab-test.mjs${BGS_MODULE_QUERY}`),
+      import("./smart-preprocessing/generation-engine-v2.mjs?v=20260918-usage2"),
+    ]);
+    const { image, imageData } = await loadProductionRaster();
+    const palette = getCurrentPalette();
+    const size = resolveGenerationDimensions(getGenerationLongEdge());
+    if (!size) throw new Error("源图比例尚未就绪，暂不能对比");
+    const width = size.width, height = size.height;
+    const maxColors = clamp(Number(els.maxColorsInput?.value || 0), 0, palette.length);
+    const protection = bgsProtectionOptions();
+
+    const report = await compareEngines({
+      imageData,
+      palette,
+      width,
+      height,
+      options: {
+        maxColors,
+        preserveAspectRatio: false,
+        samplingMode: options.sampling || state.productionGenerationOptions?.sampling || state.generationSampling || "auto",
+        edgeProtection: protection.edgeProtection,
+        cleanupStrength: protection.cleanupStrength,
+        ...bgsAnchorCodes(palette),
+      },
+      // current 一侧：直接跑生产链路的 V2.5 生成，只取矩阵，不写 state。
+      // 选项**必须**过 v25EngineOptions（= 模式档案 → toEngineOptions）：
+      // 直接塞 buildV25Options 会把 0–100 当 0–1 用，实验室的 current 就成了一条
+      // 跟生产不一样的假链路。
+      currentRunner: async ({ imageData: shared, palette: sharedPalette }) => generateV2({
+        source: shared, width, height, palette: sharedPalette,
+        options: await v25EngineOptions(options, maxColors),
+      }).grid,
+      includeMatrix,
+    });
+
+    if (includeMatrix && report.matrices) {
+      const prepared = report.palette;
+      const current = normalizeMatrix(report.matrices.current, prepared);
+      const bgs = normalizeMatrix(report.matrices.bgs, prepared);
+      report.blockArt = {
+        current: renderMatrixAsBlockArt(current.colorIds, current.cols, current.rows, prepared),
+        bgs: renderMatrixAsBlockArt(bgs.colorIds, bgs.cols, bgs.rows, prepared),
+      };
+      report.legend = prepared.map((entry) => `${entry.code}=${entry.hex}`);
+    }
+    return report;
+  },
+  /**
+   * 算法实验室（Batch F）：同一张图、同一套尺寸/色板/颜色上限，
+   * 并排跑 CURRENT / PW ORIGINAL / HYBRID-PW 三路，输出十项指标。
+   *
+   * 铁律：**不判定哪套最好**。`verdict` 恒为 null，报告里没有 winner / 评分 /
+   * 推荐，三套结果原样并排交给使用者人工判断。
+   *
+   * 不写 state —— 实验室只测量，不替换当前图纸。
+   */
+  async runPwLab({ includeBlockArt = true, width, height, maxColors } = {}) {
+    if (!state.sourceDataUrl) throw new Error("请先上传图片");
+    const [{ runAlgorithmLab, renderLabReport }, { generateV2 }] = await Promise.all([
+      import(`./src/algorithms/pindou-workbench/index.js${PW_MODULE_QUERY}`),
+      import("./smart-preprocessing/generation-engine-v2.mjs?v=20260918-usage2"),
+    ]);
+    const { image, imageData } = await loadProductionRaster();
+    const palette = getCurrentPalette();
+    const cols = clamp(Math.round(Number(width) || getGranularity()), 10, 500);
+    const derived = resolveGenerationDimensions(cols);
+    const rows = clamp(Math.round(Number(height) || derived?.height || 0), 10, 500);
+    const limit = clamp(Number(maxColors ?? els.maxColorsInput?.value ?? 0), 0, palette.length);
+
+    const report = await runAlgorithmLab({
+      imageData,
+      palette,
+      width: cols,
+      height: rows,
+      maxColors: limit,
+      includeBlockArt,
+      // current 一侧跑的就是生产链路的 V2.5（不是手抄副本），共享同一份 imageData。
+      // 同样要过 v25EngineOptions，否则实验室与生产的口径不一致（见上）。
+      currentRunner: async ({ imageData: shared, palette: sharedPalette, width: w, height: h, maxColors: m }) =>
+        generateV2({ source: shared, width: w, height: h, palette: sharedPalette, options: await v25EngineOptions({}, m) }).grid,
+    });
+    // 顺手给出 Markdown 版，方便直接贴进文档/聊天。
+    report.markdown = renderLabReport(report);
+    return report;
+  },
+  // ===== 生成尺寸（Generation Size）=====
+  // 只暴露「长边」这一个自由度。宽高由长边 + 有效裁剪比例派生，
+  // 调用方拿不到、也设不了「只改宽度」这种会破坏比例的入口。
+  // 编辑器画布调整（允许 222×295 → 220×300 宽高独立）走另一条链路，不经过这里。
+  //
+  // 例外是「绝对权威尺寸」（结构化工程 / 人工标定 / 网格识别）：那种情况下长边让位，
+  // 尺寸由 sourceDimensions 直接给出。见 resolveGenerationDimensions。
+  setGenerationLongEdge(value) {
+    const ratioApi = window.LibmsGenerationSize;
+    const longEdge = ratioApi ? ratioApi.clampLongEdge(value) : null;
+    if (longEdge == null) return this.getGenerationSize();
+    syncRangeControls("granularity", longEdge, 10, 500);
+    state.generationLongEdge = longEdge;
+    return this.getGenerationSize();
+  },
+  /**
+   * 只在「还没有任何尺寸依据」时初始化长边。
+   *
+   * 工作台挂载走这里而不是 setGenerationLongEdge：挂载是**无条件发生**的，
+   * 而尺寸依据是有条件的（可能正等着 restore/OCR 识别落地）。
+   * 无条件写 104 就会把更强的证据冲掉 —— B0.1 要修的头号问题。
+   *
+   * 已有依据的三种情况都不写：
+   *   · 存在绝对权威尺寸（工程文件 / 人工标定 / 网格识别）
+   *   · 长边已经定过（> 0）
+   *   · restore / OCR 识别还没落地（restoreAutoSizePending）
+   */
+  ensureGenerationLongEdge(value) {
+    if (isAbsoluteSourceSize(state.sourceDimensions)) return this.getGenerationSize();
+    if (Number(state.generationLongEdge) > 0) return this.getGenerationSize();
+    if (state.restoreAutoSizePending) return this.getGenerationSize();
+    return this.setGenerationLongEdge(value);
+  },
+  /**
+   * 提交一份尺寸证据，由权威链裁决。**尺寸的唯一写入口。**
+   * @returns {{applied:boolean, dimensions:object, blockedBy:string|null}}
+   */
+  applySourceDimensions(input) { return applySourceDimensions(input); },
+  /** 当前尺寸权威值（副本，改它不会影响 state）。 */
+  getSourceDimensions() { return { ...state.sourceDimensions }; },
+  /** 把尺寸打回未解析。换图 / 新建时调用。 */
+  resetSourceDimensions(reason = "") { return { ...resetSourceDimensions(reason) }; },
+  /**
+   * 生成尺寸。
+   *
+   * 绝对权威在位时直接返回它的 W×H（**不经过长边、不经过裁剪比例**）——
+   * 工程文件说 222×295，读数就必须是 222×295。
+   * 否则按「长边 + 有效裁剪比例」派生。
+   *
+   * @returns {{longEdge:number|null, width:number|null, height:number|null, ratio:number|null,
+   *            resolved:boolean, tier:"normal"|"large"|"xlarge",
+   *            authority:string, source:string}}
+   *   resolved=false 表示尺寸尚不可用，此时 width/height 为 null —— 生成必须延后。
+   */
+  getGenerationSize() {
+    const ratioApi = window.LibmsGenerationSize;
+    const dims = state.sourceDimensions;
+    if (isAbsoluteSourceSize(dims)) {
+      const longEdge = Math.max(dims.width, dims.height);
+      return {
+        longEdge,
+        width: dims.width,
+        height: dims.height,
+        ratio: dims.width > 0 ? dims.height / dims.width : null,
+        resolved: true,
+        tier: ratioApi ? ratioApi.sizeWarningTier(longEdge) : "normal",
+        authority: dims.authority,
+        source: dims.source,
+      };
+    }
+    const longEdge = ratioApi ? ratioApi.clampLongEdge(state.generationLongEdge) : null;
+    const ratio = resolveEffectiveSourceRatio();
+    const size = longEdge == null ? null : ratioApi?.deriveGenerationSize(longEdge, ratio) ?? null;
+    return {
+      longEdge: size?.longEdge ?? longEdge ?? null,
+      width: size?.width ?? null,
+      height: size?.height ?? null,
+      ratio: size ? ratio : null,
+      resolved: Boolean(size),
+      tier: ratioApi ? ratioApi.sizeWarningTier(size?.longEdge ?? longEdge ?? 0) : "normal",
+      authority: dims?.authority || "unresolved",
+      source: dims?.source || "",
+    };
+  },
+  /**
+   * 有效裁剪比例（height / width），与生成链路用的是同一个函数。
+   *
+   * 暴露出来是为了让顶栏的尺寸预览和真正生成时的尺寸**用同一个数**：
+   * 各算一份迟早会分叉（预览 4:3、生成 1:1 这种）。
+   * 返回 null = 比例尚不可用（源图未导入 / 尺寸无效），调用方不得当成 1。
+   */
+  getEffectiveSourceRatio: () => resolveEffectiveSourceRatio(),
+  getSourceTransform: () => ({ ...state.sourceTransform, crop: state.sourceTransform.crop ? { ...state.sourceTransform.crop } : null, expand: { ...state.sourceTransform.expand } }),
+  setSourceTransform(patch) {
+    state.sourceTransform = { ...state.sourceTransform, ...patch,
+      expand: { ...state.sourceTransform.expand, ...(patch.expand || {}) } };
+    state.processedSourceDataUrl = "";
+    window.dispatchEvent(new CustomEvent("libms:source-transform-changed", { detail: this.getSourceTransform() }));
+    return this.getSourceTransform();
+  },
+  getNearestPaletteCandidates(rgb) {
+    const palette = getCurrentPalette(), sourceLab = window.LibmsPaletteEngine?.rgbToLab?.(rgb);
+    const candidates = palette.map((color) => ({ ...cloneColor(color), distance: sourceLab
+      ? window.LibmsPaletteEngine.deltaE2000(sourceLab, window.LibmsPaletteEngine.rgbToLab(color.rgb))
+      : Math.sqrt(color.rgb.reduce((sum, channel, i) => sum + (channel - rgb[i]) ** 2, 0)) }));
+    candidates.sort((a,b) => a.distance - b.distance || a.code.localeCompare(b.code));
+    const nearest = nearestColor(rgb[0], rgb[1], rgb[2], palette);
+    return { nearest: nearest?.code || null, candidates: candidates.slice(0,5) };
+  },
+  getPalettes: () => Object.keys(PALETTES),
+  getPaletteCatalog: () => Object.entries(PALETTES).filter(([key]) => !key.startsWith('mard-') || BRAND_PROFILES.mard.options.includes(Number(key.split('-')[1]))).map(([key, colors]) => ({ key, tierLabel: BRAND_PROFILES[key.split('-')[0]]?.tierLabel || '', summary: BRAND_PROFILES[key.split('-')[0]]?.summary || '', colors: colors.map(color => cloneColor(color)) })),
+  getActivePalette: () => ({ key: getCurrentPaletteKey(), colors: getCurrentPalette() }),
+  setActivePalette(brand, size) {
+    if (BRAND_PROFILES[brand]) state.selectedBrand = brand;
+    els.brandButtons.forEach((button) => { const active = button.dataset.brand === state.selectedBrand; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
+    updatePaletteOptions();
+    if (size != null && getSelectedBrandProfile().options.includes(Number(size))) els.paletteSelect.value = String(size);
+    updateEditorPaletteOptions();
+    updatePaletteCount();
+    return this.getActivePalette();
+  },
+  setMaxColors(value) {
+    if (els.maxColorsInput) els.maxColorsInput.value = String(value);
+    updateMaxColorPresetUi();
+  },
+  importImage({ overwriteApproved = false } = {}) {
+    if (state.manualEdited && !overwriteApproved) return false;
+    state.importApproved = overwriteApproved;
+    startPhotoImport(); return true;
+  },
+  getTileSize: () => getSelectedTileSize(),
+  getRenderUrl({ mode, showGrid = false, showCodes = false, zoom = 1, highlightedCode = null } = {}) {
+    if (mode === "original") return state.sourceDataUrl || state.previewUrl;
+    if (!state.grid.length) return "";
+    const screenPolicy = window.LibmsRenderPolicy?.resolveScreenRenderPolicy?.({
+      showCodes,
+      showGrid,
+      zoom,
+      baseCell: 12,
+    });
+    const canShowCodes = screenPolicy?.showCodes ?? false;
+    if (mode === "pattern") return renderBeadPattern({ matrix: state.grid, stats: state.stats, preset: "PATTERN_EXPORT", cell: 18,
+      showGrid, showCodes: canShowCodes, showCoordinates: true, minLongSide: 0 }).toDataURL("image/png");
+    const cell = 12;
+    const canvas = document.createElement("canvas"), context = canvas.getContext("2d");
+    canvas.width = state.width * cell; canvas.height = state.height * cell;
+    context.fillStyle = "#ffffff"; context.fillRect(0, 0, canvas.width, canvas.height);
+    state.grid.forEach((row, y) => row.forEach((color, x) => {
+      if (!color) return;
+      context.globalAlpha = highlightedCode && color.code !== highlightedCode ? 0.2 : 1;
+      context.fillStyle = rgb(color);
+      if (mode === "beads") {
+        context.beginPath(); context.arc(x * cell + cell / 2, y * cell + cell / 2, cell * 0.43, 0, Math.PI * 2); context.fill();
+      } else context.fillRect(x * cell, y * cell, cell, cell);
+      context.globalAlpha = 1;
+      if (showGrid) { context.strokeStyle = "#00000022"; context.strokeRect(x * cell + 0.5, y * cell + 0.5, cell, cell); }
+      if (canShowCodes) { context.font = '7px system-ui'; context.textAlign = 'center'; context.fillStyle = isDark(color.rgb) ? '#ffffff' : '#141414'; context.fillText(color.code, x * cell + cell / 2, y * cell + cell * 0.72); }
+    }));
+    return canvas.toDataURL("image/png");
+  },
+  downloadPreview: () => downloadPreviewImage(),
+  downloadA4Pages: () => downloadA4PrintPattern(),
+  async downloadPattern({ split = false, settings = {} } = {}) {
+    const previous = els.tileSizeSelect?.value;
+    if (els.tileSizeSelect) els.tileSizeSelect.value = split ? (previous && previous !== "0" ? previous : "52") : "0";
+    try { await downloadPattern(settings); } finally { if (els.tileSizeSelect) els.tileSizeSelect.value = previous; }
+  },
+  openEditor: () => openEditor(),
+  openMaking: () => openAssemblyPlayer(),
+  // ===== 结构级替换（旋转 / 工程恢复共用）：唯一事实源仍是 state.grid =====
+  replaceGridStructure({ grid, width, height } = {}) {
+    const nextWidth = Math.round(Number(width) || 0);
+    const nextHeight = Math.round(Number(height) || 0);
+    if (!Array.isArray(grid) || !grid.length || nextWidth <= 0 || nextHeight <= 0) return false;
+    if (grid.length !== nextHeight) return false;
+    if (grid.some((row) => !Array.isArray(row) || row.length !== nextWidth)) return false;
+    state.grid = grid.map((row) => row.map((color) => (color ? cloneColor(color) : null)));
+    state.width = nextWidth;
+    state.height = nextHeight;
+    state.stats = calculateStats(state.grid);
+    state.manualEdited = true;
+    refreshChartUrl();
+    updateResultUi();
+    window.dispatchEvent(new CustomEvent("libms:grid-edited", { detail: this.getResult() }));
+    return true;
+  },
+  renderExportPattern(settings = {}) {
+    const exportGrid = getExportGrid();
+    return renderLegacyConstructionSheet(exportGrid, {
+      ...(settings.showGrid == null ? {} : { showGrid: settings.showGrid }),
+      ...(settings.showCodes == null ? {} : { showCodes: settings.showCodes }),
+      ...(settings.showCoordinates == null ? {} : { showCoordinates: settings.showCoordinates }),
+    });
+  },
+  async downloadPatternJpg(settings = {}) {
+    if (state.generationEngine !== "v2.5" && !ensureInviteRegistered()) return false;
+    if (!state.grid.length) throw new Error("请先生成图纸");
+    await constructionSheetRendererReady;
+    const canvas = this.renderExportPattern(settings);
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob((value) => (value ? resolve(value) : reject(new Error("JPG 编码失败"))), "image/jpeg", 0.94);
+    });
+    downloadBlob(blob, buildPatternDownloadName("jpg"));
+    setStatus("已导出 JPG 图纸（含图例）");
+    return true;
+  },
+  downloadUsageCsv() {
+    if (!state.grid.length) throw new Error("请先生成图纸");
+    const rows = [["色号", "颜色名称", "HEX", "RGB", "颗数"]];
+    let total = 0;
+    state.stats.forEach((item) => {
+      total += item.count;
+      rows.push([item.code, item.name || "", item.hex || hexFromRgb(item.rgb), `rgb(${item.rgb.join(",")})`, String(item.count)]);
+    });
+    rows.push(["合计", "", "", "", String(total)]);
+    const csv = rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+    downloadBlob(new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8" }), buildPatternDownloadName("csv"));
+    setStatus(`已导出用量清单 · ${state.stats.length} 色 / ${formatCount(total)} 颗`);
+    return true;
+  },
+  buildProjectJson() {
+    if (!state.grid.length) throw new Error("请先生成图纸");
+    return {
+      format: "libms-project",
+      version: 1,
+      savedAt: new Date().toISOString(),
+      projectName: getSchemeName() || state.sourceName.replace(/\.[^.]+$/, "") || "未命名作品",
+      canvas: { width: state.width, height: state.height },
+      palette: { key: getCurrentPaletteKey(), label: getCurrentPaletteLabel(), maxColors: Number(els.maxColorsInput?.value || 0) },
+      stats: { usedColors: state.stats.length, totalBeads: state.stats.reduce((sum, item) => sum + item.count, 0) },
+      colors: state.stats.map((item) => ({ code: item.code, ...(item.paletteId ? { paletteId: item.paletteId } : {}), name: item.name || "", hex: item.hex || hexFromRgb(item.rgb), rgb: [...item.rgb] })),
+      grid: state.grid.map((row) => row.map((color) => (color ? color.code : null))),
+      ...(state.grid.some((row) => row.some((color) => color?.paletteId)) ? { gridPaletteIds: state.grid.map((row) => row.map((color) => color?.paletteId || null)) } : {}),
+    };
+  },
+  downloadProjectJson() {
+    const payload = this.buildProjectJson();
+    downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), `${payload.projectName}-project.json`);
+    setStatus("已保存工程文件");
+    return payload;
+  },
+  loadProjectJson(source) {
+    let payload = source;
+    if (typeof source === "string") {
+      try { payload = JSON.parse(source); } catch { throw new Error("工程文件不是合法 JSON"); }
+    }
+    if (!payload || typeof payload !== "object") throw new Error("工程文件内容为空");
+    if (payload.format !== "libms-project") throw new Error("不是里白造物工程文件");
+    if (Number(payload.version) > 1) throw new Error(`工程文件版本 ${payload.version} 高于当前支持的 1`);
+    const width = Math.round(Number(payload.canvas?.width) || 0);
+    const height = Math.round(Number(payload.canvas?.height) || 0);
+    if (!width || !height || !Array.isArray(payload.grid) || payload.grid.length !== height) {
+      throw new Error("工程文件缺少可用的画布尺寸或矩阵");
+    }
+    // 有品牌身份的颜色按存档恢复；旧工程仍优先按当前色卡解析色号。
+    const archived = new Map((payload.colors || []).map((color) => [String(color.paletteId || color.code).toUpperCase(), color]));
+    const active = new Map(getCurrentPalette().flatMap((color) => [[color.code.toUpperCase(), color], ...(color.paletteId ? [[color.paletteId.toUpperCase(), color]] : [])]));
+    const resolve = (code, paletteId) => {
+      if (code == null) return null;
+      const key = String(paletteId || code).toUpperCase();
+      const saved = archived.get(key);
+      const found = saved?.paletteId ? saved : active.get(key) || saved;
+      return found ? cloneColor(found) : null;
+    };
+    const grid = payload.grid.map((row, rowIndex) => {
+      if (!Array.isArray(row) || row.length !== width) throw new Error("工程文件矩阵宽高与画布尺寸不一致");
+      return row.map((code, columnIndex) => resolve(code, payload.gridPaletteIds?.[rowIndex]?.[columnIndex]));
+    });
+    // 工程存档只包含图纸矩阵，不包含原始图片。清掉上一项目的源图，避免工作台仍在
+    // 「原图」视图时显示旧图片，而 Navigator 已经显示刚载入的新图纸。
+    state.sourceDataUrl = "";
+    state.processedSourceDataUrl = "";
+    state.sourceNaturalWidth = 0;
+    state.sourceNaturalHeight = 0;
+    state.sourceName = String(payload.projectName || "导入工程");
+    if (!this.replaceGridStructure({ grid, width, height })) throw new Error("工程文件无法载入当前画布");
+    // 结构化工程里的 canvas.width/height 是**绝对权威**：文件说 222×295，那就是 222×295。
+    // 不经过 generationLongEdge、不经过裁剪比例、不经过像素倍数，也不接受 104 默认值。
+    // 放在 replaceGridStructure 成功之后：只有矩阵真的载入了，这个尺寸才成立。
+    // （replaceGridStructure 本身是旋转 / 画布调整 / 工程恢复的共用出口，
+    //   权威只能在这里标，不能塞进那个共用函数。）
+    applySourceDimensions({
+      width, height,
+      authority: "structured-project",
+      source: payload.format === "libms-project" ? "libms-project" : String(payload.format || "project"),
+    });
+    if (payload.palette?.maxColors != null && els.maxColorsInput) els.maxColorsInput.value = String(payload.palette.maxColors);
+    return this.getResult();
+  },
+  getChecks: () => ({ validation: state.grid.length ? window.LibmsRegionAwareQuantizer?.validateFinalPattern?.(state.grid, state.paletteBudget?.effective || 291) : null,
+    structural: state.structuralTransitionReport?.metrics || null }),
+};
+
 init();
+
+// ===== PDF Export =====
+document.getElementById('pdf-export-button')?.addEventListener('click', async function() {
+  const previousLabel = this.textContent;
+  try {
+    this.textContent = '正在生成 PDF...';
+    this.disabled = true;
+    await downloadLegacyPatternPdf();
+  } catch (err) {
+    console.error('PDF export error:', err);
+    alert('PDF 导出失败: ' + err.message);
+  } finally {
+    this.textContent = previousLabel;
+    this.disabled = false;
+  }
+});
+
+/* =============================================================
+ * 高级导出设置弹窗（借鉴 pixel-bead.rootbit.cn 导出设置结构）
+ * 视觉用 animal-island 薄荷青语言；逻辑自带渲染 + 后处理，
+ * 不改动现有 downloadPattern 算法。
+ * ============================================================= */
+let exportCurrentFormat = "png";
+let exportShareCode = "";
+let exportBound = false;
+
+function genShareCode() {
+  const cs = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let s = "";
+  for (let i = 0; i < 6; i += 1) s += cs[Math.floor(Math.random() * cs.length)];
+  return s;
+}
+
+function readExportSettings() {
+  const $ = (id) => document.getElementById(id);
+  return {
+    format: exportCurrentFormat,
+    name: ($("export-name-input")?.value || "里白造物图纸").trim() || "里白造物图纸",
+    author: ($("export-author-input")?.value || "").trim(),
+    grid: $("opt-grid")?.checked !== false,
+    codes: $("opt-codes")?.checked !== false,
+    legend: $("opt-legend")?.checked !== false,
+    watermark: $("opt-watermark")?.checked === true,
+    qrcode: $("opt-qrcode")?.checked === true,
+    sharecode: $("opt-sharecode")?.checked === true,
+  };
+}
+
+function getExportGridForSettings() {
+  const base = getExportGrid();
+  if (!base.length) return base;
+  return isMirrorEnabled() ? mirrorGrid(base) : base;
+}
+
+function buildExportRenderOptions(grid, stats, settings) {
+  const isPoster = settings.format === "poster";
+  return {
+    matrix: grid,
+    stats,
+    preset: "PATTERN_EXPORT",
+    cell: getDownloadCellSize(),
+    margin: isPoster ? 40 : 88,
+    minLongSide: EXPORT_MIN_LONG_SIDE,
+    title: settings.name || "里白造物拼豆图纸生成器",
+    subtitle: getExportSubtitle(),
+    showGrid: settings.grid && !isPoster,
+    showCoordinates: settings.grid && !isPoster,
+    showCodes: settings.codes,
+    showLegend: settings.legend,
+  };
+}
+
+function applyExportOverlays(canvas, settings) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const W = canvas.width;
+  const H = canvas.height;
+
+  // 防盗网格水印：平铺极淡字样
+  if (settings.watermark) {
+    ctx.save();
+    ctx.globalAlpha = 0.05;
+    ctx.fillStyle = "#5a4631";
+    const fs = Math.max(16, Math.round(W / 42));
+    ctx.font = `700 ${fs}px ${CANVAS_FONT_STACK}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.translate(W / 2, H / 2);
+    ctx.rotate(-Math.PI / 9);
+    const text = "里白造物 LIBMS";
+    const stepX = ctx.measureText(text).width + fs * 3;
+    const stepY = fs * 5;
+    for (let y = -H; y < H; y += stepY) {
+      for (let x = -W; x < W; x += stepX) ctx.fillText(text, x, y);
+    }
+    ctx.restore();
+  }
+
+  // 右下角信息块：二维码 + 豆号 + 署名
+  const pad = Math.round(W * 0.02);
+  let blockRight = W - pad;
+  const blockBottom = H - pad;
+  if (settings.qrcode && typeof window.qrcode === "function") {
+    try {
+      const qr = window.qrcode(0, "M");
+      const payload = `libms://import/${exportShareCode || genShareCode()}`;
+      qr.addData(payload);
+      qr.make();
+      const count = qr.getModuleCount();
+      const qsize = Math.round(Math.min(W, H) * 0.15);
+      const qx = blockRight - qsize;
+      const qy = blockBottom - qsize;
+      ctx.fillStyle = "#fffdf7";
+      ctx.fillRect(qx - 6, qy - 6, qsize + 12, qsize + 12);
+      const cell = qsize / count;
+      ctx.fillStyle = "#5a4631";
+      for (let r = 0; r < count; r += 1) {
+        for (let c = 0; c < count; c += 1) {
+          if (qr.isDark(r, c)) ctx.fillRect(qx + c * cell, qy + r * cell, Math.ceil(cell), Math.ceil(cell));
+        }
+      }
+      blockRight = qx - pad;
+    } catch (err) {
+      console.warn("二维码生成失败", err);
+    }
+  }
+  ctx.save();
+  ctx.textAlign = "right";
+  ctx.textBaseline = "bottom";
+  ctx.fillStyle = "#5a4631";
+  const fs2 = Math.max(14, Math.round(W / 48));
+  let ty = blockBottom;
+  if (settings.sharecode) {
+    ctx.font = `700 ${fs2}px ${CANVAS_FONT_STACK}`;
+    ctx.fillText(`豆号 ${exportShareCode || ""}`, blockRight, ty);
+    ty -= fs2 * 1.4;
+  }
+  if (settings.author) {
+    ctx.font = `400 ${Math.round(fs2 * 0.9)}px ${CANVAS_FONT_STACK}`;
+    ctx.fillText(`作者 ${settings.author}`, blockRight, ty);
+  }
+  ctx.restore();
+}
+
+async function renderExportPreview() {
+  const modal = document.getElementById("export-settings-modal");
+  if (!modal || !modal.open) return;
+  const grid = getExportGridForSettings();
+  const stage = document.getElementById("export-preview-stage");
+  if (!grid.length) {
+    if (stage) stage.innerHTML = '<p style="color:var(--muted);padding:20px;text-align:center">请先生成或上传一张图纸，再预览导出效果。</p>';
+    return;
+  }
+  const stats = calculateStats(grid);
+  const settings = readExportSettings();
+  await constructionSheetRendererReady;
+  const canvas = settings.format === "poster"
+    ? renderBeadPattern(buildExportRenderOptions(grid, stats, settings))
+    : renderLegacyConstructionSheet(grid, { title: `${settings.name}${getMirrorLabel() ? " · 镜像" : ""}`, showGrid: settings.grid, showCodes: settings.codes });
+  if (settings.watermark || settings.qrcode || settings.author || settings.sharecode) {
+    applyExportOverlays(canvas, settings);
+  }
+  if (stage) {
+    stage.innerHTML = "";
+    canvas.id = "export-preview-canvas";
+    canvas.style.maxWidth = "100%";
+    canvas.style.height = "auto";
+    stage.appendChild(canvas);
+  }
+  updateExportSpecs(grid, stats, settings);
+}
+
+function updateExportSpecs(grid, stats, settings) {
+  const cols = grid[0]?.length || 0;
+  const rows = grid.length;
+  const sz = document.getElementById("spec-size");
+  const cl = document.getElementById("spec-colors");
+  const op = document.getElementById("spec-output");
+  if (sz) sz.textContent = `${cols} × ${rows}`;
+  if (cl) cl.textContent = `${stats.length} 色`;
+  if (op) op.textContent = settings.format === "pdf" ? "矢量 PDF 图纸" : settings.format === "poster" ? "标准 PNG 海报" : "标准 PNG 大图";
+}
+
+function setExportFormat(fmt) {
+  exportCurrentFormat = fmt;
+  document.querySelectorAll(".export-tab").forEach((t) => {
+    const on = t.dataset.format === fmt;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  renderExportPreview();
+}
+
+async function openExportSettingsModal() {
+  const modal = document.getElementById("export-settings-modal");
+  if (!modal) return;
+  bindExportSettingsOnce();
+  if (!modal.open) {
+    try { modal.showModal(); } catch (err) { console.warn("导出设置弹窗不可用", err); }
+  }
+  if (!exportShareCode) exportShareCode = genShareCode();
+  ensureQrRuntime().then(renderExportPreview).catch((error) => console.warn(error.message));
+  renderExportPreview();
+  document.getElementById("export-settings-close")?.focus();
+}
+
+function closeExportSettingsModal() {
+  const modal = document.getElementById("export-settings-modal");
+  if (modal?.open) modal.close();
+}
+
+async function exportWithSettings() {
+  const settings = readExportSettings();
+  if (settings.format === "pdf") {
+    try {
+      if (await downloadLegacyPatternPdf(settings)) closeExportSettingsModal();
+    } catch (error) {
+      setStatus(`PDF 导出失败：${error.message}`);
+    }
+    return;
+  }
+  if (state.generationEngine !== "v2.5" && !ensureInviteRegistered()) {
+    closeExportSettingsModal();
+    return;
+  }
+  const grid = getExportGridForSettings();
+  if (!grid.length) {
+    setStatus("请先生成或上传一张图纸，再导出");
+    return;
+  }
+  const stats = calculateStats(grid);
+  await constructionSheetRendererReady;
+  const canvas = settings.format === "poster"
+    ? renderBeadPattern(buildExportRenderOptions(grid, stats, settings))
+    : renderLegacyConstructionSheet(grid, { title: `${settings.name}${getMirrorLabel() ? " · 镜像" : ""}`, showGrid: settings.grid, showCodes: settings.codes });
+  if (settings.watermark || settings.qrcode || settings.author || settings.sharecode) {
+    applyExportOverlays(canvas, settings);
+  }
+  const base = buildDownloadName().replace(/\.png$/i, "");
+  const suffix = settings.format === "poster" ? "-poster" : "-export";
+  downloadUrl(canvas.toDataURL("image/png"), `${base}${suffix}.png`);
+  setStatus("已按导出设置生成图纸");
+  closeExportSettingsModal();
+}
+
+function bindExportSettingsOnce() {
+  if (exportBound) return;
+  exportBound = true;
+  const modal = document.getElementById("export-settings-modal");
+  document.getElementById("open-export-settings-button")?.addEventListener("click", openExportSettingsModal);
+  document.getElementById("export-settings-close")?.addEventListener("click", closeExportSettingsModal);
+  modal?.addEventListener("click", (e) => { if (e.target === modal) closeExportSettingsModal(); });
+  document.querySelectorAll(".export-tab").forEach((t) => t.addEventListener("click", () => setExportFormat(t.dataset.format)));
+  document.getElementById("export-submit-button")?.addEventListener("click", exportWithSettings);
+  ["opt-grid", "opt-codes", "opt-legend", "opt-watermark", "opt-qrcode", "opt-sharecode"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", renderExportPreview);
+  });
+  ["export-name-input", "export-author-input"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("input", renderExportPreview);
+  });
+}
+
+// 页面加载即绑定一次（defer 保证 DOM ready）；不可放在 openExportSettingsModal 内惰性绑定，
+// 否则首次点击入口按钮时监听器尚不存在，弹窗打不开。
+bindExportSettingsOnce();

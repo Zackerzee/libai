@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="560" viewBox="0 0 560 560">
+<defs>
+ <radialGradient id="light"><stop stop-color="#eccce8" stop-opacity=".4"/><stop offset="1" stop-color="#a995ed" stop-opacity="0"/></radialGradient>
+ <pattern id="peg" width="14" height="14" patternUnits="userSpaceOnUse"><circle cx="7" cy="7" r="1.9" fill="#272037" fill-opacity=".43"/><path d="M0 0H14V14" fill="none" stroke="#fff" stroke-opacity=".13"/></pattern>
+ <mask id="art"><path fill="white" d="M252 490V350H224V294H196V238H224V210H252V238H280V294H308V350H280V490ZM252 406H182V378H140V336H112V308H168V336H210V364H252ZM280 434H350V406H392V364H420V336H364V364H322V392H280"/><path fill="white" d="M196 182V126H224V84H266V112H294V154H322V196H294V224H252V196H224V224H182V196H154V154H182V126H210V182ZM84 280V238H112V210H140V238H168V280H140V308H112V280ZM350 294V252H378V224H406V252H434V294H406V322H378V294Z"/></mask>
+ <linearGradient id="petal" x2="1" y2="1"><stop stop-color="#ffe6b8"/><stop offset=".5" stop-color="#eea1b9"/><stop offset="1" stop-color="#ab83c9"/></linearGradient>
+</defs>
+<circle cx="280" cy="280" r="265" fill="url(#light)"/>
+<ellipse cx="280" cy="486" rx="149" ry="19" fill="#130f26" opacity=".25"/>
+<g transform="translate(8 -6)">
+ <path d="M252 490V350H224V294H196V238H224V210H252V238H280V294H308V350H280V490Z" fill="#819b80"/>
+ <path d="M252 406H182V378H140V336H112V308H168V336H210V364H252ZM280 434H350V406H392V364H420V336H364V364H322V392H280" fill="#b7c49b"/>
+ <path d="M196 182V126H224V84H266V112H294V154H322V196H294V224H252V196H224V224H182V196H154V154H182V126H210V182Z" fill="url(#petal)"/>
+ <path d="M224 140H266V182H224Z" fill="#f2d68f"/>
+ <path d="M84 280V238H112V210H140V238H168V280H140V308H112V280Z" fill="#c0b4e5"/>
+ <path d="M112 252H140V280H112Z" fill="#f3deb1"/>
+ <path d="M350 294V252H378V224H406V252H434V294H406V322H378V294Z" fill="#e7b3be"/>
+ <path d="M378 266H406V294H378Z" fill="#ffdf9e"/>
+ <rect width="560" height="560" fill="url(#peg)" mask="url(#art)"/>
+ <g fill="#eee5ff" opacity=".7"><path d="M376 140h14v14h-14zM98 154h7v7h-7zM448 196h7v7h-7zM168 448h7v7h-7z"/></g>
+</g>
+</svg>

@@ -1,0 +1,115 @@
+/* One presentation language. No canvas color/filter rules: artwork stays exact. */
+:root{--ds-color-app:#f3f2f7;--ds-color-canvas:#e9e8ee;--ds-color-surface:#fff;--ds-color-surface-soft:#f5f4f9;--ds-color-text:#343041;--ds-color-text-strong:#211c30;--ds-color-text-secondary:#696477;--ds-color-border:#3025441c;--ds-color-accent:#7161c8;--ds-color-accent-hover:#6252b4;--ds-color-accent-soft:#eeeaf9;--ds-radius-sm:8px;--ds-radius-md:10px;--ds-radius-lg:16px;--ds-shadow-overlay:0 24px 64px #20133424,0 3px 12px #2013340a}
+:where(button,summary,a,input,select,textarea){-webkit-tap-highlight-color:transparent}
+:where(button,summary,a):focus-visible,:where(input,select,textarea):focus-visible{outline:2px solid var(--ds-color-accent);outline-offset:3px}
+:where(button,summary){transition:background 140ms ease,color 140ms ease,box-shadow 140ms ease}
+:where(button,summary):active:not(:disabled){filter:brightness(.96)}
+:where(button,input,select):disabled{opacity:.45;cursor:not-allowed}
+body:not(.phase2-workspace){background:#f6f5f9;color:#292435}
+body:not(.phase2-workspace) .topbar{background:#fbfaffea;border-bottom:1px solid #30254412;backdrop-filter:blur(16px)}
+body:not(.phase2-workspace) .topbar-inner{max-width:1280px}
+body:not(.phase2-workspace) .homepage{padding-top:20px;--home-ink:#282132;--home-line:#47355020}
+body:not(.phase2-workspace) .homepage-hero{position:relative;isolation:isolate;max-width:1280px;margin:0 auto 64px;padding:70px 60px;gap:22px;border-radius:28px;background:radial-gradient(ellipse at 85% 28%,#b388bf4a,transparent 48%),radial-gradient(ellipse at 57% 100%,#7661c343,transparent 55%),linear-gradient(125deg,#191625,#292039 60%,#3b2e4a);box-shadow:0 26px 60px #271b3620;color:#f8f4ff;overflow:hidden}
+body:not(.phase2-workspace) .hero-copy{position:relative;z-index:2}
+body:not(.phase2-workspace) .hero-product{color:#c5b6e3;letter-spacing:.05em}
+body:not(.phase2-workspace) .hero-product em{color:#f4e9f5}
+body:not(.phase2-workspace) .hero-copy h1{color:#c1b7ce;font-size:13px;font-weight:500;letter-spacing:.12em}
+body:not(.phase2-workspace) .hero-copy h2{color:#f9f5ff;font-size:clamp(34px,3.7vw,54px);line-height:1.2;letter-spacing:-.045em;font-weight:650}
+body:not(.phase2-workspace) .hero-description{color:#c4bbce;line-height:1.9;font-size:15px}
+body:not(.phase2-workspace) .hero-primary-action{background:#ebe3fa;color:#302244;box-shadow:0 5px 22px #ceabef1c;border:1px solid #fff4;min-height:48px}
+body:not(.phase2-workspace) .hero-secondary-action{background:#ffffff08;border:1px solid #ffffff2e;color:#e5dbee;min-height:48px}
+body:not(.phase2-workspace) .hero-tags span{background:transparent;border-color:#ffffff18;color:#b8adc7;padding:4px 9px;font-size:11px}
+body:not(.phase2-workspace) .hero-workflow-visual{height:450px;width:100%;transform:none;left:auto;margin:0;display:grid;place-items:center}
+.hero-artwork{position:relative;width:min(100%,490px);z-index:1}
+.hero-artwork img{width:100%;height:auto;display:block;filter:drop-shadow(0 16px 14px #120b2433)}
+.hero-artwork-caption{position:absolute;bottom:6%;width:100%;text-align:center;color:#c5b4d7;font-size:11px;letter-spacing:.18em}
+body:not(.phase2-workspace) .hero-workflow-visual :is(.workflow-card,.workflow-arrow){display:none}
+body:not(.phase2-workspace) .hero-visual-glow{background:radial-gradient(ellipse,#d2a6ca36,transparent 65%);filter:blur(18px)}
+body:not(.phase2-workspace) .homepage-section-heading p{color:#817294;letter-spacing:.12em;font-size:11px}
+body:not(.phase2-workspace) .homepage-section-heading h2{letter-spacing:-.035em;font-weight:650}
+body:not(.phase2-workspace) .start-card{background:#fff;border:1px solid #30254412;border-radius:18px;box-shadow:0 8px 30px #39294805;text-align:left;transition:border-color 160ms,box-shadow 160ms}
+body:not(.phase2-workspace) .start-card:hover{border-color:#9483c871;box-shadow:0 12px 30px #39294812;transform:none}
+body:not(.phase2-workspace) .start-card-number{color:#9a88b5;background:#f1edf7}
+body:not(.phase2-workspace) .start-link{color:#746294}
+body:not(.phase2-workspace) .homepage-capabilities article{border:0;background:transparent!important;border-top:1px solid #30254419;border-radius:0!important}
+body:not(.phase2-workspace) .homepage-closing{background:#ece7f2;border:0;border-radius:24px}
+body.phase2-workspace .ws-topbar{background:#fcfbfef2;padding:10px 14px;gap:8px;border-bottom-color:#30254415}
+body.phase2-workspace .ws-top-controls{background:#f9f8fc;padding:9px 14px;border-bottom-color:#30254412}
+body.phase2-workspace .ws-rail{background:#f6f5fa;border-right-color:#30254412}
+body.phase2-workspace .ws-inspector{background:#fbfafe;border-left-color:#30254412}
+/* Properties are a local floating panel, not a permanently reserved white column. */
+@media(min-width:761px){
+  body.phase2-workspace .workspace-grid[data-workspace-ready="true"]{position:relative;grid-template-columns:var(--ws-rail-width) minmax(0,1fr)!important}
+  body.phase2-workspace .ws-inspector{position:absolute;z-index:30;right:12px;top:8px;bottom:auto;width:min(350px,calc(100% - 90px));max-height:calc(100% - 20px);height:auto;display:flex;flex-direction:column;border:1px solid var(--ws-border);border-radius:10px;box-shadow:0 8px 28px #22172f16;overflow:hidden;background:#fbfafefa}
+  body.phase2-workspace .ws-inspector .ws-side-tabs{display:flex!important;flex-wrap:wrap;flex:0 0 auto;gap:2px;padding:5px;min-height:38px;box-sizing:border-box;background:#fbfafe;border:0;overflow:visible}
+  body.phase2-workspace .ws-inspector .ws-side-tabs button{flex:1 0 auto;padding:5px 7px;font-size:11px;min-height:28px;border-radius:5px}
+  body.phase2-workspace .ws-inspector:not(.is-mobile-panel-open)>.ws-inspector-head,
+  body.phase2-workspace .ws-inspector:not(.is-mobile-panel-open)>.ws-inspector-scroll{display:none!important}
+  body.phase2-workspace .ws-inspector .ws-inspector-head{padding:9px 12px;flex:none}
+  body.phase2-workspace .ws-inspector .ws-inspector-scroll{flex:1 1 auto;overflow:auto;min-height:0;padding:10px 12px 16px;background:#fbfafe}
+  body.phase2-workspace .ws-inspector .ws-mobile-panel-close{display:inline-flex!important;margin-left:auto;font-size:11px}
+}
+body.phase2-workspace .ws-inspector .ws-side-tabs button:focus-visible{outline:2px solid var(--ws-accent);outline-offset:-2px}
+body.phase2-workspace .sl-tool-button-eyedrop .sl-tool-icon svg path:first-child{fill:var(--picked-color,none);stroke:#42384f;stroke-width:1.8}
+body.phase2-workspace .ws-workareas{padding:4px;background:#eceaf2;border:1px solid #30254408;border-radius:11px}
+body.phase2-workspace .ws-workareas button{padding:8px 12px;border-radius:8px;font-weight:550}
+body.phase2-workspace .ws-workareas button.active{box-shadow:0 2px 5px #3025440c;color:#6653a0;border-color:#3025440a;background:#fff}
+body.phase2-workspace .ws-topbar :is(button,summary){border-color:transparent;background:transparent;border-radius:8px;color:#5b526b}
+body.phase2-workspace .ws-topbar #ws-save-now{background:#332941;color:#faf6ff;border-color:#332941;min-height:34px;padding:0 14px}
+body.phase2-workspace :is(.ws-side-tabs,.ws-output-tasks){background:#f1eff6;padding:4px;border-radius:10px;gap:3px}
+body.phase2-workspace :is(.ws-side-tabs,.ws-output-tasks) button{border-color:transparent;border-radius:7px}
+body.phase2-workspace :is(.ws-side-tabs,.ws-output-tasks) button.active{background:#fff;box-shadow:0 2px 6px #3223440a;color:#65519a}
+body.phase2-workspace :is(.ws-button,.ws-context-group button,.ws-editor-group button,.ws-color-actions button,.ws-selection-actionbar button){border-color:#30254416;background:#fff;border-radius:8px;font-weight:500;box-shadow:0 1px 2px #30254404}
+body.phase2-workspace :is(input:not([type=range]):not([type=checkbox]),select,textarea){border-color:#3025441c;border-radius:8px;background:#fff}
+body.phase2-workspace :is(.ws-export-drawer,.ws-confirm-dialog,.ws-feature-search,.ws-cell-color-popover,.ws-palette-color-popover){border:1px solid #fff9;border-radius:18px;box-shadow:var(--ds-shadow-overlay);background:#fcfbfe}
+body.phase2-workspace .ws-export-options{border-color:#30254412;background:#f5f3f8;border-radius:12px}
+body.phase2-workspace .ws-usage-band{background:#f9f8fc;border-top:1px solid #30254415}
+body.phase2-workspace .ws-usage-strip li{border-color:#30254416;border-radius:10px;background:#fff}
+body.phase2-workspace #ws-canvas-stats.ws-usage-band{padding:4px 9px;gap:3px 10px}
+body.phase2-workspace .ws-usage-band .ws-usage-totals{font-size:11px;gap:4px}
+body.phase2-workspace .ws-usage-band .ws-usage-totals strong{font-size:12px}
+body.phase2-workspace .ws-usage-band .ws-usage-band-tools{gap:4px}
+body.phase2-workspace .ws-usage-band .ws-usage-band-tools :is(button,input){min-height:24px;height:24px;font-size:11px;padding:2px 6px}
+body.phase2-workspace .ws-usage-band #ws-usage-strip{gap:4px;padding:1px 0 3px;scrollbar-width:thin}
+body.phase2-workspace .ws-usage-band #ws-usage-strip .ws-usage-card{grid-template-columns:16px auto auto;gap:4px;min-width:0;min-height:28px;padding:3px 7px;border-radius:6px}
+body.phase2-workspace .ws-usage-band .ws-usage-card .ws-swatch{grid-row:auto;width:16px;height:18px;border-radius:3px}
+body.phase2-workspace .ws-usage-band .ws-usage-card :is(small,em){font-size:11px}
+body.phase2-workspace .ws-usage-band .ws-usage-card .ws-swatch{transition:transform 160ms ease-out;transform-origin:center}
+body.phase2-workspace .ws-usage-band .ws-usage-card:is(:hover,:focus-visible) .ws-swatch{transform:scale(1.1)}
+body.phase2-workspace .ws-usage-band .ws-usage-card:active .ws-swatch{transform:scale(.92)}
+@media(prefers-reduced-motion:reduce){body.phase2-workspace .ws-usage-band .ws-usage-card .ws-swatch{transition:none;transform:none!important}}
+body.phase2-workspace .ws-usage-band #ws-usage-actions{flex-wrap:nowrap;gap:5px;margin:0;min-height:26px;overflow-x:auto;white-space:nowrap;scrollbar-width:thin}
+body.phase2-workspace .ws-usage-band .ws-usage-current{flex:0 0 auto;font-size:11px;margin-right:4px}
+body.phase2-workspace .ws-usage-band #ws-usage-actions button{flex:0 0 auto;min-height:24px;padding:2px 6px;font-size:11px}
+body.phase2-workspace .ws-usage-band .ws-note{margin:3px 0;font-size:11px}
+.ws-grid-guides{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.ws-grid-guides label{display:inline-flex;align-items:center;gap:3px}
+body.phase2-workspace #ws-major-grid-interval{box-sizing:border-box;width:42px;height:24px;min-height:24px;padding:1px 3px;font-size:11px}
+body.phase2-workspace .ws-section-title{color:#71637f;font-size:11px;letter-spacing:.06em}
+body.phase2-workspace .ws-rail .sl-tool-button{border-radius:10px!important;box-shadow:none}
+body.phase2-workspace .ws-rail .sl-tool-button.is-active{background:#e7e0f3!important;color:#6b529d!important;border-color:transparent!important}
+.studio-showcase{max-width:1100px;margin:0 auto;padding:60px 24px;font:14px/1.6 var(--ds-font-ui);color:var(--ds-color-text)}
+.studio-showcase h1{font-size:36px;letter-spacing:-.04em}.studio-showcase section{padding:28px;background:#fff;border:1px solid var(--ds-color-border);border-radius:18px;margin:20px 0}.studio-showcase .row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.studio-showcase button,.studio-showcase summary{padding:10px 18px;border-radius:9px;border:1px solid var(--ds-color-border);background:#fff;cursor:pointer}.studio-showcase .primary{background:#332941;color:#fff}.studio-showcase input,.studio-showcase select{padding:10px;border:1px solid var(--ds-color-border);border-radius:8px}.studio-showcase dialog{border:0;border-radius:18px;box-shadow:var(--ds-shadow-overlay);padding:28px}.studio-showcase [aria-pressed=true]{background:var(--ds-color-accent-soft);color:#624b97}.studio-showcase details{position:relative}.studio-showcase details>div{position:absolute;z-index:2;background:#fff;padding:12px;box-shadow:var(--ds-shadow-overlay);width:200px;border-radius:12px}
+@media(max-width:760px){body:not(.phase2-workspace) .homepage-hero{padding:38px 24px 24px;border-radius:20px;margin-bottom:36px;gap:12px}body:not(.phase2-workspace) .hero-workflow-visual{height:320px;margin:0;width:100%;transform:none}.hero-artwork{max-width:340px}body:not(.phase2-workspace) .hero-copy h2{font-size:34px}body.phase2-workspace .ws-topbar{padding:8px;gap:5px}body.phase2-workspace .ws-workareas button{padding:8px 3px}.studio-showcase{padding:24px 16px}}
+@media(prefers-reduced-motion:reduce){:where(button,summary,a,input,select,textarea){transition:none!important}html{scroll-behavior:auto}}
+@media(prefers-reduced-transparency:reduce){body:not(.phase2-workspace) .topbar,body.phase2-workspace .ws-topbar{background:#fcfbfe;backdrop-filter:none}}
+/* Match the legacy homepage scope so the new dark surface owns its typography. */
+body:not(.phase2-workspace) .generator-intro.homepage .hero-product{color:#c5b6e3!important;font-size:18px!important;line-height:1.3;letter-spacing:.04em;font-weight:600}
+body:not(.phase2-workspace) .generator-intro.homepage .hero-product em{display:inline;color:#e7dcef;background:none;font-size:inherit}
+body:not(.phase2-workspace) .generator-intro.homepage .hero-copy h1{color:#c1b7ce;font-size:13px;font-weight:500;letter-spacing:.08em}
+body:not(.phase2-workspace) .generator-intro.homepage .hero-copy h2{color:#f9f5ff;font-size:clamp(34px,3.7vw,54px);line-height:1.2;font-weight:650;letter-spacing:-.045em}
+body:not(.phase2-workspace) .generator-intro.homepage .hero-description{color:#c4bbce;font-size:15px;line-height:1.9}
+@media(max-width:760px){body:not(.phase2-workspace) .generator-intro.homepage .hero-copy h2{font-size:34px}}
+@media(prefers-contrast:more){:where(button,summary,input,select,textarea){border-color:#544862!important}body:not(.phase2-workspace) .generator-intro.homepage .hero-description{color:#f1eaf6}}
+/* Compact, tool-specific cursors; a hand is reserved for middle-button panning. */
+body.phase2-workspace .ws-canvas-well{cursor:default}
+body.phase2-workspace .ws-canvas-well[data-tool="brush"],body.phase2-workspace .ws-canvas-well[data-tool="bead"]{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M4 20l1-6L17 2l5 5L10 19z' fill='white' stroke='%23242032' stroke-width='1.5'/%3E%3Cpath d='M5 14l5 5M14 5l5 5' stroke='%23242032'/%3E%3C/svg%3E") 4 20,crosshair}
+body.phase2-workspace .ws-canvas-well[data-tool="eyedropper"]{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M3 21l2-6L16 4l4 4L9 19zM14 3l7 7' fill='white' stroke='%23242032' stroke-width='2'/%3E%3C/svg%3E") 3 21,crosshair}
+body.phase2-workspace .ws-canvas-well[data-tool="eraser"]{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M3 16L15 4l7 7-10 10H8zM7 12l7 7' fill='white' stroke='%23242032' stroke-width='1.5'/%3E%3C/svg%3E") 3 16,crosshair}
+body.phase2-workspace .ws-canvas-well[data-tool="text"]{cursor:text}
+body.phase2-workspace .ws-canvas-well:is([data-tool="fill"],[data-tool="line"],[data-tool="rect"],[data-tool="ellipse"],[data-tool="wand"]){cursor:crosshair}
+body.phase2-workspace .ws-canvas-well.is-panning{cursor:grabbing}
+.ws-flat-options{display:flex;flex-wrap:wrap;gap:4px}
+.ws-flat-options button[aria-pressed="true"],.ws-shape-kinds button[aria-pressed="true"]{background:var(--ds-color-accent-soft)!important;color:var(--ds-color-accent)!important;border-color:var(--ds-color-accent)!important}
+.ws-flat-options button,.ws-shape-kinds button{min-height:34px;min-width:34px}
+.ws-context-group select[hidden]{display:none!important}

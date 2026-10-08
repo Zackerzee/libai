@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>时里白拼豆生成器 — Generation Engine V2 Algorithm Lab</title>
+  <style>
+    :root { color-scheme: dark; --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #e2e8f0; --muted: #94a3b8; --gold: #d4af37; --blue: #38bdf8; --err: #f87171; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    header { padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    header h1 { font-size: 15px; margin: 0; }
+    .tag { font-size: 10px; color: var(--gold); border: 1px solid var(--gold); border-radius: 999px; padding: 2px 8px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--border); align-items: flex-end; }
+    .field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+    .field input, .field select { height: 30px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); font-size: 12px; }
+    .field input[type="number"] { width: 64px; }
+    .field input[type="range"] { width: 90px; }
+    .chips { display: flex; gap: 4px; flex-wrap: wrap; }
+    .chip { height: 26px; padding: 0 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--panel); color: var(--muted); font-size: 11px; cursor: pointer; }
+    .chip:hover, .chip.on { border-color: var(--gold); color: var(--gold); }
+    button.primary { height: 34px; padding: 0 16px; border: 0; border-radius: 6px; background: var(--gold); color: var(--bg); font-weight: 700; cursor: pointer; font-size: 13px; }
+    button.primary:hover { background: #e6c34a; }
+    #status { font-size: 12px; color: var(--muted); }
+    .toolbar { display: flex; gap: 10px; padding: 10px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; align-items: center; font-size: 11px; color: var(--muted); }
+    .toolbar label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+    .toolbar input[type="checkbox"] { accent-color: var(--gold); }
+    .toolbar .zoom-group { display: flex; gap: 4px; }
+    .toolbar .zoom-group button { height: 24px; padding: 0 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); font-size: 11px; cursor: pointer; }
+    .toolbar .zoom-group button.on { border-color: var(--gold); color: var(--gold); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; padding: 20px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .card-head { padding: 9px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); gap: 6px; }
+    .card-head strong { font-size: 12px; }
+    .card-head small { font-size: 10px; color: var(--muted); }
+    .card-head .engine { font-weight: 800; letter-spacing: .03em; }
+    .legacy .engine { color: #f59e0b; }
+    .v2 .engine { color: #38bdf8; }
+    .canvas-wrap { position: relative; }
+    .card canvas { display: block; width: 100%; image-rendering: pixelated; background: #0b1120; cursor: crosshair; }
+    .card .meta { padding: 7px 12px; font-size: 10px; color: var(--muted); line-height: 1.5; border-top: 1px solid var(--border); min-height: 40px; }
+    .card .meta .muted { color: #64748b; font-size: 9px; }
+    .card .meta b { color: var(--text); }
+    .card .meta .err { color: var(--err); }
+    .card .actions { padding: 7px 12px; border-top: 1px solid var(--border); display: flex; gap: 6px; }
+    .card .actions button { height: 24px; padding: 0 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); font-size: 11px; cursor: pointer; }
+    #inspector { position: fixed; right: 16px; bottom: 16px; width: 280px; max-height: 60vh; overflow-y: auto; background: #0b1120; border: 1px solid var(--border); border-radius: 10px; padding: 12px; font-size: 11px; line-height: 1.6; color: var(--muted); box-shadow: 0 8px 24px #0008; display: none; }
+    #inspector h4 { margin: 0 0 6px; color: var(--text); font-size: 12px; }
+    #inspector .row { display: flex; justify-content: space-between; gap: 8px; }
+    #inspector .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: middle; border: 1px solid #fff3; }
+    .drop-zone { border: 1.5px dashed var(--border); border-radius: 8px; padding: 14px; text-align: center; cursor: pointer; color: var(--muted); font-size: 12px; min-width: 160px; }
+    .drop-zone.over { border-color: var(--gold); color: var(--gold); }
+    .note { padding: 12px 20px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>时里白拼豆生成器</h1>
+    <span class="tag">Generation Engine V2 · Algorithm Lab</span>
+    <span class="tag" style="color:#38bdf8;border-color:#38bdf8;font-weight:700;font-size:12px;">v2.5</span>
+    <span style="font-size:11px;color:#64748b;">开发测试页 · 非正式产品 UI</span>
+  </header>
+  <div class="note"><b>内部算法入口</b>：CURRENT / BGS / PW / HYBRID-PW；采样对比保留 auto / linear-mean / center / dominant / edge-aware。BGS 与 PW 对比通过内嵌生产页的 <code>runAlgorithmAbTest</code> / <code>runPwLab</code> 调用，不进入普通用户界面。</div>
+
+  <div class="controls">
+    <div class="drop-zone" id="drop">把图片拖到这里，或点击选择</div>
+    <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" hidden />
+    <div class="field"><span>Source 状态</span><div id="sourceStatus" style="font-size:10px;color:var(--gold);">未加载</div></div>
+
+    <div class="field"><span>宽 (豆)</span><input type="number" id="width" value="52" min="8" max="200" /></div>
+    <div class="field"><span>高 (豆)</span><input type="number" id="height" value="52" min="8" max="200" /></div>
+    <div class="field"><span>快捷尺寸</span><div class="chips">
+      <button class="chip" data-size="52">52×52</button>
+      <button class="chip" data-size="78">78×78</button>
+      <button class="chip" data-size="104">104×104</button>
+      <button class="chip" data-size="104x98">104×98</button>
+      <button class="chip" data-size="100x66">100×66</button>
+    </div></div>
+
+    <div class="field"><span>Max Colors (0=自动)</span><input type="number" id="maxColors" value="0" min="0" max="221" /></div>
+    <div class="field"><span>Max 快捷</span><div class="chips">
+      <button class="chip" data-max="0">0</button><button class="chip" data-max="16">16</button>
+      <button class="chip" data-max="24">24</button><button class="chip" data-max="32">32</button>
+      <button class="chip" data-max="38">38</button><button class="chip" data-max="48">48</button>
+      <button class="chip" data-max="64">64</button>
+    </div></div>
+
+    <div class="field"><span>Preset</span><select id="preset">
+      <option value="auto" selected>AUTO 自动检测</option>
+      <option value="photo">PHOTO 照片</option>
+      <option value="portrait">PORTRAIT 人像</option>
+      <option value="anime">ANIME 动漫</option>
+      <option value="illustration">ILLUSTRATION 插画</option>
+      <option value="pixel">PIXEL 像素</option>
+      <option value="logo">LOGO Logo</option>
+    </select></div>
+  </div>
+
+  <div class="controls" style="padding-top:0;border-bottom:none;">
+    <div class="field"><span>Detail Protection <b id="pv-detail">70</b>%</span><input type="range" id="detailProtection" min="0" max="100" value="70" /></div>
+    <div class="field"><span>Edge Protection <b id="pv-edge">70</b>%</span><input type="range" id="edgeProtection" min="0" max="100" value="70" /></div>
+    <div class="field"><span>Highlight <b id="pv-highlight">100</b>%</span><input type="range" id="highlightProtection" min="0" max="100" value="100" /></div>
+    <div class="field"><span>Eye <b id="pv-eye">100</b>%</span><input type="range" id="eyeProtection" min="0" max="100" value="100" /></div>
+    <div class="field"><span>Micro Detail <b id="pv-micro">100</b>%</span><input type="range" id="microDetailProtection" min="0" max="100" value="100" /></div>
+    <button class="primary" id="selfTest">Renderer Self-Test</button>
+    <button class="primary" id="run">一键 Generate Comparison</button>
+    <button class="primary" id="pipeline-run">Pipeline Inspector · 正式链路</button>
+    <span id="status"></span>
+  </div>
+
+  <div class="toolbar">
+    <label><input type="checkbox" id="beadMode" /> 拼豆圆点</label>
+    <label><input type="checkbox" id="showCodes" /> 显示色号</label>
+    <span>Zoom:</span>
+    <div class="zoom-group" id="zoomGroup">
+      <button data-zoom="fit" class="on">Fit</button>
+      <button data-zoom="2">200%</button>
+      <button data-zoom="4">400%</button>
+      <button data-zoom="8">800%</button>
+      <button data-zoom="16">1600%</button>
+    </div>
+    <label style="margin-left:auto;">Debug Overlay:</label>
+    <label><input type="checkbox" data-overlay="edgeMap" /> Edge</label>
+    <label><input type="checkbox" data-overlay="protectionMap" /> Protection Tier</label>
+    <label><input type="checkbox" data-overlay="samplingModeMap" /> Sampling Mode</label>
+    <label><input type="checkbox" data-overlay="coherenceChanges" /> Coherence Changes</label>
+    <label><input type="checkbox" data-overlay="stableRegions" /> Stable Regions</label>
+    <label><input type="checkbox" data-overlay="dominantSuitability" /> Dominant Suitability</label>
+    <label><input type="checkbox" data-overlay="shadingEvidence" /> Shading Evidence</label>
+    <label><input type="checkbox" data-overlay="cleanupMap" /> Cleanup</label>
+  </div>
+
+  <div class="grid" id="results"></div>
+  <section id="pipeline-inspector" hidden>
+    <div class="note"><b>S0–S7 Pipeline Inspector</b> · 正式管线的受控单次执行，不运行 Auto Tune，也不采用五种采样对比结果。真实执行顺序：S1 → S2 → S3 → S5（保护／Cleanup）→ S4（Budget）→ S6。S1 是算法实际输入，无额外预缩放。高光／眼睛／微细节滑杆在此按“是否开启”映射正式 preset 开关。</div>
+    <div class="toolbar"><label><input id="pipeline-v3-sampler" type="checkbox">实验性 V3 采样（未通过完整验收，非生产默认）</label><label>诊断叠层 <select id="pipeline-overlay"><option value="">无</option><option value="edgeMap">Edge</option><option value="highlightMap">Highlight</option><option value="specularMask">V3 specular（实验）</option><option value="shadowAnchorMask">V3 dominant shadow（不是全图分位数锚点）</option><option value="darkDetailMap">Dark detail（不是分位数 Shadow anchor）</option><option value="protectionMap">Protected score</option><option value="cleanupMap">Cleanup changed</option><option value="budget">Budget reassigned</option></select></label><span>Thin Feature／Specular Thin／分位数 Shadow anchor：当前尚未实现。叠层独立于 S6 纯色图。</span></div>
+    <div class="grid" id="pipeline-results"></div>
+    <pre class="note" id="pipeline-cell-detail">点击 S6 或 S7 的格子查看实际阶段数值。</pre>
+    <pre class="note" id="pipeline-cleanup-audit">Cleanup Audit：仅现有已接受记录，当前未记录被拒绝的 proposal。</pre>
+  </section>
+  <div id="inspector"></div>
+
+  <div class="note">
+    <b>Palette</b>：MARD 221 色（复用 palette-engine 匹配）。<b>Legacy</b> 通过内嵌主页 iframe 调用真实 app.js processImage。
+  </div>
+
+  <script type="module">
+    import { generateV2, compareGrids } from "./smart-preprocessing/generation-engine-v2.mjs?v=20260916";
+    import { getMardPalette } from "./smart-preprocessing/palette-data.mjs?v=20260916";
+    import { runGenerationPipeline } from "./services/generation-pipeline.mjs?v=20261007-v3-inspector";
+    import { getSrgbContext, readSrgbImageData } from "./services/srgb-canvas.mjs?v=20261007-v3-srgb";
+    import { renderInspectorGrid, sampledGrid, inspectorCellDetail } from "./services/v3-inspector-renderer.mjs?v=20261007-v3-inspector";
+    import { measureV3Grid } from "./services/v3-quality-metrics.mjs?v=20261007-v3-inspector";
+
+    // 全局错误捕获，暴露任何 import/运行时错误
+    window.addEventListener("error", (e) => { console.error("[Lab error]", e.message, e.filename, e.lineno); document.getElementById("status").textContent = "页面错误: " + e.message; });
+    window.addEventListener("unhandledrejection", (e) => { console.error("[Lab unhandledrejection]", e.reason); document.getElementById("status").textContent = "异步错误: " + (e.reason?.message || e.reason); });
+
+    const PALETTE = getMardPalette(221);
+    console.log("[Lab] palette loaded:", PALETTE.length, "colors, first:", JSON.stringify(PALETTE[0]));
+
+    const resultsEl = document.getElementById("results");
+    const statusEl = document.getElementById("status");
+    const inspector = document.getElementById("inspector");
+
+    let currentFile = null;
+    let currentSource = null;
+    let zoom = "fit";
+    let results = [];
+    let pipelineResult = null;
+
+    const legacyIframe = document.createElement("iframe");
+    legacyIframe.style.cssText = "position:absolute;width:800px;height:600px;left:-9999px;top:0;border:0;";
+    legacyIframe.src = "./index.html";
+    document.body.appendChild(legacyIframe);
+
+    function waitFor(fn, timeout = 15000) {
+      return new Promise((resolve, reject) => {
+        const start = Date.now();
+        (function check() {
+          try { if (fn()) return resolve(); } catch (e) {}
+          if (Date.now() - start > timeout) return reject(new Error("timeout"));
+          setTimeout(check, 80);
+        })();
+      });
+    }
+
+    // ---- 上传 ----
+    function loadFile(file) {
+      currentFile = file;
+      pipelineResult = null;
+      document.getElementById("pipeline-inspector").hidden = true;
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement("canvas");
+          c.width = img.naturalWidth; c.height = img.naturalHeight;
+          const boundary = getSrgbContext(c,{willReadFrequently:true}),ctx=boundary.context; ctx.drawImage(img, 0, 0);
+          const read=readSrgbImageData(ctx,0,0,c.width,c.height);currentSource=read.imageData;
+          console.debug('[V3 color space]',{inputColorSpace:'browser-decoded; ICC handled by browser',paletteColorSpace:'srgb',...boundary.diagnostics,...read.diagnostics});
+          // Source 诊断
+          const data = currentSource.data;
+          let nonTransparent = 0, rSum = 0, gSum = 0, bSum = 0;
+          for (let i = 0; i < data.length; i += 4) if (data[i + 3] > 8) { nonTransparent++; rSum += data[i]; gSum += data[i + 1]; bSum += data[i + 2]; }
+          const total = data.length / 4;
+          const alphaCov = (nonTransparent / total * 100).toFixed(1);
+          const avgR = nonTransparent ? Math.round(rSum / nonTransparent) : 0;
+          const avgG = nonTransparent ? Math.round(gSum / nonTransparent) : 0;
+          const avgB = nonTransparent ? Math.round(bSum / nonTransparent) : 0;
+          document.getElementById("sourceStatus").textContent = `W${c.width}×H${c.height} · α覆盖 ${alphaCov}% · 平均RGB(${avgR},${avgG},${avgB})`;
+          console.log("[Lab] source loaded:", c.width, "x", c.height, "alphaCov", alphaCov, "avgRGB", avgR, avgG, avgB);
+          resolve(currentSource);
+        };
+        img.onerror = () => reject(new Error("图片加载失败"));
+        img.src = URL.createObjectURL(file);
+      });
+    }
+    const drop = document.getElementById("drop");
+    const fileInput = document.getElementById("file");
+    drop.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", async () => { if (fileInput.files[0]) { try { await loadFile(fileInput.files[0]); statusEl.textContent = `已上传 ${fileInput.files[0].name}`; } catch (e) { statusEl.textContent = "上传失败: " + e.message; } } });
+    drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+    drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+    drop.addEventListener("drop", async (e) => {
+      e.preventDefault(); drop.classList.remove("over");
+      if (e.dataTransfer.files[0]) { try { await loadFile(e.dataTransfer.files[0]); statusEl.textContent = `已上传 ${e.dataTransfer.files[0].name}`; } catch (err) { statusEl.textContent = "上传失败: " + err.message; } }
+    });
+
+    function readConfig() {
+      return {
+        width: Number(document.getElementById("width").value),
+        height: Number(document.getElementById("height").value),
+        maxColors: Number(document.getElementById("maxColors").value),
+        preset: document.getElementById("preset").value,
+        detailProtection: Number(document.getElementById("detailProtection").value) / 100,
+        edgeProtection: Number(document.getElementById("edgeProtection").value) / 100,
+        highlightProtection: Number(document.getElementById("highlightProtection").value) / 100,
+        eyeProtection: Number(document.getElementById("eyeProtection").value) / 100,
+        microDetailProtection: Number(document.getElementById("microDetailProtection").value) / 100,
+      };
+    }
+    for (const key of ["detailProtection", "edgeProtection", "highlightProtection", "eyeProtection", "microDetailProtection"]) {
+      document.getElementById(key).addEventListener("input", (e) => { document.getElementById("pv-" + key.replace("Protection", "")).textContent = e.target.value; });
+    }
+    document.querySelectorAll("[data-size]").forEach((b) => b.addEventListener("click", () => {
+      const s = b.dataset.size; const [w, h] = s.includes("x") ? s.split("x").map(Number) : [Number(s), Number(s)];
+      document.getElementById("width").value = w; document.getElementById("height").value = h;
+    }));
+    document.querySelectorAll("[data-max]").forEach((b) => b.addEventListener("click", () => { document.getElementById("maxColors").value = b.dataset.max; }));
+
+    document.getElementById("zoomGroup").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-zoom]"); if (!b) return;
+      zoom = b.dataset.zoom;
+      document.querySelectorAll("#zoomGroup button").forEach((x) => x.classList.toggle("on", x === b));
+      redrawAll();
+    });
+
+    const beadMode = document.getElementById("beadMode");
+    const showCodes = document.getElementById("showCodes");
+    const overlays = [...document.querySelectorAll("[data-overlay]")];
+    beadMode.addEventListener("change", redrawAll);
+    showCodes.addEventListener("change", redrawAll);
+    overlays.forEach((o) => o.addEventListener("change", redrawAll));
+
+    function cellColor(cell) {
+      if (!cell) return null;
+      if (Array.isArray(cell.rgb)) return cell.rgb;
+      if (cell.rgb && typeof cell.rgb === "object") return [cell.rgb[0], cell.rgb[1], cell.rgb[2]];
+      return null;
+    }
+
+    function cellSizeFor(width, height) {
+      return zoom === "fit" ? Math.max(2, Math.floor(280 / Math.max(width, height))) : Number(zoom);
+    }
+
+    function drawResult(r) {
+      if (r.skipDraw) return; // 原图已 putImageData，不重绘
+      const canvas = r.canvas;
+      const { grid, width, height } = r;
+      const cellSize = cellSizeFor(width, height);
+      canvas.width = width * cellSize;
+      canvas.height = height * cellSize;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#0b1120"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const activeOverlay = overlays.find((o) => o.checked)?.dataset.overlay;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const cell = grid[y][x];
+          const rgb = cellColor(cell);
+          const px = x * cellSize, py = y * cellSize;
+          if (rgb) {
+            ctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+            if (beadMode.checked) { ctx.beginPath(); ctx.arc(px + cellSize / 2, py + cellSize / 2, cellSize * 0.43, 0, Math.PI * 2); ctx.fill(); }
+            else { ctx.fillRect(px, py, cellSize, cellSize); }
+          }
+          if (activeOverlay) {
+            const d = r.diagnostics || {};
+            if (activeOverlay === "samplingModeMap" && d.samplingModeMap) {
+              const m = d.samplingModeMap[y * width + x];
+              const colors = ["#38bdf8", "#a78bfa", "#34d399", "#fbbf24"]; // LM/center/dominant/edge
+              if (m >= 0) { ctx.fillStyle = colors[m] || "#888"; ctx.fillRect(px, py, cellSize, cellSize); }
+            } else if (activeOverlay === "coherenceChanges" && d.preSamplingModeMap && d.samplingModeMap) {
+              const pre = d.preSamplingModeMap[y * width + x];
+              const post = d.samplingModeMap[y * width + x];
+              if (pre !== post) {
+                // Edge→Mean 红 / Edge→Center 紫 / Edge→Dominant 绿 / 其它转换 灰
+                const edgeToColors = { 0: "#f87171", 1: "#c084fc", 2: "#34d399" };
+                ctx.fillStyle = pre === 3 ? (edgeToColors[post] || "#fbbf24") : "#94a3b8";
+                ctx.fillRect(px, py, cellSize, cellSize);
+              }
+            } else if (activeOverlay === "stableRegions" && d.stableRegionTypeMap && d.stableInteriorMap) {
+              const type = d.stableRegionTypeMap[y * width + x];
+              const interior = d.stableInteriorMap[y * width + x];
+              // strict interior 青 / perceptual interior 橙 / boundary 黄
+              if (type === 1 && interior) { ctx.fillStyle = "#22d3ee"; ctx.fillRect(px, py, cellSize, cellSize); }
+              else if (type === 2 && interior) { ctx.fillStyle = "#f97316"; ctx.fillRect(px, py, cellSize, cellSize); }
+              else if (type > 0 && !interior) { ctx.fillStyle = "#eab308"; ctx.fillRect(px, py, cellSize, cellSize); }
+            } else if (activeOverlay === "dominantSuitability" && d.dominantSuitabilityMap) {
+              const v = d.dominantSuitabilityMap[y * width + x];
+              if (v > 0) {
+                if (v > 0.6) ctx.fillStyle = `rgba(34,197,94,${Math.min(1, v)})`;
+                else if (v > 0.3) ctx.fillStyle = `rgba(234,179,8,${Math.min(1, v * 1.2)})`;
+                else ctx.fillStyle = `rgba(239,68,68,${Math.min(1, (0.3 - v) * 2 + 0.3)})`;
+                ctx.fillRect(px, py, cellSize, cellSize);
+              }
+            } else if (activeOverlay === "shadingEvidence" && d.shadingScoreMap) {
+              const v = d.shadingScoreMap[y * width + x];
+              if (v > 0.1) {
+                ctx.fillStyle = `rgba(249,115,22,${Math.min(1, v * 1.5)})`;
+                ctx.fillRect(px, py, cellSize, cellSize);
+              }
+            } else if (activeOverlay === "protectionMap" && d.tierMap) {
+              const t = d.tierMap[y * width + x];
+              const tierColors = { 1: "#22d3ee", 2: "#eab308", 3: "#f97316", 4: "#ef4444" };
+              if (tierColors[t]) { ctx.fillStyle = tierColors[t]; ctx.fillRect(px, py, cellSize, cellSize); }
+            } else if (activeOverlay === "cleanupMap" && d.cleanupMap) {
+              if (d.cleanupMap[y * width + x] > 0) { ctx.strokeStyle = "#ff0000"; ctx.strokeRect(px, py, cellSize, cellSize); }
+            } else if (d[activeOverlay]) {
+              const v = d[activeOverlay][y * width + x];
+              if (v > 0) { ctx.fillStyle = `hsla(30,90%,60%,${Math.min(1, v * 1.2)})`; ctx.fillRect(px, py, cellSize, cellSize); }
+            }
+          }
+        }
+      }
+      if (showCodes.checked && cellSize >= 8) {
+        ctx.font = `${Math.max(6, cellSize * 0.35)}px system-ui`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+          const cell = grid[y][x]; if (!cell || !cell.code) continue;
+          const rgb = cellColor(cell); const lum = rgb ? (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) : 255;
+          ctx.fillStyle = lum > 140 ? "#111" : "#fff"; ctx.fillText(cell.code, x * cellSize + cellSize / 2, y * cellSize + cellSize / 2);
+        }
+      }
+      // 像素诊断
+      const px = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let nonBlack = 0, total = 0;
+      for (let i = 0; i < px.length; i += 4) { total++; if (px[i] + px[i + 1] + px[i + 2] > 30) nonBlack++; }
+      const pct = (nonBlack / total * 100).toFixed(1);
+      if (nonBlack / total < 0.02 && grid.length && grid.flat().some(Boolean)) {
+        console.warn("[Lab] RENDER ERROR: canvas nearly all black despite non-empty grid", r.title, "nonBlack%", pct, "grid[0][0]", JSON.stringify(grid[0][0]));
+        if (r.metaDiv) r.metaDiv.innerHTML += ` <span class="err">RENDER ERROR: nonBlack ${pct}%</span>`;
+      }
+      console.log("[Lab] rendered", r.title, "cellSize", cellSize, "canvas", canvas.width, "x", canvas.height, "nonBlack%", pct);
+    }
+
+    function redrawAll() { results.forEach(drawResult); }
+
+    function attachHover(r) {
+      r.canvas.addEventListener("mousemove", (e) => {
+        const rect = r.canvas.getBoundingClientRect();
+        const cellSize = cellSizeFor(r.width, r.height);
+        const x = Math.floor((e.clientX - rect.left) / rect.width * r.width);
+        const y = Math.floor((e.clientY - rect.top) / rect.height * r.height);
+        if (x < 0 || y < 0 || x >= r.width || y >= r.height) { inspector.style.display = "none"; return; }
+        const cell = r.grid[y][x]; const idx = y * r.width + x; const d = r.diagnostics || {};
+        const prot = d.protectionMap ? d.protectionMap[idx] : undefined;
+        const edge = d.edgeMap ? d.edgeMap[idx] : undefined;
+        const cleaned = d.cleanupMap ? d.cleanupMap[idx] > 0 : undefined;
+        const modeIdx = d.samplingModeMap ? d.samplingModeMap[idx] : -1;
+        const modeNames = ["Linear Mean", "Center", "Dominant", "Edge-Aware"];
+        const confidence = d.samplingConfidenceMap ? d.samplingConfidenceMap[idx] : undefined;
+        const tier = d.tierMap ? d.tierMap[idx] : undefined;
+        const tierNames = ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"];
+        const reason = d.protectionReasonMap ? d.protectionReasonMap[idx] : 0;
+        const reasonNames = [];
+        if (reason & 1) reasonNames.push("Highlight");
+        if (reason & 2) reasonNames.push("Dark");
+        if (reason & 4) reasonNames.push("Eye-like");
+        if (reason & 8) reasonNames.push("Micro");
+        if (reason & 16) reasonNames.push("Edge");
+        if (reason & 32) reasonNames.push("Source");
+        if (reason & 64) reasonNames.push("Generic");
+        const rgb = cellColor(cell);
+        const swatch = rgb ? `<span class="swatch" style="background:rgb(${rgb[0]},${rgb[1]},${rgb[2]})"></span>` : "";
+        const scores = d.samplingScoresGrid ? d.samplingScoresGrid[y][x] : null;
+        const rc = d.regionContexts ? d.regionContexts[y][x] : null;
+        const structuralEdge = d.structuralEdgeMap ? d.structuralEdgeMap[idx] : undefined;
+        const edgeContinuity = d.edgeContinuityMap ? d.edgeContinuityMap[idx] : undefined;
+        const preModeIdx = d.preSamplingModeMap ? d.preSamplingModeMap[idx] : -1;
+        const coherenceChanged = preModeIdx >= 0 && preModeIdx !== modeIdx;
+        const profile = d.imageProfile;
+        const stableRegionSize = d.stableRegionSizeMap ? d.stableRegionSizeMap[idx] : undefined;
+        const stabilityScore = d.stabilityScores ? d.stabilityScores[idx] : undefined;
+        const stableRegionId = d.stableRegionIdMap ? d.stableRegionIdMap[idx] : undefined;
+        const stableRegionConfidence = d.stableRegionConfidenceMap ? d.stableRegionConfidenceMap[idx] : undefined;
+        const stableRegionType = d.stableRegionTypeMap ? d.stableRegionTypeMap[idx] : undefined;
+        const stableInterior = d.stableInteriorMap ? d.stableInteriorMap[idx] : undefined;
+        const stableTypeNames = { 0: "NONE", 1: "STRICT", 2: "PERCEPTUAL" };
+        const dominantSuitability = d.dominantSuitabilityMap ? d.dominantSuitabilityMap[idx] : undefined;
+        const shadingScore = d.shadingScoreMap ? d.shadingScoreMap[idx] : undefined;
+        const paletteCompactness = d.paletteCompactnessMap ? d.paletteCompactnessMap[idx] : undefined;
+        const luminanceRange = d.luminanceRangeMap ? d.luminanceRangeMap[idx] : undefined;
+        const gradientCoherence = d.gradientCoherenceMap ? d.gradientCoherenceMap[idx] : undefined;
+        inspector.style.display = "block";
+        inspector.innerHTML = `<h4>${r.title} · Cell Inspector</h4>
+          <div class="row"><span>x / y</span><b>${x} / ${y}</b></div>
+          <div class="row"><span>bead code</span><b>${cell ? (cell.code || "—") : "空白"}</b> ${swatch}</div>
+          <div class="row"><span>RGB</span><b>${rgb ? rgb.join(",") : "—"}</b></div>
+          ${profile ? `<div class="row"><span>Image Profile</span><b>${profile.profile} <span class="muted">${(profile.confidence * 100).toFixed(0)}%</span></b></div>` : ""}
+          ${profile ? `<div class="row"><span>Profile Raw LM/C/D/E</span><b>${profile.profileWeights.linearMean} / ${profile.profileWeights.center} / ${profile.profileWeights.dominant} / ${profile.profileWeights.edgeAware}</b></div>` : ""}
+          ${profile && profile.effectiveWeights ? `<div class="row"><span>Profile Eff LM/C/D/E</span><b>${profile.effectiveWeights.linearMean.toFixed(2)} / ${profile.effectiveWeights.center.toFixed(2)} / ${profile.effectiveWeights.dominant.toFixed(2)} / ${profile.effectiveWeights.edgeAware.toFixed(2)}</b></div>` : ""}
+          <div class="row"><span>Sampling Mode</span><b>${modeIdx >= 0 ? modeNames[modeIdx] : (d.samplingMode || "—")}</b></div>
+          <div class="row"><span>Sampling Confidence</span><b>${confidence != null ? confidence.toFixed(2) : "—"}</b></div>
+          ${scores ? `<div class="row"><span>LM / C / D / E scores</span><b>${scores.linearMean.toFixed(2)} / ${scores.center.toFixed(2)} / ${scores.dominant.toFixed(2)} / ${scores.edgeAware.toFixed(2)}</b></div>` : ""}
+          ${stabilityScore != null ? `<div class="row"><span>Perceptual Stability</span><b>${stabilityScore.toFixed(2)}</b></div>` : ""}
+          ${stableRegionSize != null && stableRegionSize > 0 ? `<div class="row"><span>Stable Region</span><b>#${stableRegionId} · ${stableRegionSize} cell · ${stableTypeNames[stableRegionType] || "—"}</b></div>` : ""}
+          ${stableRegionConfidence != null && stableRegionConfidence > 0 ? `<div class="row"><span>Stable Confidence</span><b>${stableRegionConfidence.toFixed(2)}</b></div>` : ""}
+          ${stableInterior != null && stableRegionSize > 0 ? `<div class="row"><span>Stable Interior</span><b>${stableInterior ? "是" : "否"}</b></div>` : ""}
+          ${dominantSuitability != null && dominantSuitability > 0 ? `<div class="row"><span>Dominant Suitability</span><b>${dominantSuitability.toFixed(2)} <span class="muted">${dominantSuitability > 0.5 ? "适合" : "不适合"}</span></b></div>` : ""}
+          ${shadingScore != null && shadingScore > 0 ? `<div class="row"><span>Shading Score</span><b>${shadingScore.toFixed(2)}</b></div>` : ""}
+          ${paletteCompactness != null && paletteCompactness > 0 ? `<div class="row"><span>Palette Compactness</span><b>${paletteCompactness.toFixed(2)}</b></div>` : ""}
+          ${luminanceRange != null && luminanceRange > 0 ? `<div class="row"><span>Luminance Range</span><b>${luminanceRange.toFixed(2)}</b></div>` : ""}
+          ${gradientCoherence != null && gradientCoherence > 0 ? `<div class="row"><span>Gradient Coherence</span><b>${gradientCoherence.toFixed(2)}</b></div>` : ""}
+          ${rc ? `<div class="row"><span>Region SmoothGradient</span><b>${rc.regionalSmoothGradient.toFixed(2)}</b></div>` : ""}
+          ${rc ? `<div class="row"><span>Region ColorDrift</span><b>${rc.regionalColorDrift.toFixed(2)}</b></div>` : ""}
+          ${rc ? `<div class="row"><span>Region PaletteDiversity</span><b>${rc.regionalPaletteDiversity.toFixed(2)}</b></div>` : ""}
+          ${scores ? `<div class="row"><span>Micro Detail (source)</span><b>${scores.microDetailCandidate.toFixed(2)}</b></div>` : ""}
+          ${preModeIdx >= 0 ? `<div class="row"><span>Coherence Pre → Post</span><b>${coherenceChanged ? `${modeNames[preModeIdx]} → ${modeNames[modeIdx]}` : "不变"}</b></div>` : ""}
+          ${structuralEdge != null ? `<div class="row"><span>Structural Edge</span><b>${structuralEdge ? "是" : "否"}</b></div>` : ""}
+          ${edgeContinuity != null ? `<div class="row"><span>Edge Continuity</span><b>${edgeContinuity.toFixed(2)}</b></div>` : ""}
+          <div class="row"><span>Protection</span><b>${prot != null ? prot.toFixed(2) : "—"}</b></div>
+          <div class="row"><span>Protection Tier</span><b>${tier != null ? tierNames[tier] : "—"}</b></div>
+          <div class="row"><span>Protection Reasons</span><b>${reasonNames.join(", ") || "—"}</b></div>
+          <div class="row"><span>Cleanup 修改</span><b>${cleaned ? "是" : "否"}</b></div>`;
+      });
+      r.canvas.addEventListener("mouseleave", () => { inspector.style.display = "none"; });
+    }
+
+    function addCard(title, engine, subtitle) {
+      const card = document.createElement("div");
+      card.className = "card " + engine;
+      card.innerHTML = `<div class="card-head"><strong><span class="engine">${title}</span></strong><small>${subtitle}</small></div>`;
+      const wrap = document.createElement("div"); wrap.className = "canvas-wrap";
+      const canvas = document.createElement("canvas");
+      wrap.appendChild(canvas); card.appendChild(wrap);
+      const metaDiv = document.createElement("div"); metaDiv.className = "meta";
+      card.appendChild(metaDiv);
+      const actDiv = document.createElement("div"); actDiv.className = "actions"; actDiv.innerHTML = `<button data-dl>下载 PNG</button>`;
+      card.appendChild(actDiv);
+      resultsEl.appendChild(card);
+      return { card, canvas, metaDiv, actDiv };
+    }
+
+    function downloadCanvas(canvas, name) { const a = document.createElement("a"); a.href = canvas.toDataURL("image/png"); a.download = name + ".png"; a.click(); }
+
+    function runV2(mode, cfg) {
+      return generateV2({ source: currentSource, width: cfg.width, height: cfg.height, palette: PALETTE, options: { ...cfg, sampling: mode } });
+    }
+
+    document.getElementById("pipeline-run").addEventListener("click", async () => {
+      if(!currentSource){statusEl.textContent="请先上传图片";return;}
+      const button=document.getElementById("pipeline-run"),cfg=readConfig();button.disabled=true;statusEl.textContent="采集正式链路阶段快照…";
+      await new Promise(resolve=>requestAnimationFrame(resolve));
+      try{
+        pipelineResult=runGenerationPipeline({image:currentSource,mode:cfg.preset,size:{width:cfg.width,height:cfg.height},palette:PALETTE,maxColors:cfg.maxColors,overrides:{sampling:"auto",detailProtection:cfg.detailProtection*100,edgeProtection:cfg.edgeProtection*100,preserveHighlights:cfg.highlightProtection>0,preserveEyes:cfg.eyeProtection>0,preserveMicroDetails:cfg.microDetailProtection>0,subjectCrop:false,autoBackground:false},inspect:true,experimentalSampler:document.getElementById('pipeline-v3-sampler').checked?'perceptual-v3':null});
+        const snapshots=pipelineResult.diagnostics?.inspector;if(!snapshots?.stages)throw Error("正式管线未提供 Inspector 快照；请刷新到当前版本。");
+        document.getElementById("pipeline-inspector").hidden=false;
+        drawPipelineInspector();statusEl.textContent=`Inspector 完成 · 路由 ${pipelineResult.pipeline.routedMode} · Cleanup 在 Budget 之前`;
+      }catch(error){statusEl.textContent="Inspector 失败："+error.message;}finally{button.disabled=false;}
+    });
+    document.getElementById("pipeline-overlay").addEventListener("change",()=>{if(pipelineResult)drawPipelineInspector();});
+    function drawPipelineInspector(){
+      const host=document.getElementById("pipeline-results");host.replaceChildren();
+      const d=pipelineResult.diagnostics,stages=d.inspector.stages;
+      const entries=[['S0','Original',null,currentSource],['S1','Actual input（无预缩放）',null,stages.S1.source],['S2','Sampled RGB',sampledGrid(stages.S2.colors)],['S3','Full palette match',stages.S3.grid],['S5','Protected + Cleanup（先）',stages.S5.grid],['S4','Budget（后）',stages.S4.grid],['S6','Final Plain Preview',stages.S6.grid],['S7','Construction Preview',stages.S6.grid]];
+      for(const [id,label,grid,source] of entries){
+        const card=document.createElement('article');card.className='card';const head=document.createElement('div');head.className='card-head';head.textContent=`${id} · ${label}`;card.append(head);
+        const canvas=document.createElement('canvas');canvas.dataset.stage=id;card.append(canvas);
+        if(source){canvas.width=source.width;canvas.height=source.height;canvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(source.data),source.width,source.height),0,0);canvas.style.imageRendering='auto';}
+        else{
+          const cellSize= id==='S7'?24:8,geometry=renderInspectorGrid(canvas,grid,{cellSize,construction:id==='S7'}),m=measureV3Grid(grid),meta=document.createElement('div');meta.className='meta';meta.textContent=`${m.width}×${m.height} · ${m.usedColors}色 · L* P05 ${m.L.P05?.toFixed(2)} / P95 ${m.L.P95?.toFixed(2)} · DR ${m.dynamicRange?.toFixed(2)} · 蓝 ${(m.blueRatio*100).toFixed(2)}% · 中性 ${(m.neutralRatio*100).toFixed(2)}%`;card.append(meta);
+          if(id==='S6'||id==='S7')canvas.addEventListener('click',event=>{const rect=canvas.getBoundingClientRect(),x=Math.floor(((event.clientX-rect.left)*canvas.width/rect.width-geometry.margin)/cellSize),y=Math.floor(((event.clientY-rect.top)*canvas.height/rect.height-geometry.margin)/cellSize);if(x<0||y<0||y>=grid.length||x>=grid[0].length)return;document.getElementById('pipeline-cell-detail').textContent=JSON.stringify(inspectorCellDetail(currentSource,stages,d,x,y),null,2);});
+        }
+        host.append(card);
+      }
+      const key=document.getElementById('pipeline-overlay').value;
+      if(key){const grid=stages.S6.grid,w=grid[0].length,h=grid.length,map=key==='budget'?grid.flat().map((c,i)=>c?.code!==stages.S5.grid[Math.floor(i/w)][i%w]?.code?1:0):d[key];const card=document.createElement('article');card.className='card';const label=document.createElement('div');label.className='card-head';label.textContent=`独立诊断层 · ${key}${map?'':'（未提供）'}`;card.append(label);if(map){const canvas=document.createElement('canvas');renderInspectorGrid(canvas,grid);const ctx=canvas.getContext('2d');for(let i=0;i<w*h;i++)if(map[i]>0){ctx.fillStyle=`rgba(255,60,100,${Math.min(.75,Math.max(.12,map[i]*.7))})`;ctx.fillRect((i%w)*8,Math.floor(i/w)*8,8,8);}card.append(canvas);}host.append(card);}
+      document.getElementById('pipeline-cleanup-audit').textContent=`Cleanup Audit：${d.cleanupRecords?.length||0} 条已接受记录；显示前 30 条（不是全部 proposal）。\n`+JSON.stringify(d.cleanupRecords?.slice(0,30)||[],null,2);
+    }
+
+    async function runLegacy(file, cfg) {
+      const win = legacyIframe.contentWindow;
+      await waitFor(() => win && win.LibmsWorkspaceBridge, 20000);
+      const fileInputEl = win.document.getElementById("file-input");
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      fileInputEl.files = dt.files;
+      const loaded = new Promise((resolve) => win.addEventListener("libms:source-loaded", resolve, { once: true }));
+      fileInputEl.dispatchEvent(new Event("change", { bubbles: true }));
+      await loaded;
+      await win.LibmsWorkspaceBridge.generate({ width: cfg.width, height: cfg.height, maxColors: cfg.maxColors });
+      return win.LibmsWorkspaceBridge.getResult();
+    }
+
+    // ---- Renderer Self-Test ----
+    document.getElementById("selfTest").addEventListener("click", () => {
+      resultsEl.innerHTML = ""; results = [];
+      // 4×4 红白/黑黄 grid，用真实 palette 最接近色
+      const red = PALETTE.find((c) => c.code === "A14") || PALETTE[0];
+      const white = PALETTE.find((c) => c.code === "H2") || PALETTE[1];
+      const black = PALETTE.find((c) => c.code === "H7") || PALETTE[2];
+      const yellow = PALETTE.find((c) => c.code === "A3") || PALETTE[3];
+      const grid = [
+        [red, red, white, white],
+        [red, red, white, white],
+        [black, black, yellow, yellow],
+        [black, black, yellow, yellow],
+      ];
+      const card = addCard("SELF-TEST", "v2", "4×4 红白黑黄");
+      card.grid = grid; card.width = 4; card.height = 4; card.diagnostics = {};
+      card.title = "SELF-TEST";
+      card.actDiv.querySelector("[data-dl]").onclick = () => downloadCanvas(card.canvas, "selftest");
+      results.push(card);
+      drawResult(card);
+      statusEl.textContent = "Self-Test 完成（应看到红白黑黄四色，非全黑）";
+    });
+
+    // ---- 一键对比 ----
+    document.getElementById("run").addEventListener("click", async () => {
+      if (!currentSource || !currentFile) { statusEl.textContent = "请先上传图片"; return; }
+      const cfg = readConfig();
+      statusEl.textContent = "生成中…";
+      resultsEl.innerHTML = ""; results = [];
+
+      // 原图（skipDraw，保留 putImageData）
+      const srcCard = addCard("ORIGINAL", "v2", `原图 ${currentSource.width}×${currentSource.height}`);
+      srcCard.canvas.width = currentSource.width; srcCard.canvas.height = currentSource.height;
+      srcCard.canvas.getContext("2d").putImageData(currentSource, 0, 0);
+      srcCard.canvas.style.imageRendering = "auto";
+      srcCard.metaDiv.innerHTML = `<b>Original Source</b> · ${currentSource.width}×${currentSource.height}px`;
+      srcCard.actDiv.querySelector("[data-dl]").onclick = () => downloadCanvas(srcCard.canvas, "original");
+      results.push({ ...srcCard, skipDraw: true });
+
+      const modes = [
+        ["linear-mean", "V2 — LINEAR MEAN"],
+        ["center", "V2 — CENTER"],
+        ["dominant", "V2 — DOMINANT"],
+        ["edge-aware", "V2 — EDGE AWARE"],
+        ["auto", "V2 — AUTO"],
+      ];
+      const v2Results = [];
+      for (const [mode, label] of modes) {
+        try {
+          const r = runV2(mode, cfg);
+          v2Results.push({ label, r });
+          const d = r.diagnostics;
+          console.log("[Lab] V2", mode, "grid", r.grid.length, "x", (r.grid[0] || []).length, "nonEmpty", r.grid.flat().filter(Boolean).length, "cell[0][0]", JSON.stringify(r.grid[0]?.[0]));
+          const card = addCard(label, "v2", `sampling=${d.samplingMode}`);
+          card.grid = r.grid; card.width = r.width; card.height = r.height; card.diagnostics = d;
+          card.title = label;
+          let samplingMeta = "";
+          if (d.samplingDistribution) {
+            const dist = d.samplingDistribution;
+            const total = (dist.linearMean + dist.center + dist.dominant + dist.edgeAware) || 1;
+            samplingMeta = ` · Mean ${(dist.linearMean / total * 100).toFixed(0)}% / Center ${(dist.center / total * 100).toFixed(0)}% / Dominant ${(dist.dominant / total * 100).toFixed(0)}% / Edge ${(dist.edgeAware / total * 100).toFixed(0)}%`;
+            if (d.preCoherenceDistribution) {
+              const pre = d.preCoherenceDistribution;
+              const preTotal = (pre.linearMean + pre.center + pre.dominant + pre.edgeAware) || 1;
+              samplingMeta += ` <span class="muted">(Pre ${(pre.linearMean / preTotal * 100).toFixed(0)}/${(pre.center / preTotal * 100).toFixed(0)}/${(pre.dominant / preTotal * 100).toFixed(0)}/${(pre.edgeAware / preTotal * 100).toFixed(0)}%)</span>`;
+            }
+          }
+          let profileMeta = "";
+          if (d.imageProfile) {
+            const eff = d.imageProfile.effectiveWeights;
+            const strength = d.imageProfile.priorStrength != null ? d.imageProfile.priorStrength : d.imageProfile.confidence;
+            profileMeta = ` · Profile <b>${d.imageProfile.profile}</b> <span class="muted">${(d.imageProfile.confidence * 100).toFixed(0)}%</span>`;
+            if (eff) {
+              profileMeta += ` · Prior <b>${strength.toFixed(2)}</b> <span class="muted">eff LM${eff.linearMean.toFixed(2)}/C${eff.center.toFixed(2)}/D${eff.dominant.toFixed(2)}/E${eff.edgeAware.toFixed(2)}</span>`;
+            }
+            if (d.stableRegionCount != null) {
+              let strictCount = 0, percCount = 0, interiorCount = 0;
+              if (d.strictStableMap) for (let i = 0; i < d.strictStableMap.length; i++) if (d.strictStableMap[i]) strictCount++;
+              if (d.perceptualStableMap) for (let i = 0; i < d.perceptualStableMap.length; i++) if (d.perceptualStableMap[i]) percCount++;
+              if (d.stableInteriorMap) for (let i = 0; i < d.stableInteriorMap.length; i++) if (d.stableInteriorMap[i]) interiorCount++;
+              profileMeta += ` · Stable <span class="muted">strict ${strictCount} / perc ${percCount} / interior ${interiorCount} / regions ${d.stableRegionCount}</span>`;
+            }
+          }
+          card.metaDiv.innerHTML = `<b>${d.colorsAfterBudget}</b> 色 · 保护 <b>${d.protectedCells}</b> · 清理 <b>${d.cleanupMerges}</b> · 生成 <b>${d.generationMs}ms</b>${samplingMeta}${profileMeta}`;
+          card.actDiv.querySelector("[data-dl]").onclick = () => downloadCanvas(card.canvas, label.replace(/[^A-Za-z0-9]+/g, "_"));
+          attachHover(card);
+          results.push(card);
+        } catch (error) {
+          console.error("[Lab] V2 ERROR", mode, error);
+          const card = addCard(mode.toUpperCase(), "v2", "ERROR");
+          card.metaDiv.innerHTML = `<span class="err">ERROR: ${error.message}</span>`;
+          results.push({ ...card, grid: [], width: cfg.width, height: cfg.height });
+        }
+      }
+
+      // 关键修复：立即渲染 V2 + 原图，不等 Legacy iframe 异步完成（否则黑画布）
+      redrawAll();
+
+      // Legacy
+      try {
+        const legacy = await runLegacy(currentFile, cfg);
+        console.log("[Lab] legacy grid", legacy.grid?.length, "x", (legacy.grid?.[0] || []).length);
+        const card = addCard("LEGACY", "legacy", "现有引擎 processImage");
+        card.grid = legacy.grid; card.width = legacy.width; card.height = legacy.height;
+        card.title = "LEGACY";
+        const legacyColors = new Set((legacy.grid || []).flat().filter(Boolean).map((c) => c.code)).size;
+        card.metaDiv.innerHTML = `<b>${legacyColors}</b> 色 · ${legacy.width}×${legacy.height}`;
+        card.actDiv.querySelector("[data-dl]").onclick = () => downloadCanvas(card.canvas, "legacy");
+        results.push(card);
+        for (const { label, r } of v2Results) {
+          const cmp = compareGrids(legacy.grid, r.grid);
+          const card2 = results.find((c) => c.title === label);
+          if (card2) card2.metaDiv.innerHTML += ` · <b>vs Legacy ${cmp.changedCells} 格</b>`;
+        }
+        statusEl.textContent = "完成";
+      } catch (error) {
+        console.error("[Lab] Legacy ERROR", error);
+        const card = addCard("LEGACY", "legacy", "ERROR");
+        card.metaDiv.innerHTML = `<span class="err">Legacy ERROR: ${error.message}</span>（不影响 V2）`;
+        results.push({ ...card, grid: [], width: cfg.width, height: cfg.height });
+        statusEl.textContent = "V2 完成 · Legacy 出错";
+      }
+
+      redrawAll();
+    });
+  </script>
+</body>
+</html>

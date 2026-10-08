@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LIBMS · 图形互动实验室</title>
+<style>
+:root{color-scheme:light;font-family:Inter,-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;color:#302b43;background:#f5f3fa}*{box-sizing:border-box}body{margin:0}main{max-width:1440px;margin:auto;padding:42px 40px}header{display:flex;align-items:start;justify-content:space-between;gap:24px;margin-bottom:34px}.eyebrow{font-size:11px;letter-spacing:.18em;color:#75678d}h1{font-size:clamp(26px,4vw,44px);letter-spacing:-.055em;margin:12px 0}header p{font-size:14px;color:#82788f;line-height:1.8;margin:0}.setting{white-space:nowrap;font-size:12px;color:#796f87;margin-top:16px;display:flex;gap:8px;align-items:center}input{accent-color:#7962c7}.gallery{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid #dcd6e6;border-bottom:1px solid #dcd6e6}article{min-width:0;padding:22px 22px 26px}article+article{border-left:1px solid #dcd6e6}.number{font-size:11px;color:#9a8ba9;letter-spacing:.12em}.stage{height:330px;display:grid;place-items:center;touch-action:pan-y}.stage svg{width:100%;height:100%;overflow:visible}h2{font-size:20px;letter-spacing:-.03em;margin:0 0 8px}.description{font-size:13px;line-height:1.8;color:#81758e;min-height:48px;margin:0 0 20px}button{border:1px solid #d6cce4;background:#fff9;border-radius:24px;padding:9px 16px;color:#6d558d;font:inherit;font-size:12px;cursor:pointer}button:hover{background:white}button:focus-visible{outline:2px solid #8064ca;outline-offset:4px}footer{display:flex;justify-content:space-between;gap:20px;color:#8d829a;font-size:12px;line-height:1.8;margin-top:24px}.recommended{color:#7258a4}.stage g{transform-box:view-box} @media(max-width:900px){main{padding:28px 20px}.gallery{grid-template-columns:1fr}article+article{border-left:0;border-top:1px solid #dcd6e6}.stage{height:300px}header,footer{flex-direction:column}.description{min-height:0}.setting{margin:0}}
+</style>
+<main>
+<header><div><div class="eyebrow">LIBMS STUDIO / MOTION STUDIES</div><h1>让图形，轻轻回应你。</h1><p>三个原创 SVG 交互方向。移动指针试试，手机也可以点击按钮。</p></div><label class="setting"><input id="quiet" type="checkbox"> 静态模式</label></header>
+<section class="gallery">
+<article><div class="number">01 / BRAND</div><div class="stage" id="brand"><svg viewBox="0 0 360 330" role="img" aria-label="四色拼豆品牌标志"><ellipse cx="180" cy="249" rx="90" ry="10" fill="#cfc1df" opacity=".25"/><g id="rings"></g></svg></div><h2>四色豆子 · 品牌呼吸</h2><p class="description">四颗豆子随指针轻轻散开，再回到一起。适合品牌入口和加载完成反馈。</p><button data-demo="0" aria-pressed="false">散开 / 归位</button></article>
+<article><div class="number">02 / PROCESS</div><div class="stage" id="process"><svg viewBox="0 0 360 330" role="img" aria-label="从原稿、图纸到拼豆作品的三层转换"><g id="planes"></g></svg></div><h2>图纸变成作品</h2><p class="description">原稿、网格、豆子三层展开，让人一眼理解从图片到作品的过程。</p><button data-demo="1" aria-pressed="false">展开 / 合拢</button></article>
+<article><div class="number">03 / PLAY</div><div class="stage" id="board"><svg viewBox="0 0 360 330" role="img" aria-label="拼豆落在底板上组成四色花朵"><rect x="65" y="55" width="230" height="230" rx="23" fill="#eee9f4" stroke="#d7cce3"/><g id="pins"></g><g id="beads"></g></svg></div><h2>一颗颗，拼成小花</h2><p class="description">指针经过时，豆子落到底板上。适合空白状态、教程和轻量品牌互动。</p><button data-demo="2" aria-pressed="false">拼起来 / 悬浮</button></article>
+</section>
+<footer><span class="recommended">推荐先用于首页：02 图纸变成作品。编辑画布保持稳定、直接。</span><span>独立概念演示 · 不读取或修改你的作品</span></footer>
+</main>
+<script>
+(() => {
+ 'use strict';
+ const NS='http://www.w3.org/2000/svg', colors=['#ff2945','#ffca32','#209e58','#3679d5'];
+ const create=(tag,attrs,parent)=>{const el=document.createElementNS(NS,tag);for(const [key,value] of Object.entries(attrs))el.setAttribute(key,value);parent.append(el);return el};
+ const ring=(parent,x,y,r,color)=>create('circle',{cx:x,cy:y,r,fill:'none',stroke:color,'stroke-width':r*.67},parent);
+ const rings=[];
+ [[138,123],[222,123],[138,207],[222,207]].forEach(([x,y],i)=>{const g=create('g',{},document.querySelector('#rings'));ring(g,x,y,32,colors[i]);create('circle',{cx:x-10,cy:y-14,r:3,fill:'#fff',opacity:'.45'},g);rings.push(g)});
+ const planes=[];
+ for(let i=0;i<3;i++){
+  const g=create('g',{},document.querySelector('#planes'));create('rect',{x:81,y:75,width:198,height:198,rx:12,fill:i===0?'#e8ddef':i===1?'#faf7ff':'#f0e9f7',stroke:'#cbbbdc','stroke-width':1},g);
+  if(i===1)for(let j=1;j<10;j++){create('path',{d:`M ${81+j*19.8} 75 V273 M81 ${75+j*19.8} H279`,stroke:'#dbd0e7','stroke-width':.6},g)}
+  [[155,150],[205,150],[155,200],[205,200]].forEach(([x,y],j)=>{
+   if(i===2)ring(g,x,y,18,colors[j]);else create(i===0?'circle':'rect',i===0?{cx:x,cy:y,r:24,fill:colors[j],opacity:'.8'}:{x:x-20,y:y-20,width:40,height:40,fill:colors[j],opacity:'.65'},g);
+  });
+  const t=create('text',{x:94,y:97,fill:'#7c668f','font-size':10,'font-family':'sans-serif'},g);t.textContent=['01 原稿','02 图纸','03 作品'][i];planes.push(g);
+ }
+ const beads=[];
+ for(let y=0;y<9;y++)for(let x=0;x<9;x++){
+  const px=84+x*24,py=74+y*24;create('circle',{cx:px,cy:py,r:2,fill:'#bdb0ce'},document.querySelector('#pins'));
+  const d=Math.hypot(x-4,y-4);if(d>3.65||d<1.4)continue;
+  const g=create('g',{},document.querySelector('#beads'));ring(g,px,py,8.2,colors[(y<4?0:2)+(x<4?0:1)]);beads.push({g,x:px,y:py});
+ }
+ const quiet=document.querySelector('#quiet'),media=matchMedia('(prefers-reduced-motion: reduce)');quiet.checked=media.matches;
+ const states=[0,1,2].map(()=>({value:0,target:0,velocity:0,x:0,y:0,tx:0,ty:0,locked:false}));let frame=0,last=0;
+ function render(){
+  const a=states[0];rings.forEach((g,i)=>{const sx=i%2?1:-1,sy=i<2?-1:1;g.setAttribute('transform',`translate(${sx*a.value*13+a.x*5} ${sy*a.value*13+a.y*5}) rotate(${sx*a.value*5} 180 165)`)});
+  const b=states[1];planes.forEach((g,i)=>g.setAttribute('transform',`translate(${(i-1)*b.value*37} ${(i-1)*b.value*47}) rotate(${-8*b.value} 180 174)`));
+  const c=states[2];beads.forEach(({g,x,y})=>{const proximity=Math.max(0,1-Math.hypot(x-(180+c.x*115),y-(170+c.y*115))/110);const settle=Math.min(1,c.value+(c.locked?0:proximity*c.value));g.setAttribute('transform',`translate(0 ${-17*(1-settle)})`);g.setAttribute('opacity',.55+.45*settle)});
+ }
+ function tick(time){frame=0;const dt=Math.min((time-last)/1000||.016,.032);last=time;let moving=false;for(const s of states){for(const [p,t,v] of [['value','target','velocity'],['x','tx','vx'],['y','ty','vy']]){s[v]=(s[v]||0)+(130*(s[t]-s[p])-24*(s[v]||0))*dt;s[p]+=s[v]*dt;if(Math.abs(s[t]-s[p])>.0005||Math.abs(s[v])>.001)moving=true;else{s[p]=s[t];s[v]=0}}}render();if(moving&&!document.hidden)frame=requestAnimationFrame(tick)}
+ function wake(){if(quiet.checked){for(const s of states){s.value=s.target;s.x=s.tx;s.y=s.ty;s.velocity=s.vx=s.vy=0}render();return}if(!frame){last=performance.now();frame=requestAnimationFrame(tick)}}
+ ['brand','process','board'].forEach((id,i)=>{const stage=document.getElementById(id),s=states[i];stage.addEventListener('pointermove',e=>{if(e.pointerType==='touch'||quiet.checked)return;const r=stage.getBoundingClientRect();s.tx=(e.clientX-r.left)/r.width*2-1;s.ty=(e.clientY-r.top)/r.height*2-1;s.target=s.locked?1:i===1?Math.min(1,.3+(s.tx+1)*.35):i===2?.55:.7;wake()});stage.addEventListener('pointerleave',()=>{s.target=s.locked?1:0;s.tx=s.ty=0;wake()})});
+ document.querySelectorAll('[data-demo]').forEach(button=>button.addEventListener('click',()=>{const s=states[Number(button.dataset.demo)];s.locked=!s.locked;s.target=s.locked?1:0;button.setAttribute('aria-pressed',String(s.locked));wake()}));
+ quiet.addEventListener('change',()=>{if(frame)cancelAnimationFrame(frame);frame=0;wake()});media.addEventListener('change',e=>{quiet.checked=e.matches;wake()});document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(frame);frame=0}else wake()});render();
+})();
+</script>
+</html>
