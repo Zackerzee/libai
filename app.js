@@ -8384,6 +8384,27 @@ window.LibmsWorkspaceBridge = {
       try { payload = JSON.parse(source); } catch { throw new Error("工程文件不是合法 JSON"); }
     }
     if (!payload || typeof payload !== "object") throw new Error("工程文件内容为空");
+    if (payload.type === "libai-maker-project") {
+      const legacyGrid = deserializeGridFromLibrary(payload);
+      if (!legacyGrid?.length || !legacyGrid[0]?.length) throw new Error("项目网格为空");
+      const paletteKey = String(payload.paletteKey || "legacy");
+      const colors = new Map();
+      const gridPaletteIds = legacyGrid.map((row) => row.map((color) => {
+        if (!color) return null;
+        const paletteId = color.paletteId || `${paletteKey}:${color.code}:${color.hex}`;
+        colors.set(paletteId, { ...color, paletteId });
+        return paletteId;
+      }));
+      payload = {
+        format: "libms-project", version: 1,
+        projectName: payload.name || payload.sourceName || "导入工程",
+        canvas: { width: legacyGrid[0].length, height: legacyGrid.length },
+        palette: { key: paletteKey, maxColors: payload.settings?.colorLimit },
+        colors: [...colors.values()],
+        grid: legacyGrid.map((row) => row.map((color) => color?.code || null)),
+        gridPaletteIds,
+      };
+    }
     if (payload.format !== "libms-project") throw new Error("不是里白造物工程文件");
     if (Number(payload.version) > 1) throw new Error(`工程文件版本 ${payload.version} 高于当前支持的 1`);
     const width = Math.round(Number(payload.canvas?.width) || 0);
