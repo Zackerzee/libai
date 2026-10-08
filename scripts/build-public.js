@@ -52,7 +52,8 @@ const staticEntries = [
   "your-reward-code.png",
 ];
 
-fs.rmSync(outDir, { recursive: true, force: true });
+// Vercel may invoke this build again while function tracing reads public assets.
+// Its checkout is fresh; do not delete files underneath concurrent tracing.
 fs.mkdirSync(outDir, { recursive: true });
 
 for (const entry of staticEntries) {
