@@ -11,8 +11,9 @@ export async function buildPixlerProject(grid,{title="未命名作品",paletteLa
   const indexByteWidth=colors.length<=256?1:colors.length<=65536?2:4,decoded=new Uint8Array(32+colors.length*4+runs.length*(indexByteWidth+4)),view=new DataView(decoded.buffer);
   decoded.set(new TextEncoder().encode("PXLRPTN1"),0);u32(view,8,indexByteWidth);u32(view,12,width);u32(view,16,height);u32(view,20,colors.length);u32(view,24,runs.length);u32(view,28,width*height);
   colors.forEach((c,i)=>decoded.set([...c.rgb,c.alpha],32+i*4));let at=32+colors.length*4;for(const run of runs){for(let b=0;b<indexByteWidth;b++)decoded[at+b]=(run.index>>(b*8))&255;u32(view,at+indexByteWidth,run.count);at+=indexByteWidth+4;}
-  const api=await fflate(),pattern=api.deflateSync(decoded),algorithm={brandId:"mard",seriesId:"standard-221"};
-  const beadMatch={activeRevisionId:"libms-export",revisions:[{revisionId:"libms-export",algorithm,catalog:{label:paletteLabel},matches:colors.filter(c=>c.code).map(c=>({bead:{code:c.code,name:c.name,rgb:c.rgb,hex:`#${c.rgb.map(v=>v.toString(16).padStart(2,"0")).join("")}`}}))}]};
+  const brands=new Set(colors.filter(c=>c.code).map(c=>c.paletteId.includes(":")?c.paletteId.split(":")[0]:"unknown"));
+  const api=await fflate(),pattern=api.deflateSync(decoded),algorithm={brandId:brands.size===1?[...brands][0]:brands.size?"mixed":"unknown",seriesId:null};
+  const beadMatch={activeRevisionId:"libms-export",revisions:[{revisionId:"libms-export",algorithm,catalog:{label:paletteLabel},matches:colors.flatMap((c,paletteIndex)=>c.code?[{paletteIndex,bead:{paletteId:c.paletteId,code:c.code,name:c.name,rgb:c.rgb,hex:`#${c.rgb.map(v=>v.toString(16).padStart(2,"0")).join("")}`}}]:[])}]};
   const entries={"work.json":bytes({meta:{title}}),"settings.json":bytes({drawingSettings:{gridVisible:true,colorCodeLabelMode:"code"}}),"bead-match.json":bytes(beadMatch),"pattern.bin":pattern};
   const manifest={format:"pixler-project",formatVersion:1,entries:{},pattern:{codecVersion:1,indexEncoding:"little-endian-min-width",runEncoding:"value-count-rle-v1",compression:"deflate-raw",cellCount:width*height,decodedBytes:decoded.length}};for(const [name,data] of Object.entries(entries))manifest.entries[name]={bytes:data.length};entries["manifest.json"]=bytes(manifest);
   return api.zipSync(entries,{level:1});

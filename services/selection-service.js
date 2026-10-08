@@ -1,3 +1,5 @@
+import { paletteIdOf } from "./palette-identity.js";
+
 const key = (x, y) => `${x},${y}`;
 const neighbors = [[1,0],[-1,0],[0,1],[0,-1]];
 
@@ -23,24 +25,30 @@ export function rectangularSelection(ax, ay, bx, by, width, height) {
 
 function maskedSelection(kind, cells) {
   if (!cells.length) return null;
-  return { kind, x0: Math.min(...cells.map((p) => p.x)), y0: Math.min(...cells.map((p) => p.y)),
-    x1: Math.max(...cells.map((p) => p.x)), y1: Math.max(...cells.map((p) => p.y)), mask: new Set(cells.map(({ x, y }) => key(x, y))) };
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const mask = new Set();
+  for (const { x, y } of cells) {
+    x0 = Math.min(x0, x); y0 = Math.min(y0, y);
+    x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+    mask.add(key(x, y));
+  }
+  return { kind, x0, y0, x1, y1, mask };
 }
 
 export function sameColorSelection(grid, x, y, within = null) {
-  const code = grid[y]?.[x]?.code ?? null, cells = [];
+  const id = paletteIdOf(grid[y]?.[x]), cells = [];
   grid.forEach((row, cy) => row.forEach((color, cx) => {
-    if ((color?.code ?? null) === code && (!within || selectionContains(within, cx, cy))) cells.push({ x: cx, y: cy });
+    if (paletteIdOf(color) === id && (!within || selectionContains(within, cx, cy))) cells.push({ x: cx, y: cy });
   }));
   return maskedSelection("same-color", cells);
 }
 
 export function connectedSelection(grid, x, y, within = null) {
   if (!grid[y] || x < 0 || x >= grid[y].length) return null;
-  const code = grid[y][x]?.code ?? null, queue = [{ x, y }], seen = new Set([key(x,y)]), cells = [];
+  const id = paletteIdOf(grid[y][x]), queue = [{ x, y }], seen = new Set([key(x,y)]), cells = [];
   for (let index = 0; index < queue.length; index++) {
     const current = queue[index];
-    if ((grid[current.y]?.[current.x]?.code ?? null) !== code || (within && !selectionContains(within, current.x, current.y))) continue;
+    if (paletteIdOf(grid[current.y]?.[current.x]) !== id || (within && !selectionContains(within, current.x, current.y))) continue;
     cells.push(current);
     for (const [dx, dy] of neighbors) {
       const nx = current.x + dx, ny = current.y + dy, id = key(nx,ny);

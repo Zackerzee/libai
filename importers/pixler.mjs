@@ -253,8 +253,11 @@ function buildBeadTable(beadMatch) {
     if (!bead?.code) continue;
     const rgb = Array.isArray(bead.rgb) ? bead.rgb.slice(0, 3) : null;
     if (!rgb || rgb.length !== 3) continue;
-    if (!byCode.has(bead.code)) {
-      byCode.set(bead.code, {
+    const identity = bead.paletteId || bead.code;
+    if (!byCode.has(identity)) {
+      byCode.set(identity, {
+        ...(bead.paletteId ? { paletteId: bead.paletteId } : {}),
+        paletteIndex: match.paletteIndex,
         code: bead.code,
         name: bead.name || bead.code,
         rgb,
@@ -280,6 +283,8 @@ function matchPaletteToBeads(palette, beads) {
   const codes = new Array(palette.length);
   for (let i = 0; i < palette.length; i += 1) {
     const [r, g, b, a] = palette[i];
+    const exact = beads.find((bead) => bead.paletteIndex === i && bead.rgb.every((v, channel) => v === palette[i][channel]));
+    if (a !== 0 && exact) { codes[i] = exact.paletteId || exact.code; continue; }
     const key = `${r},${g},${b},${a}`;
     const cached = cache.get(key);
     if (cached !== undefined) { codes[i] = cached; continue; }
@@ -291,10 +296,10 @@ function matchPaletteToBeads(palette, beads) {
       const delta = ciede2000(lab, candidate.lab);
       if (delta < bestDelta) { bestDelta = delta; best = candidate.bead; }
     }
-    cache.set(key, best ? best.code : null);
-    codes[i] = best ? best.code : null;
+    cache.set(key, best ? best.paletteId || best.code : null);
+    codes[i] = best ? best.paletteId || best.code : null;
   }
-  return { codes, colorByCode: new Map(beads.map((bead) => [bead.code, bead])) };
+  return { codes, colorByCode: new Map(beads.map((bead) => [bead.paletteId || bead.code, bead])) };
 }
 
 // ===== 主入口 =====
@@ -375,7 +380,7 @@ export async function importPixlerProject(source, options = {}) {
     .map(([code, count]) => {
       const bead = colorByCode.get(code);
       const rgb = bead ? bead.rgb : [0, 0, 0];
-      return { code, name: bead?.name || code, hex: bead?.hex || fallbackHex(rgb), rgb, count };
+      return { code: bead?.code || code, ...(bead?.paletteId ? { paletteId: bead.paletteId } : {}), name: bead?.name || code, hex: bead?.hex || fallbackHex(rgb), rgb, count };
     });
 
   const title = work?.meta?.title || options.fallbackName || "Pixler 作品";
@@ -388,15 +393,16 @@ export async function importPixlerProject(source, options = {}) {
     projectName: String(title).slice(0, 60),
     canvas: { width: pattern.columns, height: pattern.rows },
     palette: {
-      key: beadTable.algorithm ? `${beadTable.algorithm.brandId}-${beadTable.algorithm.seriesId}` : "pixler-import",
+      key: beadTable.algorithm?.seriesId ? `${beadTable.algorithm.brandId}-${beadTable.algorithm.seriesId}` : "pixler-import",
       label: beadTable.algorithm
-        ? `Pixler · ${beadTable.algorithm.brandId} ${beadTable.algorithm.seriesId}`
+        ? beadTable.catalog?.label || `Pixler · ${beadTable.algorithm.brandId}${beadTable.algorithm.seriesId ? ` ${beadTable.algorithm.seriesId}` : ""}`
         : "Pixler 导入",
       maxColors: colors.length || null,
     },
     stats: { usedColors: colors.length, totalBeads: [...usedCodes.values()].reduce((sum, n) => sum + n, 0) },
     colors: colors.map(({ count, ...rest }) => rest),
-    grid,
+    grid: grid.map((row) => row.map((id) => id ? colorByCode.get(id)?.code || id : null)),
+    ...(beads.some((bead) => bead.paletteId) ? { gridPaletteIds: grid.map((row) => row.map((id) => id ? colorByCode.get(id)?.paletteId || null : null)) } : {}),
   };
 
   const hashMatches = Boolean(

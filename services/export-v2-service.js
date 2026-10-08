@@ -5,7 +5,7 @@ import { splitPatternGrid } from "./pattern-split-service.js";
 import {posterBackgroundCrop,drawPostageBacking} from './poster-background-crop.mjs?v=20261008-poster-r18';
 import { renderBoardOverview, renderBoardSheet } from './board-sheet-export.js?v=20261007-export-unified';
 import { POSTER_LAYOUTS, BRAND_PRESETS, analyzeArtworkBackground, posterArtworkBox, defaultPosterConfig, posterFont, signatureDisplayText, renderPosterArtworkCanvas, drawPosterArtwork, preparePosterArtwork, renderAuroraPosterBackground, drawAuroraArtworkDepth, auroraSignatureInk } from "./poster-export-service.js?v=20261007-poster-clarity-r11";
-import { buildPixlerProject } from "./pixler-exporter.js";
+import { buildPixlerProject } from "./pixler-exporter.js?v=20261008-qa-fixes-r25";
 import { containsCjk, resolvePdfFont, bytesToBinary } from "./pdf-font-provider.js";
 import { constructionSheetLayout } from './construction-sheet-layout.js';
 import { drawPdfConstructionSheet, pdfConstructionCellSize } from './pdf-construction-sheet.js';

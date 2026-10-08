@@ -8,7 +8,7 @@ import { createExportService } from "../services/export-service.js?v=20260917-ba
 import { createEditorService } from "../services/editor-service.js?v=20261006-region-all";
 import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260929-editor-phase3";
 import { createCanvasRenderer, resolveDiagnosticOverlayIssues } from "./canvas-renderer.js?v=20261008-selection-popover-r24";
-import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20260916-phase35-5";
+import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20261008-qa-fixes-r25";
 import { combineSelections } from "../services/selection-combine.mjs?v=20261007-layout";
 import { lassoSelection } from "../services/lasso-selection.mjs?v=20261007-paint-r14";
 import { magicWandSelection, fitSelectionBox, invertSelection as invertSelectionMask, selectAll as selectAllCells, translateSelection } from "../services/shapes-service.js?v=20260918-usage2";
@@ -39,7 +39,7 @@ import { buildUsageEntries, formatUsageSummary, isUsageEntryPresent, USAGE_SORT_
 import { buildStructuralDiagnostics } from "../services/structural-diagnostics.js?v=20260929-editor-phase4d";
 import { stableIssueKey, deriveRepairSuggestions, createRepairQueue, createRepairPreview } from "../services/repair-suggestion.js?v=20260929-editor-phase5";
 import { membershipService } from "../services/membership-service.js?v=20260930-membership-v1";
-import { createExportV2Service } from "../services/export-v2-service.js?v=20261008-selection-popover-r24";
+import { createExportV2Service } from "../services/export-v2-service.js?v=20261008-qa-fixes-r25";
 import { findExteriorBackground } from "../services/exterior-background-service.mjs?v=20261006-poster-transparent";
 import { resizeCanvasGrid, scalePatternNearest, createGridResizeCommand, clampSelectionToBounds, resizeCropInsets } from "../services/grid-resize-service.js?v=20261001-hotfix";
 import { createAutoDraftService } from "../services/auto-draft-service.js";
@@ -2333,7 +2333,7 @@ export function mountWorkspace(bridge) {
 
   let pixlerNote = "";
   const loadPixlerProject = async (file) => {
-    const { importPixlerProject } = await import("../importers/pixler.mjs?v=20260922-pixler1");
+    const { importPixlerProject } = await import("../importers/pixler.mjs?v=20261008-qa-fixes-r25");
     const result = await importPixlerProject(file, { palette: editorService.getPaletteColors?.() || [] });
     const info = result.report;
     window.LibmsPixlerLastReport = info;

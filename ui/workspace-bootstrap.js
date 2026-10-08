@@ -1,4 +1,4 @@
-import { mountWorkspace } from "./workspace.js?v=20261008-selection-popover-r24";
+import { mountWorkspace } from "./workspace.js?v=20261008-qa-fixes-r25";
 import { markLegacyUi } from "./legacy-ui-policy.js?v=20260928-v3";
 
 const ERROR_ID = "workspace-bootstrap-error";
