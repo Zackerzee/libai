@@ -602,7 +602,7 @@ function appendExternalBrandButtons() {
 }
 
 function loadExternalBrandPalettes() {
-  import("./smart-preprocessing/palette-international.mjs?v=20261008-palette-location-r23")
+  import("./smart-preprocessing/palette-international.mjs?v=20261008-selection-popover-r24")
     .then(module_ => registerExternalBrandPalettes(
       module_.BRAND_PALETTES.map(entry => ({ ...entry,
         colors: entry.colors.map(color => ({ ...color, paletteId: `${entry.id}:${color.code}` }))
@@ -1002,7 +1002,7 @@ async function loadWorkspaceOnce() {
   if (workspaceMounted) return workspaceController;
   if (!workspaceLoadPromise) {
     setWorkspaceLoading("正在打开工作台…");
-    workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261008-palette-location-r23"), ensureGenerationRuntime()])
+    workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261008-selection-popover-r24"), ensureGenerationRuntime()])
       .then(([{ bootstrapWorkspace }]) => {
         workspaceLoaded = true;
         initializeWorkspaceRuntime();
@@ -5596,7 +5596,7 @@ function setPreviewZoom(value) {
 
 let constructionSheetRenderer;
 let constructionSheetPixelSize;
-const constructionSheetRendererReady = import("./services/png-pattern-export-renderer.js?v=20261008-palette-location-r23").then((module) => {
+const constructionSheetRendererReady = import("./services/png-pattern-export-renderer.js?v=20261008-selection-popover-r24").then((module) => {
   constructionSheetRenderer = module.renderPngPatternCanvas;
   constructionSheetPixelSize = module.pngPatternPixelSize;
 });
@@ -5619,7 +5619,7 @@ async function downloadLegacyPatternPdf(settings = {}) {
   if (state.generationEngine !== "v2.5" && !ensureInviteRegistered()) return false;
   if (!state.grid.length) throw new Error("请先生成图纸");
   const grid = getExportGrid();
-  const { buildPatternPdfWithCjk } = await import("./services/export-v2-service.js?v=20261008-palette-location-r23");
+  const { buildPatternPdfWithCjk } = await import("./services/export-v2-service.js?v=20261008-selection-popover-r24");
   const blob = await buildPatternPdfWithCjk(grid, {
     title: `${settings.name || buildGalleryTitle()}${getMirrorLabel() ? " · 镜像" : ""}`,
     paletteLabel: getChartPaletteLabel(),

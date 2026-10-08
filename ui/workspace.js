@@ -1,25 +1,25 @@
-import { projectStore } from "../state/project-store.js?v=20261008-palette-location-r23";
-import { mirroredTitle, mirroredPreviewGrid } from './export-mirror-preview.mjs?v=20261008-palette-location-r23';
+import { projectStore } from "../state/project-store.js?v=20261008-selection-popover-r24";
+import { mirroredTitle, mirroredPreviewGrid } from './export-mirror-preview.mjs?v=20261008-selection-popover-r24';
 import { createGenerationService } from "../services/generation-service.js?v=20260918-usage2";
 import { createPaletteService } from "../services/palette-service.js";
-import { attachPaletteBrandCards } from './palette-brand-cards.mjs?v=20261008-palette-location-r23';
-import { previewEditorColorReduction } from '../services/editor-color-reduction.mjs?v=20261008-palette-location-r23';
+import { attachPaletteBrandCards } from './palette-brand-cards.mjs?v=20261008-selection-popover-r24';
+import { previewEditorColorReduction } from '../services/editor-color-reduction.mjs?v=20261008-selection-popover-r24';
 import { createExportService } from "../services/export-service.js?v=20260917-batchA";
 import { createEditorService } from "../services/editor-service.js?v=20261006-region-all";
 import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260929-editor-phase3";
-import { createCanvasRenderer, resolveDiagnosticOverlayIssues } from "./canvas-renderer.js?v=20261008-palette-location-r23";
+import { createCanvasRenderer, resolveDiagnosticOverlayIssues } from "./canvas-renderer.js?v=20261008-selection-popover-r24";
 import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20260916-phase35-5";
 import { combineSelections } from "../services/selection-combine.mjs?v=20261007-layout";
 import { lassoSelection } from "../services/lasso-selection.mjs?v=20261007-paint-r14";
 import { magicWandSelection, fitSelectionBox, invertSelection as invertSelectionMask, selectAll as selectAllCells, translateSelection } from "../services/shapes-service.js?v=20260918-usage2";
 import { renderSourceTransform, defaultSourceTransform, cropFromDrag, sourceOutputGeometry } from "../services/source-editor-service.js?v=20261007-v3-srgb";
-import { GenerationPanel } from "./generation-panel.js?v=20261008-palette-location-r23";
-import { GridEditorToolbar, SHAPE_TOOLS } from "./grid-editor-toolbar.js?v=20261008-palette-location-r23";
+import { GenerationPanel } from "./generation-panel.js?v=20261008-selection-popover-r24";
+import { GridEditorToolbar, SHAPE_TOOLS } from "./grid-editor-toolbar.js?v=20261008-selection-popover-r24";
 import { detectPixelMultiple, loadImageData, logicalSize } from "./pixel-multiple.js?v=20260923-pixelmultiple";
 import { ZoomControls } from "./zoom-controls.js?v=20260930-lazy-b1";
 import { Navigator } from "./navigator.js?v=20260929-editor-phase3";
 import { createInspectionState, currentInspectionIssue, setInspectionIssues, startInspection, stopInspection, nextInspectionIssue, previousInspectionIssue, nextInspectionCell, previousInspectionCell } from "../services/inspection-service.js?v=20260929-editor-phase3";
-import { TextPanel } from "./text-panel.js?v=20261008-palette-location-r23";
+import { TextPanel } from "./text-panel.js?v=20261008-selection-popover-r24";
 import { createTextLayer, rasterizeTextCached, layerContainsCell } from "../services/text-layer-service.js?v=20261001-stage-a";
 import { createInventoryService } from "../services/inventory-service.js?v=20260917-inventory";
 import { moveReference } from "../services/reference-layer-service.js";
@@ -39,17 +39,17 @@ import { buildUsageEntries, formatUsageSummary, isUsageEntryPresent, USAGE_SORT_
 import { buildStructuralDiagnostics } from "../services/structural-diagnostics.js?v=20260929-editor-phase4d";
 import { stableIssueKey, deriveRepairSuggestions, createRepairQueue, createRepairPreview } from "../services/repair-suggestion.js?v=20260929-editor-phase5";
 import { membershipService } from "../services/membership-service.js?v=20260930-membership-v1";
-import { createExportV2Service } from "../services/export-v2-service.js?v=20261008-palette-location-r23";
+import { createExportV2Service } from "../services/export-v2-service.js?v=20261008-selection-popover-r24";
 import { findExteriorBackground } from "../services/exterior-background-service.mjs?v=20261006-poster-transparent";
 import { resizeCanvasGrid, scalePatternNearest, createGridResizeCommand, clampSelectionToBounds, resizeCropInsets } from "../services/grid-resize-service.js?v=20261001-hotfix";
 import { createAutoDraftService } from "../services/auto-draft-service.js";
 import { touchPair, filterAndSortUsage, readEditorPreference, saveEditorPreference } from "./editor-interaction.mjs";
 import { createProjectVersionService } from "../services/project-version-service.js";
 import { createEditorCommand, createStructureCommand, createCellCommand } from "../services/editor-command.js";
-import { attachPaletteColorPicker } from "./palette-color-picker.js?v=20261008-palette-location-r23";
+import { attachPaletteColorPicker } from "./palette-color-picker.js?v=20261008-selection-popover-r24";
 import { createSurfaceManager } from './surface-manager.js';
-import { createCellColorPopover } from "./cell-color-popover.js?v=20261008-palette-location-r23";
-import { attachUsageWheel } from './usage-wheel.mjs?v=20261008-palette-location-r23';
+import { createCellColorPopover } from "./cell-color-popover.js?v=20261008-selection-popover-r24";
+import { attachUsageWheel } from './usage-wheel.mjs?v=20261008-selection-popover-r24';
 import { canvasWheelZoomFactor } from './canvas-wheel-zoom.mjs?v=20261007-export-unified';
 import { buildColorRecommendationGroups } from "../services/color-recommendations.mjs?v=20261006-compact-colors";
 // Stage B4 P0：长边权威。**query string 必须与 app.js 里那一处逐字一致** ——
@@ -1159,7 +1159,7 @@ export function mountWorkspace(bridge) {
         previousFocus: { selectedCell: get().editor.selectedCell, ...buildHighlightOnlyPatch(get().editor.highlightedPaletteId) } };
       return;
     }
-    if (tool === "region" && cell) { captureCanvasPointer(event.pointerId); drag = { type: "region", start: cell }; store.setState({ editor: { selection: rectangularSelection(cell.x, cell.y, cell.x, cell.y, bridge.getResult().width, bridge.getResult().height) } }); return; }
+    if (tool === "region" && cell) { captureCanvasPointer(event.pointerId); drag = { type: "region", start: cell, previousSelection:get().editor.selection,previousFocus:{selectedCell:get().editor.selectedCell,...buildHighlightOnlyPatch(get().editor.highlightedPaletteId)} }; store.setState({ editor: { selection: rectangularSelection(cell.x, cell.y, cell.x, cell.y, bridge.getResult().width, bridge.getResult().height) } }); return; }
     if (tool === "lasso") {
       captureCanvasPointer(event.pointerId);
       const at=viewport.screenToGridFloat(p.x,p.y),result=bridge.getResult();
@@ -1273,9 +1273,24 @@ export function mountWorkspace(bridge) {
     const old = get().editor.hoveredCell;
     if (old?.x !== cell?.x || old?.y !== cell?.y) store.setState({ editor: { hoveredCell: cell } });
   };
+  const openSelectionColorPopover = (preferredCell) => {
+    const selection=get().editor.selection,result=bridge.getResult();
+    const cell=preferredCell&&selectionContains(selection,preferredCell.x,preferredCell.y)&&editorService.getCell(preferredCell.x,preferredCell.y)
+      ? preferredCell : selectionCells(selection,result.width,result.height).find(cell=>editorService.getCell(cell.x,cell.y));
+    if(!cell)return;
+    const color=editorService.getCell(cell.x,cell.y);
+    usageScrolledPaletteId=null;
+    store.setState({editor:{selectedCell:cell,...buildActivateColorPatch(paletteIdOf(color),paletteColors(),{highlight:false})},ui:{activePanel:'edit'}});
+    cellColorPopover.open();
+  };
   const endDrag = (cancel = false) => { if (sourceDrag) { if (cancel && sourceDrag.moved) setSourcePatch({crop:sourceDrag.previous}); sourceDrag=null; requestSourceDraw(); }
     if (drag?.type === 'lasso') {
       if(cancel)store.setState({editor:{selection:drag.previousSelection,...drag.previousFocus}});
+      else openSelectionColorPopover();
+    }
+    if(drag?.type==='region'){
+      if(cancel)store.setState({editor:{selection:drag.previousSelection,...drag.previousFocus}});
+      else openSelectionColorPopover(drag.start);
     }
     if (drag?.type === "select") {
       if (cancel) store.setState({ editor: { selection: drag.previousSelection, ...drag.previousFocus } });
@@ -1284,7 +1299,8 @@ export function mountWorkspace(bridge) {
         lastSelectionTap=drag.moved?null:{...drag.start,time:performance.now()};
         usageScrolledPaletteId = null;
         store.setState({ editor: { selectedCell: drag.start, ...(!drag.moved ? { selection: null } : {}), ...(inspected?.paletteId ? buildActivateColorPatch(inspected.paletteId, paletteColors(), { highlight: false }) : buildHighlightOnlyPatch(null, { enabled: false })) }, ui: { activePanel: "edit" } });
-        if (inspected?.paletteId) cellColorPopover.open();
+        if(drag.moved)openSelectionColorPopover(drag.start);
+        else if (inspected?.paletteId) cellColorPopover.open();
       }
     }
     if (!cancel && drag?.type === "pan" && !drag.moved && drag.inspectCell) {
