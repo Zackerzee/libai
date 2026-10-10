@@ -37,7 +37,7 @@ export function createCellColorPopover({host, viewport, surfaces, onPreviewChang
   marker.classList.add('ws-cell-selected-marker'); marker.setAttribute('aria-hidden','true'); marker.hidden = true;
   marker.innerHTML = '<rect class="ws-cell-ant-base"/><rect class="ws-cell-ant-dashes"/>';
   host.append(marker, popup);
-  let open = false, signature = '', similarKey = '', similarColors = [], previewTarget = null;
+  let open = false, signature = '', similarKey = '', similarColors = [], previewTarget = null, placementKey = '';
   const close = () => { open = false; previewTarget=null; popup.hidden = true; marker.style.display = 'none'; onPreviewChange(); };
   surfaces?.register('cell-color',{element:popup,isOpen:()=>open&&!popup.hidden,close,restoreFocus:()=>{host.tabIndex=-1;host.focus();}});
   const update = () => {
@@ -62,7 +62,7 @@ export function createCellColorPopover({host, viewport, surfaces, onPreviewChang
       const row=document.createElement('div');row.className='ws-cell-color-suggestions';
       for (const candidate of group.colors) {
         const button=document.createElement('button');button.type='button';button.dataset.paletteId=candidate.paletteId;button.title=`${candidate.recommendationLabels.join(' / ')} · 选择 ${candidate.code} 作为替换色`;button.setAttribute('aria-label',button.title);
-        const swatch=document.createElement('span');swatch.style.backgroundColor=candidate.hex;
+        const swatch=document.createElement('span');swatch.style.backgroundColor=candidate.hex;swatch.dataset.wsColorPick=candidate.paletteId||candidate.code;
         const code=document.createElement('small');code.textContent=candidate.code;
         const hex=candidate.hex.replace('#','');
         const channels=[0,2,4].map(offset=>parseInt(hex.slice(offset,offset+2),16)/255).map(value=>value<=.04045?value/12.92:((value+.055)/1.055)**2.4);
@@ -100,10 +100,14 @@ export function createCellColorPopover({host, viewport, surfaces, onPreviewChang
     popup.hidden=!visible; marker.style.display=visible?'block':'none'; if(!visible)return;
     marker.style.left=`${point.x}px`;marker.style.top=`${point.y}px`;marker.style.width=`${side}px`;marker.style.height=`${side}px`;
     for(const rect of marker.children){rect.setAttribute('x','1');rect.setAttribute('y','1');rect.setAttribute('width',Math.max(0,side-2));rect.setAttribute('height',Math.max(0,side-2));}
-    const position=positionCellPopover({...point,cell:side},{width:popup.offsetWidth,height:popup.offsetHeight},{width:host.clientWidth,height:host.clientHeight});
-    popup.style.left=`${position.left}px`;popup.style.top=`${position.top}px`;
+    const anchorKey = JSON.stringify([signature,point.x,point.y,side,host.clientWidth,host.clientHeight]);
+    if (placementKey !== anchorKey) {
+      placementKey = anchorKey;
+      const position=positionCellPopover({...point,cell:side},{width:popup.offsetWidth,height:popup.offsetHeight},{width:host.clientWidth,height:host.clientHeight});
+      popup.style.left=`${position.left}px`;popup.style.top=`${position.top}px`;
+    }
   };
   popup.addEventListener('pointerdown',event=>event.stopPropagation());
   new ResizeObserver(update).observe(host);
-  return {open(){surfaces?.open('cell-color');similarKey='';open=true;update();},close,update,isOpen:()=>open,getPreview:()=>open?previewTarget:null};
+  return {open(){surfaces?.open('cell-color');similarKey='';placementKey='';open=true;update();},close,update,isOpen:()=>open,getPreview:()=>open?previewTarget:null};
 }

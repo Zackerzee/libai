@@ -1,5 +1,6 @@
 import { BASE_CELL } from "../services/viewport-service.js?v=20260924-text";
-import { guideInterval, guideIndices, rulerEntries } from './grid-guides.mjs?v=20261007-guides-r11';
+import { textFrameControls } from './editor-interaction.mjs?v=20261010-editor-r31';
+import { guideInterval, guideIndices, rulerEntries, gridGuideInk } from './grid-guides.mjs?v=20261010-guides-r40';
 import { rasterizeTextCached, cellsBox } from "../services/text-layer-service.js?v=20261001-stage-a";
 import { resolveScreenRenderPolicy } from "../smart-preprocessing/render-policy.mjs?v=20260928-v3";
 import { paletteIdOf } from "../services/palette-identity.js";
@@ -28,6 +29,24 @@ export const codeForegroundColor = (rgb) => {
 
 // reference 必须排在 base 之下：底图垫在豆格下方，空豆处才透得出来。
 const LAYER_NAMES = ["reference", "base", "grid", "codes", "overlay"];
+
+export function drawCoordinateRulers(guide,viewport,{width,height,gridWidth,gridHeight,cell,dpr,interval,x0,x1,y0,y1}) {
+  if(cell<10)return;
+  const step=guideInterval(interval),origin=viewport.gridToScreen(0,0),far=viewport.gridToScreen(gridWidth,gridHeight);
+  const digits=String(Math.max(gridWidth,gridHeight)).length;
+  if(cell-2<digits*.55*4.5)return;
+  const label=(entry,x,y)=>{
+    guide.fillStyle=entry.major?'#d5d5df':'#f0f0f4';guide.fillRect(x,y,cell,cell);
+    guide.strokeStyle='rgba(60,59,73,.15)';guide.lineWidth=.5/dpr;guide.strokeRect(x,y,cell,cell);
+    const font=Math.min(32,Math.max(6,cell*(entry.major?.52:.4)),(cell-2)/(digits*.55));
+    guide.font=`${entry.major?700:400} ${font}px system-ui`;guide.textAlign='center';guide.textBaseline='middle';guide.fillStyle='#55545e';
+    guide.fillText(String(entry.number),x+cell/2,y+cell/2,cell-2);
+  };
+  guide.save();
+  for(const entry of rulerEntries(x0,x1,gridWidth,cell,step)){const x=viewport.gridToScreen(entry.index,0).x;label(entry,x,origin.y-cell);label(entry,x,far.y);}
+  for(const entry of rulerEntries(y0,y1,gridHeight,cell,step)){const y=viewport.gridToScreen(0,entry.index).y;label(entry,origin.x-cell,y);label(entry,far.x,y);}
+  guide.restore();
+}
 
 export function createCanvasRenderer(container, viewport, getResult, getView, getEditor, getReference = () => null, resolveColor = () => null, getDiagnostics = () => [], getRepairPreview = () => null) {
   const layers = LAYER_NAMES.map((name) => {
@@ -80,6 +99,9 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
     const ctx = layers.map((layer) => context(layer, b.dpr, b.width, b.height));
     if (!result?.grid?.length) return;
     const cell = BASE_CELL * view.zoom, o = viewport.origin(), gridWidth = result.width, gridHeight = result.height;
+    const backgroundCss=typeof getComputedStyle==='function'?getComputedStyle(container).backgroundColor:'';
+    const backgroundParts=backgroundCss.match(/[\d.]+/g)?.map(Number);
+    const background=backgroundParts&&backgroundParts[3]!==0?backgroundParts.slice(0,3):[245,245,248];
     const displayPolicy = resolveScreenRenderPolicy({
       mode: view.mode, showCodes: view.showCodes, showGrid: view.showGrid,
       zoom: view.zoom, baseCell: BASE_CELL,
@@ -87,6 +109,7 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
     });
     if (view.mode === "original") {
       if (source) ctx[L.base].drawImage(source, o.x, o.y, gridWidth * cell, gridHeight * cell);
+      if(view.showCoordinates)drawCoordinateRulers(ctx[L.grid],viewport,{...b,gridWidth,gridHeight,cell,interval:view.majorGridInterval,x0:Math.max(0,Math.floor(-o.x/cell)),x1:Math.min(gridWidth,Math.ceil((b.width-o.x)/cell)),y0:Math.max(0,Math.floor(-o.y/cell)),y1:Math.min(gridHeight,Math.ceil((b.height-o.y)/cell))});
       return;
     }
     // Final-grid image preview is independent of editing/inspection overlays.
@@ -101,6 +124,7 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
         base.fillStyle = color.rgb ? `rgb(${color.rgb.join(",")})` : color.hex;
         base.fillRect(o.x + x * cell, o.y + y * cell, Math.ceil(cell), Math.ceil(cell));
       }
+      if(view.showCoordinates)drawCoordinateRulers(ctx[L.grid],viewport,{...b,gridWidth,gridHeight,cell,interval:view.majorGridInterval,x0:left,x1:right,y0:top,y1:bottom});
       return;
     }
     if (ref?.displayMode!=="grid-only"&&ref?.visible !== false && ref?.url) {
@@ -125,7 +149,7 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
       } else if (cell >= 12) { ctx[L.base].fillStyle = "rgba(226,235,240,.28)"; ctx[L.base].fillRect(sx + 2, sy + 2, cell - 4, cell - 4); }
       ctx[L.base].globalAlpha = 1;
       if (displayPolicy.showGrid) {
-        ctx[L.grid].strokeStyle = "rgba(25,42,57,.22)"; ctx[L.grid].lineWidth = 1 / b.dpr;
+        ctx[L.grid].strokeStyle = gridGuideInk(view.mode==='beads'?null:color,background); ctx[L.grid].lineWidth = .75 / b.dpr;
         ctx[L.grid].strokeRect(sx + 0.5 / b.dpr, sy + 0.5 / b.dpr, cell, cell);
       }
       if (color && displayPolicy.showCodes) {
@@ -136,22 +160,17 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
         ctx[L.codes].fillText(color.code, sx + cell / 2, sy + cell / 2, cell - 3);
       }
     }
-    if(view.mode!=='blocks'&&cell>=4&&(view.showMajorGrid||view.showCoordinates)){
+    if(view.mode!=='blocks'&&(view.showMajorGrid||view.showCoordinates)){
       const guide=ctx[L.grid],step=guideInterval(view.majorGridInterval),origin=viewport.gridToScreen(0,0),far=viewport.gridToScreen(gridWidth,gridHeight);
       guide.save();
-      if(view.showMajorGrid){
-        guide.beginPath();
-        for(const x of guideIndices(x0,x1,step)){const p=viewport.gridToScreen(x,0);guide.moveTo(p.x,origin.y);guide.lineTo(p.x,far.y);}
-        for(const y of guideIndices(y0,y1,step)){const p=viewport.gridToScreen(0,y);guide.moveTo(origin.x,p.y);guide.lineTo(far.x,p.y);}
-        // Quiet, solid construction guides: visible on both dark and light beads.
-        guide.lineWidth=1 / b.dpr;guide.strokeStyle='rgba(128,128,128,.58)';guide.stroke();
+      if(view.showMajorGrid&&cell>=4){
+        guide.lineWidth=1 / b.dpr;
+        const segment=(x,y,vertical)=>{const p=viewport.gridToScreen(x,y);guide.beginPath();guide.strokeStyle=gridGuideInk(view.mode==='beads'?null:result.grid[Math.min(y,gridHeight-1)]?.[Math.min(x,gridWidth-1)],background,true);guide.moveTo(p.x,p.y);guide.lineTo(p.x+(vertical?0:cell),p.y+(vertical?cell:0));guide.stroke();};
+        for(const x of guideIndices(x0,x1,step))for(let y=y0;y<y1;y++)segment(x,y,true);
+        for(const y of guideIndices(y0,y1,step))for(let x=x0;x<x1;x++)segment(x,y,false);
       }
-      if(view.showCoordinates&&cell>=8){
-        const gutter=Math.min(18,Math.max(10,cell*.62));
-        const label=(entry,x,y,w,h)=>{guide.fillStyle=entry.major?'#ececec':'#fff';guide.fillRect(x,y,w,h);guide.strokeStyle='#00000018';guide.lineWidth=.5 / b.dpr;guide.strokeRect(x,y,w,h);guide.font=`${entry.major?700:400} ${Math.min(entry.major?12:10,Math.max(6,cell*(entry.major?.44:.32)))}px system-ui`;guide.textAlign='center';guide.textBaseline='middle';guide.fillStyle='#242424';guide.fillText(String(entry.number),x+w/2,y+h/2,w-2);};
-        const span=cell;
-        for(const entry of rulerEntries(x0,x1,gridWidth,cell,step)){const x=viewport.gridToScreen(entry.index,0).x+(cell-span)/2;label(entry,x,origin.y-gutter,span,gutter);label(entry,x,far.y,span,gutter);}
-        for(const entry of rulerEntries(y0,y1,gridHeight,cell,step)){const y=viewport.gridToScreen(0,entry.index).y+(cell-span)/2;label(entry,origin.x-gutter,y,gutter,span);label(entry,far.x,y,gutter,span);}
+      if(view.showCoordinates){
+        drawCoordinateRulers(guide,viewport,{...b,gridWidth,gridHeight,cell,interval:step,x0,x1,y0,y1});
       }
       guide.restore();
     }
@@ -299,6 +318,14 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
           ctx[L.overlay].setLineDash([4, 3]);
           ctx[L.overlay].strokeRect(anchor.x, anchor.y, box.width * cell, box.height * cell);
           ctx[L.overlay].setLineDash([]);
+          const frame = textFrameControls(box, viewport), overlay = ctx[L.overlay];
+          overlay.fillStyle = '#7560cf';
+          overlay.fillRect(frame.resize.x - 6, frame.resize.y - 6, 12, 12);
+          overlay.strokeStyle = '#fff'; overlay.lineWidth = 1;
+          overlay.strokeRect(frame.resize.x - 6, frame.resize.y - 6, 12, 12);
+          overlay.beginPath(); overlay.arc(frame.move.x, frame.move.y, 10, 0, Math.PI * 2); overlay.fill();
+          overlay.fillStyle = '#fff'; overlay.font = '14px system-ui'; overlay.textAlign = 'center'; overlay.textBaseline = 'middle';
+          overlay.fillText('✥', frame.move.x, frame.move.y);
         }
       }
     }

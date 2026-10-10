@@ -1002,7 +1002,7 @@ async function loadWorkspaceOnce() {
   if (workspaceMounted) return workspaceController;
   if (!workspaceLoadPromise) {
     setWorkspaceLoading("正在打开工作台…");
-    workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261008-qa-fixes-r25"), ensureGenerationRuntime()])
+workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261010-editor-r44"), ensureGenerationRuntime()])
       .then(([{ bootstrapWorkspace }]) => {
         workspaceLoaded = true;
         initializeWorkspaceRuntime();
@@ -2044,6 +2044,15 @@ async function loadFile(file) {
     state.sourceNaturalWidth = loadedSource.naturalWidth;
     state.sourceNaturalHeight = loadedSource.naturalHeight;
     state.sourceName = file.name;
+    // Non-destructive automatic framing applies only to ordinary images, never projects/OCR.
+    if (state.importMode === "photo") {
+      const importedTransform = state.sourceTransform;
+      const { transparentImageBounds } = await import("./services/automatic-generation-size.mjs");
+      const automaticCrop = await transparentImageBounds(loadedSource);
+      // Same bytes can be imported twice: transform identity also distinguishes imports.
+      if (state.sourceDataUrl !== prepared.dataUrl || state.sourceTransform !== importedTransform) return;
+      importedTransform.crop = automaticCrop;
+    }
     // restore / OCR：源图一落地就把识别结果交给权威链，**早于** libms:source-loaded
     // 触发的工作台首帧流程。这样工作台的像素倍数识别（pixel-multiple）会被
     // grid-detection 挡下，不会拿一个更弱的证据把图纸尺寸改掉。

@@ -15,6 +15,7 @@ import { GENERATION_MODE_PRESETS } from "../services/generation-pipeline.mjs";
 export class GenerationPanel {
   constructor({
     root,
+    backgroundRoot = null,
     initialState = {},
     onChange = () => {},
     onGenerate = () => {}
@@ -29,6 +30,7 @@ export class GenerationPanel {
     }
 
     this.onChange = onChange;
+    this.backgroundRoot = typeof backgroundRoot === "string" ? document.querySelector(backgroundRoot) : backgroundRoot;
     this.onGenerate = onGenerate;
 
     this.state = {
@@ -122,7 +124,7 @@ export class GenerationPanel {
         <div class="sl-panel-section" id="ws-generation-background-controls">
           ${this.switchRow(
             "backgroundRemoval",
-            "自动去除纯色背景",
+            "透明背景",
             "生成时识别并去除可安全分离的纯色背景；复杂背景不强行删除"
           )}
         </div>
@@ -141,6 +143,9 @@ export class GenerationPanel {
     `;
 
     if (paletteSelector) this.root.querySelector("#ws-generation-palette-slot").append(paletteSelector);
+    // Re-render replaces the same single switch; the external host keeps its
+    // delegated listener and never holds a second settings/state copy.
+    if (this.backgroundRoot) this.backgroundRoot.replaceChildren(this.root.querySelector("#ws-generation-background-controls"));
     this.syncUI();
   }
 
@@ -584,7 +589,7 @@ export class GenerationPanel {
       }
     });
 
-    this.root.addEventListener("input", event => {
+    const onInput = event => {
       const field = event.target.dataset.field;
 
       if (!field) return;
@@ -602,7 +607,9 @@ export class GenerationPanel {
       this.syncUI();
 
       this.onChange(this.emitSettings());
-    });
+    };
+    this.root.addEventListener("input", onInput);
+    this.backgroundRoot?.addEventListener("input", onInput);
   }
 
   applyPreset(preset) {
@@ -625,8 +632,7 @@ export class GenerationPanel {
   }
 
   syncUI() {
-    this.root
-      .querySelectorAll("[data-field]")
+    [...this.root.querySelectorAll("[data-field]"), ...(this.backgroundRoot?.querySelectorAll("[data-field]") || [])]
       .forEach(input => {
         const field = input.dataset.field;
 

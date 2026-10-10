@@ -13,13 +13,14 @@
  */
 import { TEXT_FONTS, TEXT_SCALE_RANGE, layerLabel } from "../services/text-layer-service.js?v=20261001-stage-a";
 import { paletteIdOf } from "../services/palette-identity.js";
+import { colorLabelInk } from './color-label.mjs';
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 
 export function textLayerColorLabel(layer, palette) {
   const color = palette.find(item => layer.paletteId ? paletteIdOf(item) === layer.paletteId : item.code === layer.color);
   const css = color?.hex || (color?.rgb ? `rgb(${color.rgb.join(',')})` : 'transparent');
-  return `<span class="ws-inline-color"><i style="background:${esc(css)};display:inline-block;width:16px;height:16px;border:1px solid #0002;border-radius:3px;vertical-align:middle" aria-hidden="true"></i> ${esc(color?.code || layer.color || '未选色')}</span>`;
+  return `<span class="ws-inline-color" ${color?`data-ws-color-pick="${esc(paletteIdOf(color))}"`:''} style="background:${esc(css)};color:${colorLabelInk(color)};display:inline-block;padding:2px 5px;border:1px solid #0002;border-radius:3px">${esc(color?.code || layer.color || '未选色')}</span>`;
 }
 
 const textLayerMetadata = (layer,palette) => `${esc(layer.font || 'system')} · ${esc(layer.scale || 100)}% · ${Math.abs(Number(layer.rotation)||0)%180===90?'竖排':'横排'} · 间距 ${esc(layer.spacing || 0)} · ${textLayerColorLabel(layer,palette)} · (${Math.round(layer.x)}, ${Math.round(layer.y)})`;
@@ -48,6 +49,7 @@ export class TextPanel {
     this.onAddCurrentColor = onAddCurrentColor;
     this._signature = null;
     this.bindEvents();
+    if (typeof window !== 'undefined') window.addEventListener('resize', () => this.layoutContextControls());
   }
 
   bindEvents() {
@@ -107,7 +109,7 @@ export class TextPanel {
     const swatches = recent.map((code) => {
       const color = palette.find((item) => item.code === code);
       const hex = color?.hex || "#cccccc";
-      return `<button type="button" class="ws-text-swatch" data-text-color="${esc(code)}" data-text-palette-id="${esc(color ? paletteIdOf(color) : "")}" title="${esc(code)}" aria-label="文字颜色 ${esc(code)}"><i style="background:${esc(hex)}"></i><span>${esc(code)}</span></button>`;
+      return `<button type="button" class="ws-text-swatch" style="background:${esc(hex)};color:${colorLabelInk(color)}" ${color?`data-ws-color-pick="${esc(paletteIdOf(color))}"`:''} data-text-color="${esc(code)}" data-text-palette-id="${esc(color ? paletteIdOf(color) : "")}" title="${esc(code)}" aria-label="文字颜色 ${esc(code)}"><span>${esc(code)}</span></button>`;
     }).join("");
 
     this.root.innerHTML = `
@@ -150,15 +152,23 @@ export class TextPanel {
         <p class="ws-note">在画布上拖动图层可移动位置；合并会写成真实豆格，可用撤销回退。</p>
       </div>` : ""}
     `;
-    if (this.contextHost) {
-      const editor = this.root.querySelector(".ws-text-editor");
-      if (editor) {
-        for (const control of [...editor.children]) {
-          if (control.matches(".ws-field,.ws-source-slider,.ws-text-label,.ws-text-colors,.ws-text-style")) {
-            control.dataset.textContextControl = "";
-            this.contextHost.append(control);
-          }
-        }
+    this.layoutContextControls();
+  }
+
+  layoutContextControls() {
+    if (!this.contextHost) return;
+    const editor = this.root.querySelector('.ws-text-editor');
+    if (!editor) return;
+    const narrow = typeof window !== 'undefined' && window.innerWidth <= 760;
+    for (const id of ['ws-text-content','ws-text-font','ws-text-direction','ws-text-spacing']) {
+      const field = this.find(`#${id}`)?.closest('.ws-field,.ws-source-slider');
+      if (!field) continue;
+      if (!narrow || id === 'ws-text-content') {
+        field.dataset.textContextControl = '';
+        this.contextHost.append(field);
+      } else {
+        delete field.dataset.textContextControl;
+        editor.insertBefore(field, editor.querySelector('.ws-text-label'));
       }
     }
   }

@@ -2,25 +2,26 @@ import { projectStore } from "../state/project-store.js?v=20261008-selection-pop
 import { mirroredTitle, mirroredPreviewGrid } from './export-mirror-preview.mjs?v=20261008-selection-popover-r24';
 import { createGenerationService } from "../services/generation-service.js?v=20260918-usage2";
 import { createPaletteService } from "../services/palette-service.js";
-import { attachPaletteBrandCards } from './palette-brand-cards.mjs?v=20261008-selection-popover-r24';
+import { attachPaletteBrandCards, paletteKitLabel } from './palette-brand-cards.mjs?v=20261009-compact-r28';
 import { previewEditorColorReduction } from '../services/editor-color-reduction.mjs?v=20261008-selection-popover-r24';
 import { createExportService } from "../services/export-service.js?v=20260917-batchA";
 import { createEditorService } from "../services/editor-service.js?v=20261006-region-all";
 import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260929-editor-phase3";
-import { createCanvasRenderer, resolveDiagnosticOverlayIssues } from "./canvas-renderer.js?v=20261008-selection-popover-r24";
+import { createCanvasRenderer, resolveDiagnosticOverlayIssues } from "./canvas-renderer.js?v=20261010-editor-r42";
 import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20261008-qa-fixes-r25";
 import { combineSelections } from "../services/selection-combine.mjs?v=20261007-layout";
 import { lassoSelection } from "../services/lasso-selection.mjs?v=20261007-paint-r14";
 import { magicWandSelection, fitSelectionBox, invertSelection as invertSelectionMask, selectAll as selectAllCells, translateSelection } from "../services/shapes-service.js?v=20260918-usage2";
 import { renderSourceTransform, defaultSourceTransform, cropFromDrag, sourceOutputGeometry } from "../services/source-editor-service.js?v=20261007-v3-srgb";
-import { GenerationPanel } from "./generation-panel.js?v=20261008-selection-popover-r24";
+import { GenerationPanel } from "./generation-panel.js?v=20261009-compact-r28";
 import { GridEditorToolbar, SHAPE_TOOLS } from "./grid-editor-toolbar.js?v=20261008-selection-popover-r24";
-import { detectPixelMultiple, loadImageData, logicalSize } from "./pixel-multiple.js?v=20260923-pixelmultiple";
+import { detectPixelMultiple, loadImageData } from "./pixel-multiple.js?v=20260923-pixelmultiple";
+import { recommendAutomaticSize, isCurrentSizeSource } from "../services/automatic-generation-size.mjs";
 import { ZoomControls } from "./zoom-controls.js?v=20260930-lazy-b1";
 import { Navigator } from "./navigator.js?v=20260929-editor-phase3";
 import { createInspectionState, currentInspectionIssue, setInspectionIssues, startInspection, stopInspection, nextInspectionIssue, previousInspectionIssue, nextInspectionCell, previousInspectionCell } from "../services/inspection-service.js?v=20260929-editor-phase3";
-import { TextPanel } from "./text-panel.js?v=20261008-selection-popover-r24";
-import { createTextLayer, rasterizeTextCached, layerContainsCell } from "../services/text-layer-service.js?v=20261001-stage-a";
+import { TextPanel } from "./text-panel.js?v=20261010-editor-r42";
+import { createTextLayer, rasterizeTextCached, layerContainsCell, cellsBox } from "../services/text-layer-service.js?v=20261001-stage-a";
 import { createInventoryService } from "../services/inventory-service.js?v=20260917-inventory";
 import { moveReference } from "../services/reference-layer-service.js";
 import { buildRamp, createPaletteMetricCache } from "../services/color-ramp-service.js";
@@ -43,13 +44,15 @@ import { createExportV2Service } from "../services/export-v2-service.js?v=202610
 import { findExteriorBackground } from "../services/exterior-background-service.mjs?v=20261006-poster-transparent";
 import { resizeCanvasGrid, scalePatternNearest, createGridResizeCommand, clampSelectionToBounds, resizeCropInsets } from "../services/grid-resize-service.js?v=20261001-hotfix";
 import { createAutoDraftService } from "../services/auto-draft-service.js";
-import { touchPair, filterAndSortUsage, readEditorPreference, saveEditorPreference } from "./editor-interaction.mjs";
+import { touchPair, filterAndSortUsage, readEditorPreference, saveEditorPreference, textFrameControls, hitTextFrameControl, resizedTextScale } from "./editor-interaction.mjs?v=20261010-editor-r31";
 import { createProjectVersionService } from "../services/project-version-service.js";
 import { createEditorCommand, createStructureCommand, createCellCommand } from "../services/editor-command.js";
-import { attachPaletteColorPicker } from "./palette-color-picker.js?v=20261008-selection-popover-r24";
+import { attachPaletteColorPicker } from "./palette-color-picker.js?v=20261009-color-tools-r29";
 import { createSurfaceManager } from './surface-manager.js';
-import { createCellColorPopover } from "./cell-color-popover.js?v=20261008-selection-popover-r24";
+import { createCellColorPopover } from "./cell-color-popover.js?v=20261010-editor-r42";
 import { attachUsageWheel } from './usage-wheel.mjs?v=20261008-selection-popover-r24';
+import { colorLabelInk as swatchInk } from './color-label.mjs';
+import { attachUniversalColorPick } from './universal-color-pick.mjs?v=20261010-editor-r42';
 import { canvasWheelZoomFactor } from './canvas-wheel-zoom.mjs?v=20261007-export-unified';
 import { buildColorRecommendationGroups } from "../services/color-recommendations.mjs?v=20261006-compact-colors";
 // Stage B4 P0：长边权威。**query string 必须与 app.js 里那一处逐字一致** ——
@@ -59,7 +62,7 @@ import { buildColorRecommendationGroups } from "../services/color-recommendation
 import { LONG_EDGE_AUTHORITY, LONG_EDGE_EVENT, resolveLongEdgeAuthority, shouldAutoWriteLongEdge } from "../services/source-dimensions.mjs?v=20261003-stage-b4";
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
-const colorChip = (color, fallback = "") => color ? `<span style="display:inline-flex;align-items:center;gap:6px"><i aria-hidden="true" style="display:inline-block;width:16px;height:16px;flex:none;border:1px solid #8886;border-radius:4px;background:${esc(color.hex || `rgb(${color.rgb?.join(",")})`)}"></i>${esc(color.code)}</span>` : esc(fallback);
+const colorChip = (color, fallback = "") => color ? `<span class="ws-code-swatch" data-ws-color-pick="${esc(paletteIdOf(color))}" style="background:${esc(color.hex || `rgb(${color.rgb?.join(",")})`)};color:${swatchInk(color)}">${esc(color.code)}</span>` : esc(fallback);
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 export const WORKAREA_PANELS=Object.freeze({generate:['source','generation'],edit:['color','edit','check','project'],construction:['material','build']});
 export const workareaForPanel=panel=>Object.entries(WORKAREA_PANELS).find(([,panels])=>panels.includes(panel))?.[0]||'edit';
@@ -397,14 +400,12 @@ export function mountWorkspace(bridge) {
   right.querySelector("#ws-brush-size")?.closest("label")?.after(pixelPerfectControl);
   const gallery = document.querySelector(".gallery-section"); if (gallery) right.querySelector(".ws-project-gallery-slot").append(gallery);
 
-  // 工作台上方的参数条，只保留一件事：**视图缩放**。
-  // Stage C0 §2/§4：生成尺寸（长边草稿 + 派生宽高 +「应用尺寸」）已经搬进右栏「生成」面板 ——
-  // 它是生成这一层的 PROPERTY，和「生成模式」是同一层的东西，不该和视图控件挤在一条横条上。
-  // 顶栏剩下的是 TOOL 层：视图缩放（选择工具本身在左轨，见 toolRail）。
+  // Fixed-height context row: existing generation controls live on the left,
+  // tool options replace them in edit mode; zoom remains on the right.
   const topControls = document.createElement("section");
   topControls.className = "ws-top-controls";
   topControls.id = "ws-top-controls";
-  topControls.setAttribute("aria-label", "视图缩放");
+  topControls.setAttribute("aria-label", "工具参数、生成设置与视图缩放");
   topControls.innerHTML = `<div id="ws-tool-options"><strong id="ws-context-tool-label">工具</strong><div class="ws-context-group" data-tools="select region same connected wand"><label>选择方式<select id="ws-context-selection-type"><option value="select">单格查看</option><option value="region">矩形选区</option><option value="same">全部同色</option><option value="connected">连续同色</option><option value="wand">相近色区域</option></select></label></div><div class="ws-context-group" id="ws-context-text" data-tools="text"><span id="ws-context-text-summary">文字对象属性</span><button type="button" id="ws-context-text-properties">对象属性</button></div></div><div id="zoomControls" class="ws-top-zoom"></div>`;
   const textContextControls=document.createElement("div");textContextControls.id="ws-context-text-controls";textContextControls.className="ws-text-context-controls";textContextControls.style.display="contents";topControls.querySelector("#ws-context-text").append(textContextControls);
   const selectionType=topControls.querySelector('#ws-context-selection-type');
@@ -417,6 +418,44 @@ export function mountWorkspace(bridge) {
   selectionType.closest('label').hidden=true;
   selectionType.closest('[data-tools]').append(selectionButtons);
   grid.before(topControls);
+  // Reuse the existing inspector and listeners; only its grid position changes.
+  right.classList.add("ws-parameter-inspector");
+  right.querySelector('.ws-side-tabs').setAttribute('aria-label', '参数分组');
+  grid.prepend(right);
+  const paletteSummary = document.createElement('aside');
+  paletteSummary.className = 'ws-palette-summary';
+  paletteSummary.setAttribute('aria-label', '配色清单');
+  paletteSummary.innerHTML = '<h2>配色清单</h2><div class="ws-summary-palette"><strong id="ws-summary-brand">—</strong><span id="ws-summary-series">—</span></div><div class="ws-summary-totals"><div><strong id="ws-summary-colors">0</strong><span>种颜色</span></div><div><strong id="ws-summary-beads">0</strong><span>颗拼豆</span></div></div><div id="ws-summary-specs"></div><div class="ws-summary-filter"><input type="search" id="ws-summary-search" aria-label="筛选配色清单色号" placeholder="搜索色号"><select id="ws-summary-sort" aria-label="配色清单排序"><option value="count-desc">数量↓</option><option value="count-asc">数量↑</option><option value="code">色号</option><option value="hue">色相</option></select></div><div id="ws-summary-usage" role="list" aria-label="实际用色清单"></div>';
+  paletteSummary.querySelector('.ws-summary-totals').insertAdjacentHTML('beforeend','<div><strong id="ws-summary-grid">—</strong><span>图纸尺寸（格）</span></div><div id="ws-summary-physical"><span>实物尺寸</span></div>');
+  paletteSummary.querySelector('#ws-summary-physical').prepend(right.querySelector('#ws-physical-size'));
+  paletteSummary.querySelector('#ws-summary-specs').append(top.querySelector('#ws-project-meta'), top.querySelector('#ws-status'), right.querySelector('#ws-bead-size').closest('label'));
+  grid.append(paletteSummary);
+  const palettePickerSection=document.createElement('section');
+  palettePickerSection.className='ws-summary-picker';palettePickerSection.setAttribute('aria-label','选择画笔颜色');
+  palettePickerSection.innerHTML='<h3>选择颜色</h3>';
+  ['#ws-palette-current','#ws-color-search','#ws-picker-count','#ws-palette-categories','#ws-recent-colors','#ws-bead-picker'].forEach(selector=>palettePickerSection.append($(selector)));
+  paletteSummary.append(palettePickerSection);
+  const summaryCloseButton=document.createElement('button');summaryCloseButton.type='button';summaryCloseButton.className='ws-summary-mobile-close';summaryCloseButton.textContent='关闭';summaryCloseButton.setAttribute('aria-label','关闭配色清单');
+  paletteSummary.querySelector('h2').append(summaryCloseButton);
+  const summaryOpenButton = document.createElement('button');
+  summaryOpenButton.className='ws-button ws-summary-mobile-open';summaryOpenButton.type='button';summaryOpenButton.textContent='配色清单';summaryOpenButton.setAttribute('aria-expanded','false');
+  summaryOpenButton.addEventListener('click',()=>{const open=paletteSummary.classList.toggle('is-mobile-summary-open');summaryOpenButton.setAttribute('aria-expanded',String(open));});
+  top.append(summaryOpenButton);
+  summaryCloseButton.addEventListener('click',()=>{paletteSummary.classList.remove('is-mobile-summary-open');summaryOpenButton.setAttribute('aria-expanded','false');summaryOpenButton.focus();});
+  const generationTopControls = document.createElement("div");
+  generationTopControls.id = "ws-generation-top-controls";
+  generationTopControls.setAttribute("aria-label", "生成尺寸与背景");
+  const generationBackgroundHost = document.createElement("div");
+  generationBackgroundHost.id = "ws-generation-background-host";
+  const generationInspector = right.querySelector('[data-ws-inspector="generation"]');
+  const generationSizeBlock = generationInspector.querySelector('.ws-size-block');
+  generationSizeBlock.previousElementSibling.remove(); // explanatory note becomes a title
+  generationSizeBlock.previousElementSibling.remove(); // duplicate section heading
+  generationSizeBlock.title = "长边决定尺寸；宽高按原图比例派生。点击应用尺寸重新生成。";
+  generationSizeBlock.querySelector('#ws-size-range').hidden = true;
+  generationSizeBlock.querySelector('#ws-size-controls').setAttribute('aria-label', '长边（格）：数字输入、滚轮、方向键');
+  generationTopControls.append(generationSizeBlock, generationBackgroundHost);
+  topControls.prepend(generationTopControls);
 
   const toolRail = left.querySelector("#gridEditorToolbar");
 
@@ -513,6 +552,8 @@ export function mountWorkspace(bridge) {
   };
   // 像素倍数：识别结果 + 手动覆盖值。声明放在最前，保证导入事件先于尺寸逻辑就绪。
   let detectedMultiple = 1;
+  let detectedImageData = null;
+  let sizeSourceRevision = 0;
   // 生成尺寸草稿：**唯一自由度是长边格数**。
   // 滑杆 / 数字框 / 滚轮 / 方向键 / 预设都只改这个草稿，点「应用尺寸」才写进 bridge。
   // 声明必须早于 paint()：paint 会调 syncSizeUi()，晚声明会踩 TDZ。
@@ -559,6 +600,12 @@ export function mountWorkspace(bridge) {
     setLongEdgeAuthority(LONG_EDGE_EVENT.SOURCE_REPLACED);
     blockedAutoSizeWrites = 0;
     sizeOrigin = "auto";
+    detectedMultiple = 1;
+    detectedImageData = null;
+    sizeSourceRevision += 1;
+    multipleDetectionUrl = null;
+    multipleDetection = null;
+    detectedForUrl = null;
     store.setState({
       source: { image: event.detail.url, width: event.detail.width, height: event.detail.height },
       project: { name: event.detail.name.replace(/\.[^.]+$/, "") },
@@ -708,6 +755,7 @@ export function mountWorkspace(bridge) {
   // 所以不再需要向外暴露 setState 入口。
   const generationPanel = new GenerationPanel({
     root: "#generationPanel",
+    backgroundRoot: "#ws-generation-background-host",
     initialState: { maxColors: get().palette.maxColors || 0 },
     // 这里只处理**非尺寸**参数。尺寸已经和这条链路彻底分开：
     // 它由顶栏草稿 +「应用尺寸」显式提交（见下方「生成尺寸」一节），
@@ -958,11 +1006,14 @@ export function mountWorkspace(bridge) {
     isAvailable:()=>get().status.hasPattern&&!buildActive()&&get().view.mode!=="original"});
   const effectiveReference=()=>{const s=get();return {...s.reference,url:s.reference.url||(s.reference.useSource!==false?s.source.image:"")};};
   let brushShape = readEditorPreference("brushShape", "square") === "round" ? "round" : "square";
-  let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinates=Boolean(readEditorPreference('rulers',true)),majorGridInterval=Math.max(3,Math.min(50,Number(readEditorPreference('majorGridInterval',5))||5));
-  const guideControls=document.createElement('span');guideControls.className='ws-grid-guides';guideControls.innerHTML='<label><input type="checkbox" id="ws-major-grid">主网格</label><input type="number" id="ws-major-grid-interval" min="3" max="50" step="1" aria-label="主网格间隔（格）" title="主网格间隔（格）"><label><input type="checkbox" id="ws-rulers">坐标</label>';
+let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinates=true,majorGridInterval=Math.max(3,Math.min(50,Number(readEditorPreference('majorGridInterval',5))||5));
+  const guideControls=document.createElement('span');guideControls.className='ws-grid-guides';guideControls.innerHTML='<label><input type="checkbox" id="ws-major-grid">主网格</label><input type="number" id="ws-major-grid-interval" min="3" max="50" step="1" aria-label="主网格间隔（格）" title="主网格间隔（格）">';
   viewBar.querySelector('.ws-view-toggles').append(guideControls);
-  $('#ws-major-grid').checked=showMajorGrid;$('#ws-rulers').checked=showCoordinates;$('#ws-major-grid-interval').value=majorGridInterval;
-  guideControls.addEventListener('change',()=>{showMajorGrid=$('#ws-major-grid').checked;showCoordinates=$('#ws-rulers').checked;majorGridInterval=Math.max(3,Math.min(50,Math.round(Number($('#ws-major-grid-interval').value)||5)));$('#ws-major-grid-interval').value=majorGridInterval;saveEditorPreference('majorGrid',showMajorGrid);saveEditorPreference('rulers',showCoordinates);saveEditorPreference('majorGridInterval',majorGridInterval);renderer.requestDraw();});
+  $('#ws-major-grid').checked=showMajorGrid;$('#ws-major-grid-interval').value=majorGridInterval;
+  guideControls.addEventListener('change',()=>{showMajorGrid=$('#ws-major-grid').checked;majorGridInterval=Math.max(3,Math.min(50,Math.round(Number($('#ws-major-grid-interval').value)||5)));$('#ws-major-grid-interval').value=majorGridInterval;saveEditorPreference('majorGrid',showMajorGrid);saveEditorPreference('majorGridInterval',majorGridInterval);renderer.requestDraw();});
+  // Fine grid is the default; only the major-grid emphasis needs a visible toggle.
+  $('#ws-grid').closest('label').hidden = true;
+  store.setState({ view: { showGrid: true } });
   const previewMirror=()=>drawer.classList.contains('open')&&['pattern','print'].includes(drawer.dataset.outputCurrent)?$('#ws-export-mirror').value:'none';
   let mirrorCache={};
   const displayResult=()=>{const result=bridge.getResult(),mode=previewMirror();if(mode==='none')return result;if(mirrorCache.grid!==result.grid||mirrorCache.revision!==gridRevision||mirrorCache.mode!==mode)mirrorCache={grid:result.grid,revision:gridRevision,mode,result:{...result,grid:mirroredPreviewGrid(result.grid,mode)}};return mirrorCache.result;};
@@ -1019,10 +1070,13 @@ export function mountWorkspace(bridge) {
     const x=Math.min(sourceImage.naturalWidth-1,Math.floor(norm.x*sourceImage.naturalWidth)),y=Math.min(sourceImage.naturalHeight-1,Math.floor(norm.y*sourceImage.naturalHeight));
     const sample=document.createElement("canvas");sample.width=1;sample.height=1;
     const ctx=sample.getContext("2d",{willReadFrequently:true});ctx.drawImage(sourceImage,x,y,1,1,0,0,1,1);
-    const rgb=[...ctx.getImageData(0,0,1,1).data].slice(0,3);
+    const rgba=[...ctx.getImageData(0,0,1,1).data];
+    if (rgba[3] === 0) return null;
+    const rgb=rgba.slice(0,3);
     const hex="#"+rgb.map((channel)=>channel.toString(16).padStart(2,"0")).join("").toUpperCase();
     const matched=bridge.getNearestPaletteCandidates(rgb);
-    $("#ws-source-sample").innerHTML=`<strong>原图 X${x+1} / Y${y+1} · RGB ${rgb.join(",")} · ${hex}</strong><p>现有色卡最近：${colorChip(editorService.resolveColor(matched.nearest), matched.nearest || "—")}</p><div>${matched.candidates.map((color)=>`<button type="button" data-ws-source-candidate="${esc(color.code)}"><span class="ws-swatch" style="background:${esc(color.hex)}"></span>${esc(color.code)} · ΔE ${color.distance.toFixed(1)}</button>`).join("")}</div>`;
+    $("#ws-source-sample").innerHTML=`<strong>原图 X${x+1} / Y${y+1} · RGB ${rgb.join(",")} · ${hex}</strong><p>现有色卡最近：${colorChip(editorService.resolveColor(matched.nearest), matched.nearest || "—")}</p><div>${matched.candidates.map((color)=>`<button type="button" data-ws-source-candidate="${esc(color.code)}">${colorChip(color)} · ΔE ${color.distance.toFixed(1)}</button>`).join("")}</div>`;
+    return matched;
   };
   const setSourcePatch = (patch) => { bridge.setSourceTransform(patch); requestSourceDraw(); };
   $("#ws-source-ratio").addEventListener("change", (event) => setSourcePatch({cropRatio:event.target.value}));
@@ -1048,8 +1102,28 @@ export function mountWorkspace(bridge) {
     if (!get().status.hasPattern) return;
     event.preventDefault(); viewport.zoomAroundPoint(get().view.zoom * canvasWheelZoomFactor(event), point(event));
   }, { passive: false });
-  // 右键在画布上用于取色，禁掉浏览器默认右键菜单，否则会和取色手势冲突。
-  well.addEventListener("contextmenu", (event) => event.preventDefault());
+  const sourcePickPoint = event => {
+    if (!sourceImage || !sourceLayout || get().ui.activePanel !== 'source') return null;
+    const p = point(event), box = sourceLayout;
+    return p.x >= box.x && p.x < box.x + box.width && p.y >= box.y && p.y < box.y + box.height ? sourceNorm(event) : null;
+  };
+  const canvasPickColor = event => {
+    if (get().ui.activePanel === 'source' || get().view.mode === 'original' || !get().status.hasPattern || buildActive() || previewMirror() !== 'none') return null;
+    const p = point(event), cell = viewport.screenToGrid(p.x, p.y);
+    return cell ? editorService.getCell(cell.x, cell.y) : null;
+  };
+  well.addEventListener('contextmenu', event => {
+    if (event.target.closest('button,input,select,.ws-cell-color-popover')) return;
+    const norm = sourcePickPoint(event), color = canvasPickColor(event);
+    if (!norm && !color) return;
+    event.preventDefault();
+    if (norm) { const matched = sampleOriginalSource(norm); if (matched?.nearest) pickCurrentColor(matched.nearest); }
+    else pickCurrentColor(paletteIdOf(color));
+  });
+  well.addEventListener('pointermove', event => {
+    well.classList.toggle('ws-color-pickable', !event.target.closest('button,input,select,.ws-cell-color-popover') && Boolean(sourcePickPoint(event) || canvasPickColor(event)));
+  });
+  well.addEventListener('pointerleave', () => well.classList.remove('ws-color-pickable'));
   let drag = null, spaceDown = false;
   // 文字面板实例在下面（notify 定义之后）才创建：这里先声明，好让画布的指针分支
   // 能在闭包里引用到它 —— 指针回调是运行时才执行的，那时已经赋值。
@@ -1122,6 +1196,8 @@ export function mountWorkspace(bridge) {
   };
   let lastSelectionTap=null;
   const onCanvasDown = (event) => {
+    // Right-click is handled on contextmenu; it must not close selections or start paint.
+    if (event.button === 2) return;
     cellColorPopover.close();
     if(buildActive()){if(event.button===0||event.button===1){captureCanvasPointer(event.pointerId);drag={type:"pan",x:event.clientX,y:event.clientY,panX:get().view.panX,panY:get().view.panY};}return;}
     if (get().ui.activePanel === "source") { const norm=sourceNorm(event); if (!norm || !sourceImage || !sourceLayout || event.button !== 0) return;
@@ -1131,13 +1207,6 @@ export function mountWorkspace(bridge) {
     if(get().reference.adjusting&&effectiveReference().url&&event.button===0){captureCanvasPointer(event.pointerId);drag={type:"reference",x:event.clientX,y:event.clientY,reference:{...get().reference}};return;}
     const selectedTool = get().editor.tool, tool = event.altKey && selectedTool !== "wand" ? "eyedropper" : selectedTool, p = point(event), cell = viewport.screenToGrid(p.x, p.y);
     if(event.button===0&&get().view.mode==='blocks'&&EDIT_OVERLAY_TOOLS.includes(tool))store.setState({view:{mode:'pattern'}});
-    // 右键取色：在任意工具下都能从画布取色设为当前色，不切换工具、不改图纸。
-    // 与「取色」工具的区别：工具是点一下取完自动切回画笔；右键是纯取色，工具态不动。
-    if (event.button === 2 && cell) {
-      const picked = editorService.getCell(cell.x, cell.y);
-      if (picked) { activateColor(paletteIdOf(picked), false); syncPickedReplacementTarget(picked); }
-      return;
-    }
     if (tool === "pan" || spaceDown || event.button === 1) {
       captureCanvasPointer(event.pointerId); drag = { type: "pan", x: event.clientX, y: event.clientY, panX: get().view.panX, panY: get().view.panY, inspectCell: tool === "pan" && !spaceDown && event.button === 0 ? cell : null, moved: false };
       well.classList.toggle("is-panning",event.button===1); return;
@@ -1208,12 +1277,22 @@ export function mountWorkspace(bridge) {
       const { w, h } = gridSize();
       // 用连续格坐标（含小数）：拖动取整交给栅格化那一步，手感才连续不跳格。
       const at = viewport.screenToGridFloat(p.x, p.y);
+      const active=currentTextLayers().find(layer=>layer.id===get().editor.activeTextLayerId);
+      const frame=active?textFrameControls(cellsBox(rasterizeTextCached(active,w,h).cells),viewport):null;
+      const control=hitTextFrameControl(frame,p);
+      if(active&&control){
+        captureCanvasPointer(event.pointerId);
+        drag={type:control==='resize'?'text-resize':'text-move',id:active.id,grabX:at.x-active.x,grabY:at.y-active.y,before:structuredClone(currentTextLayers()),beforeActive:active.id,initialScale:active.scale||100,start:p,anchor:{x:frame.x,y:frame.y}};
+        well.style.cursor=control==='resize'?'nwse-resize':'grabbing';
+        return;
+      }
       const hit = [...currentTextLayers()].reverse()
         .find((layer) => layerContainsCell(layer, w, h, Math.floor(at.x), Math.floor(at.y)));
       if (hit) {
         store.setState({ editor: { activeTextLayerId: hit.id } });
         captureCanvasPointer(event.pointerId);
         drag = { type: "text-move", id: hit.id, grabX: at.x - hit.x, grabY: at.y - hit.y, before:structuredClone(currentTextLayers()), beforeActive:hit.id };
+        well.style.cursor='grabbing';
         renderer.requestDraw();
         return;
       }
@@ -1263,6 +1342,11 @@ export function mountWorkspace(bridge) {
       updateShapePreview(viewport.screenToGridClamped(p.x, p.y), event.shiftKey);
       return;
     }
+    if (drag?.type === "text-resize") {
+      const scale=resizedTextScale(drag.initialScale,drag.start,p,drag.anchor);
+      setTextLayers(currentTextLayers().map(layer=>layer.id===drag.id?{...layer,scale}:layer),drag.id);
+      return;
+    }
     if (drag?.type === "text-move") {
       // 拖动是实时预览，释放时只提交一条对象历史。
       // 不夹边界 —— 拖出画布时文字继续跟着走，否则会「粘」在边上。
@@ -1309,9 +1393,10 @@ export function mountWorkspace(bridge) {
       store.setState({ editor: { selectedCell: cell, ...(inspected?.paletteId ? buildActivateColorPatch(inspected.paletteId, paletteColors(), { highlight: false }) : buildHighlightOnlyPatch(null, { enabled: false })) } });
       if(inspected?.paletteId)cellColorPopover.open();
     }
-    if (drag?.type === "text-move") {
+    if (drag?.type === "text-move" || drag?.type === "text-resize") {
       if (cancel) setTextLayers(drag.before,drag.beforeActive);
-      else commitTextObjects("TEXT_MOVE","移动文字",drag.before,currentTextLayers(),drag.beforeActive,drag.id);
+      else commitTextObjects(drag.type==='text-resize'?"TEXT_UPDATE":"TEXT_MOVE",drag.type==='text-resize'?"缩放文字":"移动文字",drag.before,currentTextLayers(),drag.beforeActive,drag.id);
+      well.style.cursor='';
     }
     if (drag?.type === "stroke") cancel ? editorService.cancelStroke() : editorService.endStroke();
     if (drag?.type === "shape") {
@@ -1385,27 +1470,28 @@ export function mountWorkspace(bridge) {
     const palette = paletteColors();
     const series = state.editor.paletteCategory || "all";
     const query = $("#ws-color-search").value;
+    // Hover/zoom paints must not replace focused or hovered palette nodes.
+    const selectedId = readCurrentPaletteId(state.editor);
+    const signature = `${palettes.getActivePalette().key}|${palette.length}|${series}|${query}|${selectedId}|${pickerExpanded}|${gridRevision}|${JSON.stringify(state.editor.recentColors)}`;
+    if (signature === pickerSignature) return;
+    pickerSignature = signature;
     // 系列片来自 registry 元数据（entry.group），不是 code 前缀猜的。
     // 盼盼 / 咪小窝的 7 个官方中文系列在这里才第一次真正出现在界面上。
-    const seriesList = listPaletteSeries(palette);
+    const seriesList = listPaletteSeries(palette).sort((a,b) => /^[A-Z]+$/.test(a.key) && /^[A-Z]+$/.test(b.key) ? a.key.localeCompare(b.key, 'en', { numeric: true }) : 0);
     $("#ws-palette-categories").innerHTML = seriesList.length
       ? [`<button type="button" data-ws-category="all" class="${series === "all" ? "active" : ""}">全部 ${palette.length}</button>`,
         ...seriesList.map((entry) => `<button type="button" data-ws-category="${esc(entry.key)}" class="${series === entry.key ? "active" : ""}" title="${esc(entry.label)} · ${entry.count} 色">${esc(entry.label)} ${entry.count}</button>`)].join("")
       : "";
-    $("#ws-recent-colors").innerHTML = state.editor.recentColors.length ? `最近 · ${state.editor.recentColors.map((code)=>`<button type="button" data-ws-pick="${esc(code)}">${esc(code)}</button>`).join("")}` : "";
+    $("#ws-recent-colors").innerHTML = state.editor.recentColors.length ? `最近 · ${state.editor.recentColors.map((code)=>`<button type="button" data-ws-pick="${esc(code)}">${colorChip(editorService.resolveColor(code),code)}</button>`).join("")}` : "";
     // 签名守卫：paint 会被高频调用（悬停、选区、缩放），签名不变就不重建 DOM。
-    const selectedId = readCurrentPaletteId(state.editor);
-    const signature = `${palettes.getActivePalette().key}|${palette.length}|${series}|${query}|${selectedId}|${pickerExpanded}`;
-    if (signature === pickerSignature) return;
-    pickerSignature = signature;
-    const matched = filterPaletteColors(palette, { series: series === "all" ? PALETTE_SERIES_ALL : series, query });
+    const matched = filterPaletteColors(palette, { series: series === "all" ? PALETTE_SERIES_ALL : series, query }).sort((a,b) => String(a.code).localeCompare(String(b.code), 'en', { numeric: true }));
     const shown = pickerExpanded ? matched : matched.slice(0, PICKER_PAGE);
     // 用量一次性建表（一次 Map 构造），替掉逐色 getColorUsage 的全色板克隆。
     const usage = editorService.getPaletteUsageCounts();
     const cards = shown.map((color) => {
       const id = paletteIdOf(color);
       const used = usage.get(id) || 0;
-      return `<button type="button" data-ws-pick="${esc(color.code)}" title="${esc(color.code)}${used ? ` · 图上 ${used} 颗` : " · 未使用"}" class="${selectedId === id ? "active" : ""}"><span style="background:${esc(color.hex)}"></span><small>${esc(color.code)}</small></button>`;
+      return `<button type="button" data-ws-pick="${esc(color.code)}" aria-label="${esc(color.code)}" title="${esc(color.code)}${used ? ` · 图上 ${used} 颗` : " · 未使用"}" class="${selectedId === id ? "active" : ""}"><span data-ws-color-pick="${esc(id)}" style="background:${esc(color.hex)};color:${swatchInk(color)}">${esc(color.code)}</span></button>`;
     });
     const more = !pickerExpanded && matched.length > shown.length
       ? `<button type="button" class="ws-picker-more" id="ws-picker-more">显示其余 ${matched.length - shown.length} 色</button>`
@@ -1481,6 +1567,12 @@ export function mountWorkspace(bridge) {
     $("#ws-legacy-retry").hidden = !state.status.generationError;
     if (document.activeElement !== top.querySelector("#ws-project-name")) top.querySelector("#ws-project-name").value = mirroredTitle(state.project.name,previewMirror());
     const activePalette = palettes.getActivePalette();
+    $("#ws-summary-brand").textContent = brandLabel(activePalette.key.split('-')[0]);
+    $("#ws-summary-series").textContent = paletteKitLabel(activePalette.key);
+    $("#ws-summary-colors").textContent = String(hasPattern ? state.stats.usedColors : 0);
+    const summaryResult = bridge.getResult();
+    $("#ws-summary-grid").textContent = hasPattern ? `${summaryResult.width} × ${summaryResult.height}` : '—';
+    $("#ws-summary-beads").textContent = (hasPattern ? state.stats.totalBeads : 0).toLocaleString('zh-CN',{useGrouping:false});
     $("#ws-project-meta").textContent = hasPattern
       ? `${state.canvas.width}×${state.canvas.height} · ${state.stats.usedColors}色 · ${state.stats.totalBeads.toLocaleString("zh-CN", { useGrouping: false })}颗 · ${activePalette.key}`
       : hasSource ? "图片已导入 · 等待生成" : "尚未创建图纸";
@@ -1488,6 +1580,9 @@ export function mountWorkspace(bridge) {
     // 这里只负责把真源映射到 DOM（active 类 + panel.hidden），不持有任何自己的 tab 状态。
     right.querySelector(".ws-side-tabs").querySelectorAll("[data-ws-panel]").forEach((button) => { button.classList.toggle("active", button.dataset.wsPanel === state.ui.activePanel); button.disabled = button.dataset.wsPanel === "source" && !hasSource || button.dataset.wsPanel === "build" && !hasPattern; });
     const workarea=workareaForPanel(state.ui.activePanel);
+    const generationContext = workarea === 'generate' && !state.ui.exportDrawerOpen;
+    generationTopControls.hidden = !generationContext;
+    $("#ws-tool-options").hidden = generationContext;
     right.querySelectorAll('[data-ws-panel]').forEach(button=>{button.hidden=!WORKAREA_PANELS[workarea].includes(button.dataset.wsPanel)||button.dataset.wsPanel==='project';});
     top.querySelectorAll('[data-ws-workarea]').forEach(button=>{const active=button.dataset.wsWorkarea===(state.ui.exportDrawerOpen?'output':workarea);button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));button.disabled=!hasPattern&&button.dataset.wsWorkarea!=='generate';});
     right.querySelectorAll("[data-ws-inspector]").forEach((panel) => { panel.hidden = panel.dataset.wsInspector !== state.ui.activePanel; });
@@ -1504,7 +1599,7 @@ export function mountWorkspace(bridge) {
     sourceCanvas.hidden = !sourceActive; layers.style.visibility = sourceActive ? "hidden" : "visible";
     if (sourceActive) requestSourceDraw();
     $("#ws-bead-size").value = String(state.canvas.beadSize);
-    $("#ws-physical-size").textContent = state.status.dirty && !bridge.getResult().manualEdited ? "参数已修改 · 重新生成后显示实际尺寸" : hasPattern ? `${state.canvas.width} × ${state.canvas.height} 豆 · 约 ${(state.canvas.width * state.canvas.beadSize / 10).toFixed(1)} × ${(state.canvas.height * state.canvas.beadSize / 10).toFixed(1)} cm` : "导入后显示实际尺寸";
+    $("#ws-physical-size").textContent = state.status.dirty && !bridge.getResult().manualEdited ? "待重新生成" : hasPattern ? `${(state.canvas.width * state.canvas.beadSize / 10).toFixed(1)} × ${(state.canvas.height * state.canvas.beadSize / 10).toFixed(1)} cm` : "—";
     $("#ws-used-colors").textContent = hasPattern ? `实际使用 ${state.stats.usedColors} 色 · ${state.stats.totalBeads.toLocaleString("zh-CN", { useGrouping: false })} 颗${state.palette.maxColors > 0 && state.stats.usedColors > state.palette.maxColors ? ` · 手动编辑超过生成限制 ${state.palette.maxColors} 色` : ""}` : "尚未生成";
     // §12：横向用色统计条。按 gridRevision 判陈旧 —— 只在图纸真的变了才重建，
     // 悬停/选区这类高频 paint 不会碰它。
@@ -1613,7 +1708,7 @@ export function mountWorkspace(bridge) {
     const inspectedColor = replacementSourceId ? (editorService.getPaletteColors().find((color) => paletteIdOf(color) === replacementSourceId) || selectedColor) : null;
     const inspectedCount = replacementSourceId ? editorService.getColorUsage(replacementSourceId) : 0;
     const paletteCurrent=$("#ws-palette-current"),paletteCurrentColor=editorService.resolveColor(selectedPaletteId);
-    if(paletteCurrent)paletteCurrent.innerHTML=paletteCurrentColor?`<strong>当前颜色：${esc(paletteCurrentColor.code)}</strong><span class="ws-current-color-swatch" style="background:${esc(paletteCurrentColor.hex||"#ccc")}"></span>`:"当前颜色：未选择";
+    if(paletteCurrent)paletteCurrent.innerHTML=paletteCurrentColor?`<strong>当前</strong>${colorChip(paletteCurrentColor)}`:"当前颜色：未选择";
     const paletteById = new Map(editorService.getPaletteColors().map((color) => [paletteIdOf(color), color]));
     const selectionUsage = hasSelection ? editorService.getSelectionPaletteUsage(state.editor.selection) : new Map();
     const selectionTotal = [...selectionUsage.values()].reduce((sum, count) => sum + count, 0);
@@ -1632,14 +1727,14 @@ export function mountWorkspace(bridge) {
       $("#ws-selection-palette-summary").textContent = `${width} × ${height} · ${selectionTotal.toLocaleString("zh-CN", { useGrouping: false })} 颗 · ${selectionUsage.size} 色`;
       $("#ws-selection-palette-list").innerHTML = [...selectionUsage]
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .map(([paletteId, count]) => { const color = paletteById.get(paletteId); return `<button type="button" data-ws-inspect-palette="${esc(paletteId)}"><span style="background:${esc(color?.hex || "#ccc")}"></span><b>${esc(color?.code || paletteId)}</b><small>${count}颗</small></button>`; }).join("");
+        .map(([paletteId, count]) => { const color = paletteById.get(paletteId); return `<button type="button" data-ws-inspect-palette="${esc(paletteId)}">${colorChip(color,paletteId)}<small>${count}颗</small></button>`; }).join("");
     } else {
       $("#ws-selection-palette-summary").textContent = "框选区域后显示颜色统计。";
       $("#ws-selection-palette-list").innerHTML = "";
     }
     const similar = selectedPaletteId ? editorService.findSimilarPaletteColors(selectedPaletteId, { limit: 6 }) : [];
     $("#ws-similar-colors").innerHTML = similar.length
-      ? similar.map((color) => `<button type="button" data-ws-similar-target="${esc(color.paletteId)}" title="${esc(color.name || color.code)}"><span style="background:${esc(color.hex || "#ccc")}"></span><small>${esc(color.code)}</small></button>`).join("")
+      ? similar.map((color) => `<button type="button" data-ws-similar-target="${esc(color.paletteId)}" title="${esc(color.name || color.code)}">${colorChip(color)}</button>`).join("")
       : '<span class="ws-note">选择当前颜色后显示推荐。</span>';
     const rampBaseId = state.editor.rampBasePaletteId || selectedPaletteId;
     const rampData=rampCache(),generatedRamp = rampBaseId ? buildRamp(rampData.palette, rampBaseId, { size: state.editor.rampSize || 5,cache:rampData.cache }) : [];
@@ -1650,7 +1745,7 @@ export function mountWorkspace(bridge) {
     $("#ws-ramp-base-label").innerHTML = rampBase ? `基础 ${colorChip(rampBase)}` : "选择一个基础色";
     $("#ws-ramp-size").value = String(state.editor.rampSize || 5);
     $("#ws-ink-mode").value = state.editor.inkMode || "normal";
-    $("#ws-color-ramp").innerHTML = rampColors.length ? rampColors.map((color,index)=>`<button type="button" data-ws-ramp-index="${index}" data-ws-ramp-color="${esc(paletteIdOf(color))}" class="${paletteIdOf(color)===rampBaseId?"is-active":""}" title="${esc(color.code)}"><span style="background:${esc(color.hex||"#ccc")}"></span><small>${esc(color.code)}</small></button>`).join("") : '<span class="ws-note">选择当前颜色后生成真实色阶。</span>';
+    $("#ws-color-ramp").innerHTML = rampColors.length ? rampColors.map((color,index)=>`<button type="button" data-ws-ramp-index="${index}" data-ws-ramp-color="${esc(paletteIdOf(color))}" class="${paletteIdOf(color)===rampBaseId?"is-active":""}" title="${esc(color.code)}"><span data-ws-color-pick="${esc(paletteIdOf(color))}" style="background:${esc(color.hex||"#ccc")}"></span><small>${esc(color.code)}</small></button>`).join("") : '<span class="ws-note">选择当前颜色后生成真实色阶。</span>';
     // §21：替换当前级 / 选择替换色都改用共享 datalist。
     // 这两处原来是「重建整份色板 <select> + 把上一个值按 option 是否仍存在来还原」——
     // 输入框的值天然跨 paint 保留，所以整段还原逻辑直接删掉，语义不变。
@@ -1701,7 +1796,7 @@ export function mountWorkspace(bridge) {
     diagnosticOverlayIssues = issues;
     inspectionState = setInspectionIssues(inspectionState, issues);
     $("#ws-rare-colors").innerHTML = rare.length
-      ? rare.map((entry) => { const color = paletteById.get(entry.paletteId); return `<button type="button" data-ws-rare-palette="${esc(entry.paletteId)}"><span style="background:${esc(color?.hex || "#ccc")}"></span><b>${esc(entry.code)}</b><small>${entry.count}颗</small></button>`; }).join("")
+      ? rare.map((entry) => { const color = paletteById.get(entry.paletteId); return `<button type="button" data-ws-rare-palette="${esc(entry.paletteId)}">${colorChip(color,entry.code)}<small>${entry.count}颗</small></button>`; }).join("")
       : '<span class="ws-note">当前阈值内没有低频颜色。</span>';
     const visibleCounts = new Map();
     allIssues.filter((issue) => !ignoredIssueKeys.has(stableIssueKey(issue))).forEach((issue) => visibleCounts.set(issue.type,(visibleCounts.get(issue.type)||0)+1));
@@ -1868,7 +1963,10 @@ export function mountWorkspace(bridge) {
   function renderUsageStrip() {
     const entries = usageEntries();
     $("#ws-usage-summary").textContent = formatUsageSummary(entries);
-    $("#ws-usage-strip").innerHTML = entries.map((entry) => `<button type="button" role="listitem" data-ws-usage="${esc(entry.paletteId)}" class="ws-usage-card${usageSelected === entry.paletteId ? " active" : ""}" title="${esc(entry.code)} · ${entry.count} 颗"><span class="ws-swatch" style="background:${esc(entry.hex)}"></span><small>${esc(entry.code)}</small><em>${entry.count.toLocaleString("zh-CN", { useGrouping: false })}</em></button>`).join("") || '<p class="ws-note">生成图纸后按色号显示用量。</p>';
+    $("#ws-usage-strip").innerHTML = entries.map((entry) => `<button type="button" role="listitem" data-ws-usage="${esc(entry.paletteId)}" class="ws-usage-card${usageSelected === entry.paletteId ? " active" : ""}" title="${esc(entry.code)} · ${entry.count} 颗"><span class="ws-swatch" data-ws-color-pick="${esc(entry.paletteId)}" style="background:${esc(entry.hex)};color:${swatchInk(entry)}">${esc(entry.code)}</span><em>${entry.count.toLocaleString("zh-CN", { useGrouping: false })}</em></button>`).join("") || '<p class="ws-note">生成图纸后按色号显示用量。</p>';
+    $("#ws-summary-usage").innerHTML = entries.map(entry=>`<button type="button" role="listitem" class="ws-color-row${usageSelected===entry.paletteId?' active':''}" data-ws-usage="${esc(entry.paletteId)}"><span class="ws-swatch" style="background:${esc(entry.hex)}"></span><strong>${esc(entry.code)}</strong><small>${entry.count.toLocaleString('zh-CN',{useGrouping:false})} 颗</small></button>`).join('') || '<p class="ws-note">创建图纸后显示实际用色。</p>';
+    $("#ws-summary-search").value = $("#ws-usage-search")?.value || '';
+    $("#ws-summary-sort").value = usageSort;
     // 选中的颜色若已不在图上（被替换掉了），收起操作条，别留悬空操作。
     if (usageSelected && !editorService.getColorUsage(usageSelected)) usageSelected = null;
     renderUsageActions();
@@ -1930,7 +2028,7 @@ export function mountWorkspace(bridge) {
     const beads = entries.reduce((sum, entry) => sum + entry.count, 0);
     const format = (value) => value.toLocaleString("zh-CN", { useGrouping: false });
     totalNode.textContent = `${entries.length} 色 · 共 ${format(beads)} 颗`;
-    listNode.innerHTML = entries.map((entry) => `<div class="ws-material-row"><span class="ws-swatch" style="background:${esc(entry.hex)}"></span><b>${esc(entry.code)}</b><em>${format(entry.count)}</em></div>`).join("");
+    listNode.innerHTML = entries.map((entry) => `<div class="ws-material-row">${colorChip(entry)}<em>${format(entry.count)}</em></div>`).join("");
     const split = exportV2.split();
     const widthCm = (state.canvas.width * state.canvas.beadSize / 10).toFixed(1);
     const heightCm = (state.canvas.height * state.canvas.beadSize / 10).toFixed(1);
@@ -1954,7 +2052,7 @@ export function mountWorkspace(bridge) {
   }
   // §13：点统计卡 = 设 currentPaletteId + 复用既有「同色高亮」（渲染层 alpha 淡化其余色，canvas-renderer.js）。
   attachUsageWheel($("#ws-usage-strip"));
-  $("#ws-usage-strip").addEventListener("click", (event) => {
+  const handleUsageClick = (event) => {
     const card = event.target.closest("[data-ws-usage]");
     if (!card) return;
     if (get().editor.highlightedPaletteId === card.dataset.wsUsage) { clearColorHighlight(); return; }
@@ -1971,7 +2069,9 @@ export function mountWorkspace(bridge) {
     $("#ws-usage-similar-list").hidden = true;
     $("#ws-same-color-highlight").checked = true;
     renderUsageStrip();
-  });
+  };
+  $("#ws-usage-strip").addEventListener("click", handleUsageClick);
+  $("#ws-summary-usage").addEventListener("click", handleUsageClick);
   $("#ws-usage-clear").addEventListener("click", clearColorHighlight);
   $("#ws-usage-inspect").addEventListener("click", () => store.setState({ editor: { tool: "select" } }));
   $(".ws-usage-sort")?.addEventListener("click", (event) => {
@@ -1983,6 +2083,8 @@ export function mountWorkspace(bridge) {
   });
   $("#ws-usage-strip").insertAdjacentHTML("beforebegin",'<input type="search" id="ws-usage-search" placeholder="筛选当前使用色号" aria-label="筛选当前使用色号">');
   $("#ws-usage-search").addEventListener("input",renderUsageStrip);
+  $("#ws-summary-search").addEventListener('input',event=>{$("#ws-usage-search").value=event.target.value;renderUsageStrip();});
+  $("#ws-summary-sort").addEventListener('change',event=>{usageSort=event.target.value;wrap.querySelectorAll('[data-ws-usage-sort]').forEach(button=>button.classList.toggle('active',button.dataset.wsUsageSort===usageSort));renderUsageStrip();});
   // §14：三个巡检动作**全部复用现有服务**，不建第二套。
   // 只看此色 → 复用 #ws-same-color-highlight 的渲染层淡化（勾复选框 + 同步 state）。
   $("#ws-usage-only").addEventListener("click", () => {
@@ -2011,7 +2113,7 @@ export function mountWorkspace(bridge) {
       const id = paletteIdOf(entry);
       const used = editorService.getColorUsage(id);
       const delta = Number(entry.distance ?? 0).toFixed(1);
-      return `<button type="button" data-ws-similar="${esc(id)}" title="ΔE ${delta} · 图上已有 ${used} 颗"><span class="ws-swatch" style="background:${esc(entry.hex)}"></span><small>${esc(entry.code)}</small><em>ΔE ${delta}${used ? ` · ${used}颗` : ""}</em></button>`;
+      return `<button type="button" data-ws-similar="${esc(id)}" title="ΔE ${delta} · 图上已有 ${used} 颗">${colorChip(entry)}<em>ΔE ${delta}${used ? ` · ${used}颗` : ""}</em></button>`;
     }).join("") || '<p class="ws-note">色板里没有可比的相近色。</p>';
     list.hidden = false;
   });
@@ -2202,12 +2304,12 @@ export function mountWorkspace(bridge) {
   });
   // 搜索 / 换系列都要把「显示其余 N 色」的展开状态收回，否则换到别的系列会莫名全展开。
   $("#ws-color-search").addEventListener("input", () => { pickerExpanded = false; renderPicker(); });
-  $("#ws-color-search").insertAdjacentHTML("beforebegin",'<button type="button" class="ws-button ws-wide" id="ws-available-open">管理可用颜色 / 只用我有的颜色</button><p id="ws-available-count" class="ws-note"></p>');
+  $("#ws-color-search").insertAdjacentHTML("beforebegin",'<button type="button" class="ws-button ws-wide" id="ws-available-open" title="管理可用颜色，只用我有的颜色">管理可用颜色</button><p id="ws-available-count" class="ws-note"></p>');
   const availableDialog=document.createElement("dialog");availableDialog.className="ws-available-dialog ws-help-dialog";
   availableDialog.innerHTML='<div class="ws-help-head"><strong>管理可用颜色</strong><button type="button" data-available-close aria-label="关闭">×</button></div><p class="ws-note">仅约束下一次图片生成。不会修改当前作品，也不会替换真实色卡。</p><input type="search" id="ws-available-search" placeholder="搜索色号" aria-label="搜索可用色号"><div class="ws-selection-actions"><button type="button" data-available-all>全部可用</button><button type="button" data-available-none>清空</button></div><p id="ws-available-summary" role="status"></p><div class="ws-available-grid"></div><div class="ws-selection-actions"><button type="button" data-available-close>取消</button><button type="button" id="ws-available-apply">保存可用颜色</button></div>';
   wrap.append(availableDialog);let availableDraft=new Set();
   const updateAvailableCount=()=>{const all=paletteColors(),ids=bridge.getAvailablePaletteIds?.();$("#ws-available-count").textContent=`真实色卡 ${all.length} 色 · 可用 ${ids===null||ids===undefined?all.length:ids.length} 色`;};
-  function renderAvailable(){const all=paletteColors(),query=availableDialog.querySelector("input").value.trim().toLowerCase();availableDialog.querySelector(".ws-available-grid").innerHTML=all.filter(color=>!query||String(color.code).toLowerCase().includes(query)).map(color=>`<label><input type="checkbox" data-available-id="${esc(paletteIdOf(color))}"${availableDraft.has(paletteIdOf(color))?" checked":""}><i style="background:${esc(color.hex)}"></i>${esc(color.code)}</label>`).join("");$("#ws-available-summary").textContent=`已选 ${availableDraft.size} / ${all.length} 色${availableDraft.size?"":" · 请至少选择一种颜色，空集合无法生成"}`;}
+  function renderAvailable(){const all=paletteColors(),query=availableDialog.querySelector("input").value.trim().toLowerCase();availableDialog.querySelector(".ws-available-grid").innerHTML=all.filter(color=>!query||String(color.code).toLowerCase().includes(query)).map(color=>`<label><input type="checkbox" data-available-id="${esc(paletteIdOf(color))}"${availableDraft.has(paletteIdOf(color))?" checked":""}>${colorChip(color)}</label>`).join("");$("#ws-available-summary").textContent=`已选 ${availableDraft.size} / ${all.length} 色${availableDraft.size?"":" · 请至少选择一种颜色，空集合无法生成"}`;}
   updateAvailableCount();
   $("#ws-available-open").addEventListener("click",()=>{availableDraft=new Set(bridge.getAvailablePaletteIds?.()??paletteColors().map(paletteIdOf));availableDialog.querySelector("input").value="";renderAvailable();availableDialog.showModal();});
   availableDialog.querySelector("input").addEventListener("input",renderAvailable);
@@ -2221,6 +2323,14 @@ export function mountWorkspace(bridge) {
     // 选色只选色：不能把查看工具切成涂色工具，更不能暗中修改之前选中的豆格。
     store.setState({ editor: { ...buildActivateColorPatch(paletteIdOf(color), paletteColors(), { highlight: false }), recentColors:[color.code,...get().editor.recentColors.filter((item)=>item!==color.code)].slice(0,10) } });
   };
+  function pickCurrentColor(id) {
+    const color = editorService.resolveColor(id); if (!color) return false;
+    activateColor(paletteIdOf(color));
+    syncPickedReplacementTarget(color);
+    notify(`已取色 ${color.code}`);
+    return true;
+  }
+  attachUniversalColorPick(wrap, { pick: pickCurrentColor });
   // §10：色格墙惰性渲染的「显示其余 N 色」按钮每次重建，所以用事件委托。
   ["#ws-bead-picker","#ws-recent-colors"].forEach((selector) => $(selector).addEventListener("click", (event) => {
     if (event.target.closest("#ws-picker-more")) { pickerExpanded = true; renderPicker(); return; }
@@ -2257,7 +2367,12 @@ export function mountWorkspace(bridge) {
   $("#ws-poster-preview").after(exteriorHint, exteriorButton);
   exteriorButton.addEventListener("click", removeExteriorBackground);
   $("#ws-clear-selection").addEventListener("click", () => store.setState({ editor: { selectedCell: null, ...buildClearPalettePatch(), selection: null, shapePreview: null } }));
-  $("#ws-apply-outline").addEventListener("click", () => editorService.outline(get().editor.selection, currentPaletteId(), $("#ws-outline-diagonal").checked));
+  $("#ws-apply-outline").addEventListener("click", () => {
+    const target=$("#ws-outline-target").value.trim()||currentPaletteId();
+    const color=editorService.resolveColor(target);
+    if(!color){notify("请选择有效的描边色号。");return;}
+    editorService.outline(get().editor.selection,paletteIdOf(color),$("#ws-outline-diagonal").checked);
+  });
   $("#ws-undo").addEventListener("click", undoEditor); $("#ws-redo").addEventListener("click", redoEditor);
   const resizeValue=(name)=>resizeDialog.querySelector(`[name="${name}"]:checked`)?.value;
   const syncResizeSummary=()=>{
@@ -2520,9 +2635,8 @@ export function mountWorkspace(bridge) {
   /**
    * 识别原图的像素倍数：像素画里 1 个逻辑像素由 k×k 个真实像素组成。
    *
-   * 保留 detectPixelMultiple + logicalSize 的理由：它们不是旧倍数 UI 的残留，
-   * 而是「自动」这一档的**唯一依据** —— 像素画被放大 k 倍后，逻辑尺寸 = 原图 ÷ k。
-   * 删掉它们，「自动」就只剩猜。识别失败退化为 1×（即按原图像素）。
+   * 稳定像素倍数保留实际逻辑尺寸；无法识别时按可见细节推荐长边，
+   * 不再把普通图片统一压到 200 格。识别失败同样能给出保守推荐。
    *
    * 识别结果只写草稿，不触发生成。
    */
@@ -2530,12 +2644,20 @@ export function mountWorkspace(bridge) {
     if (!url) return Promise.resolve(null);
     if (multipleDetectionUrl === url && multipleDetection) return multipleDetection;
     multipleDetectionUrl = url;
+    const revision = sizeSourceRevision;
+    const currentSource = () => isCurrentSizeSource(revision, sizeSourceRevision, url, get().source.image);
     multipleDetection = loadImageData(url)
-      .then(({ imageData }) => { detectedMultiple = detectPixelMultiple(imageData); })
-      .catch(() => { detectedMultiple = 1; })
+      .then(({ imageData, naturalWidth, naturalHeight }) => {
+        if (!currentSource()) return;
+        detectedImageData = imageData;
+        // Downsampled detection cannot establish an original pixel period safely.
+        detectedMultiple = naturalWidth === imageData.width && naturalHeight === imageData.height
+          ? detectPixelMultiple(imageData) : 1;
+      })
+      .catch(() => { if (currentSource()) { detectedMultiple = 1; detectedImageData = null; } })
       // 成功与失败都要走一次 applyLogicalSize()：识别挂了也得把尺寸定下来，
       // 否则首帧生成会一直等下去（B0 §2）。
-      .then(() => { applyLogicalSize(); return detectedMultiple; });
+      .then(() => { if (currentSource()) applyLogicalSize(); return detectedMultiple; });
     return multipleDetection;
   }
 
@@ -2565,14 +2687,22 @@ export function mountWorkspace(bridge) {
     }
     const result = bridge.getResult();
     if (!result.sourceWidth || !result.sourceHeight) return null;
-    const { width, height } = logicalSize(result.sourceWidth, result.sourceHeight, detectedMultiple || 1);
-    const multiple = detectedMultiple || 1;
+    const geometry = sourceOutputGeometry(result.sourceWidth, result.sourceHeight, bridge.getSourceTransform());
+    const recommendation = recommendAutomaticSize({
+      width: geometry.width, height: geometry.height,
+      // A crop not aligned with the detected lattice is not exact grid evidence.
+      multiple: geometry.crop.x % detectedMultiple === 0 && geometry.crop.y % detectedMultiple === 0 ? detectedMultiple || 1 : 1,
+      imageData: detectedImageData,
+      ratio: bridge.getGenerationSize()?.ratio,
+    });
+    if (!recommendation) return null;
+    const { width, height } = recommendation;
     const outcome = bridge.applySourceDimensions({
       width, height,
       // multiple === 1 意味着「没识别出周期」，这不是稳定的倍数证据，
       // 只能算逻辑尺寸估算（权威链最低一级）。
-      authority: multiple >= 2 ? "pixel-multiple" : "logical-heuristic",
-      source: `pixel-multiple:${multiple}`,
+      authority: recommendation.authority,
+      source: recommendation.source,
     });
     if (!outcome?.applied) {
       // 被更强的证据否决：只刷 UI（让它显示那个更强的尺寸），不动草稿、不提交。
@@ -2613,8 +2743,10 @@ export function mountWorkspace(bridge) {
    */
   function scheduleInitialGeneration() {
     const url = get().source.image;
+    const revision = sizeSourceRevision;
     const settled = url ? ensureMultipleDetection(url) : Promise.resolve(null);
     settled.catch(() => {}).then(() => {
+      if (!isCurrentSizeSource(revision, sizeSourceRevision, url, get().source.image)) return;
       if (!shouldAutoWriteLongEdge(longEdgeAuthority)) {
         blockedAutoSizeWrites += 1;
         return;
@@ -2714,11 +2846,11 @@ export function mountWorkspace(bridge) {
     const authorityNode = $("#ws-size-authority");
     if (authorityNode) {
       const api = window.LibmsSourceDimensions;
-      authorityNode.hidden = !locked;
+      authorityNode.hidden = !derived;
       authorityNode.dataset.authority = locked ? locked.authority : "";
       authorityNode.textContent = locked && api
         ? `${api.describeSourceDimensions(locked)} · 已锁定`
-        : "";
+        : derived ? `${sizeOrigin === "auto" ? "自动推荐" : "手动尺寸"} ${derived.width} × ${derived.height} · 可调整${Math.min(derived.width, derived.height) === 10 && effectiveSourceRatio() && (Math.min(effectiveSourceRatio(), 1 / effectiveSourceRatio()) * derived.longEdge < 9.5) ? " · 短边受最少 10 格限制，比例有调整" : ""}` : "";
     }
     // 分档提示（B0 §8）：301–400 提示大尺寸，>400 提示超大尺寸，都必须显式点「应用尺寸」。
     const tierNode = $("#ws-size-tier");
@@ -3051,7 +3183,8 @@ export function mountWorkspace(bridge) {
   }
   function updateBuildOverlay() {
     const on = buildActive() && gridSize().grid.length;
-    buildOverlay.hidden = !on; rulers.hidden = !on;
+    // Coordinates are drawn by the shared canvas renderer; never duplicate sticky DOM ticks.
+    buildOverlay.hidden = !on; rulers.hidden = true;
     if (!on) return;
     const { w, h } = gridSize();
     const o = viewport.origin(), cell = o.cell;
@@ -3059,19 +3192,6 @@ export function mountWorkspace(bridge) {
     const spot = $("#ws-build-spot");
     spot.style.left = `${o.x + x0 * cell}px`; spot.style.top = `${o.y + y0 * cell}px`;
     spot.style.width = `${(x1 - x0) * cell}px`; spot.style.height = `${(y1 - y0) * cell}px`;
-    // 四边标尺：每 5 格一个刻度，10 的倍数用品红强调
-    const ticks = (count, horizontal) => Array.from({ length: count }, (_, i) => i + 1)
-      .filter((n) => n % 5 === 0)
-      .map((n) => {
-        const major = n % 10 === 0;
-        const pos = o[horizontal ? "x" : "y"] + (n - 1) * cell + cell / 2;
-        return pos > -40 && pos < (horizontal ? well.clientWidth : well.clientHeight) + 40
-          ? `<span class="${major ? "is-major" : ""}" style="${horizontal ? "left" : "top"}:${pos}px">${n}</span>` : "";
-      }).join("");
-    $("#ws-ruler-top").innerHTML = ticks(w, true);
-    $("#ws-ruler-bottom").innerHTML = ticks(w, true);
-    $("#ws-ruler-left").innerHTML = ticks(h, false);
-    $("#ws-ruler-right").innerHTML = ticks(h, false);
   }
   function applyBuildColor(code) {
     build.color = code || null;
@@ -3143,9 +3263,19 @@ export function mountWorkspace(bridge) {
   // bindings stay attached, while the top row only reveals the active tool.
   const toolOptions=$("#ws-tool-options");
   function moveToolControls(tools,nodes){const group=document.createElement("div");group.className="ws-context-group";group.dataset.tools=tools;nodes.filter(Boolean).forEach(node=>group.append(node));toolOptions.append(group);return group;}
-  moveToolControls("brush eraser",[$("#ws-brush-size").closest("label"),$("#ws-brush-shape").closest("label")]);
+  const brushSizeContext = moveToolControls("brush eraser",[$("#ws-brush-size").closest("label")]);
+  moveToolControls("brush eraser",[$("#ws-brush-shape").closest("label")]);
   moveToolControls("brush",[$("#ws-pixel-perfect").closest("label"),$("#ws-ink-mode").closest("label")]);
   const symmetryOptionsMenu=document.createElement("details");symmetryOptionsMenu.className="ws-context-symmetry";symmetryOptionsMenu.innerHTML='<summary>对称绘制</summary>';symmetryOptionsMenu.append(symmetryControls);
+  const positionSymmetryOptions = () => {
+    if (!symmetryOptionsMenu.open) return;
+    const rect = symmetryOptionsMenu.querySelector('summary').getBoundingClientRect();
+    symmetryControls.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - Math.min(460, innerWidth - 16) - 8))}px`;
+    symmetryControls.style.top = `${rect.bottom + 6}px`;
+  };
+  symmetryOptionsMenu.addEventListener('toggle', positionSymmetryOptions);
+  window.addEventListener('resize', positionSymmetryOptions);
+  toolOptions.addEventListener('scroll', positionSymmetryOptions);
   moveToolControls("brush eraser",[symmetryOptionsMenu]);
   moveToolControls("rect ellipse",[$("#ws-shape-filled").closest("label")]);
   moveToolControls("wand",[$("#ws-wand-tolerance").closest("label")]);
@@ -3163,7 +3293,24 @@ export function mountWorkspace(bridge) {
   // Canonical usage retains one index and one strip; only its DOM location moves.
   const usageBand=$("#ws-canvas-stats");usageBand.classList.add("ws-usage-band");
   const usageTotals=document.createElement("div");usageTotals.className="ws-usage-totals";while(usageBand.firstChild)usageTotals.append(usageBand.firstChild);usageBand.append(usageTotals);
-  const usageBandTools=document.createElement("div");usageBandTools.className="ws-usage-band-tools";usageBandTools.append($(".ws-usage-sort"),$("#ws-usage-search"));usageBand.append(usageBandTools,$("#ws-usage-strip"),$("#ws-usage-actions"),$("#ws-usage-similar-list"));
+  const usageBandTools=document.createElement("div");usageBandTools.className="ws-usage-band-tools";usageBandTools.append($(".ws-usage-sort"),$("#ws-usage-search"));usageBand.append(usageBandTools,$("#ws-usage-strip"),$("#ws-usage-similar-list"));
+  viewBar.prepend($('#ws-usage-actions'));
+  // The dock spans the window but the color strip begins after the inspector/tool rail.
+  const alignUsageActions=()=>{
+    const strip=$('#ws-usage-strip'),swatch=strip.querySelector('.ws-swatch');
+    const target=strip.getBoundingClientRect().left+(swatch?swatch.getBoundingClientRect().left-swatch.closest('.ws-usage-card').getBoundingClientRect().left:0);
+    viewBar.style.setProperty('--ws-usage-align',`${Math.max(0,target-viewBar.getBoundingClientRect().left)}px`);
+  };
+  const usageAlignmentObserver=new ResizeObserver(alignUsageActions);
+  usageAlignmentObserver.observe($('#ws-canvas-stats'));usageAlignmentObserver.observe(viewBar);
+  new MutationObserver(alignUsageActions).observe($('#ws-usage-strip'),{childList:true});
+  window.addEventListener('resize',alignUsageActions);requestAnimationFrame(alignUsageActions);
+  const dockViewSettings=document.createElement('div');dockViewSettings.className='ws-dock-view-settings';
+  dockViewSettings.append(viewBar.querySelector('.ws-view-modes'),viewBar.querySelector('.ws-view-toggles'));
+  viewBar.append(dockViewSettings);
+  paletteSummary.querySelector('.ws-summary-filter').hidden = true;
+  $('#ws-summary-usage').hidden = true;
+  $('#ws-project-meta').hidden = true;
   $("#ws-canvas-hint").classList.add("ws-canvas-secondary-hint");
 
   const outputMenu=document.createElement("details");outputMenu.className="ws-output-menu";outputMenu.id="ws-output-menu";
@@ -3219,6 +3366,23 @@ export function mountWorkspace(bridge) {
   }
   const syncFlatOptions=()=>{for(const {select,row}of flatOptionGroups)for(const button of row.children)button.setAttribute('aria-pressed',String(button.dataset.value===select.value));for(const button of shapeKinds.children)button.setAttribute('aria-pressed',String(button.dataset.shapeTool===get().editor.tool));};
   store.subscribe(syncFlatOptions);syncFlatOptions();
+  // On narrow screens, real advanced controls move into a reachable popup.
+  // Marker nodes restore the same controls in their desktop positions.
+  const mobileBrushOptions=document.createElement('details');
+  mobileBrushOptions.className='ws-mobile-brush-options';
+  mobileBrushOptions.innerHTML='<summary>更多选项</summary><div class="ws-mobile-brush-options-body"></div>';
+  const mobileBrushBody=mobileBrushOptions.querySelector('div');
+  const mobileBrushGroup=moveToolControls('brush eraser',[mobileBrushOptions]);
+  const advancedBrushGroups=[...toolOptions.children].filter(group=>group!==brushSizeContext&&group!==mobileBrushGroup&&group.dataset.tools?.split(' ').includes('brush'));
+  const brushGroupMarkers=advancedBrushGroups.map(group=>{const marker=document.createComment('brush option desktop position');group.before(marker);return {group,marker};});
+  const mobileBrushMedia=matchMedia('(max-width:760px)');
+  const positionMobileBrushOptions=()=>{if(!mobileBrushOptions.open)return;const rect=mobileBrushOptions.querySelector('summary').getBoundingClientRect();mobileBrushBody.style.left='8px';mobileBrushBody.style.top=`${rect.bottom+6}px`;};
+  const syncMobileBrushOptions=()=>{mobileBrushOptions.open=false;for(const {group,marker} of brushGroupMarkers){if(mobileBrushMedia.matches)mobileBrushBody.append(group);else marker.after(group);}};
+  mobileBrushOptions.addEventListener('toggle',positionMobileBrushOptions);
+  mobileBrushMedia.addEventListener('change',syncMobileBrushOptions);
+  window.addEventListener('resize',positionMobileBrushOptions);
+  store.subscribe(state=>{if(!['brush','eraser'].includes(state.editor.tool))mobileBrushOptions.open=false;});
+  syncMobileBrushOptions();
 
   // Output tasks move live controls, including their existing listeners.
   const outputTaskNav=document.createElement('nav');outputTaskNav.className='ws-output-tasks';outputTaskNav.setAttribute('aria-label','输出任务');
@@ -3232,11 +3396,12 @@ export function mountWorkspace(bridge) {
   function showOutputTask(id){drawer.dataset.outputCurrent=id;for(const [key,panel]of outputPanels)panel.hidden=key!==id;outputTaskNav.querySelectorAll('button').forEach(button=>{button.classList.toggle('active',button.dataset.outputTask===id);button.setAttribute('aria-pressed',String(button.dataset.outputTask===id));});exportMirrorField.hidden=!['pattern','print'].includes(id);$('#ws-export-title').value=mirroredTitle(get().project.name,['pattern','print'].includes(id)?$('#ws-export-mirror').value:'none');if(id==='poster')refreshPosterPreview();}
   outputTaskNav.addEventListener('click',event=>{const button=event.target.closest('[data-output-task]');if(button)showOutputTask(button.dataset.outputTask);});showOutputTask('pattern');
   const saveNow=document.createElement('button');saveNow.id='ws-save-now';saveNow.type='button';saveNow.className='ws-button';saveNow.textContent='保存工程';saveNow.addEventListener('click',()=>$('#ws-save-project').click());outputMenu.before(saveNow);
+  saveNow.before(top.querySelector('.ws-project-menu'));
   exportButton.remove();outputMenu.remove();
 
   const featureDialog=document.createElement('dialog');featureDialog.className='ws-feature-search';featureDialog.innerHTML='<div class="ws-help-head"><strong>找功能</strong><button type="button" aria-label="关闭">×</button></div><input type="search" placeholder="去背景、描边、库存、尺寸…" aria-label="查找功能"><div class="ws-feature-results"></div>';
   wrap.append(featureDialog);featureDialog.querySelector('button').addEventListener('click',()=>featureDialog.close());
-  const features=[['生成尺寸','generation','ws-size-controls'],['生成去纯色背景','generation','generationPanel'],['图片调整 色调 裁剪','source','ws-source-ratio'],['管理可用色卡','color','ws-available-open'],['描边','edit','ws-outline-preview'],['文字对象','edit','ws-text-objects'],['参考底图','edit','ws-ref-pick'],['诊断 检查 修复 低频色','check','ws-check-tools'],['库存 材料 用豆','material','inventoryPanel'],['图纸尺寸','project','ws-resize-open'],['本地版本 历史','project','ws-version-save'],['触屏按钮绘制','edit','ws-touch-enabled']];
+  const features=[['生成尺寸','generation','ws-size-controls'],['生成去纯色背景','generation','ws-generation-background-host'],['图片调整 色调 裁剪','source','ws-source-ratio'],['管理可用色卡','color','ws-available-open'],['描边','edit','ws-outline-preview'],['文字对象','edit','ws-text-objects'],['参考底图','edit','ws-ref-pick'],['诊断 检查 修复 低频色','check','ws-check-tools'],['库存 材料 用豆','material','inventoryPanel'],['图纸尺寸','project','ws-resize-open'],['本地版本 历史','project','ws-version-save'],['触屏按钮绘制','edit','ws-touch-enabled']];
   const renderFeatureResults=()=>{const query=featureDialog.querySelector('input').value.trim().toLowerCase(),results=featureDialog.querySelector('.ws-feature-results');results.replaceChildren();for(const [label,panel,id]of features){if(!$('#'+id)||query&&!label.toLowerCase().includes(query))continue;const button=document.createElement('button');button.type='button';button.textContent=label;button.addEventListener('click',()=>{featureDialog.close();openWorkspacePanel(panel);requestAnimationFrame(()=>$('#'+id)?.scrollIntoView({block:'center',behavior:'auto'}));});results.append(button);}if(!results.children.length)results.textContent='没有匹配的功能，试试其他关键词。';};
   featureDialog.querySelector('input').addEventListener('input',renderFeatureResults);
   const featureSearchButton=document.createElement('button');featureSearchButton.type='button';featureSearchButton.className='ws-button';featureSearchButton.textContent='找功能';featureSearchButton.addEventListener('click',()=>{renderFeatureResults();featureDialog.showModal();featureDialog.querySelector('input').focus();});top.append(featureSearchButton);

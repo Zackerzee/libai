@@ -1,3 +1,5 @@
+import { colorLabelInk } from './color-label.mjs';
+import { paletteIdOf } from '../services/palette-identity.js';
 // Enhance the existing input; its value and original change handler remain authoritative.
 export function attachPaletteColorPicker(input, { getColors, surfaces, valueMode = 'identity' }) {
   if (!input || input.dataset.colorPicker) return;
@@ -18,6 +20,7 @@ export function attachPaletteColorPicker(input, { getColors, surfaces, valueMode
     const key = input.value.trim().toUpperCase();
     const color = colors().find(c => String(c.paletteId || c.code).toUpperCase() === key || String(c.code).toUpperCase() === key);
     preview.style.backgroundColor = colorCss(color);
+    if(color)preview.dataset.wsColorPick=paletteIdOf(color);else delete preview.dataset.wsColorPick;
     preview.title = color ? color.code : "尚未选择颜色";
   }
   function render() {
@@ -27,7 +30,10 @@ export function attachPaletteColorPicker(input, { getColors, surfaces, valueMode
     const exact = palette.some(c => String(c.paletteId || c.code).toUpperCase() === query || String(c.code).toUpperCase() === query);
     for (const color of palette.filter(c => !query || exact || String(c.code).toUpperCase().includes(query))) {
       const button = document.createElement("button"); button.type = "button"; button.className = "ws-color-picker-option"; button.title = color.code;
-      const swatch = document.createElement("i"); swatch.style.backgroundColor = color.hex || colorCss(color); button.append(swatch, document.createTextNode(color.code));
+      button.setAttribute('aria-label', color.code);
+      button.style.backgroundColor = colorCss(color);button.dataset.wsColorPick=paletteIdOf(color);
+      button.style.color = colorLabelInk(color);
+      button.textContent = color.code;
       button.addEventListener("click", () => {
         if (valueMode === 'code') input.value = String(color.code);
         else input.value = String(color.paletteId || color.code);
