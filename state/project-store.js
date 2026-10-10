@@ -127,6 +127,7 @@ function snapshot(store) {
       autoBackground: s.processingState.autoBackground,
       strokeProtection: s.processingState.strokeProtection,
       accentProtection: s.processingState.accentProtection,
+      smartColorTolerance: { ...s.processingState.smartColorTolerance },
       // 算法调色：单独成桶，与 sourceTransform 的同名字段区分
       brightness: s.processingState.colorTuning.brightness,
       contrast: s.processingState.colorTuning.contrast,

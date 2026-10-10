@@ -2187,6 +2187,8 @@ function buildV25Options(options = {}, maxColors = 0) {
     autoBackground: options.autoBackground === true,
     strokeProtection: options.strokeProtection === true,
     accentProtection: options.accentProtection === true,
+    smartColorTolerance: { enabled: false, strength: 0, policy: "quality-first", ...options.smartColorTolerance },
+    ...(options.smartToleranceContext ? { smartToleranceContext: options.smartToleranceContext } : {}),
   };
 }
 
@@ -2447,6 +2449,65 @@ function commitPhase(on) {
   return on ? performance.now() : 0;
 }
 
+let smartToleranceSession = null;
+let smartToleranceGenerationRevision = 0;
+let smartToleranceCommittedGrid = null;
+let smartTolerancePaletteContext = null;
+
+function smartToleranceContext(width, height, maxColors, paletteContext = smartTolerancePaletteContext) {
+  const processing = window.libmsStore?.getState()?.processingState || {};
+  // Panel settings may change before generation-service refreshes its options
+  // snapshot. Observe their real store source too, without request/strength noise.
+  const panelSettings = Object.fromEntries([
+    "maxColors", "detailProtection", "edgeProtection", "cleanupStrength",
+    "preserveHighlights", "preserveEyes", "preserveMicroDetails", "backgroundRemoval",
+    "subjectCrop", "autoBackground", "strokeProtection", "accentProtection", "colorTuning",
+    "generationPreset", "generationSampling",
+  ].map(key => [key, processing[key]]));
+  const options = { ...(state.productionGenerationOptions || {}) };
+  delete options.smartColorTolerance;
+  delete options.smartToleranceContext;
+  const serialized = JSON.stringify({
+    source: state.sourceDataUrl, crop: state.sourceTransform,
+    width, height, longEdge: state.generationLongEdge, sourceDimensions: state.sourceDimensions,
+    maxColors, requestedMaxColors: els.maxColorsInput?.value,
+    engine: state.generationEngine, algorithm: state.algorithmEngine,
+    palette: getCurrentPaletteKey(), registry: getCurrentPalette(),
+    paletteContext, options, panelSettings,
+    tolerancePolicy: { enabled: processing.smartColorTolerance?.enabled === true,
+      policy: processing.smartColorTolerance?.policy ?? "quality-first" },
+    resolved: { ...buildV25Options(options, maxColors), smartColorTolerance: undefined },
+    algorithmVersion: "v1-optin-1",
+  });
+  return serialized;
+}
+
+async function getSmartToleranceSession() {
+  if (!smartToleranceSession) {
+    const { createSmartToleranceSession } = await import("./services/smart-tolerance-session.mjs");
+    smartToleranceSession ||= createSmartToleranceSession({
+      isCurrent: (requestId, baselineRevision) => !isStaleGenerationRequest(requestId)
+        && state.smartColorTolerance?.enabled === true && state.smartColorTolerance.policy === "quality-first"
+        && state.smartToleranceBaselineRevision === baselineRevision && !state.manualEdited
+        && state.grid === smartToleranceCommittedGrid
+        && state.generationEngine === "v2.5" && state.algorithmEngine === "current"
+        && smartToleranceSession.getMetadata()?.context === smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0),
+      commit: ({ grid, diagnostics }) => {
+        state.grid = grid;
+        smartToleranceCommittedGrid = state.grid;
+        state.stats = calculateStats(grid);
+        state.smartToleranceReport = diagnostics.smartColorTolerance || null;
+        state.generationOriginalGrid = cloneGrid(grid);
+        refreshChartUrl();
+        updateResultUi();
+        window.dispatchEvent(new CustomEvent("libms:project-result", { detail: window.LibmsWorkspaceBridge?.getResult() }));
+        if (commitProfileOn()) console.debug("[smart-color-tolerance]", diagnostics);
+      },
+    });
+  }
+  return smartToleranceSession;
+}
+
 async function processImageV2(image, palette, { width, height, requestId = null, maxColors, options = {}, saveGallery = true }) {
   const startedAt = performance.now();
   // ⚠️ 2026-10-04 修：`requestId` 必须**在这里解构**。
@@ -2480,6 +2541,23 @@ async function processImageV2(image, palette, { width, height, requestId = null,
   autoTuneReport = null;
   const sourceImageData = imageToImageData(image);
   const resolved = buildV25Options(options, maxColors);
+  const toleranceEnabled = resolved.smartColorTolerance.enabled === true;
+  let tolerancePaletteContext = null;
+  if (toleranceEnabled) {
+    const paletteKey = getCurrentPaletteKey();
+    const registrySnapshot = JSON.stringify(getCurrentPalette());
+    const { resolveSmartTolerancePaletteContext } = await import("./services/smart-color-tolerance-palette-adapter.mjs");
+    tolerancePaletteContext = resolveSmartTolerancePaletteContext({ paletteEntries: palette, paletteKey });
+    if (isStaleGenerationRequest(reqId) || paletteKey !== getCurrentPaletteKey()
+      || registrySnapshot !== JSON.stringify(getCurrentPalette())) return false;
+  }
+  const toleranceContext = toleranceEnabled ? smartToleranceContext(width, height, maxColors, tolerancePaletteContext) : null;
+  const toleranceGenerationRevision = toleranceEnabled ? ++smartToleranceGenerationRevision : null;
+  if (toleranceEnabled) {
+    state.smartToleranceBaselineRevision = `pending:${toleranceGenerationRevision}`;
+    smartToleranceSession?.clear();
+    resolved.smartToleranceContext = { contextKey: toleranceContext, gridRevision: toleranceGenerationRevision, paletteContext: tolerancePaletteContext };
+  }
   // §13：智能模式先跑 Auto Tune（小尺寸上比几套候选，再按目标尺寸生成一次）。
   // 返回 null = 「这次不调优」（模式不适用 / 只有一个候选），照常走下面的单次生成。
   let result = null;
@@ -2508,8 +2586,12 @@ async function processImageV2(image, palette, { width, height, requestId = null,
       requestId: reqId,
     });
   }
+  const toleranceSession = toleranceEnabled && result.diagnostics?.smartToleranceBaseline
+    ? await getSmartToleranceSession() : null;
   // 执行体是一个 await 边界（未来换成 Worker 后更是），回来时可能已经有更新的请求在跑。
   if (isStaleGenerationRequest(reqId)) return false;
+  if (toleranceEnabled && state.smartToleranceBaselineRevision !== `pending:${toleranceGenerationRevision}`) return false;
+  if (toleranceEnabled && toleranceContext !== smartToleranceContext(width, height, maxColors, tolerancePaletteContext)) return false;
   // ── 提交路径分段计时（§12，默认关闭）──────────────────────────────
   // 段的切法与「修法」一一对应，而不是按代码块随意切：
   //   gridObjectConstruction —— 建 w×h 个新对象。要省它只能让 renderer
@@ -2521,7 +2603,7 @@ async function processImageV2(image, palette, { width, height, requestId = null,
   state.grid = result.grid.map((row) => row.map((cell) => {
     if (!cell) return null;
     const rgbValue = Array.isArray(cell.rgb) ? cell.rgb : [cell.rgb?.[0] ?? 0, cell.rgb?.[1] ?? 0, cell.rgb?.[2] ?? 0];
-    return { code: cell.code, rgb: [...rgbValue], hex: cell.hex || rgbToHex(rgbValue) };
+    return { code: cell.code, rgb: [...rgbValue], hex: cell.hex || rgbToHex(rgbValue), ...(toleranceEnabled && cell.paletteId != null ? { paletteId: cell.paletteId } : {}) };
   }));
   commitMark("gridObjectConstruction", t);
   state.width = result.width;
@@ -2541,6 +2623,19 @@ async function processImageV2(image, palette, { width, height, requestId = null,
   state.showingOptimizedGrid = true;
   state.paletteBudget = { mode: maxColors ? "fixed" : "auto", requested: maxColors || null, recommended: result.diagnostics?.colorsAfterBudget || state.stats.length, effective: maxColors || 0 };
   state.smartFeatures = result.diagnostics?.smartFeatures || null;
+  state.smartToleranceReport = result.diagnostics?.smartColorTolerance || null;
+  if (toleranceEnabled && result.diagnostics?.smartToleranceBaseline) {
+    smartTolerancePaletteContext = structuredClone(tolerancePaletteContext);
+    toleranceSession.adoptBaseline(result.diagnostics.smartToleranceBaseline, toleranceContext, result.diagnostics.smartToleranceHierarchy);
+    state.smartToleranceBaselineRevision = result.diagnostics.smartToleranceBaseline.baselineRevision;
+    smartToleranceCommittedGrid = state.grid;
+  } else {
+    smartToleranceSession?.clear();
+    state.smartToleranceBaselineRevision = null;
+    smartToleranceCommittedGrid = null;
+    smartTolerancePaletteContext = null;
+  }
+  if (profiling && state.smartToleranceReport) console.debug("[smart-color-tolerance]", state.smartToleranceReport);
   state.smartReport = {
     subjectCrop: result.diagnostics?.subjectCrop || null,
     autoBackground: result.diagnostics?.autoBackground || null,
@@ -7878,6 +7973,41 @@ window.LibmsWorkspaceBridge = {
   setProductionOptions({ engine = "v2.5", generationOptions = {} } = {}) {
     state.generationEngine = engine;
     state.productionGenerationOptions = generationOptions;
+    state.smartColorTolerance = { enabled: false, strength: 0, policy: "quality-first", ...generationOptions.smartColorTolerance };
+    if (!state.smartColorTolerance.enabled) {
+      smartToleranceSession?.clear();
+      state.smartToleranceBaselineRevision = null;
+      smartTolerancePaletteContext = null;
+    } else smartToleranceSession?.invalidate(smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0));
+  },
+  async updateSmartColorTolerance({ strength, paletteContext } = {}) {
+    if (!Number.isFinite(strength) || strength < 0 || strength > 100) throw new RangeError("strength must be 0..100");
+    if (!state.smartColorTolerance?.enabled || state.smartColorTolerance.policy !== "quality-first") throw new Error("Smart color tolerance is not enabled");
+    const requestId = ++state.generationRequestId;
+    const baselineRevision = state.smartToleranceBaselineRevision;
+    const capturedGrid = state.grid;
+    let capturedContext = smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0);
+    const current = () => state.generationRequestId === requestId
+      && state.smartToleranceBaselineRevision === baselineRevision
+      && state.smartColorTolerance?.enabled === true && state.smartColorTolerance.policy === "quality-first"
+      && !state.manualEdited && state.grid === capturedGrid && state.grid === smartToleranceCommittedGrid
+      && capturedContext === smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0);
+    const stale = () => ({ committed: false, stale: true });
+    if (paletteContext !== undefined) {
+      const { resolveSmartTolerancePaletteContext } = await import("./services/smart-color-tolerance-palette-adapter.mjs");
+      if (!current()) return stale();
+      smartTolerancePaletteContext = structuredClone(resolveSmartTolerancePaletteContext(paletteContext));
+      capturedContext = smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0);
+    }
+    const session = await getSmartToleranceSession();
+    if (!current()) return stale();
+    if (session.invalidate(smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0)) || !state.smartToleranceBaselineRevision || state.manualEdited || state.grid !== smartToleranceCommittedGrid) {
+      state.smartToleranceBaselineRevision = null;
+      throw new Error("Smart tolerance baseline changed; regenerate before evaluating strength");
+    }
+    state.smartColorTolerance = { ...state.smartColorTolerance, strength };
+    state.productionGenerationOptions = { ...state.productionGenerationOptions, smartColorTolerance: { ...state.smartColorTolerance } };
+    return session.evaluate({ strength, requestId, baselineRevision: baselineRevision });
   },
   /**
    * 背景预检（Stage B2 §6）。给工作台「开启去除纯色背景 → 先问用户」用。

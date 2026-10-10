@@ -57,6 +57,7 @@ test("snapshot: palette / generation 默认值", () => {
     // 它们是「算法与生成方式」合并后的产物，早先作为运行时动态字段写入，
     // 现在 adapter 无条件读出，所以必须出现在默认值快照里。
     subjectCrop: false, autoBackground: false, strokeProtection: false, accentProtection: false,
+    smartColorTolerance: { enabled: false, strength: 0, policy: "quality-first" },
     brightness: 0, contrast: 0, saturation: 0,
   });
 });

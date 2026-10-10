@@ -27,7 +27,8 @@ const { createStore, createCompatState, DEFAULTS, LEGACY_MAP, LEGACY_KEYS } = st
 // 87 = 86 + sourceDimensions（B0.1 新增：尺寸权威链的载体）。
 // 94 = 93 + currentPaletteId（B1 新增：当前颜色的唯一真源）。
 // 若此数变化，说明 app.js 的 state 被改过，必须同步更新本测试与 STATE-MIGRATION.md。
-const LEGACY_FIELD_COUNT = 94;
+// 97 = 94 + smartColorTolerance / smartToleranceReport / smartToleranceBaselineRevision.
+const LEGACY_FIELD_COUNT = 97;
 
 function fresh() {
   const store = createStore();
@@ -54,6 +55,9 @@ test("旧 state 读取正常：典型字段经 Proxy 可读且类型正确", () 
   const { state } = fresh();
   assert.equal(state.generationEngine, "v2.5");
   assert.equal(state.algorithmEngine, "current");
+  assert.deepEqual(state.smartColorTolerance, { enabled: false, strength: 0, policy: "quality-first" });
+  assert.equal(state.smartToleranceReport, null);
+  assert.equal(state.smartToleranceBaselineRevision, null);
   assert.equal(state.selectedBrand, "mard");
   assert.equal(state.editorTool, "pencil");
   assert.equal(state.previewZoom, 1);

@@ -33,6 +33,9 @@ import { applyBackgroundBlanks, DEFAULT_BACKGROUND_CONFIG } from "./auto-backgro
 import { resolveBackgroundDecision, BACKGROUND_STATUS } from "./background-reliability.mjs";
 import { extractStrokeMask } from "./stroke-mask.mjs";
 import { detectAnchorColors } from "./accent-protection.mjs";
+import { createSmartColorTolerance } from '../services/smart-color-tolerance.mjs';
+import { paletteIdOf } from '../services/palette-identity.js';
+import { applySmartToleranceBudget, freezeToleranceBaseline, smartToleranceBaselineRevision, SMART_TOLERANCE_ALGORITHM_VERSION } from '../services/smart-tolerance-budget.mjs';
 
 export { SamplingMode };
 
@@ -62,6 +65,7 @@ export const DEFAULT_GENERATION_V2_CONFIG = Object.freeze({
   // （smart-cleanup-v2 里 `avgProtection >= threshold` 即跳过该连通块）。
   cleanupProtectionThreshold: 0.5,
   maxColors: 0,
+  smartColorTolerance: Object.freeze({ enabled: false, strength: 0, policy: 'quality-first' }),
 });
 
 /**
@@ -86,6 +90,8 @@ function resolveOptions(options = {}) {
     microDetailProtection: options.microDetailProtection ?? defaults.microDetailProtection,
     cleanupProtectionThreshold: options.cleanupProtectionThreshold ?? defaults.cleanupProtectionThreshold,
     maxColors: options.maxColors ?? defaults.maxColors,
+    smartColorTolerance: { enabled: options.smartColorTolerance?.enabled === true,
+      strength: options.smartColorTolerance?.strength ?? 0, policy: options.smartColorTolerance?.policy ?? 'quality-first' },
     // V2.5 智能辅助：默认全关（=== true 严格判定，避免 undefined/真值混淆）
     subjectCrop: options.subjectCrop === true,
     autoBackground: options.autoBackground === true,
@@ -415,7 +421,7 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
   // 形状守卫：候选返回 undefined / 少了 records 都不能让后面的
   // `cleanupRecords.length` 炸成一次「生成失败」。
   const cleanupRecords = Array.isArray(cleanupRaw?.records) ? cleanupRaw.records : [];
-  const colorsAfterCleanup = countGridColors(grid, getColorKey).size;
+  const colorsAfterCleanup = countGridColors(grid, cfg.smartColorTolerance.enabled ? paletteIdOf : getColorKey).size;
   timing.cleanup = Math.round(performance.now() - tCleanup);
 
   // 4.5 Spatial Refine（Lab §9，可选）
@@ -440,7 +446,25 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
   // 不能拿它当「预算之前」用 —— §9 允许 refine 引入邻居色/色卡色，
   // 用旧快照做门就会出现「refine 把 3 色撒成 8 色，而门以为还是 3 色，直接跳过降色」，
   // 于是 maxColors 静默失效。lab 为空时两者恒等，生产行为逐位不变。
-  const colorsBeforeBudget = countGridColors(grid, getColorKey).size;
+  let smartToleranceBaseline = null, toleranceResult = null, toleranceHierarchyLevel = 0, toleranceRuntimeMs = 0, smartToleranceHierarchy = null;
+  if (cfg.smartColorTolerance.enabled) {
+    if (cfg.smartColorTolerance.policy !== 'quality-first') throw new RangeError('Only quality-first smart tolerance is supported');
+    phase('smart-color-tolerance');
+    const started = performance.now();
+    const { smartColorTolerance: _toleranceConfig, ...baselineConfig } = cfg;
+    const evidence = { grid, palette, protection, colorsAfterCleanup, budgetConfig: baselineConfig, context: options.smartToleranceContext ?? null,
+      algorithmVersion: SMART_TOLERANCE_ALGORITHM_VERSION };
+    smartToleranceBaseline = freezeToleranceBaseline({ ...evidence, baselineRevision: smartToleranceBaselineRevision(evidence) });
+    const hierarchy = createSmartColorTolerance({ baselineGrid: smartToleranceBaseline.grid,
+      palette: smartToleranceBaseline.palette, protection: smartToleranceBaseline.protection });
+    toleranceResult = hierarchy.evaluate(cfg.smartColorTolerance.strength);
+    smartToleranceHierarchy = hierarchy.getCompiledHierarchy();
+    toleranceHierarchyLevel = hierarchy.getHierarchy().filter(step => step.strength <= cfg.smartColorTolerance.strength).length;
+    grid = toleranceResult.grid;
+    toleranceRuntimeMs = performance.now() - started;
+    timing.smartColorTolerance = toleranceRuntimeMs;
+  }
+  const colorsBeforeBudget = countGridColors(grid, cfg.smartColorTolerance.enabled ? paletteIdOf : getColorKey).size;
 
   // 5. Protected Palette Budget（tier/reason 感知 + 可选强调色锚点保护）
   const tBudget = performance.now();
@@ -454,7 +478,7 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
   //     protectedKeys 传给预算计划 —— 阶段一不主动合并它们，只有确实降不到目标
   //     （阶段二）才会被 forcedProtected 记录后合并。这样眼睛/描边/高光不会因颗数少被优先删。
   let anchorKeys = null;
-  if (cfg.accentProtection) {
+  if (!cfg.smartColorTolerance.enabled && cfg.accentProtection) {
     const accent = detectAnchorColors({ grid, getColorKey, options: cfg.accentConfig || {} });
     anchorKeys = accent.anchors;
     protectedByAccent = accent.anchors.size;
@@ -471,7 +495,7 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
     };
   }
 
-  if (cfg.maxColors > 0 && colorsBeforeBudget > cfg.maxColors) {
+  if (!cfg.smartColorTolerance.enabled && cfg.maxColors > 0 && colorsBeforeBudget > cfg.maxColors) {
     budgetPlan = buildPaletteBudgetPlan({
       grid, getColorKey,
       getRGBByKey: (key) => { const cell = grid.flat().find((c) => c && c.code === key); return cell ? cell.rgb : null; },
@@ -488,6 +512,9 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
       accentDiag.budgetApplied = true;
       accentDiag.anchorForcedMerges = budgetPlan.filter((p) => p.protectedByAnchor && p.forcedProtected).length;
     }
+  }
+  if (cfg.smartColorTolerance.enabled) {
+    ({ budgetPlan, forcedProtectedMerges, accentDiag, protectedByAccent } = applySmartToleranceBudget({ grid, protection, cfg }));
   }
   timing.paletteBudget = Math.round(performance.now() - tBudget);
 
@@ -604,6 +631,25 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
     } : null,
   };
 
+  if (cfg.smartColorTolerance.enabled) {
+    const afterBudget = countGridColors(grid, paletteIdOf).size;
+    diagnostics.colorsAfterTolerance = toleranceResult.finalColorCount;
+    diagnostics.colorsAfterBudget = afterBudget;
+    diagnostics.toleranceMergedColors = toleranceResult.mergedColorCount;
+    diagnostics.budgetMergedColors = toleranceResult.finalColorCount - afterBudget;
+    diagnostics.budgetForcedProtected = forcedProtectedMerges;
+    diagnostics.smartColorTolerance = { enabled: true, strength: cfg.smartColorTolerance.strength,
+      colorsAfterCleanup,
+      baselineRevision: smartToleranceBaseline.baselineRevision, colorsBefore: toleranceResult.baselineColorCount,
+      colorsAfterTolerance: toleranceResult.finalColorCount, colorsAfterBudget: afterBudget,
+      mergedByTolerance: toleranceResult.mergedColorCount, mergedByBudget: toleranceResult.finalColorCount - afterBudget,
+      protectedConflicts: toleranceResult.protectedConflictCount, forcedProtected: forcedProtectedMerges,
+      hierarchyLevel: toleranceHierarchyLevel, cacheHit: false, runtimeMs: toleranceRuntimeMs,
+      reasons: toleranceResult.reasons,
+      notice: toleranceResult.finalColorCount > afterBudget ? 'Smart tolerance preserved protected colors, hard palette budget subsequently forced additional merges.' : null };
+    diagnostics.smartToleranceBaseline = smartToleranceBaseline;
+    diagnostics.smartToleranceHierarchy = smartToleranceHierarchy;
+  }
   return { grid, width, height, diagnostics };
 }
 

@@ -81,6 +81,8 @@ export function createGenerationRequest(input = {}) {
     mode: String(mode ?? "auto"),
     palette: Object.freeze((palette || []).map((color) => Object.freeze({
       code: String(color?.code ?? ""),
+      // Disabled production requests retain the pre-integration cell shape.
+      ...(overrides?.smartColorTolerance?.enabled !== true || color?.paletteId == null ? {} : { paletteId: String(color.paletteId) }),
       rgb: Array.isArray(color?.rgb)
         ? [Number(color.rgb[0]), Number(color.rgb[1]), Number(color.rgb[2])]
         : [Number(color?.rgb?.[0]), Number(color?.rgb?.[1]), Number(color?.rgb?.[2])],
@@ -158,14 +160,14 @@ export function normalizeGenerationCell(cell) {
   const code = cell.code ?? cell.paletteId ?? null;
   if (code == null || String(code) === "") return null;
   const rgb = toRgbArray(cell.rgb);
-  return { code: String(code), rgb, hex: cell.hex ? String(cell.hex) : rgbToHex(rgb) };
+  return { code: String(code), ...(cell.paletteId == null ? {} : { paletteId: String(cell.paletteId) }), rgb, hex: cell.hex ? String(cell.hex) : rgbToHex(rgb) };
 }
 
 export function createGenerationResult(input = {}) {
   const { requestId, grid = [], width, height, diagnostics = null, pipeline = null, milliseconds = 0 } = input;
   const normalizedGrid = grid.map((row) => row.map(normalizeGenerationCell));
   const usedColors = new Set();
-  for (const row of normalizedGrid) for (const cell of row) if (cell) usedColors.add(cell.code);
+  for (const row of normalizedGrid) for (const cell of row) if (cell) usedColors.add(cell.paletteId ?? cell.code);
   return Object.freeze({
     version: GENERATION_CONTRACT_VERSION,
     ok: true,
