@@ -1,0 +1,50 @@
+{
+  "name": "shilibai-bead-studio-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "时里白造物拼豆图纸工作台 Windows 本地版",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "latest",
+    "electron-builder": "latest"
+  },
+  "build": {
+    "appId": "com.shilibai.beadstudio",
+    "productName": "时里白拼豆图纸工作台",
+    "asar": true,
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "package.json"
+    ],
+    "extraResources": [
+      { "from": "../index.html", "to": "web/index.html" },
+      { "from": "../app.js", "to": "web/app.js" },
+      { "from": "../worker.js", "to": "web/worker.js" },
+      { "from": "../styles.css", "to": "web/styles.css" },
+      { "from": "../security-canvas.js", "to": "web/security-canvas.js" },
+      { "from": "../denoise-integration.js", "to": "web/denoise-integration.js" },
+      { "from": "../favicon-rounded.png", "to": "web/favicon-rounded.png" },
+      { "from": "../assets", "to": "web/assets" }
+    ],
+    "win": {
+      "icon": "../favicon-rounded.png",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "artifactName": "Shilibai-Bead-Studio-${version}-${arch}-${target}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "时里白拼豆图纸工作台"
+    }
+  }
+}
