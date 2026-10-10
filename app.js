@@ -1002,7 +1002,7 @@ async function loadWorkspaceOnce() {
   if (workspaceMounted) return workspaceController;
   if (!workspaceLoadPromise) {
     setWorkspaceLoading("正在打开工作台…");
-workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261010-editor-r44"), ensureGenerationRuntime()])
+workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261010-editor-r45"), ensureGenerationRuntime()])
       .then(([{ bootstrapWorkspace }]) => {
         workspaceLoaded = true;
         initializeWorkspaceRuntime();
@@ -8381,9 +8381,11 @@ window.LibmsWorkspaceBridge = {
       ...(state.grid.some((row) => row.some((color) => color?.paletteId)) ? { gridPaletteIds: state.grid.map((row) => row.map((color) => color?.paletteId || null)) } : {}),
     };
   },
-  downloadProjectJson() {
+  downloadProjectJson(projectName) {
     const payload = this.buildProjectJson();
-    downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), `${payload.projectName}-project.json`);
+    payload.projectName = String(projectName ?? payload.projectName).trim() || "未命名作品";
+    const filename = payload.projectName.replace(/[\\/:*?"<>|\u0000-\u001F]/g, "-").replace(/[. ]+$/g, "") || "未命名作品";
+    downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), `${filename}.json`);
     setStatus("已保存工程文件");
     return payload;
   },

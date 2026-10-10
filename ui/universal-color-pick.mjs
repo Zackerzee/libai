@@ -8,7 +8,8 @@ export function attachUniversalColorPick(root, { pick, delay = 800, schedule = s
     const node = swatch(event.target);
     if (!node || node === pending || node.contains?.(event.relatedTarget)) return;
     clear();
-    if (node.closest('#ws-canvas-area')) return;
+    // Diagnostic swatches describe the issue/suggestion; hovering must not overwrite a repair colour.
+    if (node.closest('#ws-canvas-area') || node.closest('[data-ws-inspector="check"]')) return;
     pending = node;
     timer = schedule(() => {
       timer = null; pending = null;

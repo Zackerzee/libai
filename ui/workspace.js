@@ -4,7 +4,7 @@ import { createGenerationService } from "../services/generation-service.js?v=202
 import { createPaletteService } from "../services/palette-service.js";
 import { attachPaletteBrandCards, paletteKitLabel } from './palette-brand-cards.mjs?v=20261009-compact-r28';
 import { previewEditorColorReduction } from '../services/editor-color-reduction.mjs?v=20261008-selection-popover-r24';
-import { createExportService } from "../services/export-service.js?v=20260917-batchA";
+import { createExportService } from "../services/export-service.js?v=20261010-editor-r45";
 import { createEditorService } from "../services/editor-service.js?v=20261006-region-all";
 import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260929-editor-phase3";
 import { createCanvasRenderer, resolveDiagnosticOverlayIssues } from "./canvas-renderer.js?v=20261010-editor-r42";
@@ -52,7 +52,7 @@ import { createSurfaceManager } from './surface-manager.js';
 import { createCellColorPopover } from "./cell-color-popover.js?v=20261010-editor-r42";
 import { attachUsageWheel } from './usage-wheel.mjs?v=20261008-selection-popover-r24';
 import { colorLabelInk as swatchInk } from './color-label.mjs';
-import { attachUniversalColorPick } from './universal-color-pick.mjs?v=20261010-editor-r42';
+import { attachUniversalColorPick } from './universal-color-pick.mjs?v=20261010-editor-r45';
 import { canvasWheelZoomFactor } from './canvas-wheel-zoom.mjs?v=20261007-export-unified';
 import { buildColorRecommendationGroups } from "../services/color-recommendations.mjs?v=20261006-compact-colors";
 // Stage B4 P0：长边权威。**query string 必须与 app.js 里那一处逐字一致** ——
@@ -664,7 +664,7 @@ export function mountWorkspace(bridge) {
     repairPreview = null;
     syncLegacy(event.detail);
     const selected = get().editor.selectedCell;
-    if (selected) {
+    if (selected && !inspectionState.active) {
       const inspected = editorService.inspectCell(selected.x, selected.y);
       const paletteId = inspected?.paletteId || null;
       // 点到空格时**不要**把当前颜色清掉 —— 保留选色，只让高亮跟着走。
@@ -937,7 +937,7 @@ export function mountWorkspace(bridge) {
   $("#ws-source-open").addEventListener("click", () => store.setState({ ui: { activePanel: "source" } }));
   $("#ws-new-blank").addEventListener("click", () => document.querySelector("#blank-board-modal")?.showModal());
   $("#ws-import-pattern").addEventListener("click", () => document.querySelector("#direct-pattern-file-input")?.click());
-  $("#ws-save-project").addEventListener("click", () => { if (get().status.hasPattern) bridge.downloadProjectJson(); });
+  $("#ws-save-project").addEventListener("click", () => { if (get().status.hasPattern) bridge.downloadProjectJson(get().project.name); });
   const railPreferenceKey = "libms.workspace.toolRail.collapsed";
   const setRailCollapsed = (collapsed) => {
     left.classList.toggle("is-collapsed", collapsed);
@@ -1265,7 +1265,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     if (tool === "eyedropper" && cell) {
       // §7：吸管只读格子的颜色身份（paletteIdOf → cell.code），**绝不按 RGB 反猜**。
       const color = editorService.getCell(cell.x, cell.y); if (color) { activateColor(paletteIdOf(color),false); syncPickedReplacementTarget(color); }
-      store.setState({ editor: { ...(!get().editor.selection?{selectedCell:cell}:{}), ...(selectedTool === "eyedropper" && !get().editor.selection ? {tool:"brush"} : {}) }, ui: { activePanel: "edit" } }); return;
+      store.setState({ editor: { ...(!get().editor.selection?{selectedCell:cell}:{}), ...(selectedTool === "eyedropper" && !get().editor.selection ? {tool:"brush"} : {}) }, ...(!inspectionState.active ? { ui: { activePanel: "edit" } } : {}) }); return;
     }
     if (tool === "bead" && cell) {
       const selected = currentPaletteId();
@@ -2146,7 +2146,8 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     const issue = currentInspectionIssue(inspectionState);
     if (!inspectionState.active || !issue) return;
     const cell = issue.cells[inspectionState.cellIndex] || issue.cells[0] || null;
-    inspectPalette(issue.paletteId, cell);
+    // 巡检只定位问题，不覆盖用户的修复画笔色，也不离开检查面板。
+    store.setState({ editor: { ...buildHighlightOnlyPatch(issue.paletteId), selectedCell: cell } });
     if (cell) viewport.focusCell(cell.x, cell.y, { preserveZoom: true, margin: .15 });
   };
   const updateInspection = (next) => {
@@ -2550,7 +2551,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
       // Leaving selection for a drawing tool explicitly releases its old mask.
       // Eyedropper keeps an intentional selection so it can supply a replacement target.
       const releaseSelection = ["bead", "brush", "eraser", "fill", "line", "rect", "ellipse", "text"].includes(tool);
-      store.setState({ editor: { tool, ...(releaseSelection ? { selection: null, selectedCell: null, shapePreview: null } : {}) }, ui: { activePanel: tool === "source-eyedropper" ? "source" : tool === "replace" ? "color" : "edit" },...(get().view.mode==='blocks'&&EDIT_OVERLAY_TOOLS.includes(tool)?{view:{mode:'pattern'}}:{}) });
+      store.setState({ editor: { tool, ...(releaseSelection ? { selection: null, selectedCell: null, shapePreview: null } : {}) }, ui: { activePanel: tool === "source-eyedropper" ? "source" : tool === "replace" ? "color" : inspectionState.active ? get().ui.activePanel : "edit" },...(get().view.mode==='blocks'&&EDIT_OVERLAY_TOOLS.includes(tool)?{view:{mode:'pattern'}}:{}) });
     },
     onBrushSizeChange: (size) => store.setState({ editor: { brushSize: size } }),
     onShapeFilledChange: (filled) => store.setState({ editor: { shapeFilled: filled } }),
