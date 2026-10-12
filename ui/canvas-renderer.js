@@ -10,7 +10,7 @@ export function selectionBoundaryEdges(selection,x,y){
   return [[0,-1,[x,y,x+1,y]],[1,0,[x+1,y,x+1,y+1]],[0,1,[x,y+1,x+1,y+1]],[-1,0,[x,y,x,y+1]]].filter(([dx,dy])=>!selectionContains(selection,x+dx,y+dy)).map(([, ,edge])=>edge);
 }
 import { symmetryBrushCells } from "../services/symmetry-service.js";
-import { referenceLayout } from "../services/reference-layer-service.js";
+import { referenceLayout, referenceBlend } from "../services/reference-layer-service.js?v=20261012-reference-upload-r47";
 import { currentInspectionIssue } from "../services/inspection-service.js";
 
 // Diagnostics are not a selection: ordinary editing must not draw every issue.
@@ -66,7 +66,7 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
     return { width, height, dpr };
   };
   const context = (canvas, dpr, width, height) => {
-    const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height); return ctx;
+    const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.globalAlpha = 1; ctx.clearRect(0, 0, width, height); return ctx;
   };
   const sourceImage = (url) => {
     if (url === sourceUrl) return;
@@ -81,11 +81,9 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
     const image = new Image(); image.onload = () => { if (referenceUrl === url) { reference = image; requestDraw(); } }; image.src = url;
     return null;
   };
-  const drawReference = (ctx, settings, box) => {
-    const image = referenceImage(settings.url || "");
-    if (!image) return;
+  const drawReference = (ctx, settings, box, image, opacity) => {
     ctx.save();
-    ctx.globalAlpha = Math.min(1, Math.max(0, (Number(settings.opacity) || 0) / 100));
+    ctx.globalAlpha = opacity;
     ctx.imageSmoothingEnabled=settings.smoothing!=="pixelated";
     ctx.beginPath();ctx.rect(box.x,box.y,box.width,box.height);ctx.clip();
     const layout=referenceLayout(image.naturalWidth,image.naturalHeight,box,settings);if(layout)ctx.drawImage(image,layout.x,layout.y,layout.width,layout.height);
@@ -112,10 +110,17 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
       if(view.showCoordinates)drawCoordinateRulers(ctx[L.grid],viewport,{...b,gridWidth,gridHeight,cell,interval:view.majorGridInterval,x0:Math.max(0,Math.floor(-o.x/cell)),x1:Math.min(gridWidth,Math.ceil((b.width-o.x)/cell)),y0:Math.max(0,Math.floor(-o.y/cell)),y1:Math.min(gridHeight,Math.ceil((b.height-o.y)/cell))});
       return;
     }
+    const referenceReady = ref?.displayMode !== 'grid-only' && ref?.visible !== false && ref?.url ? referenceImage(ref.url) : null;
+    const blend = referenceBlend(ref, Boolean(referenceReady?.naturalWidth && referenceReady?.naturalHeight));
+    // The lower image stays opaque: fading the upper artwork supplies the
+    // reference's blend weight. Fading both layers would wash out the image.
+    if (blend.reference > 0) drawReference(ctx[L.reference], ref, { x: o.x, y: o.y, width: gridWidth * cell, height: gridHeight * cell, cell }, referenceReady, 1);
+    if (ref?.displayMode === 'reference-only' && blend.artwork === 0) return;
+    ctx[L.codes].globalAlpha = blend.artwork;
     // Final-grid image preview is independent of editing/inspection overlays.
     if (view.mode === "blocks") {
       const base = ctx[L.base];
-      base.globalAlpha = 1;
+      base.globalAlpha = blend.artwork;
       const left = Math.max(0, Math.floor(-o.x / cell)), right = Math.min(gridWidth, Math.ceil((b.width - o.x) / cell));
       const top = Math.max(0, Math.floor(-o.y / cell)), bottom = Math.min(gridHeight, Math.ceil((b.height - o.y) / cell));
       for (let y = top; y < bottom; y++) for (let x = left; x < right; x++) {
@@ -127,10 +132,6 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
       if(view.showCoordinates)drawCoordinateRulers(ctx[L.grid],viewport,{...b,gridWidth,gridHeight,cell,interval:view.majorGridInterval,x0:left,x1:right,y0:top,y1:bottom});
       return;
     }
-    if (ref?.displayMode!=="grid-only"&&ref?.visible !== false && ref?.url) {
-      drawReference(ctx[L.reference], ref, { x: o.x, y: o.y, width: gridWidth * cell, height: gridHeight * cell, cell });
-    }
-    if(ref?.displayMode==="reference-only"&&ref?.visible!==false&&ref?.url)return;
     const x0 = Math.max(0, Math.floor(-o.x / cell)), x1 = Math.min(gridWidth, Math.ceil((b.width - o.x) / cell));
     const y0 = Math.max(0, Math.floor(-o.y / cell)), y1 = Math.min(gridHeight, Math.ceil((b.height - o.y) / cell));
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
@@ -140,13 +141,13 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
       if (color) {
         const hex = color.hex || `rgb(${color.rgb.join(",")})`;
         const highlighted = editor.highlightedPaletteId || editor.highlightedColor;
-        ctx[L.base].globalAlpha = highlighted && paletteIdOf(color) !== highlighted ? 0.2 : 1;
+        ctx[L.base].globalAlpha = blend.artwork * (highlighted && paletteIdOf(color) !== highlighted ? 0.2 : 1);
         ctx[L.base].fillStyle = hex;
         if (view.mode === "beads") {
           ctx[L.base].beginPath(); ctx[L.base].arc(sx + cell / 2, sy + cell / 2, cell * 0.43, 0, Math.PI * 2); ctx[L.base].fill();
           if (cell >= 14) { ctx[L.base].globalAlpha *= 0.14; ctx[L.base].fillStyle = "#ffffff"; ctx[L.base].beginPath(); ctx[L.base].arc(sx + cell * 0.40, sy + cell * 0.37, cell * 0.15, 0, Math.PI * 2); ctx[L.base].fill(); }
         } else ctx[L.base].fillRect(sx, sy, Math.ceil(cell + 0.25), Math.ceil(cell + 0.25));
-      } else if (cell >= 12) { ctx[L.base].fillStyle = "rgba(226,235,240,.28)"; ctx[L.base].fillRect(sx + 2, sy + 2, cell - 4, cell - 4); }
+      } else if (cell >= 12) { ctx[L.base].globalAlpha = blend.artwork; ctx[L.base].fillStyle = "rgba(226,235,240,.28)"; ctx[L.base].fillRect(sx + 2, sy + 2, cell - 4, cell - 4); }
       ctx[L.base].globalAlpha = 1;
       if (displayPolicy.showGrid) {
         ctx[L.grid].strokeStyle = gridGuideInk(view.mode==='beads'?null:color,background); ctx[L.grid].lineWidth = .75 / b.dpr;

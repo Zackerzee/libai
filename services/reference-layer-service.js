@@ -6,3 +6,10 @@ export function referenceLayout(imageWidth,imageHeight,box,{fit="contain",offset
 }
 
 export function moveReference(reference,dxScreen,dyScreen,cellSize){return {...reference,offsetX:(Number(reference.offsetX)||0)+dxScreen/cellSize,offsetY:(Number(reference.offsetY)||0)+dyScreen/cellSize};}
+
+export function referenceBlend(settings, ready) {
+  if (!ready || settings?.visible === false || settings?.displayMode === 'grid-only' || !settings?.url) return { reference: 0, artwork: 1 };
+  if (settings.displayMode === 'reference-only') return { reference: 1, artwork: 0 };
+  const opacity = Math.min(1, Math.max(0, (Number(settings.opacity) || 0) / 100));
+  return { reference: opacity, artwork: 1 - opacity };
+}

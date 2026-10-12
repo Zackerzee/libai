@@ -874,6 +874,8 @@ function rgbToHex(rgbValue) {
 }
 
 let workspaceLoadPromise = null;
+let workspaceModulesPromise = null;
+let uploadSafetyAssetsPreloaded = false;
 let workspaceLoaded = false;
 let workspaceMounted = false;
 let workspaceController = null;
@@ -998,11 +1000,31 @@ function initializeWorkspaceRuntime() {
   updateResultUi();
 }
 
+function prepareImageUploadRuntime() {
+  if (!uploadSafetyAssetsPreloaded) {
+    uploadSafetyAssetsPreloaded = true;
+    [TFJS_SCRIPT_URL, NSFWJS_MODEL_URL, NSFWJS_WEIGHTS_URL, NSFWJS_SCRIPT_URL].forEach((src) => {
+      const preload = document.createElement("link");
+      preload.rel = "preload";
+      preload.as = "script";
+      preload.href = src;
+      preload.crossOrigin = "anonymous";
+      document.head.append(preload);
+    });
+  }
+  if (!workspaceModulesPromise) {
+    workspaceModulesPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261012-reference-upload-r47"), ensureGenerationRuntime()]);
+    workspaceModulesPromise.catch(() => { workspaceModulesPromise = null; });
+  }
+  void loadLocalSafetyModel();
+  return workspaceModulesPromise;
+}
+
 async function loadWorkspaceOnce() {
   if (workspaceMounted) return workspaceController;
   if (!workspaceLoadPromise) {
     setWorkspaceLoading("正在打开工作台…");
-workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261012-reference-toggle-r46"), ensureGenerationRuntime()])
+workspaceLoadPromise = (workspaceModulesPromise || Promise.all([import("./ui/workspace-bootstrap.js?v=20261012-reference-upload-r47"), ensureGenerationRuntime()]))
       .then(([{ bootstrapWorkspace }]) => {
         workspaceLoaded = true;
         initializeWorkspaceRuntime();
@@ -1234,11 +1256,13 @@ function bindLandingCreationEvents() {
   });
   els.fileInput?.addEventListener("cancel", () => { state.importApproved = false; });
   els.uploadZone?.addEventListener("click", (event) => {
+    prepareImageUploadRuntime();
     event.preventDefault(); state.importMode = "photo"; state.autoProcessAfterLoad = true;
     state.restoreAutoSizePending = false; els.fileInput.value = ""; els.fileInput.click();
   });
   els.uploadZone?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
+    prepareImageUploadRuntime();
     event.preventDefault(); state.importMode = "photo"; state.autoProcessAfterLoad = true; els.fileInput.click();
   });
   ["dragenter", "dragover"].forEach((name) => els.uploadZone?.addEventListener(name, (event) => {
@@ -1775,6 +1799,7 @@ function updateInviteUi() {
 }
 
 function startManualImport() {
+  prepareImageUploadRuntime();
   state.importMode = "photo";
   state.autoProcessAfterLoad = false;
   state.restoreAutoSizePending = false;
@@ -1789,6 +1814,7 @@ function startManualImport() {
 }
 
 function startPhotoImport() {
+  prepareImageUploadRuntime();
   state.importMode = "photo";
   state.autoProcessAfterLoad = true;
   state.restoreAutoSizePending = false;
@@ -1802,6 +1828,7 @@ function startPhotoImport() {
 }
 
 function startRestoreImport() {
+  prepareImageUploadRuntime();
   state.importMode = "restore";
   state.autoProcessAfterLoad = true;
   state.restoreAutoSizePending = true;
@@ -2015,6 +2042,7 @@ async function loadFile(file) {
     els.processButton.disabled = true;
     const prepared = await prepareLocalImage(file);
     setStatus("本地审查中");
+    setWorkspaceLoading("正在本地检查图片，首次准备可能需要稍等…");
     const safety = await runLocalContentSafetyCheck(prepared.dataUrl);
     if (!safety.allowed) {
       state.sourceDataUrl = "";
@@ -2086,6 +2114,7 @@ async function loadFile(file) {
     state.restoreAutoSizePending = false;
     setStatus("读取失败");
   } finally {
+    document.querySelector("#workspace-entry-status")?.remove();
     els.processButton.disabled = !state.sourceDataUrl;
   }
 }

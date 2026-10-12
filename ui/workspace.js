@@ -7,7 +7,7 @@ import { previewEditorColorReduction } from '../services/editor-color-reduction.
 import { createExportService } from "../services/export-service.js?v=20261010-editor-r45";
 import { createEditorService } from "../services/editor-service.js?v=20261006-region-all";
 import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260929-editor-phase3";
-import { createCanvasRenderer, resolveDiagnosticOverlayIssues } from "./canvas-renderer.js?v=20261010-editor-r42";
+import { createCanvasRenderer, resolveDiagnosticOverlayIssues } from "./canvas-renderer.js?v=20261012-reference-upload-r47";
 import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20261008-qa-fixes-r25";
 import { combineSelections } from "../services/selection-combine.mjs?v=20261007-layout";
 import { lassoSelection } from "../services/lasso-selection.mjs?v=20261007-paint-r14";
@@ -23,7 +23,8 @@ import { createInspectionState, currentInspectionIssue, setInspectionIssues, sta
 import { TextPanel } from "./text-panel.js?v=20261010-editor-r42";
 import { createTextLayer, rasterizeTextCached, layerContainsCell, cellsBox } from "../services/text-layer-service.js?v=20261001-stage-a";
 import { createInventoryService } from "../services/inventory-service.js?v=20260917-inventory";
-import { moveReference } from "../services/reference-layer-service.js";
+import { moveReference } from "../services/reference-layer-service.js?v=20261012-reference-upload-r47";
+import { imagePointAt, referencePointAt } from "../services/reference-color-pick.mjs";
 import { buildRamp, createPaletteMetricCache } from "../services/color-ramp-service.js";
 import { createOcrService } from "../services/ocr-service.js?v=20260917-inventory";
 import { createLegendRecognitionService } from "../services/legend-recognition-service.js?v=20260917-inventory";
@@ -1065,11 +1066,11 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
   };
   const sourceNorm = (event) => { if (!sourceLayout) return null; const p=point(event);
     return {x:clamp((p.x-sourceLayout.x)/sourceLayout.width,0,1),y:clamp((p.y-sourceLayout.y)/sourceLayout.height,0,1)}; };
-  const sampleOriginalSource = (norm) => {
-    if (!sourceImage || !norm) return;
-    const x=Math.min(sourceImage.naturalWidth-1,Math.floor(norm.x*sourceImage.naturalWidth)),y=Math.min(sourceImage.naturalHeight-1,Math.floor(norm.y*sourceImage.naturalHeight));
+  const sampleOriginalSource = (norm, image = sourceImage) => {
+    if (!image || !norm) return;
+    const x=Math.min(image.naturalWidth-1,Math.floor(norm.x*image.naturalWidth)),y=Math.min(image.naturalHeight-1,Math.floor(norm.y*image.naturalHeight));
     const sample=document.createElement("canvas");sample.width=1;sample.height=1;
-    const ctx=sample.getContext("2d",{willReadFrequently:true});ctx.drawImage(sourceImage,x,y,1,1,0,0,1,1);
+    const ctx=sample.getContext("2d",{willReadFrequently:true});ctx.drawImage(image,x,y,1,1,0,0,1,1);
     const rgba=[...ctx.getImageData(0,0,1,1).data];
     if (rgba[3] === 0) return null;
     const rgb=rgba.slice(0,3);
@@ -1112,16 +1113,53 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     const p = point(event), cell = viewport.screenToGrid(p.x, p.y);
     return cell ? editorService.getCell(cell.x, cell.y) : null;
   };
-  well.addEventListener('contextmenu', event => {
+  let pickImageUrl = '', pickImagePromise = null;
+  const preparePickImage = url => {
+    if (!url) return Promise.resolve(null);
+    if (url !== pickImageUrl) {
+      pickImageUrl = url;
+      pickImagePromise = new Promise(resolve => {
+        const image = new Image(); image.onload = () => resolve(image); image.onerror = () => resolve(null); image.src = url;
+      });
+    }
+    return pickImagePromise;
+  };
+  const originalPickContext = event => {
+    if (get().ui.activePanel === 'source' || buildActive() || previewMirror() !== 'none') return null;
+    const result = bridge.getResult(), reference = effectiveReference(), original = get().view.mode === 'original';
+    const url = original ? result.sourceUrl : reference.visible !== false && reference.displayMode !== 'grid-only' ? reference.url : '';
+    if (!url || !result.grid?.length) return null;
+    const cell = BASE_CELL * get().view.zoom, origin = viewport.origin();
+    const board = { x: origin.x, y: origin.y, width: result.width * cell, height: result.height * cell, cell };
+    const screen = point(event);
+    if (!imagePointAt(screen, board)) return null;
+    return { url, original, reference: { ...reference }, board, screen, revision: gridRevision };
+  };
+  well.addEventListener('contextmenu', async event => {
     if (event.target.closest('button,input,select,.ws-cell-color-popover')) return;
+    const originalContext = event.shiftKey || get().view.mode === 'original' ? originalPickContext(event) : null;
     const norm = sourcePickPoint(event), color = canvasPickColor(event);
+    if (originalContext) {
+      event.preventDefault();
+      const image = await preparePickImage(originalContext.url);
+      const currentUrl = originalContext.original ? bridge.getResult().sourceUrl : effectiveReference().url;
+      if (!image || currentUrl !== originalContext.url || gridRevision !== originalContext.revision || previewMirror() !== 'none') return;
+      const imagePoint = originalContext.original ? imagePointAt(originalContext.screen, originalContext.board)
+        : referencePointAt(originalContext.screen, image.naturalWidth, image.naturalHeight, originalContext.board, originalContext.reference);
+      const matched = sampleOriginalSource(imagePoint, image);
+      if (matched?.nearest) pickCurrentColor(matched.nearest);
+      return;
+    }
+    if (event.shiftKey && !norm) return;
     if (!norm && !color) return;
     event.preventDefault();
     if (norm) { const matched = sampleOriginalSource(norm); if (matched?.nearest) pickCurrentColor(matched.nearest); }
     else pickCurrentColor(paletteIdOf(color));
   });
   well.addEventListener('pointermove', event => {
-    well.classList.toggle('ws-color-pickable', !event.target.closest('button,input,select,.ws-cell-color-popover') && Boolean(sourcePickPoint(event) || canvasPickColor(event)));
+    const originalContext = event.shiftKey || get().view.mode === 'original' ? originalPickContext(event) : null;
+    if (originalContext) void preparePickImage(originalContext.url);
+    well.classList.toggle('ws-color-pickable', !event.target.closest('button,input,select,.ws-cell-color-popover') && Boolean(originalContext || sourcePickPoint(event) || !event.shiftKey && canvasPickColor(event)));
   });
   well.addEventListener('pointerleave', () => well.classList.remove('ws-color-pickable'));
   let drag = null, spaceDown = false;
@@ -1197,7 +1235,10 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
   let lastSelectionTap=null;
   const onCanvasDown = (event) => {
     // Right-click is handled on contextmenu; it must not close selections or start paint.
-    if (event.button === 2) return;
+    if (event.button === 2) {
+      if (event.shiftKey && (originalPickContext(event) || sourcePickPoint(event))) event.preventDefault();
+      return;
+    }
     cellColorPopover.close();
     if(buildActive()){if(event.button===0||event.button===1){captureCanvasPointer(event.pointerId);drag={type:"pan",x:event.clientX,y:event.clientY,panX:get().view.panX,panY:get().view.panY};}return;}
     if (get().ui.activePanel === "source") { const norm=sourceNorm(event); if (!norm || !sourceImage || !sourceLayout || event.button !== 0) return;
@@ -2402,6 +2443,8 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
   });
 
   const referenceInput = $("#ws-ref-file");
+  $("#ws-ref-visible").closest('label').title = '直接使用上传原图；Shift + 右键原图/参考图取色，普通右键取作品色。';
+  $("#ws-ref-opacity").title = '参考图越清晰，作品越淡；100% 显示参考图，0% 显示作品。';
   const syncReferenceUi = (state = get()) => {
     // Hidden by default is not unavailable: the current source can be enabled
     // explicitly even when no separate reference image has been uploaded.
