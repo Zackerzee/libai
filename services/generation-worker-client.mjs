@@ -22,7 +22,12 @@
  * 纯逻辑、可注入 WorkerCtor —— node --test 里用假 Worker 直接验证取消与陈旧语义。
  */
 
-import { decodeGenerationResult, isEncodedGenerationResult } from "./generation-result-codec.mjs";
+import { decodeGenerationResult, decodeSmartToleranceCaptureResult, isEncodedGenerationResult } from "./generation-result-codec.mjs";
+
+function decodeLegacyResult(envelope) {
+  const decoded = decodeGenerationResult(envelope);
+  return decoded;
+}
 
 /** 取消导致的失败。调用方据此区分「失败」与「用户主动取消」。 */
 export class GenerationCancelledError extends Error {
@@ -89,7 +94,7 @@ export function createGenerationWorkerClient({
     if (!WorkerCtor) throw new Error("当前环境不支持 Web Worker");
     // type: "module" —— 本项目的生成链路全是 ESM，worker 也必须按模块加载。
     worker = new WorkerCtor(workerUrl, { type: "module" });
-    worker.onmessage = (event) => {
+    worker.onmessage = async (event) => {
       const message = event.data || {};
       const requestId = message.requestId == null ? null : Number(message.requestId);
 
@@ -123,7 +128,19 @@ export function createGenerationWorkerClient({
         // 建出同样数量的对象 —— 它长在**提交**上，不长在计算上。
         // 单独计时是为了让「Worker 没起作用」这个误判没有立足点。
         const tDecode = typeof performance !== "undefined" ? performance.now() : 0;
-        const decoded = decodeGenerationResult(envelope);
+        const decodingRequest = pending;
+        let decoded;
+        try {
+          decoded = envelope.smartCaptureCodec === 1
+            ? await decodeSmartToleranceCaptureResult(envelope, {
+              isCurrent: () => Boolean(decodingRequest) && pending === decodingRequest && latestRequestId === requestId,
+            })
+            : decodeLegacyResult(envelope);
+        } catch (error) {
+          if (pending === decodingRequest) settle("reject", error);
+          return;
+        }
+        if (pending !== decodingRequest) return;
         const decodeMs = typeof performance !== "undefined"
           ? Number((performance.now() - tDecode).toFixed(2))
           : null;

@@ -21,6 +21,7 @@
 
 import { executeGenerationJob } from "./generation-job.mjs";
 import { encodeGenerationResult } from "./generation-result-codec.mjs";
+import { encodeSmartToleranceCaptureResult } from "./generation-result-codec.mjs";
 
 const post = (payload, transfer = []) => {
   try {
@@ -49,7 +50,8 @@ self.onmessage = (event) => {
       return;
     }
 
-    const compact = encodeGenerationResult(envelope);
+    const compact = envelope.diagnostics?.smartToleranceBaselineCapture
+      ? encodeSmartToleranceCaptureResult(envelope) : encodeGenerationResult(envelope);
     // indices 的 buffer 是这一版结果独有的，可以安全转移。
     const transfer = compact.indices?.buffer ? [compact.indices.buffer] : [];
     post({ type: "result", requestId, envelope: compact }, transfer);

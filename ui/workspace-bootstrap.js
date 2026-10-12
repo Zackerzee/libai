@@ -1,4 +1,4 @@
-import { mountWorkspace } from "./workspace.js?v=20261012-reference-upload-r47";
+import { mountWorkspace } from "./workspace.js?v=20261012-smart-tolerance-r48";
 import { markLegacyUi } from "./legacy-ui-policy.js?v=20260928-v3";
 
 const ERROR_ID = "workspace-bootstrap-error";

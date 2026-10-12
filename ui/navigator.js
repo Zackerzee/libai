@@ -28,15 +28,44 @@ export function createNavigatorThumbnailCache(render) {
       return value;
     },
     invalidate() { key = null; value = null; },
+    peek(nextKey) { return nextKey === key ? value : null; },
+    install(nextKey, bitmap) { key = nextKey; value = bitmap; renderCount += 1; },
     get renderCount() { return renderCount; },
   };
 }
 
-export function Navigator({ host, getResult, getView, getViewportSize, getGridRevision = () => 0, onNavigate }) {
+export function* navigatorThumbnailSteps(result, layout, width, height, dpr, createCanvas = () => document.createElement("canvas"), chunkCells = 2048) {
+    const bitmap = createCanvas();
+    bitmap.width = Math.max(1, Math.round(width * dpr));
+    bitmap.height = Math.max(1, Math.round(height * dpr));
+    const ctx = bitmap.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = "#f7f8f6";
+    ctx.fillRect(layout.x, layout.y, layout.width, layout.height);
+    const pixel = Math.max(layout.scale, .7);
+    let cells = 0;
+    for (let y = 0; y < (result.grid || []).length; y += 1) {
+      const row = result.grid[y];
+      for (let x = 0; x < row.length; x += 1) {
+        const color = row[x];
+        if (color) {
+          ctx.fillStyle = color.hex || `rgb(${color.rgb.join(",")})`;
+          ctx.fillRect(layout.x + x * layout.scale, layout.y + y * layout.scale, pixel, pixel);
+        }
+        if (++cells % chunkCells === 0) yield;
+      }
+    }
+    ctx.strokeStyle = "rgba(33, 48, 58, .28)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(layout.x + .5, layout.y + .5, Math.max(0, layout.width - 1), Math.max(0, layout.height - 1));
+    return bitmap;
+}
+
+export function Navigator({ host, getResult, getView, getViewportSize, getGridRevision = () => 0, getCooperativeRevision = () => null, onNavigate }) {
   host.classList.add("ws-navigator");
   host.innerHTML = '<div class="ws-navigator-title">导航器</div><canvas aria-label="图纸导航缩略图"></canvas>';
   const canvas = host.querySelector("canvas");
-  let pending = false;
+  let pending = false, preparing = null, destroyed = false;
   const thumbnailCache = createNavigatorThumbnailCache((result, layout, width, height, dpr) => {
     const bitmap = document.createElement("canvas");
     bitmap.width = Math.max(1, Math.round(width * dpr));
@@ -64,14 +93,36 @@ export function Navigator({ host, getResult, getView, getViewportSize, getGridRe
     if (host.hidden) return;
     const width = canvas.clientWidth, height = canvas.clientHeight;
     const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+    const layout = navigatorLayout(result?.width, result?.height, width, height);
+    if (!layout) return;
+    const revision = getGridRevision();
+    const cacheKey = `${revision}:${result.width}x${result.height}:${Math.max(1, Math.round(width * dpr))}x${Math.max(1, Math.round(height * dpr))}`;
+    if (getCooperativeRevision() === revision && !thumbnailCache.peek(cacheKey)) {
+      if (preparing?.key === cacheKey && preparing.grid === result.grid) return;
+      const job = { key: cacheKey, grid: result.grid };
+      preparing = job;
+      const current = () => !destroyed && preparing === job && getGridRevision() === revision && getResult()?.grid === job.grid && getResult()?.width === result.width && getResult()?.height === result.height && canvas.clientWidth === width && canvas.clientHeight === height && Math.min(3, Math.max(1, window.devicePixelRatio || 1)) === dpr;
+      void (async () => {
+        const steps = navigatorThumbnailSteps(result, layout, width, height, dpr);
+        while (current()) {
+          const step = steps.next();
+          if (step.done) {
+            thumbnailCache.install(cacheKey, step.value);
+            preparing = null;
+            requestDraw();
+            return;
+          }
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+        if (preparing === job) preparing = null;
+      })();
+      return;
+    }
     canvas.width = Math.max(1, Math.round(width * dpr));
     canvas.height = Math.max(1, Math.round(height * dpr));
     const ctx = canvas.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
-    const layout = navigatorLayout(result?.width, result?.height, width, height);
-    if (!layout) return;
-    const cacheKey = `${getGridRevision()}:${result.width}x${result.height}:${canvas.width}x${canvas.height}`;
     const thumbnail = thumbnailCache.get(cacheKey, result, layout, width, height, dpr);
     ctx.drawImage(thumbnail, 0, 0, width, height);
     const size = getViewportSize();
@@ -99,5 +150,5 @@ export function Navigator({ host, getResult, getView, getViewportSize, getGridRe
   canvas.addEventListener("pointermove", (event) => { if (canvas.hasPointerCapture(event.pointerId)) { event.stopPropagation(); navigate(event); } });
   const observer = new ResizeObserver(requestDraw);
   observer.observe(canvas);
-  return { requestDraw, draw, invalidateThumbnail: () => thumbnailCache.invalidate(), get thumbnailRenderCount() { return thumbnailCache.renderCount; }, destroy: () => observer.disconnect() };
+  return { requestDraw, draw, invalidateThumbnail: () => { preparing = null; thumbnailCache.invalidate(); }, get thumbnailRenderCount() { return thumbnailCache.renderCount; }, destroy: () => { destroyed = true; preparing = null; observer.disconnect(); } };
 }

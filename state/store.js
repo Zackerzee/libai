@@ -71,6 +71,8 @@
       chartUrl: "",                   // state.chartUrl（预览渲染输出）
       previewUrl: "",                 // state.previewUrl
       paletteBudget: null,            // state.paletteBudget
+      smartToleranceReport: null,
+      smartToleranceBaselineRevision: null,
       patternAdjustBase: null,        // state.patternAdjustBase
       patternAdjustPreviewGrid: null, // state.patternAdjustPreviewGrid
       patternAdjustTarget: "editor",  // state.patternAdjustTarget
@@ -130,6 +132,7 @@
       autoBackground: false,          // projectStore.generation.autoBackground
       strokeProtection: false,        // projectStore.generation.strokeProtection
       accentProtection: false,        // projectStore.generation.accentProtection
+      smartColorTolerance: { enabled: false, strength: 0, policy: "quality-first" },
       // generation.brightness/contrast/saturation 与 sourceTransform 的同名字段
       // 是【不同阶段】的参数（算法调色 vs 源图预处理），故单独成桶，不合并。
       colorTuning: { brightness: 0, contrast: 0, saturation: 0 },
@@ -353,6 +356,9 @@
     pwReport: ["patternState", "pwReport"],
     optimizerReport: ["patternState", "optimizerReport"],
     smartReport: ["patternState", "smartReport"], // 生成诊断报告（app.js 运行时动态赋值）
+    smartToleranceReport: ["patternState", "smartToleranceReport"],
+    smartToleranceBaselineRevision: ["patternState", "smartToleranceBaselineRevision"],
+    smartColorTolerance: ["processingState", "smartColorTolerance"],
     structuralTransitionReport: ["patternState", "structuralTransitionReport"],
     structuralDetectionBaseline: ["patternState", "structuralDetectionBaseline"],
     regionalBlockReport: ["patternState", "regionalBlockReport"],

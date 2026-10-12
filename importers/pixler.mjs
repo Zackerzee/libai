@@ -23,6 +23,7 @@
  *     [.. )    RLE: (index: indexByteWidth LE)(count: uint32 LE) × runCount
  */
 
+import { decodeAppliedGrid, validateSmartToleranceMetadata } from '../services/applied-project-archive.mjs';
 const PIXLER_FORMAT = "pixler-project";
 const PATTERN_MAGIC = "PXLRPTN1";
 const SUPPORTED_CODEC_VERSIONS = new Set([1]);
@@ -303,6 +304,49 @@ function matchPaletteToBeads(palette, beads) {
 }
 
 // ===== 主入口 =====
+// Optional LIBMS sidecar is authoritative only after it agrees with every binary
+// cell. External Pixler readers may ignore it; their brand identity is not promised.
+function restoreIdentitySidecar(sidecar, pattern, work, settings, options) {
+  if (sidecar?.format !== "libms-pixler-identity" || sidecar.schemaVersion !== 1) throw new Error("不支持的 LIBMS Pixler identity sidecar");
+  const archive = sidecar.appliedGrid;
+  const grid = decodeAppliedGrid(archive);
+  if (archive.width !== pattern.columns || archive.height !== pattern.rows || pattern.palette.length !== archive.cells.length + 1) throw new Error("Pixler identity sidecar 尺寸/色板不一致");
+  if (!Array.isArray(sidecar.patternIndices) || sidecar.patternIndices.length !== pattern.cellCount || pattern.palette[0]?.[3] !== 0) throw new Error("Pixler identity sidecar 索引/空白不一致");
+  archive.cells.forEach((cell, index) => {
+    const rgba = pattern.palette[index + 1];
+    if (rgba[3] !== 255 || cell.rgb.some((value, channel) => value !== rgba[channel])) throw new Error("Pixler identity sidecar RGB 不一致");
+  });
+  for (let y = 0; y < pattern.rows; y += 1) for (let x = 0; x < pattern.columns; x += 1) {
+    const at = y * pattern.columns + x;
+    const expected = archive.rows[y][x] === null ? 0 : archive.rows[y][x] + 1;
+    if (pattern.cells[at] !== expected || sidecar.patternIndices[at] !== expected) throw new Error("Pixler identity sidecar 格子索引不一致");
+  }
+  const metadata = validateSmartToleranceMetadata(sidecar.metadata);
+  const usage = new Map();
+  let totalBeads = 0;
+  for (const row of grid) for (const cell of row) if (cell) {
+    totalBeads += 1;
+    const key = cell.paletteId || cell.code;
+    if (!usage.has(key)) usage.set(key, structuredClone(cell));
+  }
+  const project = {
+    format: "libms-project", version: 1, savedAt: new Date().toISOString(),
+    projectName: String(work?.meta?.title || options.fallbackName || "Pixler 作品").slice(0, 60),
+    canvas: { width: pattern.columns, height: pattern.rows },
+    palette: { key: metadata?.paletteKey || "pixler-import", label: "Pixler 导入", maxColors: usage.size || null },
+    stats: { usedColors: usage.size, totalBeads }, colors: [...usage.values()],
+    grid: grid.map(row => row.map(cell => cell?.code ?? null)), appliedGrid: archive,
+    ...(metadata ? { smartColorTolerance: metadata } : {}),
+  };
+  return { project, report: {
+    source: "pixler", title: project.projectName, columns: pattern.columns, rows: pattern.rows,
+    cellCount: pattern.cellCount, paletteCount: pattern.palette.length, runCount: pattern.runCount,
+    usedColors: usage.size, totalBeads, beadSource: "libms-identity-sidecar", algorithm: null,
+    catalog: null, beadMatchSynced: false, unresolvedCells: 0, externalIdentityGuarantee: false,
+    restoredSettings: { gridVisible: settings?.drawingSettings?.gridVisible === true },
+    pixlerOnlySettings: { majorGridEvery: settings?.drawingSettings?.majorGridEvery ?? null, colorCodeLabelMode: settings?.drawingSettings?.colorCodeLabelMode ?? null, legendSort: settings?.drawingSettings?.legendSort ?? null, displayMode: settings?.drawingSettings?.displayMode ?? null },
+  } };
+}
 
 export async function importPixlerProject(source, options = {}) {
   const bytes = await toBytes(source);
@@ -325,6 +369,7 @@ export async function importPixlerProject(source, options = {}) {
   }
 
   const pattern = decodePixlerPattern(decoded, patternMeta);
+  if (entries.has("libms-applied-grid.json")) return restoreIdentitySidecar(parseJsonEntry(entries, "libms-applied-grid.json"), pattern, work, settings, options);
   const beadTable = buildBeadTable(beadMatch);
 
   // 色号来源优先级：Pixler 自带的 bead 集合 > 调用方传入的当前色板 > 无（保留原色，无编号）

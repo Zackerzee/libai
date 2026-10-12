@@ -24,6 +24,66 @@ export const GENERATION_RESULT_CODEC_VERSION = 1;
 /** 空豆下标哨兵。与 grid 的 `null` 一一对应。 */
 export const GENERATION_NULL_INDEX = -1;
 
+// Capture-only transport retains complete cell metadata, including brand identity.
+// It is deliberately separate from the established production result codec.
+export function encodeSmartToleranceCaptureResult(result) {
+  const capture = result?.diagnostics?.smartToleranceBaselineCapture;
+  if (!capture) return encodeGenerationResult(result);
+  const height = capture.grid.length;
+  const width = capture.grid[0]?.length || 0;
+  const indices = new Int32Array(width * height);
+  const cells = [];
+  const byValue = new Map();
+  const byObject = new Map();
+  for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+    const cell = capture.grid[y][x];
+    let index = GENERATION_NULL_INDEX;
+    if (cell != null) {
+      index = byObject.get(cell);
+      if (index === undefined) {
+        const key = JSON.stringify(cell);
+        index = byValue.get(key);
+        if (index === undefined) { index = cells.length; cells.push(cell); byValue.set(key, index); }
+        byObject.set(cell, index);
+      }
+    }
+    indices[y * width + x] = index;
+  }
+  const { grid, ...evidence } = capture;
+  // Private capture calls consume only baseline evidence. Sending the ordinary
+  // per-cell diagnostic graphs forces a large synchronous event.data decode in
+  // the browser, even though this caller immediately discards those graphs.
+  // The non-capture codec above remains unchanged.
+  return { ok: result.ok, requestId: result.requestId, version: result.version,
+    grid: undefined, codec: GENERATION_RESULT_CODEC_VERSION,
+    width, height, palette: [], indices, smartCaptureCodec: 1, cells,
+    diagnostics: { smartToleranceBaselineCapture: evidence } };
+}
+
+export async function decodeSmartToleranceCaptureResult(compact, {
+  isCurrent = () => true,
+  yieldTask = () => new Promise((resolve) => setTimeout(resolve, 0)),
+  chunkCells = 2048,
+} = {}) {
+  const check = () => { if (!isCurrent()) { const error = new Error('Capture decode cancelled'); error.name = 'AbortError'; throw error; } };
+  const width = compact.width;
+  const height = compact.height;
+  const grid = Array.from({ length: height }, () => new Array(width));
+  const count = width * height;
+  for (let start = 0; start < count; start += chunkCells) {
+    check();
+    const end = Math.min(count, start + chunkCells);
+    for (let at = start; at < end; at += 1) {
+      const index = compact.indices[at];
+      grid[Math.floor(at / width)][at % width] = index < 0 ? null : structuredClone(compact.cells[index]);
+    }
+    if (end < count) await yieldTask();
+  }
+  check();
+  return { ...compact, grid: null, diagnostics: { ...compact.diagnostics,
+    smartToleranceBaselineCapture: { ...compact.diagnostics.smartToleranceBaselineCapture, grid } } };
+}
+
 const toRgbTriple = (rgb) => (Array.isArray(rgb)
   ? [Number(rgb[0]) || 0, Number(rgb[1]) || 0, Number(rgb[2]) || 0]
   : [Number(rgb?.[0]) || 0, Number(rgb?.[1]) || 0, Number(rgb?.[2]) || 0]);
@@ -54,12 +114,14 @@ export function encodeGenerationResult(result = {}) {
         continue;
       }
       const code = String(cell.code);
-      let index = indexByCode.get(code);
+      const identity = cell.paletteId == null ? code : String(cell.paletteId);
+      let index = indexByCode.get(identity);
       if (index === undefined) {
         index = palette.length;
-        indexByCode.set(code, index);
+        indexByCode.set(identity, index);
         palette.push(Object.freeze({
           code,
+          ...(cell.paletteId == null ? {} : { paletteId: String(cell.paletteId) }),
           rgb: Object.freeze(toRgbTriple(cell.rgb)),
           hex: cell.hex == null ? null : String(cell.hex),
         }));
@@ -103,7 +165,7 @@ export function decodeGenerationResult(compact = {}) {
       const index = indices ? Number(indices[y * width + x]) : GENERATION_NULL_INDEX;
       if (index < 0 || !palette[index]) { row[x] = null; continue; }
       const entry = palette[index];
-      row[x] = { code: entry.code, rgb: toRgbTriple(entry.rgb), hex: entry.hex };
+      row[x] = { code: entry.code, ...(entry.paletteId == null ? {} : { paletteId: String(entry.paletteId) }), rgb: toRgbTriple(entry.rgb), hex: entry.hex };
     }
     grid.push(row);
   }

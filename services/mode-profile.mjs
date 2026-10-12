@@ -320,6 +320,10 @@ export const ENGINE_PASSTHROUGH_KEYS = Object.freeze([
   "backgroundConfig",
   "strokeConfig",
   "accentConfig",
+  "smartColorTolerance",
+  "smartToleranceContext",
+  "smartToleranceCaptureBaseline",
+  "smartToleranceBaselineRevision",
 ]);
 
 /**

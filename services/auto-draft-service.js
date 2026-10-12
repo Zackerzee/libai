@@ -6,6 +6,9 @@
  * viewport and undo/redo commands) therefore never leaks into persistence.
  */
 
+import { encodeAppliedGrid, validateSmartToleranceMetadata } from "./applied-project-archive.mjs";
+import { validateAppliedCell } from "./applied-export-grid.mjs";
+
 export const AUTO_DRAFT_SCHEMA_VERSION = 1;
 export const AUTO_DRAFT_STORAGE_KEY = "current-project";
 
@@ -21,6 +24,14 @@ const positiveInteger = (value) => {
   const number = Math.round(Number(value));
   return Number.isFinite(number) && number > 0 ? number : 0;
 };
+
+function assertDraftCurrent(project) {
+  if (project.isCurrent && !project.isCurrent()) {
+    const error = new Error("A newer work revision superseded this draft");
+    error.name = "AbortError";
+    throw error;
+  }
+}
 
 function normalizeCell(cell) {
   if (cell == null) return null;
@@ -49,6 +60,10 @@ export function createAutoDraftRecord(project, { now = Date.now } = {}) {
   const paletteId = project.paletteId ?? project.palette?.id ?? project.palette?.key ?? null;
   const source = project.projectSource ?? project.source ?? { type: "unknown" };
   const metadata = project.metadata && typeof project.metadata === "object" ? clone(project.metadata) : {};
+  if (metadata.smartColorTolerance) {
+    metadata.smartColorTolerance = validateSmartToleranceMetadata(metadata.smartColorTolerance);
+    metadata.appliedGrid = encodeAppliedGrid(sourceGrid, width, height);
+  }
   return {
     key: AUTO_DRAFT_STORAGE_KEY,
     version: AUTO_DRAFT_SCHEMA_VERSION,
@@ -68,6 +83,7 @@ export function createAutoDraftRecord(project, { now = Date.now } = {}) {
 
 async function createAutoDraftRecordAsync(project, { now, yieldControl, rowsPerSlice }) {
   if (!project || typeof project !== "object") throw new TypeError("草稿工程不能为空");
+  assertDraftCurrent(project);
   const width = positiveInteger(project.width ?? project.canvas?.width);
   const height = positiveInteger(project.height ?? project.canvas?.height);
   const sourceGrid = project.grid ?? project.canonicalGrid;
@@ -75,15 +91,38 @@ async function createAutoDraftRecordAsync(project, { now, yieldControl, rowsPerS
     throw new TypeError("草稿画布尺寸或矩阵无效");
   }
   const grid = new Array(height);
+  // Full identities are archived only for confirmed Smart edits, and only in
+  // this deferred, cooperative persistence path (never in the Apply handler).
+  const smartMetadata = project.metadata?.smartColorTolerance
+    ? validateSmartToleranceMetadata(project.metadata.smartColorTolerance) : null;
+  const archive = smartMetadata ? { schemaVersion: 1, width, height, cells: [], rows: new Array(height) } : null;
+  const identities = new Map();
   for (let y = 0; y < height; y += 1) {
+    assertDraftCurrent(project);
     const row = sourceGrid[y];
     if (!Array.isArray(row) || row.length !== width) throw new TypeError("草稿矩阵宽高不一致");
     grid[y] = row.map(normalizeCell);
+    if (archive) archive.rows[y] = row.map((cell) => {
+      if (cell == null) return null;
+      validateAppliedCell(cell);
+      const key = JSON.stringify(cell);
+      if (!identities.has(key)) {
+        identities.set(key, archive.cells.length);
+        archive.cells.push(clone(cell));
+      }
+      return identities.get(key);
+    });
     if ((y + 1) % rowsPerSlice === 0 && y + 1 < height) await yieldControl();
   }
   const timestamp = new Date(now()).toISOString();
+  assertDraftCurrent(project);
   const title = String(project.projectTitle ?? project.projectName ?? project.title ?? "未命名作品").trim() || "未命名作品";
   const paletteId = project.paletteId ?? project.palette?.id ?? project.palette?.key ?? null;
+  const metadata = project.metadata && typeof project.metadata === "object" ? clone(project.metadata) : {};
+  if (archive) {
+    metadata.smartColorTolerance = smartMetadata;
+    metadata.appliedGrid = archive;
+  }
   return {
     key: AUTO_DRAFT_STORAGE_KEY,
     version: AUTO_DRAFT_SCHEMA_VERSION,
@@ -96,7 +135,7 @@ async function createAutoDraftRecordAsync(project, { now, yieldControl, rowsPerS
       grid,
       paletteId: paletteId == null ? null : String(paletteId),
       source: clone(project.projectSource ?? project.source ?? { type: "unknown" }),
-      metadata: project.metadata && typeof project.metadata === "object" ? clone(project.metadata) : {},
+      metadata,
     },
   };
 }
@@ -156,7 +195,7 @@ export function createAutoDraftService({
   const enqueue = (project) => {
     writeChain = writeChain.catch(() => undefined)
       .then(() => createAutoDraftRecordAsync(project, { now, yieldControl, rowsPerSlice: Math.max(1, rowsPerSlice) }))
-      .then(async (record) => { await backend.put(record); return clone(record); });
+      .then(async (record) => { assertDraftCurrent(project); await backend.put(record); return clone(record); });
     return writeChain;
   };
 

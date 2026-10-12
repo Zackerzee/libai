@@ -92,6 +92,8 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
   const draw = () => {
     scheduled = false;
     const startedAt = performance.now();
+    // Opt-in instrumentation adds no timer calls to the existing default render path.
+    const profileSmartTolerance = window.__libmsProfileSmartToleranceUi === true;
     const b = size(), result = getResult(), view = getView(), editor = getEditor(), ref = getReference();
     sourceImage(result?.sourceUrl || "");
     const ctx = layers.map((layer) => context(layer, b.dpr, b.width, b.height));
@@ -333,6 +335,11 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
     if (["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)) {
       document.body.dataset.canvasDrawMs = (performance.now() - startedAt).toFixed(2);
       document.body.dataset.canvasVisibleCells = String(Math.max(0, x1 - x0) * Math.max(0, y1 - y0));
+    }
+    if (profileSmartTolerance) {
+      const detail = { renderMs: performance.now() - startedAt };
+      window.dispatchEvent(new CustomEvent('libms:smart-tolerance-render', { detail }));
+      console.debug('[smart-color-tolerance-ui]', detail);
     }
   };
   let selectionAnimationTimer=null;

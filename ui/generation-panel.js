@@ -1,4 +1,5 @@
 import { GENERATION_MODE_PRESETS } from "../services/generation-pipeline.mjs";
+import { smartToleranceControlsMarkup } from "./smart-tolerance-controls.mjs";
 
 /**
  * Shiliba Studio
@@ -379,6 +380,8 @@ export class GenerationPanel {
         </label>
 
         <p class="sl-number-readout" id="ws-color-cap-readout">不限制</p>
+
+        ${smartToleranceControlsMarkup()}
 
         <div class="sl-info-box">
           <strong>关键细节不会只按使用数量删除</strong>

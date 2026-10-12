@@ -7,7 +7,7 @@ import { previewEditorColorReduction } from '../services/editor-color-reduction.
 import { createExportService } from "../services/export-service.js?v=20261010-editor-r45";
 import { createEditorService } from "../services/editor-service.js?v=20261006-region-all";
 import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260929-editor-phase3";
-import { createCanvasRenderer, resolveDiagnosticOverlayIssues } from "./canvas-renderer.js?v=20261012-reference-upload-r47";
+import { createCanvasRenderer, resolveDiagnosticOverlayIssues } from "./canvas-renderer.js?v=20261012-smart-tolerance-r48";
 import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20261008-qa-fixes-r25";
 import { combineSelections } from "../services/selection-combine.mjs?v=20261007-layout";
 import { lassoSelection } from "../services/lasso-selection.mjs?v=20261007-paint-r14";
@@ -23,7 +23,7 @@ import { createInspectionState, currentInspectionIssue, setInspectionIssues, sta
 import { TextPanel } from "./text-panel.js?v=20261010-editor-r42";
 import { createTextLayer, rasterizeTextCached, layerContainsCell, cellsBox } from "../services/text-layer-service.js?v=20261001-stage-a";
 import { createInventoryService } from "../services/inventory-service.js?v=20260917-inventory";
-import { moveReference } from "../services/reference-layer-service.js?v=20261012-reference-upload-r47";
+import { moveReference } from "../services/reference-layer-service.js?v=20261012-smart-tolerance-r48";
 import { imagePointAt, referencePointAt } from "../services/reference-color-pick.mjs";
 import { buildRamp, createPaletteMetricCache } from "../services/color-ramp-service.js";
 import { createOcrService } from "../services/ocr-service.js?v=20260917-inventory";
@@ -45,6 +45,12 @@ import { createExportV2Service } from "../services/export-v2-service.js?v=202610
 import { findExteriorBackground } from "../services/exterior-background-service.mjs?v=20261006-poster-transparent";
 import { resizeCanvasGrid, scalePatternNearest, createGridResizeCommand, clampSelectionToBounds, resizeCropInsets } from "../services/grid-resize-service.js?v=20261001-hotfix";
 import { createAutoDraftService } from "../services/auto-draft-service.js";
+import { bindSmartToleranceControls } from './smart-tolerance-controls.mjs';
+import { createSmartDiagnostics, emptySmartDiagnostics } from '../services/smart-tolerance-diagnostics.mjs';
+import * as appliedExportGrid from '../services/applied-export-grid.mjs';
+import * as appliedProjectArchive from '../services/applied-project-archive.mjs';
+window.LibmsAppliedExportGrid = appliedExportGrid;
+window.LibmsAppliedProjectArchive = appliedProjectArchive;
 import { touchPair, filterAndSortUsage, readEditorPreference, saveEditorPreference, textFrameControls, hitTextFrameControl, resizedTextScale } from "./editor-interaction.mjs?v=20261010-editor-r31";
 import { createProjectVersionService } from "../services/project-version-service.js";
 import { createEditorCommand, createStructureCommand, createCellCommand } from "../services/editor-command.js";
@@ -485,6 +491,8 @@ export function mountWorkspace(bridge) {
   $("#ws-ref-visible").checked=false;
   viewBar.querySelector('[data-ws-view="original"]')?.remove();
   const exportV2 = createExportV2Service({
+    getGridSnapshot: (type) => bridge.getAppliedExportGrid?.(type),
+    getMetadata: () => bridge.getAppliedExportMetadata?.() ?? {},
     getGrid: () => bridge.getResult().grid || [],
     getTitle: () => mirroredTitle(get().project.name, ['pattern','print'].includes(drawer.dataset.outputCurrent) ? $('#ws-export-mirror').value : 'none'),
     getPaletteLabel: () => bridge.getResult().paletteLabel || get().palette.id || "MARD 221",
@@ -586,6 +594,21 @@ export function mountWorkspace(bridge) {
   let gridRevision = 0;
   let inspectionState = createInspectionState();
   let structuralCache = { revision: -1, tinyMaxSize: -1, value: null };
+  let smartPublicationRevision = null;
+  let smartDiagnosticPending = false;
+  let smartInspectionResume = null;
+  let smartDiagnosticError = false;
+  const smartDiagnostics = createSmartDiagnostics({
+    onResult: (result) => {
+      structuralCache = result;
+      smartDiagnosticPending = false;
+      if (smartInspectionResume) inspectionState = smartInspectionResume;
+      smartInspectionResume = null;
+      paint(get());
+      if (inspectionState.active) activateInspectionCurrent();
+    },
+    onError: () => { smartDiagnosticPending = false; smartDiagnosticError = true; paint(get()); },
+  });
   let diagnosticOverlayIssues = [];
   let diagnosticOverlayVisible = false;
   const ignoredIssueKeys = new Set();
@@ -624,6 +647,7 @@ export function mountWorkspace(bridge) {
   window.addEventListener("libms:source-dimensions", () => { syncSizeUi(); });
   window.addEventListener("libms:source-transform-changed", () => { store.setState({ status: { dirty: true } }); });
   window.addEventListener("libms:project-result", (event) => { const first = !get().status.hasPattern;
+    smartDiagnostics.cancel(); smartPublicationRevision = null; smartDiagnosticPending = false; smartInspectionResume = null; smartDiagnosticError = false;
     editorService.invalidateUsageCounts();
     gridRevision += 1;
     repairPreview = null;
@@ -662,6 +686,14 @@ export function mountWorkspace(bridge) {
   window.addEventListener("libms:grid-edited", (event) => {
     editorService.invalidateUsageCounts();
     gridRevision += 1;
+    smartDiagnostics.cancel();
+    smartPublicationRevision = event.detail?.smartTolerancePublication ? gridRevision : null;
+    smartDiagnosticPending = false; smartDiagnosticError = false;
+    if (smartPublicationRevision !== null) {
+      smartInspectionResume = inspectionState;
+      inspectionState = createInspectionState();
+      diagnosticOverlayIssues = []; repairSuggestions = []; repairQueue = createRepairQueue([]);
+    } else smartInspectionResume = null;
     repairPreview = null;
     syncLegacy(event.detail);
     const selected = get().editor.selectedCell;
@@ -1017,13 +1049,20 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
   store.setState({ view: { showGrid: true } });
   const previewMirror=()=>drawer.classList.contains('open')&&['pattern','print'].includes(drawer.dataset.outputCurrent)?$('#ws-export-mirror').value:'none';
   let mirrorCache={};
-  const displayResult=()=>{const result=bridge.getResult(),mode=previewMirror();if(mode==='none')return result;if(mirrorCache.grid!==result.grid||mirrorCache.revision!==gridRevision||mirrorCache.mode!==mode)mirrorCache={grid:result.grid,revision:gridRevision,mode,result:{...result,grid:mirroredPreviewGrid(result.grid,mode)}};return mirrorCache.result;};
+  const displayResult=()=>{const result=bridge.getSmartTolerancePreviewResult?.()??bridge.getResult(),mode=previewMirror();if(mode==='none')return result;if(mirrorCache.grid!==result.grid||mirrorCache.revision!==gridRevision||mirrorCache.mode!==mode)mirrorCache={grid:result.grid,revision:gridRevision,mode,result:{...result,grid:mirroredPreviewGrid(result.grid,mode)}};return mirrorCache.result;};
   const renderer = createCanvasRenderer(layers, viewport, displayResult, () => ({...get().view,showMajorGrid,showCoordinates,majorGridInterval,...(previewMirror()!=='none'?{mode:'pattern'}:{})}), () => (previewMirror()!=='none'?{brushShape}:({...get().editor,brushShape,colorHoverPreview:cellColorPopover.getPreview(),previewSelectedCell:get().editor.selectedCell,...(cellColorPopover.isOpen()?{selectedCell:null}:{})})), () => previewMirror()==='none'?effectiveReference():{visible:false}, (code) => editorService.resolveColor(code), () => previewMirror()==='none'?resolveDiagnosticOverlayIssues({visible:diagnosticOverlayVisible,issues:diagnosticOverlayIssues,inspection:inspectionState}):[], () => previewMirror()==='none'?repairPreview:null);
   const syncMirrorHeading=()=>{const input=$('#ws-project-name');input.value=mirroredTitle(get().project.name,previewMirror());input.readOnly=previewMirror()!=='none';renderer.requestDraw();};
   new MutationObserver(syncMirrorHeading).observe(drawer,{attributes:true,attributeFilter:['class','data-output-current']});
   $('#ws-export-mirror').addEventListener('change',syncMirrorHeading);
   requestColorPreviewDraw=()=>renderer.requestDraw();
   const navigatorHost = document.createElement("aside");
+  const smartToleranceControls = bindSmartToleranceControls({ root: $('#generationPanel [data-smart-tolerance-controls]'), bridge, editorService, onPreview: () => renderer.requestDraw() });
+  for (const name of ['libms:source-loaded', 'libms:source-transform-changed', 'libms:blank-canvas-created', 'libms:grid-mutated', 'libms:grid-edited', 'libms:project-result', 'libms:algorithm-engine-changed']) {
+    window.addEventListener(name, () => smartToleranceControls.invalidate(name));
+  }
+  store.subscribe((state, patch) => {
+    if (patch.generation || patch.palette || (patch.canvas && ('width' in patch.canvas || 'height' in patch.canvas)) || (patch.view && 'mode' in patch.view)) smartToleranceControls.invalidate('workspace-context-changed');
+  });
   well.append(navigatorHost);
   const navigator = Navigator({
     host: navigatorHost,
@@ -1031,6 +1070,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     getView: () => get().view,
     getViewportSize: () => ({ width: well.clientWidth, height: well.clientHeight }),
     getGridRevision: () => gridRevision,
+    getCooperativeRevision: () => smartPublicationRevision,
     onNavigate: (x, y) => viewport.focusCell(x, y, { center: true, preserveZoom: true }),
   });
   const sourceCanvas = $("#ws-source-canvas"), sourcePreview = $("#ws-source-preview");
@@ -1825,10 +1865,17 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     }));
     const tinyMaxSize = Number($("#ws-tiny-threshold").value || 3);
     if (hasPattern && (structuralCache.revision !== gridRevision || structuralCache.tinyMaxSize !== tinyMaxSize)) {
-      structuralCache = { revision:gridRevision, tinyMaxSize, value:buildStructuralDiagnostics(bridge.getResult().grid,editorService.getPaletteColors(),{tinyMaxSize}) };
+      if (smartPublicationRevision === gridRevision) {
+        const revision = gridRevision, grid = bridge.getResult().grid;
+        // Mark the requested key before starting: repeated synchronous paints must not restart it.
+        structuralCache = { revision, tinyMaxSize, value:emptySmartDiagnostics() };
+        smartDiagnosticPending = true; smartDiagnosticError = false;
+        smartDiagnostics.request({ grid, palette:editorService.getPaletteColors(), tinyMaxSize, revision,
+          isCurrent: () => gridRevision === revision && bridge.getResult().grid === grid && Number($("#ws-tiny-threshold").value || 3) === tinyMaxSize });
+      } else structuralCache = { revision:gridRevision, tinyMaxSize, value:buildStructuralDiagnostics(bridge.getResult().grid,editorService.getPaletteColors(),{tinyMaxSize}) };
     }
     const structural = hasPattern ? structuralCache.value : { isolated:[],tiny:[],edge:[] };
-    const allIssues = [...rareIssues, ...structural.isolated, ...structural.tiny, ...structural.edge];
+    const allIssues = smartDiagnosticPending || smartDiagnosticError ? [] : [...rareIssues, ...structural.isolated, ...structural.tiny, ...structural.edge];
     const category = $("#ws-diagnostic-category").value || "all";
     const severity = $("#ws-diagnostic-severity").value || "all";
     const issues = allIssues.filter((issue) => !ignoredIssueKeys.has(stableIssueKey(issue)) && (category === "all" || issue.type === category) && (severity === "all" || issue.severity === severity));
@@ -1845,7 +1892,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     $("#ws-diagnostic-counts").innerHTML = countRows.map(([type,label,count]) => `<button type="button" data-ws-diagnostic-category="${type}" class="${category===type?"active":""}"><span>${label}</span><b>${count}</b></button>`).join("");
     const currentIssue = currentInspectionIssue(inspectionState);
     const issueCellCount = currentIssue?.cells?.length || 0;
-    $("#ws-inspection-title").textContent = `问题巡检 · ${issues.length}项`;
+    $("#ws-inspection-title").textContent = smartDiagnosticPending ? "问题巡检 · 检查中" : smartDiagnosticError ? "问题巡检 · 检查失败，请重试" : `问题巡检 · ${issues.length}项`;
     $("#ws-inspection-toggle").textContent = inspectionState.active ? "结束巡检" : "开始巡检";
     $("#ws-inspection-toggle").disabled = !issues.length;
     const typeNames = {"rare-color":"低频颜色","isolated-pixel":"孤立像素","tiny-region":"微小区域","edge-contamination":"边缘污染"};
@@ -2540,14 +2587,15 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     }
   });
   let autoDraft = null;
+  let draftRevision = 0;
   try { autoDraft=createAutoDraftService(); } catch (error) { $("#ws-draft-status").textContent="当前浏览器不支持自动草稿"; }
-  const draftSnapshot = () => { const result=bridge.getResult(); return {projectTitle:get().project.name||result.sourceName||"未命名作品",width:result.width,height:result.height,grid:result.grid,paletteId:result.paletteKey,projectSource:{type:result.sourceName==="blank-board"?"blank":result.sourceUrl?"image":"project"},metadata:{usedColors:result.usedColors,totalBeads:result.totalBeads}}; };
+  const draftSnapshot = () => { const result=bridge.getResult(); const revision=draftRevision; return {isCurrent:()=>draftRevision===revision,projectTitle:get().project.name||result.sourceName||"未命名作品",width:result.width,height:result.height,grid:result.grid,paletteId:result.paletteKey,projectSource:{type:result.sourceName==="blank-board"?"blank":result.sourceUrl?"image":"project"},metadata:{usedColors:result.usedColors,totalBeads:result.totalBeads,smartColorTolerance:result.smartToleranceApplied}}; };
   const versions = createProjectVersionService();
   projectPanel.insertAdjacentHTML("beforeend",'<div class="ws-editor-group"><div class="ws-section-title">手动版本</div><p class="ws-note">仅保存在当前浏览器，最多 20 个版本；不随 Pixler 文件备份。工程文件请另外保存。</p><div class="ws-selection-actions"><button type="button" id="ws-version-save">保存当前版本</button><button type="button" id="ws-version-open">版本记录</button></div></div>');
   const versionDialog=document.createElement("dialog");versionDialog.className="ws-version-dialog ws-help-dialog";
   versionDialog.innerHTML='<div class="ws-help-head"><strong>手动版本记录</strong><button type="button" aria-label="关闭">×</button></div><p class="ws-note">预览不会修改作品。恢复可通过撤销返回。</p><div class="ws-version-list"></div><canvas class="ws-version-preview" hidden style="width:100%;max-height:300px;object-fit:contain;image-rendering:pixelated"></canvas>';
   wrap.append(versionDialog);versionDialog.querySelector("button").addEventListener("click",()=>versionDialog.close());
-  const versionSnapshot=()=>({...draftSnapshot(),palette:paletteColors(),source:{name:bridge.getResult().sourceName||"",url:bridge.getResult().sourceUrl||""},reference:{...get().reference},textObjects:structuredClone(get().editor.textLayers||[])});
+  const versionSnapshot=()=>{const {isCurrent,...project}=draftSnapshot();return {...project,palette:paletteColors(),source:{name:bridge.getResult().sourceName||"",url:bridge.getResult().sourceUrl||""},reference:{...get().reference},textObjects:structuredClone(get().editor.textLayers||[])};};
   async function renderVersions(){const rows=await versions.list();versionDialog.querySelector(".ws-version-list").innerHTML=rows.map(row=>`<div class="ws-version-card"><strong>${esc(row.label||row.projectTitle)}</strong><small>${esc(new Date(row.savedAt).toLocaleString("zh-CN"))} · ${row.width}×${row.height} · 手动</small><div class="ws-selection-actions"><button type="button" data-version-preview="${esc(row.id)}">预览</button><button type="button" data-version-restore="${esc(row.id)}">恢复</button><button type="button" data-version-remove="${esc(row.id)}">删除</button></div></div>`).join("")||'<p class="ws-note">尚未保存手动版本。</p>';}
   $("#ws-version-save").addEventListener("click",async()=>{if(!get().status.hasPattern){notify("请先创建或打开图纸。");return;}try{await versions.save(versionSnapshot(),{label:get().project.name||"未命名作品"});notify("已保存当前手动版本。");}catch(error){notify(error.message);}});
   $("#ws-version-open").addEventListener("click",async()=>{versionDialog.showModal();try{await renderVersions();}catch(error){notify(error.message);}});
@@ -2561,17 +2609,18 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
       if(snapshot.paletteId!==currentResult.paletteKey||snapshot.source?.url!==(currentResult.sourceUrl||"")||snapshot.source?.name!==(currentResult.sourceName||"")){notify("该版本属于其他原图或色卡。请先打开对应作品与色卡，再恢复；可先预览。");return;}
       if(!window.confirm("恢复这个版本？当前作品可通过撤销返回。"))return;
       const before=structuredClone(versionSnapshot()),after=structuredClone(snapshot);
-      const snapshotBridge={replaceGridStructure:value=>{const copy=structuredClone(value),ok=bridge.replaceGridStructure(copy);if(ok){store.setState({project:{name:copy.projectTitle},canvas:{width:copy.width,height:copy.height},reference:copy.reference||{},editor:{selection:null,selectedCell:null,textLayers:copy.textObjects||[],activeTextLayerId:null},status:{hasPattern:true,dirty:true}});}return ok;}};
+      const snapshotBridge={replaceGridStructure:value=>{const copy=structuredClone(value),ok=bridge.replaceGridStructure({...copy,smartColorTolerance:copy.metadata?.smartColorTolerance??null});if(ok){store.setState({project:{name:copy.projectTitle},canvas:{width:copy.width,height:copy.height},reference:copy.reference||{},editor:{selection:null,selectedCell:null,textLayers:copy.textObjects||[],activeTextLayerId:null},status:{hasPattern:true,dirty:true}});}return ok;}};
       const command=createStructureCommand(snapshotBridge,{type:"RESTORE_VERSION",label:"恢复手动版本",before,after});
       if(editorService.executeCommand(command)){viewport.fitToViewport();versionDialog.close();notify("已恢复手动版本，可撤销。");}
     }catch(error){notify(error.message);}
   });
-  const scheduleDraft = () => { if (autoDraft && bridge.getResult().grid?.length) autoDraft.scheduleSave(draftSnapshot()); };
+  const scheduleDraft = () => { draftRevision++; if (autoDraft && bridge.getResult().grid?.length) autoDraft.scheduleSave(draftSnapshot()); };
+  for (const event of ['libms:grid-mutated', 'libms:source-loaded', 'libms:project-result']) window.addEventListener(event, () => { draftRevision++; });
   window.addEventListener("libms:grid-edited",scheduleDraft);
   top.querySelector("#ws-project-name").addEventListener("change",scheduleDraft);
-  $("#ws-save-project").addEventListener("click",()=>{ void autoDraft?.discard?.(); });
+  $("#ws-save-project").addEventListener("click",()=>{ draftRevision++; void autoDraft?.discard?.(); });
   autoDraft?.getRecoveryMetadata().then((metadata)=>{ if(!metadata)return;$("#ws-draft-status").textContent=`检测到未保存的作品：${metadata.projectTitle} · ${metadata.width}×${metadata.height} · ${new Date(metadata.savedAt).toLocaleString()}`;$("#ws-draft-actions").hidden=false; });
-  $("#ws-draft-restore").addEventListener("click",async()=>{const record=await autoDraft?.load();if(!record)return;const draft=record.project;const grid=draft.grid.map(row=>row.map(cell=>cell?editorService.resolveColor(cell.paletteId):null));bridge.replaceGridStructure({grid,width:draft.width,height:draft.height});store.setState({project:{name:draft.projectTitle},canvas:{width:draft.width,height:draft.height},status:{hasPattern:true,dirty:true},ui:{activePanel:"project"}});editorService.clearHistory();viewport.fitToViewport();$("#ws-draft-actions").hidden=true;$("#ws-draft-status").textContent="已恢复本地草稿";});
+  $("#ws-draft-restore").addEventListener("click",async()=>{const record=await autoDraft?.load();if(!record)return;const draft=record.project;const grid=draft.metadata?.appliedGrid?appliedProjectArchive.decodeAppliedGrid(draft.metadata.appliedGrid):draft.grid.map(row=>row.map(cell=>cell?editorService.resolveColor(cell.paletteId):null));bridge.replaceGridStructure({grid,width:draft.width,height:draft.height,smartColorTolerance:draft.metadata?.smartColorTolerance??null});store.setState({project:{name:draft.projectTitle},canvas:{width:draft.width,height:draft.height},status:{hasPattern:true,dirty:true},ui:{activePanel:"project"}});editorService.clearHistory();viewport.fitToViewport();$("#ws-draft-actions").hidden=true;$("#ws-draft-status").textContent="已恢复本地草稿";});
   $("#ws-draft-discard").addEventListener("click",async()=>{await autoDraft?.discard();$("#ws-draft-actions").hidden=true;$("#ws-draft-status").textContent="已放弃本地草稿";});
   let compareMode = null;
   const endCompare = () => { if (compareMode) { store.setState({ view: { mode: compareMode } }); compareMode = null; } };

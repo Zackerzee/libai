@@ -1013,7 +1013,7 @@ function prepareImageUploadRuntime() {
     });
   }
   if (!workspaceModulesPromise) {
-    workspaceModulesPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261012-reference-upload-r47"), ensureGenerationRuntime()]);
+    workspaceModulesPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261012-smart-tolerance-r48"), ensureGenerationRuntime()]);
     workspaceModulesPromise.catch(() => { workspaceModulesPromise = null; });
   }
   void loadLocalSafetyModel();
@@ -1024,7 +1024,7 @@ async function loadWorkspaceOnce() {
   if (workspaceMounted) return workspaceController;
   if (!workspaceLoadPromise) {
     setWorkspaceLoading("正在打开工作台…");
-workspaceLoadPromise = (workspaceModulesPromise || Promise.all([import("./ui/workspace-bootstrap.js?v=20261012-reference-upload-r47"), ensureGenerationRuntime()]))
+workspaceLoadPromise = (workspaceModulesPromise || Promise.all([import("./ui/workspace-bootstrap.js?v=20261012-smart-tolerance-r48"), ensureGenerationRuntime()]))
       .then(([{ bootstrapWorkspace }]) => {
         workspaceLoaded = true;
         initializeWorkspaceRuntime();
@@ -2275,6 +2275,8 @@ function buildV25Options(options = {}, maxColors = 0) {
     autoBackground: options.autoBackground === true,
     strokeProtection: options.strokeProtection === true,
     accentProtection: options.accentProtection === true,
+    smartColorTolerance: { enabled: false, strength: 0, policy: "quality-first", ...options.smartColorTolerance },
+    ...(options.smartToleranceContext ? { smartToleranceContext: options.smartToleranceContext } : {}),
   };
 }
 
@@ -2535,6 +2537,130 @@ function commitPhase(on) {
   return on ? performance.now() : 0;
 }
 
+let smartToleranceSession = null;
+let smartToleranceGenerationRevision = 0;
+let smartToleranceCommittedGrid = null;
+let smartTolerancePaletteContext = null;
+let smartToleranceWorkspace = null;
+let smartToleranceWorkspaceLoad = null;
+let smartToleranceUiSource = null, smartToleranceUiSourceRevision = 0;
+function invalidateSmartToleranceForGeneration() {
+  // Never forward the preview toggle into the retained synchronous generation API.
+  if (!smartToleranceWorkspace) return;
+  smartToleranceWorkspace.invalidate();
+  state.productionGenerationOptions = { ...state.productionGenerationOptions,
+    smartColorTolerance: { enabled: false, strength: 0, policy: "quality-first" } };
+}
+function smartToleranceUiContext() {
+  if (smartToleranceUiSource !== state.sourceDataUrl) {
+    smartToleranceUiSource = state.sourceDataUrl; smartToleranceUiSourceRevision++;
+  }
+  // Guard image identity, not its megabytes of base64, at every async checkpoint.
+  return `${state.generationRequestId}:` + smartToleranceContext(state.width, state.height,
+    state.paletteBudget?.effective || 0, null, smartToleranceUiSourceRevision);
+}
+
+async function getSmartToleranceWorkspace() {
+  if (!smartToleranceWorkspaceLoad) smartToleranceWorkspaceLoad = import("./services/smart-tolerance-workspace.mjs").then(({ createSmartToleranceWorkspace }) => {
+    smartToleranceWorkspace = createSmartToleranceWorkspace({
+      getGrid: () => state.grid,
+      getPaletteKey: getCurrentPaletteKey,
+      getContext: smartToleranceUiContext,
+      setConfig: config => { state.smartColorTolerance = { ...config, policy: "quality-first" }; },
+      onChange: detail => window.dispatchEvent(new CustomEvent("libms:smart-tolerance-ui", { detail })),
+      onProfile: detail => {
+        if (window.__libmsProfileSmartToleranceUi === true) {
+          (window.__libmsSmartToleranceUiProfiles ||= []).push(detail);
+          console.debug("[smart-color-tolerance-ui]", detail);
+        }
+      },
+      captureBaseline: async ({ requestId, context, isCurrent }) => {
+        if (state.generationEngine !== "v2.5" || state.algorithmEngine !== "current" || !state.sourceDataUrl || state.manualEdited) {
+          throw new Error("请先生成 V2.5 图纸，再开启智能色彩容差");
+        }
+        const original = await loadImage(state.sourceDataUrl);
+        const sourceEditor = await loadSourceEditor();
+        if (!isCurrent()) return null;
+        const image = sourceEditor.hasSourceTransform(state.sourceTransform)
+          ? sourceEditor.renderSourceTransform(original, state.sourceTransform) : original;
+        const sourceImageData = imageToImageData(image);
+        const maxColors = state.paletteBudget?.effective || 0;
+        // Reuse the last real AutoTune winner, not a new base-profile approximation.
+        const selected = autoTuneReport?.selectedProfile;
+        const resolved = { ...buildV25Options(state.productionGenerationOptions || {}, maxColors),
+          ...(selected?.overrides || {}),
+          ...(selected?.labCandidate ? { labCandidate: selected.labCandidate } : {}),
+          smartColorTolerance: { enabled: false, strength: 0, policy: "quality-first" },
+          smartToleranceCaptureBaseline: true,
+          smartToleranceBaselineRevision: `p4:${state.generationRequestId}:${requestId}`,
+          smartToleranceContext: context };
+        const result = await runGenerationJob({ image: sourceImageData, mode: resolved.mode,
+          size: { width: state.width, height: state.height }, palette: getCurrentPalette(), maxColors,
+          overrides: resolved, requestId: state.generationRequestId });
+        return isCurrent() ? result.diagnostics?.smartToleranceBaselineCapture : null;
+      },
+      preparePublication: prepareSmartTolerancePublication,
+      publishGrid: publishSmartTolerancePublication,
+    });
+    return smartToleranceWorkspace;
+  });
+  return smartToleranceWorkspaceLoad;
+}
+
+function smartToleranceContext(width, height, maxColors, paletteContext = smartTolerancePaletteContext, sourceIdentity = state.sourceDataUrl) {
+  const processing = window.libmsStore?.getState()?.processingState || {};
+  // Panel settings may change before generation-service refreshes its options
+  // snapshot. Observe their real store source too, without request/strength noise.
+  const panelSettings = Object.fromEntries([
+    "maxColors", "detailProtection", "edgeProtection", "cleanupStrength",
+    "preserveHighlights", "preserveEyes", "preserveMicroDetails", "backgroundRemoval",
+    "subjectCrop", "autoBackground", "strokeProtection", "accentProtection", "colorTuning",
+    "generationPreset", "generationSampling",
+  ].map(key => [key, processing[key]]));
+  const options = { ...(state.productionGenerationOptions || {}) };
+  delete options.smartColorTolerance;
+  delete options.smartToleranceContext;
+  const serialized = JSON.stringify({
+    source: sourceIdentity, crop: state.sourceTransform,
+    width, height, longEdge: state.generationLongEdge, sourceDimensions: state.sourceDimensions,
+    maxColors, requestedMaxColors: els.maxColorsInput?.value,
+    engine: state.generationEngine, algorithm: state.algorithmEngine,
+    palette: getCurrentPaletteKey(), registry: getCurrentPalette(),
+    paletteContext, options, panelSettings,
+    tolerancePolicy: { enabled: processing.smartColorTolerance?.enabled === true,
+      policy: processing.smartColorTolerance?.policy ?? "quality-first" },
+    resolved: { ...buildV25Options(options, maxColors), smartColorTolerance: undefined },
+    algorithmVersion: "v1-optin-1",
+  });
+  return serialized;
+}
+
+async function getSmartToleranceSession() {
+  if (!smartToleranceSession) {
+    const { createSmartToleranceSession } = await import("./services/smart-tolerance-session.mjs");
+    smartToleranceSession ||= createSmartToleranceSession({
+      isCurrent: (requestId, baselineRevision) => !isStaleGenerationRequest(requestId)
+        && state.smartColorTolerance?.enabled === true && state.smartColorTolerance.policy === "quality-first"
+        && state.smartToleranceBaselineRevision === baselineRevision && !state.manualEdited
+        && state.grid === smartToleranceCommittedGrid
+        && state.generationEngine === "v2.5" && state.algorithmEngine === "current"
+        && smartToleranceSession.getMetadata()?.context === smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0),
+      commit: ({ grid, diagnostics }) => {
+        state.grid = grid;
+        smartToleranceCommittedGrid = state.grid;
+        state.stats = calculateStats(grid);
+        state.smartToleranceReport = diagnostics.smartColorTolerance || null;
+        state.generationOriginalGrid = cloneGrid(grid);
+        refreshChartUrl();
+        updateResultUi();
+        window.dispatchEvent(new CustomEvent("libms:project-result", { detail: window.LibmsWorkspaceBridge?.getResult() }));
+        if (commitProfileOn()) console.debug("[smart-color-tolerance]", diagnostics);
+      },
+    });
+  }
+  return smartToleranceSession;
+}
+
 async function processImageV2(image, palette, { width, height, requestId = null, maxColors, options = {}, saveGallery = true }) {
   const startedAt = performance.now();
   // ⚠️ 2026-10-04 修：`requestId` 必须**在这里解构**。
@@ -2568,6 +2694,23 @@ async function processImageV2(image, palette, { width, height, requestId = null,
   autoTuneReport = null;
   const sourceImageData = imageToImageData(image);
   const resolved = buildV25Options(options, maxColors);
+  const toleranceEnabled = resolved.smartColorTolerance.enabled === true;
+  let tolerancePaletteContext = null;
+  if (toleranceEnabled) {
+    const paletteKey = getCurrentPaletteKey();
+    const registrySnapshot = JSON.stringify(getCurrentPalette());
+    const { resolveSmartTolerancePaletteContext } = await import("./services/smart-color-tolerance-palette-adapter.mjs");
+    tolerancePaletteContext = resolveSmartTolerancePaletteContext({ paletteEntries: palette, paletteKey });
+    if (isStaleGenerationRequest(reqId) || paletteKey !== getCurrentPaletteKey()
+      || registrySnapshot !== JSON.stringify(getCurrentPalette())) return false;
+  }
+  const toleranceContext = toleranceEnabled ? smartToleranceContext(width, height, maxColors, tolerancePaletteContext) : null;
+  const toleranceGenerationRevision = toleranceEnabled ? ++smartToleranceGenerationRevision : null;
+  if (toleranceEnabled) {
+    state.smartToleranceBaselineRevision = `pending:${toleranceGenerationRevision}`;
+    smartToleranceSession?.clear();
+    resolved.smartToleranceContext = { contextKey: toleranceContext, gridRevision: toleranceGenerationRevision, paletteContext: tolerancePaletteContext };
+  }
   // §13：智能模式先跑 Auto Tune（小尺寸上比几套候选，再按目标尺寸生成一次）。
   // 返回 null = 「这次不调优」（模式不适用 / 只有一个候选），照常走下面的单次生成。
   let result = null;
@@ -2596,8 +2739,12 @@ async function processImageV2(image, palette, { width, height, requestId = null,
       requestId: reqId,
     });
   }
+  const toleranceSession = toleranceEnabled && result.diagnostics?.smartToleranceBaseline
+    ? await getSmartToleranceSession() : null;
   // 执行体是一个 await 边界（未来换成 Worker 后更是），回来时可能已经有更新的请求在跑。
   if (isStaleGenerationRequest(reqId)) return false;
+  if (toleranceEnabled && state.smartToleranceBaselineRevision !== `pending:${toleranceGenerationRevision}`) return false;
+  if (toleranceEnabled && toleranceContext !== smartToleranceContext(width, height, maxColors, tolerancePaletteContext)) return false;
   // ── 提交路径分段计时（§12，默认关闭）──────────────────────────────
   // 段的切法与「修法」一一对应，而不是按代码块随意切：
   //   gridObjectConstruction —— 建 w×h 个新对象。要省它只能让 renderer
@@ -2609,7 +2756,7 @@ async function processImageV2(image, palette, { width, height, requestId = null,
   state.grid = result.grid.map((row) => row.map((cell) => {
     if (!cell) return null;
     const rgbValue = Array.isArray(cell.rgb) ? cell.rgb : [cell.rgb?.[0] ?? 0, cell.rgb?.[1] ?? 0, cell.rgb?.[2] ?? 0];
-    return { code: cell.code, rgb: [...rgbValue], hex: cell.hex || rgbToHex(rgbValue) };
+    return { code: cell.code, rgb: [...rgbValue], hex: cell.hex || rgbToHex(rgbValue), ...(toleranceEnabled && cell.paletteId != null ? { paletteId: cell.paletteId } : {}) };
   }));
   commitMark("gridObjectConstruction", t);
   state.width = result.width;
@@ -2629,6 +2776,19 @@ async function processImageV2(image, palette, { width, height, requestId = null,
   state.showingOptimizedGrid = true;
   state.paletteBudget = { mode: maxColors ? "fixed" : "auto", requested: maxColors || null, recommended: result.diagnostics?.colorsAfterBudget || state.stats.length, effective: maxColors || 0 };
   state.smartFeatures = result.diagnostics?.smartFeatures || null;
+  state.smartToleranceReport = result.diagnostics?.smartColorTolerance || null;
+  if (toleranceEnabled && result.diagnostics?.smartToleranceBaseline) {
+    smartTolerancePaletteContext = structuredClone(tolerancePaletteContext);
+    toleranceSession.adoptBaseline(result.diagnostics.smartToleranceBaseline, toleranceContext, result.diagnostics.smartToleranceHierarchy);
+    state.smartToleranceBaselineRevision = result.diagnostics.smartToleranceBaseline.baselineRevision;
+    smartToleranceCommittedGrid = state.grid;
+  } else {
+    smartToleranceSession?.clear();
+    state.smartToleranceBaselineRevision = null;
+    smartToleranceCommittedGrid = null;
+    smartTolerancePaletteContext = null;
+  }
+  if (profiling && state.smartToleranceReport) console.debug("[smart-color-tolerance]", state.smartToleranceReport);
   state.smartReport = {
     subjectCrop: result.diagnostics?.subjectCrop || null,
     autoBackground: result.diagnostics?.autoBackground || null,
@@ -2793,6 +2953,7 @@ function gridFromBgsMatrix(matrix, palette) {
 
 /** 把一次 bgs 结果落到 state（与 processImageV2 的收尾逐项对应）。 */
 function applyBgsResult(result, { maxColors, startedAt, unknownCodes }) {
+  clearAppliedSmartToleranceProvenance();
   state.grid = result.grid;
   state.width = result.width;
   state.height = result.height;
@@ -2906,6 +3067,7 @@ function gridFromPwMatrix(matrix, palette) {
 
 /** 把一次 pw / hybrid-pw 结果落到 state（与 BGS 收尾逐项对应）。 */
 function applyPwResult(result, { engine, maxColors, startedAt, unknownCodes }) {
+  clearAppliedSmartToleranceProvenance();
   state.grid = result.grid;
   state.width = result.width;
   state.height = result.height;
@@ -3099,6 +3261,7 @@ async function processImage(options = {}) {
       setStatus("已放弃过期的生成结果");
       return false;
     }
+    clearAppliedSmartToleranceProvenance();
     state.grid = cloneGrid(generatedGrid);
     state.manualEdited = false;
     state.regionalBlockReport = result.regionalBlockReport ? {
@@ -3414,6 +3577,7 @@ async function scanReadyMadePattern(file, gridWidth, gridHeight) {
     minCount: DIRECT_PATTERN_MIN_COLOR_COUNT,
   });
 
+  clearAppliedSmartToleranceProvenance();
   state.grid = simplified.grid;
   state.width = gridWidth;
   state.height = gridHeight;
@@ -4718,6 +4882,103 @@ function refreshChartUrl() {
   }
 }
 
+let smartTolerancePublicationChecks = null;
+async function prepareSmartTolerancePublication(grid, { isCurrent, direction, statistics, applicationMetadata }) {
+  const { createToleranceBuildScheduler } = await import('./services/smart-tolerance-build-scheduler.mjs');
+  const scheduler = createToleranceBuildScheduler({ isCurrent });
+  const counts = new Map();
+  const width = grid[0]?.length || 0, height = grid.length;
+  try {
+    const suppliedStats = direction === 'before' ? state.stats : statistics;
+    for (const row of suppliedStats ? [] : grid) {
+      for (const color of row) {
+        if (!color) continue;
+        const entry = counts.get(color.code);
+        if (entry) entry.count++;
+        else counts.set(color.code, { ...cloneColor(color), count: 1 });
+      }
+      if (!await scheduler.checkpoint('publication statistics', width)) return null;
+    }
+    const stats = suppliedStats
+      ? suppliedStats.map(item => ({ ...cloneColor(item), count: item.count }))
+      : [...counts.values()].sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
+    const maxSide = Math.max(width, height), cell = maxSide > 260 ? 4 : maxSide > 160 ? 6 : 8;
+    // Preserve the exact already-published images for Undo; no re-encoding or
+    // font reload can change the visual snapshot of the prior work.
+    if (direction === 'before' && isCurrent()) return { grid, width, height, stats,
+      previewUrl: state.previewUrl, chartUrl: state.chartUrl, previewRenderCell: state.previewRenderCell,
+      smartToleranceReport: structuredClone(state.smartToleranceReport),
+      validationColorCount: stats.length };
+    const render = async options => {
+      const preset = window.LibmsRenderPolicy?.RENDER_PRESETS?.[options.preset] || {};
+      const drawingOptions = { ...preset, ...options,
+        watermarkCode: `LB-${fnv1aHash([state.sourceName || 'local', `${width}x${height}`,
+          state.paletteLabel || getCurrentPaletteLabel(), stats.length,
+          stats.reduce((sum, item) => sum + item.count, 0), new Date().toDateString()].join('|'))}`,
+        showCodes: preset.showCodes === 'auto'
+          ? Boolean(window.LibmsRenderPolicy?.shouldShowBeadCode?.(1, options.cell)) : preset.showCodes };
+      const steps = maxSide <= 160 ? null : createChartCanvasSteps(grid, stats, drawingOptions);
+      // Small canvases retain the exact immediate raster sequence. The costly
+      // large-size path uses cooperative rows; PNG encoding is async in both.
+      let next = steps ? steps.next() : { done: true, value: createChartCanvas(grid, stats, drawingOptions) };
+      while (!next.done) {
+        if (!await scheduler.checkpoint('publication canvas', width)) return null;
+        next = steps.next();
+      }
+      if (!await scheduler.checkpoint('publication PNG', 0, true)) return null;
+      const blob = await new Promise((resolve, reject) => next.value.toBlob(
+        value => value ? resolve(value) : reject(new Error('图像准备失败')), 'image/png'));
+      if (!isCurrent()) return null;
+      const url = await new Promise((resolve, reject) => {
+        const reader = new FileReader(); reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error); reader.readAsDataURL(blob);
+      });
+      return isCurrent() ? url : null;
+    };
+    const previewUrl = await render({ preset: 'PREVIEW_CLEAN', cell });
+    if (!previewUrl) return null;
+    const chartUrl = await render({ preset: 'PATTERN_EXPORT',
+      cell: maxSide > 160 ? 10 : maxSide > 90 ? 18 : 30, margin: 50 });
+    if (!chartUrl || !isCurrent()) return null;
+    return { grid, width, height, stats, previewUrl, chartUrl, previewRenderCell: cell,
+      smartToleranceReport: { ...structuredClone(state.smartToleranceReport), applied: structuredClone(applicationMetadata) },
+      validationColorCount: stats.length };
+  } finally {
+    const report = scheduler.finish(isCurrent() ? 'ready' : 'cancelled');
+    if (window.__libmsProfileSmartToleranceUi === true) {
+      (window.__libmsSmartToleranceUiProfiles ||= []).push({ publicationPrepareMs: report.wallClockMs,
+        longestPublicationPrepareTaskMs: report.longestSyncTaskMs });
+    }
+  }
+}
+
+function publishSmartTolerancePublication(prepared) {
+  // The private compact history restores fresh editable cells/RGB arrays.
+  // Other callers retain the defensive clone contract.
+  const started = performance.now();
+  state.grid = prepared.ownedGrid === true ? prepared.grid
+    : prepared.grid.map(row => row.map(color => color ? cloneColor(color) : null));
+  const cloned = performance.now();
+  state.width = prepared.width; state.height = prepared.height;
+  state.stats = prepared.stats.map(item => ({ ...cloneColor(item), count: item.count }));
+  state.previewUrl = prepared.previewUrl; state.chartUrl = prepared.chartUrl;
+  state.previewRenderCell = prepared.previewRenderCell;
+  state.manualEdited = true;
+  state.smartToleranceReport = structuredClone(prepared.smartToleranceReport ?? null);
+  smartTolerancePublicationChecks = { grid: state.grid, stats: state.stats,
+    actualColors: prepared.validationColorCount };
+  updateResultUi();
+  const uiUpdated = performance.now();
+  window.dispatchEvent(new CustomEvent('libms:grid-edited', { detail: {
+    ...window.LibmsWorkspaceBridge.getResult(), smartTolerancePublication: true,
+  } }));
+  if (window.__libmsProfileSmartToleranceUi === true) {
+    (window.__libmsSmartToleranceUiProfiles ||= []).push({ publicationCloneMs: cloned - started,
+      publicationUiMs: uiUpdated - cloned, publicationEventMs: performance.now() - uiUpdated });
+  }
+  return true;
+}
+
 function createLightPreviewCanvas(grid) {
   const rows = grid.length;
   const columns = grid[0]?.length || 1;
@@ -4969,6 +5230,15 @@ function renderBeadPattern(options) {
 }
 
 function createChartCanvas(grid, stats, options = {}) {
+  const steps = createChartCanvasSteps(grid, stats, options);
+  let next = steps.next();
+  while (!next.done) next = steps.next();
+  return next.value;
+}
+
+// Synchronous callers drain the same drawing sequence unchanged. Only the
+// tolerance publication preparer yields between rows, on a detached canvas.
+function* createChartCanvasSteps(grid, stats, options = {}) {
   const rows = grid.length;
   const columns = grid[0]?.length || 0;
   const cell = options.cell || 30;
@@ -5051,7 +5321,7 @@ function createChartCanvas(grid, stats, options = {}) {
   for (let y = 0; y < rows; y += 1) {
     for (let x = 0; x < columns; x += 1) {
       const color = grid[y][x];
-      const px = boardX + x * cell;
+      const px = boardX + (options.mirror ? columns - 1 - x : x) * cell;
       const py = boardY + y * cell;
       if (color) {
         context.fillStyle = rgb(color);
@@ -5065,11 +5335,12 @@ function createChartCanvas(grid, stats, options = {}) {
         }
       }
     }
+    yield;
   }
   if (showGrid) drawCountingGrid(context, boardX, boardY, columns, rows, cell);
 
   if (options.watermark !== false) {
-    drawChartWatermark(context, boardX, boardY, boardWidth, boardHeight);
+    drawChartWatermark(context, boardX, boardY, boardWidth, boardHeight, options.watermarkCode);
   }
 
   if (showCodes) {
@@ -5079,12 +5350,13 @@ function createChartCanvas(grid, stats, options = {}) {
       for (let x = 0; x < columns; x += 1) {
         const color = grid[y][x];
         if (!color) continue;
-        const px = boardX + x * cell;
+        const px = boardX + (options.mirror ? columns - 1 - x : x) * cell;
         const py = boardY + y * cell;
         context.fillStyle = isDark(color.rgb) ? "#ffffff" : "#1f2422";
         context.font = `900 ${getCodeFontSize(color.code, cell)}px ${CANVAS_FONT_STACK}`;
         context.fillText(color.code, px + cell / 2, py + cell / 2 + 1);
       }
+      yield;
     }
   }
 
@@ -5258,7 +5530,7 @@ function drawPixelDonut(context, x, y, size, color) {
   });
 }
 
-function drawChartWatermark(context, x, y, width, height) {
+function drawChartWatermark(context, x, y, width, height, preparedCode) {
   context.save();
   context.globalAlpha = 0.028;
   context.fillStyle = "#111827";
@@ -5271,7 +5543,7 @@ function drawChartWatermark(context, x, y, width, height) {
   context.restore();
 
   const timestamp = `${getLocalTimestamp()} 客户端本地生成`;
-  const antiForgeryCode = getAntiForgeryCode();
+  const antiForgeryCode = preparedCode || getAntiForgeryCode();
   context.save();
   context.globalAlpha = 0.68;
   context.fillStyle = "rgba(17, 24, 39, 0.38)";
@@ -5825,7 +6097,7 @@ function splitGridIntoTiles(grid, tileSize) {
         width,
         height,
         grid: tileGrid,
-        stats: calculateStats(tileGrid),
+        stats: state.smartToleranceReport?.applied ? window.LibmsAppliedExportGrid.getAppliedGridUsage(tileGrid) : calculateStats(tileGrid),
       });
     }
   }
@@ -5882,7 +6154,7 @@ function splitGridIntoTilesBySize(grid, tileWidth, tileHeight, extra = {}) {
         width,
         height,
         grid: tileGrid,
-        stats: calculateStats(tileGrid),
+        stats: state.smartToleranceReport?.applied ? window.LibmsAppliedExportGrid.getAppliedGridUsage(tileGrid) : calculateStats(tileGrid),
       });
     }
   }
@@ -5906,7 +6178,24 @@ function getExportSubtitle() {
   return getMirrorLabel();
 }
 
-function getExportGrid() {
+// Derived diagnostic revision only; exports do not update project or grid state.
+let appliedExportRevision = 0;
+for (const event of ['libms:grid-mutated', 'libms:grid-edited', 'libms:project-result', 'libms:source-loaded']) {
+  window.addEventListener(event, () => { appliedExportRevision++; });
+}
+
+function getExportGrid(exportType = 'legacy') {
+  if (!state.smartToleranceReport?.applied) return getLegacyExportGrid();
+  const grid = window.LibmsAppliedExportGrid.getAppliedExportGrid({ grid: state.grid, width: state.width, height: state.height });
+  if (window.__libmsDebugSmartToleranceExport === true) console.debug('[smart-color-tolerance-export]', {
+    ...window.LibmsAppliedExportGrid.createAppliedExportDebug({ grid }, exportType),
+    projectId: state.sourceName, gridRevision: `${state.generationRequestId}:${appliedExportRevision}`,
+    appliedRevision: state.smartToleranceReport?.applied?.appliedRevision ?? null,
+  });
+  return isMirrorEnabled() ? mirrorGrid(grid) : grid;
+}
+
+function getLegacyExportGrid() {
   let grid = isMirrorEnabled() ? mirrorGrid(state.grid) : cloneGrid(state.grid);
   const maxColors = state.paletteBudget?.effective || null;
   if (maxColors != null && !state.manualEdited) {
@@ -5916,6 +6205,7 @@ function getExportGrid() {
   }
   return grid;
 }
+
 
 function recordLocalExportGrid(grid, kind, settings) {
   if (!["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)) return;
@@ -7744,6 +8034,12 @@ function updateBlankBoardSummary() {
   if (els.createBlankBoardButton) els.createBlankBoardButton.disabled = !valid;
 }
 
+function clearAppliedSmartToleranceProvenance() {
+  smartToleranceWorkspace?.invalidate();
+  state.smartToleranceReport = null;
+  state.smartColorTolerance = { enabled: false, strength: 0, policy: 'quality-first' };
+}
+
 function createBlankBoard(options = {}) {
   const { openEditorAfterCreate = false } = options;
   const fallbackSize = getGranularity();
@@ -7756,6 +8052,7 @@ function createBlankBoard(options = {}) {
     }
     return false;
   }
+  clearAppliedSmartToleranceProvenance();
   state.sourceDataUrl = "";
   state.sourceName = "blank-board";
   state.autoProcessAfterLoad = false;
@@ -7807,6 +8104,7 @@ function resetAll() {
 }
 
 function clearResult() {
+  clearAppliedSmartToleranceProvenance();
   state.grid = [];
   state.manualEdited = false;
   state.stats = [];
@@ -7820,6 +8118,7 @@ function clearResult() {
   state.height = 0;
   state.assemblyHideCellText = false;
   updateResultUi();
+  window.dispatchEvent(new CustomEvent("libms:grid-mutated"));
 }
 
 function setStatus(text) {
@@ -7864,8 +8163,20 @@ window.captureLegacyGenerationBaseline = () => ({
 
 // Thin UI adapter: existing Color Grid, palette and generation functions remain authoritative.
 window.LibmsWorkspaceBridge = {
+  getSmartToleranceUiState: () => smartToleranceWorkspace?.getState() ?? { enabled: false, previewStrength: 0, status: "idle", canApply: false },
+  getSmartTolerancePreviewResult() {
+    const grid = smartToleranceWorkspace?.getPreview();
+    return grid ? { ...this.getResult(), grid } : null;
+  },
+  async setSmartToleranceEnabled(value) { return (await getSmartToleranceWorkspace()).enable(value); },
+  async previewSmartTolerance(strength) { return smartToleranceWorkspace?.evaluate(strength) ?? false; },
+  cancelSmartTolerancePreview() { smartToleranceWorkspace?.cancel(); },
+  resetSmartTolerancePreview() { return smartToleranceWorkspace?.reset() ?? false; },
+  invalidateSmartTolerancePreview() { smartToleranceWorkspace?.invalidate(); },
+  async applySmartTolerancePreview(editorService) { return smartToleranceWorkspace?.apply(editorService) ?? false; },
   createBlankCanvas: ({ width, height } = {}) => createBlankBoard({ width, height }),
   getResult: () => ({
+    smartToleranceApplied: state.smartToleranceReport?.applied ?? null,
     width: state.width, height: state.height, grid: state.grid, colors: state.stats,
     usedColors: state.stats.length, totalBeads: state.stats.reduce((sum, color) => sum + color.count, 0),
     sourceUrl: state.processedSourceDataUrl || state.sourceDataUrl, sourceOriginalUrl: state.sourceDataUrl, sourceName: state.sourceName, sourceWidth: state.sourceNaturalWidth, sourceHeight: state.sourceNaturalHeight, previewUrl: state.previewUrl,
@@ -7910,7 +8221,10 @@ window.LibmsWorkspaceBridge = {
       state.grid[y][x] = next;
       count++;
     }
-    if (count) state.manualEdited = true;
+    if (count) {
+      state.manualEdited = true; smartTolerancePublicationChecks = null;
+      window.dispatchEvent(new CustomEvent("libms:grid-mutated"));
+    }
     if ((count || finalize) && !live) {
       state.manualEdited = true;
       state.stats = calculateStats(state.grid);
@@ -7924,6 +8238,41 @@ window.LibmsWorkspaceBridge = {
   setProductionOptions({ engine = "v2.5", generationOptions = {} } = {}) {
     state.generationEngine = engine;
     state.productionGenerationOptions = generationOptions;
+    state.smartColorTolerance = { enabled: false, strength: 0, policy: "quality-first", ...generationOptions.smartColorTolerance };
+    if (!state.smartColorTolerance.enabled) {
+      smartToleranceSession?.clear();
+      state.smartToleranceBaselineRevision = null;
+      smartTolerancePaletteContext = null;
+    } else smartToleranceSession?.invalidate(smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0));
+  },
+  async updateSmartColorTolerance({ strength, paletteContext } = {}) {
+    if (!Number.isFinite(strength) || strength < 0 || strength > 100) throw new RangeError("strength must be 0..100");
+    if (!state.smartColorTolerance?.enabled || state.smartColorTolerance.policy !== "quality-first") throw new Error("Smart color tolerance is not enabled");
+    const requestId = ++state.generationRequestId;
+    const baselineRevision = state.smartToleranceBaselineRevision;
+    const capturedGrid = state.grid;
+    let capturedContext = smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0);
+    const current = () => state.generationRequestId === requestId
+      && state.smartToleranceBaselineRevision === baselineRevision
+      && state.smartColorTolerance?.enabled === true && state.smartColorTolerance.policy === "quality-first"
+      && !state.manualEdited && state.grid === capturedGrid && state.grid === smartToleranceCommittedGrid
+      && capturedContext === smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0);
+    const stale = () => ({ committed: false, stale: true });
+    if (paletteContext !== undefined) {
+      const { resolveSmartTolerancePaletteContext } = await import("./services/smart-color-tolerance-palette-adapter.mjs");
+      if (!current()) return stale();
+      smartTolerancePaletteContext = structuredClone(resolveSmartTolerancePaletteContext(paletteContext));
+      capturedContext = smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0);
+    }
+    const session = await getSmartToleranceSession();
+    if (!current()) return stale();
+    if (session.invalidate(smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0)) || !state.smartToleranceBaselineRevision || state.manualEdited || state.grid !== smartToleranceCommittedGrid) {
+      state.smartToleranceBaselineRevision = null;
+      throw new Error("Smart tolerance baseline changed; regenerate before evaluating strength");
+    }
+    state.smartColorTolerance = { ...state.smartColorTolerance, strength };
+    state.productionGenerationOptions = { ...state.productionGenerationOptions, smartColorTolerance: { ...state.smartColorTolerance } };
+    return session.evaluate({ strength, requestId, baselineRevision: baselineRevision });
   },
   /**
    * 背景预检（Stage B2 §6）。给工作台「开启去除纯色背景 → 先问用户」用。
@@ -7985,6 +8334,7 @@ window.LibmsWorkspaceBridge = {
    * 陈旧请求的结果直接丢弃 —— 这是后续把生成挪进 Web Worker 的前置条件。
    */
   async generate({ width, height, maxColors, overwriteApproved = false } = {}) {
+    invalidateSmartToleranceForGeneration();
     state.lastGenerationError = "";
     // ── 单飞检查必须在**推进 requestId 之前** ──────────────────────────
     //
@@ -8345,17 +8695,25 @@ window.LibmsWorkspaceBridge = {
   openEditor: () => openEditor(),
   openMaking: () => openAssemblyPlayer(),
   // ===== 结构级替换（旋转 / 工程恢复共用）：唯一事实源仍是 state.grid =====
-  replaceGridStructure({ grid, width, height } = {}) {
+  getAppliedExportGrid: () => window.LibmsAppliedExportGrid.getAppliedExportGrid({ grid: state.grid, width: state.width, height: state.height }),
+  getAppliedExportMetadata: () => ({ smartColorTolerance: state.smartToleranceReport?.applied ?? null }),
+  replaceGridStructure({ grid, width, height, smartColorTolerance } = {}) {
     const nextWidth = Math.round(Number(width) || 0);
     const nextHeight = Math.round(Number(height) || 0);
     if (!Array.isArray(grid) || !grid.length || nextWidth <= 0 || nextHeight <= 0) return false;
     if (grid.length !== nextHeight) return false;
     if (grid.some((row) => !Array.isArray(row) || row.length !== nextWidth)) return false;
+    const applied = smartColorTolerance === undefined ? undefined
+      : window.LibmsAppliedProjectArchive.validateSmartToleranceMetadata(smartColorTolerance);
+    if (applied) window.LibmsAppliedExportGrid.validateAppliedGrid(grid, nextWidth, nextHeight);
+    smartToleranceWorkspace?.invalidate();
+    if (smartColorTolerance !== undefined) state.smartColorTolerance = { enabled: false, strength: applied?.strength ?? 0, policy: 'quality-first' };
     state.grid = grid.map((row) => row.map((color) => (color ? cloneColor(color) : null)));
     state.width = nextWidth;
     state.height = nextHeight;
     state.stats = calculateStats(state.grid);
     state.manualEdited = true;
+    if (smartColorTolerance !== undefined) state.smartToleranceReport = applied ? { applied } : null;
     refreshChartUrl();
     updateResultUi();
     window.dispatchEvent(new CustomEvent("libms:grid-edited", { detail: this.getResult() }));
@@ -8385,18 +8743,20 @@ window.LibmsWorkspaceBridge = {
     if (!state.grid.length) throw new Error("请先生成图纸");
     const rows = [["色号", "颜色名称", "HEX", "RGB", "颗数"]];
     let total = 0;
-    state.stats.forEach((item) => {
+    const usage = state.smartToleranceReport?.applied ? window.LibmsAppliedExportGrid.getAppliedGridUsage(getExportGrid('csv')) : state.stats;
+    usage.forEach((item) => {
       total += item.count;
       rows.push([item.code, item.name || "", item.hex || hexFromRgb(item.rgb), `rgb(${item.rgb.join(",")})`, String(item.count)]);
     });
     rows.push(["合计", "", "", "", String(total)]);
     const csv = rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
     downloadBlob(new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8" }), buildPatternDownloadName("csv"));
-    setStatus(`已导出用量清单 · ${state.stats.length} 色 / ${formatCount(total)} 颗`);
+    setStatus(`已导出用量清单 · ${usage.length} 色 / ${formatCount(total)} 颗`);
     return true;
   },
   buildProjectJson() {
     if (!state.grid.length) throw new Error("请先生成图纸");
+    const smartColorTolerance = window.LibmsAppliedProjectArchive.validateSmartToleranceMetadata(state.smartToleranceReport?.applied ?? null);
     return {
       format: "libms-project",
       version: 1,
@@ -8408,6 +8768,7 @@ window.LibmsWorkspaceBridge = {
       colors: state.stats.map((item) => ({ code: item.code, ...(item.paletteId ? { paletteId: item.paletteId } : {}), name: item.name || "", hex: item.hex || hexFromRgb(item.rgb), rgb: [...item.rgb] })),
       grid: state.grid.map((row) => row.map((color) => (color ? color.code : null))),
       ...(state.grid.some((row) => row.some((color) => color?.paletteId)) ? { gridPaletteIds: state.grid.map((row) => row.map((color) => color?.paletteId || null)) } : {}),
+      ...(smartColorTolerance ? { appliedGrid: window.LibmsAppliedProjectArchive.encodeAppliedGrid(state.grid, state.width, state.height), smartColorTolerance } : {}),
     };
   },
   downloadProjectJson(projectName) {
@@ -8462,10 +8823,11 @@ window.LibmsWorkspaceBridge = {
       const found = saved?.paletteId ? saved : active.get(key) || saved;
       return found ? cloneColor(found) : null;
     };
-    const grid = payload.grid.map((row, rowIndex) => {
+    const grid = payload.appliedGrid ? window.LibmsAppliedProjectArchive.restoreProjectArchiveGrid(payload, { palette: getCurrentPalette() }).grid : payload.grid.map((row, rowIndex) => {
       if (!Array.isArray(row) || row.length !== width) throw new Error("工程文件矩阵宽高与画布尺寸不一致");
       return row.map((code, columnIndex) => resolve(code, payload.gridPaletteIds?.[rowIndex]?.[columnIndex]));
     });
+    const smartColorTolerance = window.LibmsAppliedProjectArchive.validateSmartToleranceMetadata(payload.smartColorTolerance ?? null);
     // 工程存档只包含图纸矩阵，不包含原始图片。清掉上一项目的源图，避免工作台仍在
     // 「原图」视图时显示旧图片，而 Navigator 已经显示刚载入的新图纸。
     state.sourceDataUrl = "";
@@ -8473,7 +8835,7 @@ window.LibmsWorkspaceBridge = {
     state.sourceNaturalWidth = 0;
     state.sourceNaturalHeight = 0;
     state.sourceName = String(payload.projectName || "导入工程");
-    if (!this.replaceGridStructure({ grid, width, height })) throw new Error("工程文件无法载入当前画布");
+    if (!this.replaceGridStructure({ grid, width, height, smartColorTolerance })) throw new Error("工程文件无法载入当前画布");
     // 结构化工程里的 canvas.width/height 是**绝对权威**：文件说 222×295，那就是 222×295。
     // 不经过 generationLongEdge、不经过裁剪比例、不经过像素倍数，也不接受 104 默认值。
     // 放在 replaceGridStructure 成功之后：只有矩阵真的载入了，这个尺寸才成立。
@@ -8487,7 +8849,11 @@ window.LibmsWorkspaceBridge = {
     if (payload.palette?.maxColors != null && els.maxColorsInput) els.maxColorsInput.value = String(payload.palette.maxColors);
     return this.getResult();
   },
-  getChecks: () => ({ validation: state.grid.length ? window.LibmsRegionAwareQuantizer?.validateFinalPattern?.(state.grid, state.paletteBudget?.effective || 291) : null,
+  getChecks: () => ({ validation: state.grid.length
+    ? smartTolerancePublicationChecks?.grid === state.grid && smartTolerancePublicationChecks?.stats === state.stats
+      ? { valid: smartTolerancePublicationChecks.actualColors <= (state.paletteBudget?.effective || 291),
+        actualColors: smartTolerancePublicationChecks.actualColors, maxColors: state.paletteBudget?.effective || 291 }
+      : window.LibmsRegionAwareQuantizer?.validateFinalPattern?.(state.grid, state.paletteBudget?.effective || 291) : null,
     structural: state.structuralTransitionReport?.metrics || null }),
 };
 
@@ -8541,9 +8907,7 @@ function readExportSettings() {
 }
 
 function getExportGridForSettings() {
-  const base = getExportGrid();
-  if (!base.length) return base;
-  return isMirrorEnabled() ? mirrorGrid(base) : base;
+  return getExportGrid('settings');
 }
 
 function buildExportRenderOptions(grid, stats, settings) {
