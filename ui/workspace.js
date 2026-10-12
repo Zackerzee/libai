@@ -2403,7 +2403,9 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
 
   const referenceInput = $("#ws-ref-file");
   const syncReferenceUi = (state = get()) => {
-    const hasReference = Boolean(state.reference.url||(state.reference.useSource!==false&&state.source.image));
+    // Hidden by default is not unavailable: the current source can be enabled
+    // explicitly even when no separate reference image has been uploaded.
+    const hasReference = Boolean(state.reference.url || state.source.image);
     $("#ws-ref-fit").value = state.reference.fit;
     $("#ws-ref-opacity").value = String(state.reference.opacity);
     $("#ws-ref-opacity-value").textContent = `${state.reference.opacity}%`;
@@ -2422,7 +2424,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     reader.onload = () => store.setState({ reference: { url: String(reader.result || ""),useSource:false,visible:true,fit:"contain",offsetX:0,offsetY:0,scale:1 } });
     reader.readAsDataURL(file);
   });
-  $("#ws-ref-clear").addEventListener("click", () => store.setState({ reference: { url:"",useSource:false,visible:true,adjusting:false } }));
+  $("#ws-ref-clear").addEventListener("click", () => store.setState({ reference: { url:"",useSource:false,visible:false,adjusting:false } }));
   $("#ws-ref-fit").addEventListener("change", (event) => store.setState({ reference: { fit: event.target.value } }));
   $("#ws-ref-display").addEventListener("change",event=>store.setState({reference:{displayMode:event.target.value}}));
   $("#ws-ref-smoothing").addEventListener("change",event=>store.setState({reference:{smoothing:event.target.value}}));
@@ -2434,7 +2436,10 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     $("#ws-ref-opacity-value").textContent = `${value}%`;
     store.setState({ reference: { opacity: value } });
   });
-  $("#ws-ref-visible").addEventListener("change", (event) => store.setState({ reference: { visible: event.target.checked } }));
+  $("#ws-ref-visible").addEventListener("change", (event) => store.setState({ reference: {
+    visible: event.target.checked,
+    ...(event.target.checked && !get().reference.url ? { useSource: true } : {}),
+  } }));
 
   // .pixler = ZIP 封装的结构化项目文件。判定不只看后缀：再看 ZIP 签名 PK。
   const isPixlerFile = async (file) => {

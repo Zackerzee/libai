@@ -1002,7 +1002,7 @@ async function loadWorkspaceOnce() {
   if (workspaceMounted) return workspaceController;
   if (!workspaceLoadPromise) {
     setWorkspaceLoading("正在打开工作台…");
-workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261010-editor-r45"), ensureGenerationRuntime()])
+workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261012-reference-toggle-r46"), ensureGenerationRuntime()])
       .then(([{ bootstrapWorkspace }]) => {
         workspaceLoaded = true;
         initializeWorkspaceRuntime();
