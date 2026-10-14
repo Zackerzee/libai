@@ -71,6 +71,8 @@
       chartUrl: "",                   // state.chartUrl（预览渲染输出）
       previewUrl: "",                 // state.previewUrl
       paletteBudget: null,            // state.paletteBudget
+      smartToleranceReport: null,
+      smartToleranceBaselineRevision: null,
       patternAdjustBase: null,        // state.patternAdjustBase
       patternAdjustPreviewGrid: null, // state.patternAdjustPreviewGrid
       patternAdjustTarget: "editor",  // state.patternAdjustTarget
@@ -130,6 +132,7 @@
       autoBackground: false,          // projectStore.generation.autoBackground
       strokeProtection: false,        // projectStore.generation.strokeProtection
       accentProtection: false,        // projectStore.generation.accentProtection
+      smartColorTolerance: { enabled: false, strength: 0, policy: "quality-first" },
       // generation.brightness/contrast/saturation 与 sourceTransform 的同名字段
       // 是【不同阶段】的参数（算法调色 vs 源图预处理），故单独成桶，不合并。
       colorTuning: { brightness: 0, contrast: 0, saturation: 0 },
@@ -147,15 +150,19 @@
       currentSelectedColor: null, // state.currentSelectedColor
       label: "",               // state.paletteLabel
       engine: null,            // state.paletteEngine
+      availableColorsByPalette: {}, // 本机生成色卡偏好，不改变完整真实色库
     },
 
     rendererState: {
       // —— Phase 3B：承接 projectStore.view 的"渲染模式与显示开关" ——
       // 注意：这里的 showGrid/showCodes 与下面的 prefs.showGrid/showCodes 是【两套不同】的开关
       // （前者来自 projectStore.view，后者来自 app.js 的 state.editorPrefs），不可混用。
-      mode: "blocks",                   // projectStore.view.mode（blocks / pattern …）
+      // 「成像」(blocks) / 「拼豆」(beads) 两个视图按钮已从底栏移除，只剩「施工图」。
+      // 默认值必须跟着改成 pattern：否则新图纸一打开就停在 blocks，而切回来的按钮已经没了，
+      // 用户会被永久卡在一个没有出口的视图里。
+      mode: "pattern",                  // projectStore.view.mode（pattern / blocks / beads / original）
       showGrid: false,                  // projectStore.view.showGrid
-      showCodes: false,                 // projectStore.view.showCodes
+      showCodes: true,                  // projectStore.view.showCodes（底栏「色号」默认勾选）
       codeVisibilityThreshold: 16,      // projectStore.view.codeVisibilityThreshold
       previewRenderCell: 8,            // state.previewRenderCell
       previewDetailCodesVisible: false, // state.previewDetailCodesVisible
@@ -286,7 +293,7 @@
 
     /** 参考图叠加层：projectStore.reference */
     referenceState: {
-      url: "", opacity: 40, fit: "contain", visible: true, useSource: true,
+      url: "", opacity: 40, fit: "contain", visible: false, useSource: false,
       offsetX: 0, offsetY: 0, scale: 1, smoothing: "smooth", displayMode: "normal", adjusting: false,
     },
 
@@ -352,6 +359,9 @@
     pwReport: ["patternState", "pwReport"],
     optimizerReport: ["patternState", "optimizerReport"],
     smartReport: ["patternState", "smartReport"], // 生成诊断报告（app.js 运行时动态赋值）
+    smartToleranceReport: ["patternState", "smartToleranceReport"],
+    smartToleranceBaselineRevision: ["patternState", "smartToleranceBaselineRevision"],
+    smartColorTolerance: ["processingState", "smartColorTolerance"],
     structuralTransitionReport: ["patternState", "structuralTransitionReport"],
     structuralDetectionBaseline: ["patternState", "structuralDetectionBaseline"],
     regionalBlockReport: ["patternState", "regionalBlockReport"],
@@ -366,6 +376,8 @@
 
     generationEngine: ["processingState", "generationEngine"],
     generationEngineLast: ["processingState", "generationEngineLast"],
+    pindouOptions: ["processingState", "pindouOptions"],
+    pindouReport: ["processingState", "pindouReport"],
     generationPreset: ["processingState", "generationPreset"],
     generationSampling: ["processingState", "generationSampling"],
     algorithmEngine: ["processingState", "algorithmEngine"],

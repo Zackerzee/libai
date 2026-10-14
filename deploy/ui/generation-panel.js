@@ -15,6 +15,7 @@ import { GENERATION_MODE_PRESETS } from "../services/generation-pipeline.mjs";
 export class GenerationPanel {
   constructor({
     root,
+    backgroundRoot = null,
     initialState = {},
     onChange = () => {},
     onGenerate = () => {}
@@ -29,6 +30,7 @@ export class GenerationPanel {
     }
 
     this.onChange = onChange;
+    this.backgroundRoot = typeof backgroundRoot === "string" ? document.querySelector(backgroundRoot) : backgroundRoot;
     this.onGenerate = onGenerate;
 
     this.state = {
@@ -79,7 +81,7 @@ export class GenerationPanel {
       contrast: 0,
       saturation: 0,
 
-      advancedOpen: true,
+      advancedOpen: false,
 
       ...initialState
     };
@@ -115,14 +117,21 @@ export class GenerationPanel {
   }
 
   render() {
+    const paletteSelector = this.root.querySelector("#ws-brand-selector");
     this.root.innerHTML = `
       <section class="sl-generation-panel">
+
+        <div class="sl-panel-section" id="ws-generation-background-controls">
+          ${this.switchRow(
+            "backgroundRemoval",
+            "透明背景",
+            "生成时识别并去除可安全分离的纯色背景；复杂背景不强行删除"
+          )}
+        </div>
 
         ${this.renderActionSection()}
 
         ${this.renderGenMethodSection()}
-
-        ${this.renderProtectionSection()}
 
         ${this.renderColorSection()}
 
@@ -133,6 +142,10 @@ export class GenerationPanel {
       </section>
     `;
 
+    if (paletteSelector) this.root.querySelector("#ws-generation-palette-slot").append(paletteSelector);
+    // Re-render replaces the same single switch; the external host keeps its
+    // delegated listener and never holds a second settings/state copy.
+    if (this.backgroundRoot) this.backgroundRoot.replaceChildren(this.root.querySelector("#ws-generation-background-controls"));
     this.syncUI();
   }
 
@@ -316,6 +329,8 @@ export class GenerationPanel {
           </div>
         </div>
 
+        <div id="ws-generation-palette-slot"></div>
+
         <!-- Stage C0 §6：0 这个内部哨兵值不再直接甩给用户看。
              以前这一节只有一个数字框，标题是个内部字段名、提示要求用户先把 0
              理解成「自动」，等于把实现细节当成产品语言。
@@ -385,44 +400,16 @@ export class GenerationPanel {
         <div class="sl-section-heading">
           <div>
             <h3>更多设置</h3>
-            <p>亮度、对比度、饱和度与智能辅助开关</p>
+            <p>主体裁剪与结构保护；色调请在「图片调整」中处理</p>
           </div>
         </div>
 
+        <button type="button" data-action="toggle-advanced" aria-expanded="false"><span data-role="advanced-label">展开</span>高级设置</button>
         <div
           class="sl-advanced-content"
           data-role="advanced-content"
         >
-
-          ${this.rangeControl(
-            "brightness",
-            "亮度",
-            "",
-            -100,
-            100
-          )}
-
-          ${this.rangeControl(
-            "contrast",
-            "对比度",
-            "",
-            -100,
-            100
-          )}
-
-          ${this.rangeControl(
-            "saturation",
-            "饱和度",
-            "",
-            -100,
-            100
-          )}
-
-          ${this.switchRow(
-            "backgroundRemoval",
-            "去除纯色背景",
-            "先检测能否安全分离，再决定是否移除"
-          )}
+          ${this.renderProtectionSection()}
 
           <p class="sl-section-hint">
             智能辅助（可单独开关；「小白一键」会一次全开）
@@ -525,6 +512,7 @@ export class GenerationPanel {
 
   bindEvents() {
     this.root.addEventListener("click", event => {
+      if(event.target.closest('[data-action="toggle-advanced"]')){this.setState({advancedOpen:!this.state.advancedOpen});return;}
       const preset = event.target.closest("[data-preset]");
 
       if (preset) {
@@ -601,7 +589,7 @@ export class GenerationPanel {
       }
     });
 
-    this.root.addEventListener("input", event => {
+    const onInput = event => {
       const field = event.target.dataset.field;
 
       if (!field) return;
@@ -619,7 +607,9 @@ export class GenerationPanel {
       this.syncUI();
 
       this.onChange(this.emitSettings());
-    });
+    };
+    this.root.addEventListener("input", onInput);
+    this.backgroundRoot?.addEventListener("input", onInput);
   }
 
   applyPreset(preset) {
@@ -642,8 +632,7 @@ export class GenerationPanel {
   }
 
   syncUI() {
-    this.root
-      .querySelectorAll("[data-field]")
+    [...this.root.querySelectorAll("[data-field]"), ...(this.backgroundRoot?.querySelectorAll("[data-field]") || [])]
       .forEach(input => {
         const field = input.dataset.field;
 
@@ -711,6 +700,8 @@ export class GenerationPanel {
       "is-open",
       this.state.advancedOpen
     );
+    if(advanced)advanced.hidden=!this.state.advancedOpen;
+    this.root.querySelector('[data-action="toggle-advanced"]')?.setAttribute('aria-expanded',String(this.state.advancedOpen));
 
     if (advancedLabel) {
       advancedLabel.textContent =

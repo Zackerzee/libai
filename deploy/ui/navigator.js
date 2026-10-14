@@ -34,7 +34,7 @@ export function createNavigatorThumbnailCache(render) {
 
 export function Navigator({ host, getResult, getView, getViewportSize, getGridRevision = () => 0, onNavigate }) {
   host.classList.add("ws-navigator");
-  host.innerHTML = '<div class="ws-navigator-title">导航器</div><canvas aria-label="图纸导航缩略图"></canvas>';
+  host.innerHTML = '<canvas aria-label="图纸导航缩略图"></canvas>';
   const canvas = host.querySelector("canvas");
   let pending = false;
   const thumbnailCache = createNavigatorThumbnailCache((result, layout, width, height, dpr) => {
@@ -62,6 +62,9 @@ export function Navigator({ host, getResult, getView, getViewportSize, getGridRe
     const result = getResult(), view = getView();
     host.hidden = !(result?.width && result?.height);
     if (host.hidden) return;
+    const thumbnailScale = Math.min(176 / result.width, 116 / result.height);
+    canvas.style.width = `${Math.max(1, Math.round(result.width * thumbnailScale))}px`;
+    canvas.style.height = `${Math.max(1, Math.round(result.height * thumbnailScale))}px`;
     const width = canvas.clientWidth, height = canvas.clientHeight;
     const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
     canvas.width = Math.max(1, Math.round(width * dpr));
@@ -69,7 +72,7 @@ export function Navigator({ host, getResult, getView, getViewportSize, getGridRe
     const ctx = canvas.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
-    const layout = navigatorLayout(result?.width, result?.height, width, height);
+    const layout = navigatorLayout(result?.width, result?.height, width, height, 0);
     if (!layout) return;
     const cacheKey = `${getGridRevision()}:${result.width}x${result.height}:${canvas.width}x${canvas.height}`;
     const thumbnail = thumbnailCache.get(cacheKey, result, layout, width, height, dpr);
@@ -88,7 +91,7 @@ export function Navigator({ host, getResult, getView, getViewportSize, getGridRe
   const navigate = (event) => {
     const result = getResult();
     const rect = canvas.getBoundingClientRect();
-    const layout = navigatorLayout(result?.width, result?.height, rect.width, rect.height);
+    const layout = navigatorLayout(result?.width, result?.height, rect.width, rect.height, 0);
     if (!layout) return;
     const x = clamp((event.clientX - rect.left - layout.x) / layout.scale, 0, result.width);
     const y = clamp((event.clientY - rect.top - layout.y) / layout.scale, 0, result.height);

@@ -1,4 +1,4 @@
-import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEPS, zoomToSlider, sliderToZoom } from "../services/viewport-service.js?v=20260924-text";
+import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEPS, zoomToSlider, sliderToZoom } from "../services/viewport-service.js?v=20261014-zoom-floor20-2";
 
 // 「−」「+」按共享的 ZOOM_STEPS 跳档。
 // 原来固定 ±25 个百分点：在 25% 下限时代已经够粗，下限降到 2% 后更是没法用

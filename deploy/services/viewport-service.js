@@ -3,9 +3,9 @@ export const BASE_CELL = 20;
 // 180 豆 × 20px = 3600px，画布区宽 ~900px 时需要的适配缩放约 0.23——比原先的 0.25 还小，
 // 于是 25% 的下限直接把「适配窗口」卡死：fitToViewport() 算出来 0.23 又被 clamp 回 0.25，
 // 结果大图纸永远有一截露在窗口外。降到 2% 后，500 豆（10000px）在 250px 宽的窗口里也能完整显示。
-export const MIN_ZOOM = 0.02;
+export const MIN_ZOOM = 0.2;
 export const MAX_ZOOM = 8;
-export const ZOOM_STEPS = [0.02, 0.05, 0.1, 0.15, 0.2, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 6, 8];
+export const ZOOM_STEPS = [0.2, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 6, 8];
 // 注意别写成 `Number(zoom) || 1`：0 是合法输入（滑块最左端），
 // 用 `||` 会被当成「无效值」替换成 1，滑块拖到底反而跳到 100%。
 export const clampZoom = (zoom) => {

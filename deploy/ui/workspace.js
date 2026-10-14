@@ -1,21 +1,37 @@
-import { projectStore } from "../state/project-store.js?v=20260929-editor-phase8";
-import { createGenerationService } from "../services/generation-service.js?v=20260918-usage2";
+import { attachWorkspaceV3Layout } from './workspace-v3-layout.mjs?v=20261013-toolbar-confirm-1';
+import { bindPindouControls } from './pindou-full-controls.mjs?v=20261014-shared-presets-1';
+import { attachCompactExportPanel } from './export-options-panel.mjs?v=20261013-export-compact-1';
+import { attachSelectionContextControls, selectionCombineMode } from './selection-context-controls.mjs';
+import { raw as workspaceIcon } from './workspace-icons.mjs';
+import { closedLassoSelection } from '../services/closed-lasso-selection.mjs';
+import { referencePixelAt, sampleReferencePixel } from '../services/reference-sampling.mjs';
+import { projectStore } from "../state/project-store.js?v=20261014-main-native-1";
+import { mirroredTitle, mirroredPreviewGrid } from './export-mirror-preview.mjs?v=20261008-selection-popover-r24';
+import { createGenerationService } from "../services/generation-service.js?v=20261013-birth2";
+import { attachArtworkBirthController } from './artwork-motion-controller.mjs?v=20261014-motion-toggle-1';
 import { createPaletteService } from "../services/palette-service.js";
-import { createExportService } from "../services/export-service.js?v=20260917-batchA";
-import { createEditorService } from "../services/editor-service.js?v=20260929-editor-phase10";
-import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20260929-editor-phase3";
-import { createCanvasRenderer } from "./canvas-renderer.js?v=20260929-editor-phase9";
-import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20260916-phase35-5";
+import { attachPaletteBrandCards, paletteKitLabel } from './palette-brand-cards.mjs?v=20261009-compact-r28';
+import { previewEditorColorReduction } from '../services/editor-color-reduction.mjs?v=20261008-selection-popover-r24';
+import { createExportService } from "../services/export-service.js?v=20261010-editor-r45";
+import { createEditorService } from "../services/editor-service.js?v=20261013-v3-layout-p8";
+import { initTooltip } from './tooltip.mjs';
+initTooltip();
+import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20261014-zoom-floor20-2";
+import { createCanvasRenderer, resolveDiagnosticOverlayIssues } from "./canvas-renderer.js?v=20261014-layer-order-1";
+import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20261008-qa-fixes-r25";
+import { combineSelections } from "../services/selection-combine.mjs?v=20261007-layout";
+import { lassoSelection } from "../services/lasso-selection.mjs?v=20261007-paint-r14";
 import { magicWandSelection, fitSelectionBox, invertSelection as invertSelectionMask, selectAll as selectAllCells, translateSelection } from "../services/shapes-service.js?v=20260918-usage2";
-import { renderSourceTransform, defaultSourceTransform, cropFromDrag, sourceOutputGeometry } from "../services/source-editor-service.js?v=20260916-phase35-5";
-import { GenerationPanel } from "./generation-panel.js?v=20260930-generation-consolidation";
-import { GridEditorToolbar, SHAPE_TOOLS } from "./grid-editor-toolbar.js?v=20260930-top-toolbar-cleanup";
-import { detectPixelMultiple, loadImageData, logicalSize } from "./pixel-multiple.js?v=20260923-pixelmultiple";
-import { ZoomControls } from "./zoom-controls.js?v=20260930-lazy-b1";
-import { Navigator } from "./navigator.js?v=20260929-editor-phase3";
+import { renderSourceTransform, defaultSourceTransform, cropFromDrag, sourceOutputGeometry } from "../services/source-editor-service.js?v=20261014-transparent-1";
+import { attachSourceAdjustmentControls } from './source-adjustment-controller.mjs';
+import { GenerationPanel } from "./generation-panel.js?v=20261009-compact-r28";
+import { GridEditorToolbar, SHAPE_TOOLS } from "./grid-editor-toolbar.js?v=20261013-v3-layout-p8";
+import { detectPixelMultiple, loadImageData } from "./pixel-multiple.js?v=20260923-pixelmultiple";
+import { recommendAutomaticSize, isCurrentSizeSource } from "../services/automatic-generation-size.mjs?v=20261014-fusion97-1";
+import { ZoomControls } from "./zoom-controls.js?v=20261014-zoom-floor20-2";
 import { createInspectionState, currentInspectionIssue, setInspectionIssues, startInspection, stopInspection, nextInspectionIssue, previousInspectionIssue, nextInspectionCell, previousInspectionCell } from "../services/inspection-service.js?v=20260929-editor-phase3";
-import { TextPanel } from "./text-panel.js?v=20261001-stage-a";
-import { createTextLayer, rasterizeTextCached, layerContainsCell } from "../services/text-layer-service.js?v=20261001-stage-a";
+import { TextPanel, textPaletteChoices } from "./text-panel.js?v=20261014-text-palette-2";
+import { createTextLayer, rasterizeTextCached, layerContainsCell, cellsBox, composeLockedTextGrid } from "../services/text-layer-service.js?v=20261013-text-controls-1";
 import { createInventoryService } from "../services/inventory-service.js?v=20260917-inventory";
 import { moveReference } from "../services/reference-layer-service.js";
 import { buildRamp, createPaletteMetricCache } from "../services/color-ramp-service.js";
@@ -34,10 +50,21 @@ import { buildUsageEntries, formatUsageSummary, isUsageEntryPresent, USAGE_SORT_
 import { buildStructuralDiagnostics } from "../services/structural-diagnostics.js?v=20260929-editor-phase4d";
 import { stableIssueKey, deriveRepairSuggestions, createRepairQueue, createRepairPreview } from "../services/repair-suggestion.js?v=20260929-editor-phase5";
 import { membershipService } from "../services/membership-service.js?v=20260930-membership-v1";
-import { createExportV2Service } from "../services/export-v2-service.js?v=20260930-export-cjk";
-import { resizeCanvasGrid, scalePatternNearest, createGridResizeCommand, clampSelectionToBounds, resizeCropInsets } from "../services/grid-resize-service.js?v=20261001-hotfix";
+import { createExportV2Service } from "../services/export-v2-service.js?v=20261008-qa-fixes-r25";
+import { findExteriorBackground } from "../services/exterior-background-service.mjs?v=20261006-poster-transparent";
+import { resizeCanvasGrid, scalePatternNearest, createGridResizeCommand, clampSelectionToBounds, resizeCropInsets } from "../services/grid-resize-service.js?v=20261014-size-safety-1";
 import { createAutoDraftService } from "../services/auto-draft-service.js";
-import { createEditorCommand } from "../services/editor-command.js";
+import { touchPair, filterAndSortUsage, readEditorPreference, saveEditorPreference, textFrameControls, hitTextFrameControl, resizedTextScale } from "./editor-interaction.mjs?v=20261010-editor-r31";
+import { createProjectVersionService } from "../services/project-version-service.js";
+import { createEditorCommand, createStructureCommand, createCellCommand } from "../services/editor-command.js";
+import { attachPaletteColorPicker } from "./palette-color-picker.js?v=20261009-color-tools-r29";
+import { createSurfaceManager } from './surface-manager.js';
+import { createCellColorPopover } from "./cell-color-popover.js?v=20261010-editor-r42";
+import { attachUsageWheel } from './usage-wheel.mjs?v=20261008-selection-popover-r24';
+import { colorLabelInk as swatchInk } from './color-label.mjs';
+import { attachUniversalColorPick } from './universal-color-pick.mjs?v=20261010-editor-r45';
+import { canvasWheelZoomFactor } from './canvas-wheel-zoom.mjs?v=20261007-export-unified';
+import { buildColorRecommendationGroups } from "../services/color-recommendations.mjs?v=20261006-compact-colors";
 // Stage B4 P0：长边权威。**query string 必须与 app.js 里那一处逐字一致** ——
 // 不一致就是两个模块实例，`LONG_EDGE_AUTHORITY` 会是两个不同的对象，
 // 「用户点过应用尺寸」这个事实就在一边成立、另一边不成立。
@@ -45,9 +72,14 @@ import { createEditorCommand } from "../services/editor-command.js";
 import { LONG_EDGE_AUTHORITY, LONG_EDGE_EVENT, resolveLongEdgeAuthority, shouldAutoWriteLongEdge } from "../services/source-dimensions.mjs?v=20261003-stage-b4";
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+const colorChip = (color, fallback = "") => color ? `<span class="ws-code-swatch" data-ws-color-pick="${esc(paletteIdOf(color))}" style="background:${esc(color.hex || `rgb(${color.rgb?.join(",")})`)};color:${swatchInk(color)}">${esc(color.code)}</span>` : esc(fallback);
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
+export const WORKAREA_PANELS=Object.freeze({generate:['source','generation'],edit:['color','edit','check','project'],construction:['material','build']});
+export const workareaForPanel=panel=>Object.entries(WORKAREA_PANELS).find(([,panels])=>panels.includes(panel))?.[0]||'edit';
+export const EDIT_OVERLAY_TOOLS=Object.freeze(['select','region','lasso','closed-lasso','selection-move','reference-eyedropper','wand','same','connected','bead','brush','eraser','fill','line','rect','ellipse','heart','diamond','star','text','replace']);
 
 const canvasHint = (view) => {
+  if(view.mode==='blocks')return '成像仅显示已合并的图纸；文字对象需合并后才进入成像，编辑工具会切回施工图';
   const policy = resolveScreenRenderPolicy({
     showCodes: view.showCodes,
     zoom: view.zoom,
@@ -58,6 +90,12 @@ const canvasHint = (view) => {
 };
 
 export function mountWorkspace(bridge) {
+  // Presentation-only disclosure; tool/grid/selection stay owned by the store.
+  let toolParametersOpen = false;
+  let openToolMenu = null;
+  let selectionUI;
+  const combineMode = event => selectionCombineMode(event, selectionUI?.mode());
+  const combineSelection = (before, hits, mode) => { const {width,height}=bridge.getResult(); return combineSelections(before,hits,width,height,mode); };
   if (!bridge) throw new Error("缺少 Workspace Bridge");
   try {
     membershipService.init();
@@ -65,8 +103,10 @@ export function mountWorkspace(bridge) {
     console.warn("[membership] 初始化失败；编辑功能继续保持免费可用", error);
   }
   const store = projectStore, generation = createGenerationService(bridge, store);
-  const palettes = createPaletteService(bridge, store), exports = createExportService(bridge, store), editorService = createEditorService(bridge, { onHistoryChange: () => updateHistory() });
+  const palettes = createPaletteService(bridge, store), exports = createExportService(bridge, store), editorService = createEditorService(bridge, { onHistoryChange: () => updateHistory(), setSelection: selection => store.setState({ editor: { selection } }) });
   const wrap = document.querySelector(".workspace-wrap"), grid = wrap?.querySelector(".workspace-grid");
+  const $ = (selector) => wrap.querySelector(selector);
+  const surfaces=createSurfaceManager({document});
   const top = wrap?.querySelector(".main-global-toolbar"), left = grid?.querySelector(".main-left-toolbar");
   const center = grid?.querySelector(".main-center-workspace"), right = grid?.querySelector(".main-right-inspector");
   if (grid?.dataset.workspaceReady) return { mounted: true, reused: true };
@@ -84,38 +124,35 @@ export function mountWorkspace(bridge) {
   // 用 ensureGenerationLongEdge 而不是 setGenerationLongEdge：挂载是**无条件发生**的，
   // 但尺寸依据是有条件的。无条件写 104 会把更强的证据冲掉 ——
   // 例如「先打开 222×295 的工程、再挂载工作台」会得到 104（B0.1 §6）。
-  bridge.ensureGenerationLongEdge(104);
-  store.setState({ canvas: { width: 104, height: 104, lockAspectRatio: false }, generation: { engine: "v2.5", algorithm: "current" } });
+  bridge.ensureGenerationLongEdge(97);
+  store.setState({ canvas: { width: 97, height: 97, lockAspectRatio: false }, generation: { engine: "v2.5", algorithm: "current" } });
   document.body.classList.add("phase2-workspace");
 
   // 原先「更多现有工具与参数」折叠里装的是旧顶/左/右栏的控件，现已全部迁到工作台上方
   // 的 #ws-top-controls（扩展工具条 + 色号选择 + 生成参数），不再保留这个重复入口。
 
-  // 顶栏只承担项目身份、历史和项目级动作。编辑工具统一放左侧工具栏。
+  // 第一行承载项目身份与项目级操作；工具及其历史操作在第二行。
   top.className = "ws-topbar";
-  top.innerHTML = `<div class="ws-brand"><img src="./assets/brand/shiliber-mark-256.png" alt="" width="34" height="34"><span><strong>LIBMS Studio</strong><small>by 时里白造物</small></span></div>
+  top.innerHTML = `<div class="ws-brand"><img src="./assets/libms-logo.png" alt="" width="34" height="34"><span><strong>LIBMS Studio</strong><small>by 时里白造物</small></span></div>
     <div class="ws-project-identity"><input class="ws-name" id="ws-project-name" aria-label="作品名称" value="未命名作品" maxlength="40" title="点击编辑作品名称"><span id="ws-project-meta">尚未创建图纸</span><span class="ws-status" id="ws-status">未开始</span></div>
     <span class="ws-topbar-spacer"></span>
-    <div class="ws-history-actions" aria-label="编辑历史"><button type="button" id="ws-undo" aria-label="撤销" title="撤销 · Ctrl/Cmd+Z" disabled>↶</button><button type="button" id="ws-redo" aria-label="重做" title="重做 · Ctrl/Cmd+Shift+Z" disabled>↷</button></div>
+    <div class="ws-history-actions" aria-label="编辑历史"><button type="button" id="ws-undo" aria-label="撤销" title="撤销 · Ctrl/Cmd+Z" disabled>${workspaceIcon('undo')}</button><button type="button" id="ws-redo" aria-label="重做" title="重做 · Ctrl/Cmd+Shift+Z" disabled>${workspaceIcon('redo')}</button></div>
     <details class="ws-project-menu"><summary class="ws-button" aria-label="新建或导入项目">新建 / 导入</summary><div class="ws-project-popover" role="menu"><button type="button" id="ws-new-blank" role="menuitem">新建空白图纸<small>从空白画布开始</small></button><button type="button" id="ws-import-again" role="menuitem">导入图片<small>生成新的拼豆图纸</small></button><button type="button" id="ws-import-pattern" role="menuitem">导入现成图纸<small>识别已有色号图</small></button><button type="button" id="ws-project-import" role="menuitem">打开工程<small>LIBMS / Pixler</small></button></div></details>
     <input type="file" id="ws-project-file" accept="application/json,.json,.pixler" hidden>
-    <button type="button" class="ws-button" id="ws-save-project">保存</button>
+    <button type="button" class="ws-button" id="ws-save-project">保存工程</button>
     <button type="button" class="ws-button ws-button-primary" id="ws-export" disabled>导出</button>
-    <select id="ws-engine" hidden aria-label="生成引擎"><option value="v2.5">智能 V2.5</option><option value="legacy">Legacy</option></select>
+    <select id="ws-engine" hidden aria-label="生成引擎"><option value="v2.5">融合引擎</option></select>
     <span class="ws-membership-status" id="ws-membership-status" hidden>全部功能免费开放</span>
     <button type="button" id="ws-source-open" hidden>图片调整</button>
     <button type="button" class="ws-button ws-button-primary" id="ws-generate" hidden>重新生成</button>
     <button type="button" class="ws-button ws-button-danger" id="ws-cancel-generate" hidden>取消生成</button>
     <button type="button" class="ws-button" id="ws-legacy-retry" hidden>Legacy 重试</button>`;
 
-  // 左轨是唯一一级编辑工具入口；施工模式保留为独立工作模式。
+  // 左轨只保留绘图工具；施工预览统一从保存与导出进入。
   left.className = "ws-rail";
   left.setAttribute("aria-label", "专业编辑工具");
   left.innerHTML = `<button type="button" class="ws-rail-collapse" id="ws-rail-collapse" aria-label="收起工具栏" title="收起工具栏">‹</button><div id="gridEditorToolbar" class="ws-grid-toolbar-host"></div>
-    <button type="button" class="ws-rail-mode" data-ws-mode="build" aria-label="施工模式" title="施工 · 按区块拼豆，暗色护眼">
-      <span class="ws-rail-icon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="2" width="12" height="12"/><path d="M6 2v12M10 2v12M2 6h12M2 10h12" stroke-width=".8"/></svg></span>
-      <small>施工</small>
-    </button>`;
+    `;
 
   center.className = "ws-center";
   const oldTabs = center.querySelector(".main-view-tabs"); if (oldTabs) oldTabs.hidden = true;
@@ -158,8 +195,10 @@ export function mountWorkspace(bridge) {
   // 底部工具坞：左=画布工具，中=视图与缩放，右=主操作。严格单行不换行。
   // 原先浮在画布上方 top:12px 的工具条会盖住画布抢点击，这里改为常驻底栏。
   const dock = document.createElement("nav"); dock.className = "ws-dock"; dock.setAttribute("aria-label", "画布工具坞");
+  // 视图按钮只保留「施工图」：成像(blocks)/拼豆(beads) 已移除，「原图」在下方按需删除。
+  // 「对照」不再只是按住看原图 —— 没有对照图时它承担「上传照片当对照图」的入口（见 compare 处理）。
   dock.innerHTML = `<div class="ws-dock-view" id="ws-dock-view">
-      <div class="ws-view-modes">${[["original","原图"],["blocks","色块"],["beads","拼豆"],["pattern","图纸"]].map(([id,name])=>`<button type="button" data-ws-view="${id}">${name}</button>`).join("")}<button type="button" id="ws-compare" title="按住临时看原图">对照</button></div>
+      <div class="ws-view-modes">${[["pattern","施工图"]].map(([id,name])=>`<button type="button" data-ws-view="${id}">${name}</button>`).join("")}<button type="button" id="ws-compare" title="按住临时看原图">对照</button></div>
       <div class="ws-view-toggles"><label><input type="checkbox" id="ws-grid">网格</label><label><input type="checkbox" id="ws-codes">色号</label></div>
     </div>
     <div class="ws-dock-actions">
@@ -176,11 +215,12 @@ export function mountWorkspace(bridge) {
   //   · 「库存」→「材料」：语义从「只读台账」扩到「本作品用豆 + 底板 + 采购」。
   //     库存面板本身的能力（扣料 / OCR 录入 / CSV / 缺货 / 单色号明细）一个都没删，
   //     它现在是「材料」面板里的一节。
-  const INSPECTOR_TABS = [["project", "作品"], ["source", "图片"], ["generation", "生成"], ["color", "色彩"], ["edit", "编辑"], ["check", "检查"], ["material", "材料"]];
+  const INSPECTOR_TABS = [["project", "作品"], ["source", "图片调整"], ["generation", "生成设置"], ["color", "色彩"], ["edit", "对象"], ["check", "检查修复"], ["material", "备料库存"], ["build", "施工分区"]];
   right.innerHTML = `<div class="ws-side-tabs" role="tablist" aria-label="右栏分组">${INSPECTOR_TABS.map(([id, name]) => `<button type="button" role="tab" data-ws-panel="${id}">${name}</button>`).join("")}</div>
     <div class="ws-inspector-head"><strong id="ws-inspector-title">作品</strong><small id="ws-inspector-subtitle">当前设计</small></div>
     <div class="ws-inspector-scroll">
       <section class="ws-panel" data-ws-inspector="build">
+        <button type="button" class="ws-button ws-wide" id="ws-build-return">返回编辑</button>
         <div class="ws-section-title">分割区块</div>
         <p class="ws-note">把图纸切成若干块，一次只拼一块。</p>
         <div class="ws-stepper"><button type="button" data-ws-block="dec" aria-label="减少区块">−</button><output id="ws-block-count">1</output><button type="button" data-ws-block="inc" aria-label="增加区块">+</button></div>
@@ -198,7 +238,7 @@ export function mountWorkspace(bridge) {
       <section class="ws-panel" data-ws-inspector="source"><div class="ws-section-title">非破坏式原图修整</div><p class="ws-note">在中央原图拖动裁剪。原文件不变，应用后重新生成图纸。</p><label class="ws-field">裁剪比例<select id="ws-source-ratio"><option value="free">自由</option><option>1:1</option><option>4:3</option><option>3:4</option><option>16:9</option><option>9:16</option></select></label><div class="ws-source-buttons"><button type="button" data-ws-source-rotate="-90">左转 90°</button><button type="button" data-ws-source-rotate="90">右转 90°</button><button type="button" data-ws-source-flip="flipX">水平翻转</button><button type="button" data-ws-source-flip="flipY">垂直翻转</button><button type="button" id="ws-source-pick-mode">原图取色</button></div><div id="ws-source-sample" class="ws-source-sample"></div><div class="ws-section-title">画面调整</div>${[["brightness","亮度",-100,100],["contrast","对比度",-100,100],["saturation","饱和度",-100,100],["sharpen","锐化",0,100]].map(([key,label,min,max])=>`<label class="ws-source-slider">${label}<span id="ws-source-${key}-value">0</span><input type="range" data-ws-source-adjust="${key}" min="${min}" max="${max}" value="0"></label>`).join("")}<div class="ws-section-title">扩容画布 · 原图像素</div><div class="ws-expand-grid">${["top","bottom","left","right"].map((side)=>`<label>${{top:"上",bottom:"下",left:"左",right:"右"}[side]}<input type="number" data-ws-source-expand="${side}" min="0" max="500" value="0"></label>`).join("")}</div><label class="ws-field">背景色<input id="ws-source-background" type="color" value="#ffffff"></label><div class="ws-section-title">处理后预览</div><canvas id="ws-source-preview" class="ws-source-preview" aria-label="处理后图片预览"></canvas><div id="ws-source-size" class="ws-note"></div><div class="ws-source-buttons"><button type="button" id="ws-source-reset">恢复原图</button><button type="button" class="ws-button-primary" id="ws-source-apply">应用并生成</button></div></section>
       <section class="ws-panel" data-ws-inspector="generation">
         <div class="ws-section-title">生成尺寸</div>
-        <p class="ws-note">长边是唯一自由度；宽高按原图有效比例派生。改完点「应用尺寸」才会重新生成。</p>
+        <p class="ws-note">宽高按原图有效比例联动，调整后自动更新图纸。</p>
         <div class="ws-top-size ws-size-block">
           <span class="ws-top-size-label">长边</span>
           <div class="ws-size-chips" id="ws-size-chips" role="group" aria-label="长边预设（格）">
@@ -222,9 +262,19 @@ export function mountWorkspace(bridge) {
         <div class="ws-readout" id="ws-generation-status" role="status">尚未生成</div>
       </section>
       <section class="ws-panel" data-ws-inspector="color">
+        <div id="ws-brand-selector">
         <div class="ws-section-title">色卡</div>
-        <label class="ws-field">品牌<select id="ws-brand"></select></label>
-        <label class="ws-field">色数<select id="ws-palette-size"></select></label>
+        <label class="ws-field" hidden>品牌<select id="ws-brand"></select></label>
+        <label class="ws-field" hidden>色数<select id="ws-palette-size"></select></label>
+        <div id="ws-brand-cards"></div>
+        </div>
+        <details class="ws-reduction-panel" id="ws-reduction-panel"><summary>智能降色 · 预览后应用</summary>
+          <p class="ws-note">只合并现有豆色，不改变尺寸；先预览，再决定应用。</p>
+          <label>目标色数<input type="range" id="ws-reduction-range" min="1" max="24" value="24"><output id="ws-reduction-target">24</output></label>
+          <div class="ws-reduction-status" id="ws-reduction-status" role="status">拖动滑杆预览当前作品。</div>
+          <canvas id="ws-reduction-preview" hidden></canvas>
+          <div class="ws-reduction-actions"><button type="button" class="ws-button" id="ws-reduction-reset">恢复预览</button><button type="button" class="ws-button" id="ws-reduction-apply" disabled>应用 · 可撤销</button></div>
+        </details>
         <div class="ws-section-title">完整真实色盘</div>
         <div class="ws-current-color-summary" id="ws-palette-current">当前颜色：未选择</div>
         <input id="ws-color-search" type="search" placeholder="搜索色号 · H7 / H07" aria-label="搜索色号">
@@ -244,14 +294,12 @@ export function mountWorkspace(bridge) {
             <button type="button" data-ws-usage-sort="count-desc" class="active">数量↓</button>
             <button type="button" data-ws-usage-sort="count-asc">数量↑</button>
             <button type="button" data-ws-usage-sort="code">色号</button>
+            <button type="button" data-ws-usage-sort="hue">色相</button>
           </div>
         </div>
         <div class="ws-usage-strip" id="ws-usage-strip" role="list"></div>
         <div class="ws-usage-actions" id="ws-usage-actions" hidden>
           <span id="ws-usage-current" class="ws-usage-current">未选择颜色</span>
-          <button type="button" id="ws-usage-only">只看此色</button>
-          <button type="button" id="ws-usage-replace">全局替换</button>
-          <button type="button" id="ws-usage-similar">相近颜色</button>
         </div>
         <div class="ws-usage-similar" id="ws-usage-similar-list" hidden></div>
         <div class="ws-section-title">色彩优化</div>
@@ -261,7 +309,8 @@ export function mountWorkspace(bridge) {
           <button type="button" id="ws-color-cleanup">清理杂点</button>
         </div>
         <div id="ws-manual-merge-panel" hidden>
-          <label class="ws-field">选择来源色（可多选）<select id="ws-merge-sources" multiple size="5"></select></label>
+          <label class="ws-field">选择来源色（可多选）<select id="ws-merge-sources" multiple size="5" hidden></select></label>
+          <div id="ws-merge-source-colors" role="group" aria-label="选择来源色（可多选）" style="display:flex;flex-wrap:wrap;gap:8px;max-height:180px;overflow:auto"></div>
           <label class="ws-field">合并为<input id="ws-merge-target" list="ws-palette-datalist" placeholder="输入色号"></label>
           <p class="ws-note" id="ws-merge-impact">请选择来源色和目标色。</p>
           <button type="button" class="ws-button ws-wide" id="ws-merge-confirm">确认合并</button>
@@ -293,7 +342,7 @@ export function mountWorkspace(bridge) {
   resizeDialog.innerHTML=`<form method="dialog" class="ws-resize-card"><div class="ws-resize-head"><div><strong>调整图纸尺寸</strong><small id="ws-resize-from">当前：104 × 104</small></div><button value="cancel" aria-label="关闭">×</button></div><div class="ws-resize-body"><div class="ws-section-title">目标尺寸</div><div class="ws-selection-actions"><label>宽<input id="ws-resize-width" type="number" min="1" max="1000" value="104"></label><span>×</span><label>高<input id="ws-resize-height" type="number" min="1" max="1000" value="104"></label></div><div class="ws-resize-presets"><button type="button" data-resize-preset="52">52×52</button><button type="button" data-resize-preset="78">78×78</button><button type="button" data-resize-preset="104">104×104</button><span>自定义</span></div><fieldset class="ws-resize-modes"><legend>模式</legend><label><input type="radio" name="ws-resize-mode" value="canvas" checked> 调整图纸</label><label><input type="radio" name="ws-resize-mode" value="pattern"> 缩放图案</label></fieldset><div id="ws-resize-anchor-wrap"><div class="ws-section-title">锚点</div><div class="ws-anchor-grid" role="radiogroup" aria-label="九宫格锚点">${resizeAnchors.map((anchor,index)=>`<label title="${resizeAnchorLabels[index]}"><input type="radio" name="ws-resize-anchor" value="${anchor}"${anchor==="center"?" checked":""}><span></span></label>`).join("")}</div></div><p class="ws-resize-warning" id="ws-resize-summary">调整图纸不会重新匹配颜色。</p></div><div class="ws-resize-foot"><button value="cancel">取消</button><button type="button" class="ws-button-primary" id="ws-resize-apply">确认调整</button></div></form>`;
   wrap.append(resizeDialog);
   const symmetryControls = editPanel?.querySelector("#ws-symmetry-mode")?.closest(".ws-editor-group");
-  symmetryControls?.insertAdjacentHTML("beforeend", `<label class="ws-switch-row"><input id="ws-symmetry-guides" type="checkbox" checked> 显示对称轴</label><p class="ws-note">对称绘制只影响新的画笔与橡皮笔画；镜像是对已有内容执行即时变换。</p>`);
+  symmetryControls?.insertAdjacentHTML("beforeend", `<label class="ws-switch-row"><input id="ws-symmetry-guides" type="checkbox" checked> 显示对称轴</label><p class="ws-note">对称绘制只影响新的画笔与橡皮笔画；镜像仅在导出中设置，不改变当前图纸。</p>`);
   const outlineControls=document.createElement("div");outlineControls.className="ws-outline-controls";
   outlineControls.innerHTML=`<div class="ws-section-title">结构描边</div>
     <label class="ws-field">来源<select id="ws-outline-source"><option value="component">当前连通区域</option><option value="palette">全图当前颜色</option><option value="selection">选区内容</option></select></label>
@@ -322,7 +371,7 @@ export function mountWorkspace(bridge) {
     <label class="ws-field">级数<select id="ws-ramp-size"><option value="3">3 级</option><option value="5" selected>5 级</option><option value="7">7 级</option></select></label>
     <div class="ws-selection-actions"><button type="button" id="ws-ramp-regenerate">重新生成</button><button type="button" id="ws-ramp-remove-level">移除当前级</button></div>
     <label class="ws-field">替换当前级<input id="ws-ramp-level-target" list="ws-palette-datalist" placeholder="输入色号"></label>
-    <label class="ws-field">Ink<select id="ws-ink-mode"><option value="normal">普通</option><option value="darker">加深</option><option value="lighter">提亮</option></select></label>
+    <label class="ws-field">绘制方式<select id="ws-ink-mode"><option value="normal">普通</option><option value="darker">加深</option><option value="lighter">提亮</option></select></label>
     <div class="ws-section-title">低频颜色</div>
     <label class="ws-field">诊断阈值<select id="ws-rare-threshold"><option value="3">≤ 3 颗</option><option value="5" selected>≤ 5 颗</option><option value="10">≤ 10 颗</option></select></label>
     <div class="ws-palette-diagnostic-list" id="ws-rare-colors"></div>
@@ -331,7 +380,7 @@ export function mountWorkspace(bridge) {
     <label class="ws-field">问题分类<select id="ws-diagnostic-category"><option value="all">全部</option><option value="rare-color">低频颜色</option><option value="isolated-pixel">孤立像素</option><option value="tiny-region">微小区域</option><option value="edge-contamination" selected>边缘污染</option></select></label>
     <label class="ws-field">严重程度<select id="ws-diagnostic-severity"><option value="all">全部</option><option value="high">高</option><option value="medium">中</option><option value="low">低</option></select></label>
     <label class="ws-field">微小区域阈值<select id="ws-tiny-threshold"><option value="3">≤ 3 颗</option><option value="5">≤ 5 颗</option><option value="8">≤ 8 颗</option></select></label>
-    <label class="ws-switch-row"><input id="ws-diagnostic-overlay" type="checkbox" checked> 显示诊断标记</label>
+    <label class="ws-switch-row"><input id="ws-diagnostic-overlay" type="checkbox"> 显示诊断标记</label>
     <div class="ws-inspection" id="ws-inspection">
       <div class="ws-inspection-head"><strong id="ws-inspection-title">问题巡检</strong><button type="button" id="ws-inspection-toggle">开始巡检</button></div>
       <div class="ws-note" id="ws-inspection-current">当前没有可巡检的问题。</div>
@@ -360,41 +409,132 @@ export function mountWorkspace(bridge) {
   };
   const pixelPerfectControl = document.createElement("label");
   pixelPerfectControl.className = "ws-switch-row";
-  pixelPerfectControl.innerHTML = '<input type="checkbox" id="ws-pixel-perfect" checked> Pixel Perfect（仅 1 格画笔）';
+  pixelPerfectControl.title = "修整一格宽线条转角处的多余豆格，仅笔宽为 1 时可用";
+  pixelPerfectControl.innerHTML = '<input type="checkbox" id="ws-pixel-perfect" checked> 像素完美';
   right.querySelector("#ws-brush-size")?.closest("label")?.after(pixelPerfectControl);
   const gallery = document.querySelector(".gallery-section"); if (gallery) right.querySelector(".ws-project-gallery-slot").append(gallery);
 
-  // 工作台上方的参数条，只保留一件事：**视图缩放**。
-  // Stage C0 §2/§4：生成尺寸（长边草稿 + 派生宽高 +「应用尺寸」）已经搬进右栏「生成」面板 ——
-  // 它是生成这一层的 PROPERTY，和「生成模式」是同一层的东西，不该和视图控件挤在一条横条上。
-  // 顶栏剩下的是 TOOL 层：视图缩放（选择工具本身在左轨，见 toolRail）。
+  // Fixed-height context row: existing generation controls live on the left,
+  // tool options replace them in edit mode; zoom remains on the right.
   const topControls = document.createElement("section");
   topControls.className = "ws-top-controls";
   topControls.id = "ws-top-controls";
-  topControls.setAttribute("aria-label", "视图缩放");
-  topControls.innerHTML = `<div id="zoomControls" class="ws-top-zoom"></div>`;
+  topControls.setAttribute("aria-label", "工具参数、生成设置与视图缩放");
+  topControls.innerHTML = `<div id="ws-tool-options"><strong id="ws-context-tool-label">工具</strong><div class="ws-context-group" data-tools="select region same connected wand"><label>选择方式<select id="ws-context-selection-type"><option value="select">单格查看</option><option value="region">矩形选区</option><option value="same">全部同色</option><option value="connected">连续同色</option><option value="wand">相近色区域</option></select></label></div><div class="ws-context-group" id="ws-context-text" data-tools="text"><span id="ws-context-text-summary">文字对象属性</span><button type="button" id="ws-context-text-properties">对象属性</button></div></div><div id="zoomControls" class="ws-top-zoom"></div>`;
+  const textContextControls=document.createElement("div");textContextControls.id="ws-context-text-controls";textContextControls.className="ws-text-context-controls";textContextControls.style.display="contents";topControls.querySelector("#ws-context-text").append(textContextControls);
+  const selectionType=topControls.querySelector('#ws-context-selection-type');
+  selectionType.options[1].after(new Option('涂选','lasso'));
+  selectionType.append(new Option('套索','closed-lasso'));
+  selectionType.append(new Option('移动选区','selection-move'));
+  selectionType.append(new Option('参考图吸管','reference-eyedropper'));
+  selectionType.closest('[data-tools]').dataset.tools+=' lasso closed-lasso selection-move reference-eyedropper';
+  selectionType.closest('[data-tools]').dataset.menu='selection';
+  selectionType.title='涂选：按住鼠标扫过豆格立即选中，可多次叠加；Esc 取消本次涂选';
+  const selectionButtons=document.createElement('div');
+  selectionButtons.id='ws-selection-buttons';selectionButtons.className='ws-icon-tool-options';selectionButtons.setAttribute('role','group');selectionButtons.setAttribute('aria-label','选择工具');
+  const selectionIcons={select:'eye',region:'marquee',lasso:'lasso',same:'swatch',connected:'layers',wand:'wand','closed-lasso':'lasso','selection-move':'moveT','reference-eyedropper':'dropper'};
+  for(const option of selectionType.options){const button=document.createElement('button');button.type='button';button.dataset.selectionTool=option.value;button.title=option.text;button.setAttribute('aria-label',option.text);button.setAttribute('aria-pressed',String(option.value==='select'));button.innerHTML=`<span class="ws-context-icon" aria-hidden="true">${workspaceIcon(selectionIcons[option.value]||'marquee')}</span><span class="ws-tool-option-label">${option.text}</span>`;selectionButtons.append(button);}
+  selectionType.closest('label').hidden=true;
+  selectionType.closest('[data-tools]').append(selectionButtons);
+  const shapeButtons=document.createElement('div');shapeButtons.id='ws-shape-buttons';shapeButtons.className='ws-icon-tool-options';shapeButtons.dataset.menu='shape';shapeButtons.dataset.tools='line rect ellipse heart diamond star';shapeButtons.setAttribute('role','group');shapeButtons.setAttribute('aria-label','形状工具');
+  for(const [id,label,icon] of [['line','直线','line'],['rect','矩形','rect'],['ellipse','圆形','ellipse'],['heart','心形','heart'],['diamond','菱形','diamond'],['star','五角星','star']]){const button=document.createElement('button');button.type='button';button.dataset.tool=id;button.title=label;button.setAttribute('aria-label',label);button.setAttribute('aria-pressed','false');button.innerHTML=`<span class="ws-context-icon" aria-hidden="true">${id==='heart'||id==='diamond'||id==='star'?`<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">${id==='heart'?'<path d="M16 28 4.5 16.5C-1 10.7 7 2 14 7.5l2 1.7 2-1.7C25 2 33 10.7 27.5 16.5L16 28Z"/>':id==='diamond'?'<path d="M16 3 29 16 16 29 3 16Z"/>':'<path d="m16 3 4 8.2 9 .9-6.6 6.1 1.8 8.8-8.2-4.5-8.2 4.5 1.8-8.8L3 12.1l9-.9L16 3Z"/>'}</svg>`:workspaceIcon(icon)}</span><span class="ws-tool-option-label">${label}</span>`;shapeButtons.append(button);}
+  topControls.querySelector('#ws-tool-options').append(shapeButtons);
+  const referencePickGroup = document.createElement('div'); referencePickGroup.className = 'ws-context-group'; referencePickGroup.dataset.tools = 'reference-eyedropper';
+  referencePickGroup.innerHTML = '<span>参考图取色</span><div id="ws-reference-candidates" class="ws-reference-candidates" role="group" aria-label="参考图最近色号">点击参考图取色</div>';
+  topControls.querySelector('#ws-tool-options').append(referencePickGroup);
+  selectionUI = attachSelectionContextControls({
+    host: selectionType.closest('[data-tools]'),
+    transform: kind => kind === 'move' ? gridToolbar.setTool('selection-move') : editorService.transformSelection(get().editor.selection, kind),
+    selectHistory: index => editorService.selectClipboardHistory(index),
+    paste: () => selectionActions.paste(),
+    clearHistory: () => editorService.clearClipboardHistory(),
+    history: () => editorService.getClipboardHistory(),
+    resolveColor: identity => editorService.resolveColor(identity),
+  });
   grid.before(topControls);
+  // Reuse the existing inspector and listeners; only its grid position changes.
+  right.classList.add("ws-parameter-inspector");
+  right.querySelector('.ws-side-tabs').setAttribute('aria-label', '参数分组');
+  grid.prepend(right);
+  const paletteSummary = document.createElement('aside');
+  paletteSummary.className = 'ws-palette-summary';
+  paletteSummary.id = 'ws-palette-summary';
+  paletteSummary.setAttribute('aria-label', '配色清单');
+  paletteSummary.innerHTML = '<h2>配色清单</h2><div class="ws-summary-palette"><strong id="ws-summary-brand">—</strong><span id="ws-summary-series">—</span></div><div class="ws-summary-totals"><div><strong id="ws-summary-colors">0</strong><span>种颜色</span></div><div><strong id="ws-summary-beads">0</strong><span>颗拼豆</span></div></div><div id="ws-summary-specs"></div><div class="ws-summary-filter"><input type="search" id="ws-summary-search" aria-label="筛选配色清单色号" placeholder="搜索色号"><select id="ws-summary-sort" aria-label="配色清单排序"><option value="count-desc">数量↓</option><option value="count-asc">数量↑</option><option value="code">色号</option><option value="hue">色相</option></select></div><div id="ws-summary-usage" role="list" aria-label="实际用色清单"></div>';
+  paletteSummary.querySelector('.ws-summary-totals').insertAdjacentHTML('beforeend','<div><strong id="ws-summary-grid">—</strong><span>图纸尺寸（格）</span></div><div id="ws-summary-physical"><span>实物尺寸</span></div>');
+  paletteSummary.querySelector('#ws-summary-physical').prepend(right.querySelector('#ws-physical-size'));
+  paletteSummary.querySelector('#ws-summary-specs').append(...[
+    top.querySelector('#ws-project-meta'),
+    top.querySelector('#ws-status'),
+    right.querySelector('#ws-bead-size').closest('label'),
+  ].filter(Boolean));
+  grid.append(paletteSummary);
+  const palettePickerSection=document.createElement('section');
+  palettePickerSection.className='ws-summary-picker';palettePickerSection.setAttribute('aria-label','选择画笔颜色');
+  palettePickerSection.innerHTML='<h3>选择颜色</h3>';
+  ['#ws-palette-current','#ws-color-search','#ws-picker-count','#ws-palette-categories','#ws-recent-colors','#ws-bead-picker'].forEach(selector=>palettePickerSection.append($(selector)));
+  // 当前色的「前后色」：按色板顺序取当前色前后各 2 色，当前色放大高亮。
+  // 用途是**微调**——已经选中 A05 时想看 A04/A06 长什么样，不必回到 221 格的色板里重新找。
+  // 点任意一格走的是同一条 data-ws-pick 通道（与色板、最近色共用 activateColor）。
+  const colorNeighbors=document.createElement('div');colorNeighbors.className='ws-color-neighbors';colorNeighbors.id='ws-color-neighbors';
+  colorNeighbors.setAttribute('role','group');colorNeighbors.setAttribute('aria-label','当前色的前后色');colorNeighbors.hidden=true;
+  palettePickerSection.querySelector('#ws-palette-current').after(colorNeighbors);
+  paletteSummary.append(palettePickerSection);
+  const summaryCloseButton=document.createElement('button');summaryCloseButton.type='button';summaryCloseButton.className='ws-summary-mobile-close';summaryCloseButton.textContent='关闭';summaryCloseButton.setAttribute('aria-label','关闭配色清单');
+  paletteSummary.querySelector('h2').append(summaryCloseButton);
+  const summaryOpenButton = document.createElement('button');
+  summaryOpenButton.className='ws-button ws-summary-mobile-open';summaryOpenButton.type='button';summaryOpenButton.textContent='配色清单';summaryOpenButton.setAttribute('aria-expanded','false');
+  summaryOpenButton.addEventListener('click',()=>{const open=paletteSummary.classList.toggle('is-mobile-summary-open');summaryOpenButton.setAttribute('aria-expanded',String(open));});
+  top.append(summaryOpenButton);
+  summaryCloseButton.addEventListener('click',()=>{paletteSummary.classList.remove('is-mobile-summary-open');summaryOpenButton.setAttribute('aria-expanded','false');summaryOpenButton.focus();});
+  const generationTopControls = document.createElement("div");
+  generationTopControls.id = "ws-generation-top-controls";
+  generationTopControls.setAttribute("aria-label", "生成尺寸与背景");
+  const generationBackgroundHost = document.createElement("div");
+  generationBackgroundHost.id = "ws-generation-background-host";
+  const generationInspector = right.querySelector('[data-ws-inspector="generation"]');
+  const generationSizeBlock = generationInspector.querySelector('.ws-size-block');
+  generationSizeBlock.previousElementSibling.remove(); // explanatory note becomes a title
+  generationSizeBlock.previousElementSibling.remove(); // duplicate section heading
+  generationSizeBlock.title = "长边决定尺寸；宽高按原图比例派生。点击应用尺寸重新生成。";
+  generationSizeBlock.querySelector('#ws-size-range').hidden = false;
+  generationSizeBlock.querySelector('#ws-size-controls').setAttribute('aria-label', '长边（格）：数字输入、滚轮、方向键');
+  generationTopControls.append(generationSizeBlock, generationBackgroundHost);
 
   const toolRail = left.querySelector("#gridEditorToolbar");
+  // The toolbar keeps its existing controller and DOM identity; only its host
+  // moves from the narrow rail into the second header row.
+  topControls.prepend(toolRail);
+  topControls.querySelector('#ws-tool-options').before(toolRail);
+  toolRail.after(top.querySelector(".ws-history-actions"));
 
   const drawer = document.createElement("aside"); drawer.className = "ws-export-drawer"; drawer.id = "ws-export-drawer";
   drawer.setAttribute("aria-label", "导出作品");
   drawer.innerHTML = `<div class="ws-drawer-head"><strong>导出</strong><button type="button" id="ws-export-close" aria-label="关闭导出" onclick="this.closest('#ws-export-drawer')?.classList.remove('open')">×</button></div>
     <label class="ws-field">作品名称<input id="ws-export-title" maxlength="60" placeholder="未命名作品"></label>
-    <div class="ws-export-options"><strong>图纸</strong><label>清晰度<select id="ws-export-quality"><option value="standard">标准 · 16px/格</option><option value="high">高清 · 24px/格</option><option value="ultra" selected>超高清 · 32px/格</option></select></label><label><input type="checkbox" id="ws-export-grid" checked>网格</label><label><input type="checkbox" id="ws-export-codes" checked>色号</label><label><input type="checkbox" id="ws-export-coords" checked>坐标</label><small id="ws-export-pixels"></small></div>
+    <div class="ws-export-options"><strong>图纸</strong><label>PNG清晰度<select id="ws-export-quality"><option value="standard">标准 · 24px/格</option><option value="hd" selected>高清 · 48px/格</option><option value="ultra">超高清 · 64px/格</option></select></label><label><input type="checkbox" id="ws-export-grid" checked>网格</label><label><input type="checkbox" id="ws-export-codes" checked>色号</label><label><input type="checkbox" id="ws-export-coords" checked>坐标</label><small id="ws-export-pixels"></small></div>
     <button type="button" class="ws-export-choice" data-export-v2="png"><strong>PNG 图纸</strong><small>按目标分辨率直接绘制，色号不经过低清放大</small></button>
     <button type="button" class="ws-export-choice" data-export-v2="pdf"><strong>PDF 图纸</strong><small>网格与色号使用 PDF 矢量命令</small></button>
     <button type="button" class="ws-export-choice" data-export-v2="pixler"><strong>Pixler 工程</strong><small>结构化网格、真实色号与透明空格</small></button>
     <button type="button" class="ws-export-choice" data-ws-export="project-json"><strong>工程存档</strong><small>保存并继续编辑</small></button>
-    <div class="ws-export-options"><strong>分享海报</strong><canvas id="ws-poster-preview" aria-label="海报实时预览"></canvas><label>比例<select id="ws-poster-ratio"><option value="3x4">3:4 · 1500×2000</option><option value="1x1">1:1 · 1800×1800</option></select></label><label>背景<select id="ws-poster-background"><option value="auto">自动同色系</option><option value="solid">纯色</option></select></label><div id="ws-poster-solid-controls" hidden><label>颜色<input type="color" id="ws-poster-solid-color" value="#f1eee8"></label><label>HEX<input id="ws-poster-solid-hex" value="#F1EEE8" maxlength="7"></label></div><label>作品大小<select id="ws-poster-size"><option value="small">小</option><option value="standard" selected>标准</option><option value="large">大</option></select></label><label>衬纸<select id="ws-poster-backing"><option value="none">无</option><option value="narrow">窄边</option><option value="standard" selected>标准</option></select></label><label>品牌<select id="ws-poster-brand"><option value="libms">libms Studio</option><option value="shiliber">时里白造物</option><option value="custom">自定义</option></select></label><label><input type="checkbox" id="ws-poster-logo" checked>显示 Logo</label><label>署名<input id="ws-poster-signature" placeholder="署名"></label><label>前缀<select id="ws-poster-prefix"><option value="none">无</option><option value="at">@</option><option value="copyright">©</option></select></label><label>字体风格<select id="ws-poster-style"><option value="minimal">简约</option><option value="artistic">文艺</option><option value="handwritten">手写</option><option value="modern">现代</option></select></label><label><input type="checkbox" id="ws-poster-title-toggle">显示作品名称</label><label><input type="checkbox" id="ws-poster-meta">显示作品信息</label></div>
-    <button type="button" class="ws-export-choice" data-export-v2="poster"><strong>作品海报 · PNG</strong><small>canonical grid 干净预览与自动同色系背景</small></button>
+<div class="ws-export-options"><strong>分享海报</strong><canvas id="ws-poster-preview" aria-label="海报实时预览"></canvas><label>比例<select id="ws-poster-ratio"><option value="3x4">3:4 · 3000×4000</option><option value="1x1">1:1 · 3600×3600</option></select></label><label>背景<select id="ws-poster-background"><option value="auto">自动同色系</option><option value="artwork">图纸虚化背景</option><option value="solid">纯色</option></select></label><div id="ws-poster-solid-controls" hidden><label>颜色<input type="color" id="ws-poster-solid-color" value="#f1eee8"></label><label>HEX<input id="ws-poster-solid-hex" value="#F1EEE8" maxlength="7"></label></div><label>作品大小<select id="ws-poster-size"><option value="small">小</option><option value="standard" selected>标准</option><option value="large">大</option></select></label><label>衬纸<select id="ws-poster-backing-paper"><option value="none">无</option><option value="narrow">窄边</option><option value="standard">标准</option><option value="stamp" selected>齿边</option></select></label><label>品牌<select id="ws-poster-brand"><option value="libms">LIBMS Studio</option><option value="keqila">氪憩鞡丨时里白</option><option value="shiliber">时里白造物</option><option value="custom">自定义</option></select></label><label><input type="checkbox" id="ws-poster-logo" checked>显示 Logo</label><label><input type="checkbox" id="ws-poster-transparent">海报去底色（先核对预览）</label><label>署名<input id="ws-poster-signature" placeholder="署名"></label><label>前缀<select id="ws-poster-prefix"><option value="none">无</option><option value="at">@</option><option value="copyright">©</option></select></label><label>字体风格<select id="ws-poster-style"><option value="minimal">简约</option><option value="artistic">文艺</option><option value="handwritten">手写</option><option value="modern">现代</option></select></label><label><input type="checkbox" id="ws-poster-title-toggle">显示作品名称</label><label><input type="checkbox" id="ws-poster-meta">显示作品信息</label></div>
+    <button type="button" class="ws-export-choice" data-export-v2="poster"><strong>作品海报 · PNG</strong><small>作品图纸干净预览与自动同色系背景</small></button>
     <div class="ws-export-options"><strong>大型作品 · 104×104 板型分割</strong><span id="ws-board-summary">当前作品无需分板</span><label><input type="checkbox" id="ws-board-codes" checked>色号</label><label><input type="checkbox" id="ws-board-grid" checked>网格</label></div>
     <button type="button" class="ws-export-choice" data-export-v2="boards" id="ws-boards-choice"><strong>导出板型 ZIP</strong><small>零重叠、零重采样、尾板保持真实尺寸</small></button>
     <button type="button" class="ws-export-choice" data-ws-export="usage-csv"><strong>用豆清单 · CSV</strong></button><p class="ws-note" id="ws-export-message"></p>`;
   wrap.append(drawer);
+  $("#ws-export-coords").checked=true;
+  $("#ws-export-coords").closest('label').append(document.createTextNode('（PNG / PDF，四边标注）'));
+  drawer.querySelector('[data-export-v2="pdf"] small').textContent='完整施工信息、四边坐标与矢量色号';
+  const exportMirrorField=document.createElement('label');exportMirrorField.className='ws-field';
+  exportMirrorField.innerHTML='作品镜像预览<select id="ws-export-mirror"><option value="none">不镜像</option><option value="horizontal">左右镜像</option><option value="vertical">上下镜像</option></select><small>作品同步预览；导出名称自动加「镜像」。原图纸不变。</small>';
+  $("#ws-export-title").closest('label').after(exportMirrorField);
+  $("#ws-poster-background").insertAdjacentHTML('beforeend','<option value="aurora">极光渐变</option>');
+  $("#ws-ref-visible").checked=false;
+  viewBar.querySelector('[data-ws-view="original"]')?.remove();
   const exportV2 = createExportV2Service({
-    getGrid: () => bridge.getResult().grid || [],
-    getTitle: () => get().project.name || "未命名作品",
+    getGrid: () => composeLockedTextGrid(bridge.getResult().grid || [], currentTextLayers(), paletteColors()),
+    getTitle: () => mirroredTitle(get().project.name, ['pattern','print'].includes(drawer.dataset.outputCurrent) ? $('#ws-export-mirror').value : 'none'),
     getPaletteLabel: () => bridge.getResult().paletteLabel || get().palette.id || "MARD 221",
   });
   const confirmDialog = document.createElement("dialog"); confirmDialog.className = "ws-confirm-dialog";
@@ -409,7 +549,6 @@ export function mountWorkspace(bridge) {
     confirmDialog.showModal();
   });
 
-  const $ = (selector) => wrap.querySelector(selector);
   const symmetryOptions = () => {
     const result = bridge.getResult();
     const editor = get().editor;
@@ -420,6 +559,7 @@ export function mountWorkspace(bridge) {
     } };
   };
   const get = () => store.getState();
+  const paletteColorPickers = [];
   function updateHistory() {
     store.setState({ editor: { history: { canUndo: editorService.canUndo(), canRedo: editorService.canRedo() }, outlinePreview: null } });
   }
@@ -461,6 +601,8 @@ export function mountWorkspace(bridge) {
   };
   // 像素倍数：识别结果 + 手动覆盖值。声明放在最前，保证导入事件先于尺寸逻辑就绪。
   let detectedMultiple = 1;
+  let detectedImageData = null;
+  let sizeSourceRevision = 0;
   // 生成尺寸草稿：**唯一自由度是长边格数**。
   // 滑杆 / 数字框 / 滚轮 / 方向键 / 预设都只改这个草稿，点「应用尺寸」才写进 bridge。
   // 声明必须早于 paint()：paint 会调 syncSizeUi()，晚声明会踩 TDZ。
@@ -493,7 +635,7 @@ export function mountWorkspace(bridge) {
   let inspectionState = createInspectionState();
   let structuralCache = { revision: -1, tinyMaxSize: -1, value: null };
   let diagnosticOverlayIssues = [];
-  let diagnosticOverlayVisible = true;
+  let diagnosticOverlayVisible = false;
   const ignoredIssueKeys = new Set();
   let repairPreview = null;
   let repairQueue = createRepairQueue([]);
@@ -507,6 +649,12 @@ export function mountWorkspace(bridge) {
     setLongEdgeAuthority(LONG_EDGE_EVENT.SOURCE_REPLACED);
     blockedAutoSizeWrites = 0;
     sizeOrigin = "auto";
+    detectedMultiple = 1;
+    detectedImageData = null;
+    sizeSourceRevision += 1;
+    multipleDetectionUrl = null;
+    multipleDetection = null;
+    detectedForUrl = null;
     store.setState({
       source: { image: event.detail.url, width: event.detail.width, height: event.detail.height },
       project: { name: event.detail.name.replace(/\.[^.]+$/, "") },
@@ -540,7 +688,10 @@ export function mountWorkspace(bridge) {
       status:{hasSource:false,hasPattern:true,dirty:true,generationError:null},
       editor:{tool:"brush",selectedCell:null,...buildActivateColorPatch(color?paletteIdOf(color):null,paletteColors(),{highlight:false}),selection:null,hoveredCell:null,rampBasePaletteId:null,rampPaletteIds:[],inkMode:"normal"},
       ui:{activePanel:"color",exportDrawerOpen:false},
-      view:{mode:"blocks"},
+      // 空白板也走 pattern：底栏「成像」(blocks) 按钮已移除，blocks 是再也回不去的死状态。
+      // 更要紧的是 canvas-renderer 的 blocks 分支在画参考图之前就 return —— 停在 blocks 时
+      // 参考图永远画不出来，右栏透明度条与「按住对照」都会变成看不见的死控件。
+      view:{mode:"pattern"},
     });
     updateHistory();viewport.fitToViewport();renderPicker();
   };
@@ -565,7 +716,7 @@ export function mountWorkspace(bridge) {
     repairPreview = null;
     syncLegacy(event.detail);
     const selected = get().editor.selectedCell;
-    if (selected) {
+    if (selected && !inspectionState.active) {
       const inspected = editorService.inspectCell(selected.x, selected.y);
       const paletteId = inspected?.paletteId || null;
       // 点到空格时**不要**把当前颜色清掉 —— 保留选色，只让高亮跟着走。
@@ -588,21 +739,38 @@ export function mountWorkspace(bridge) {
     $("#ws-brand").innerHTML = brands().map((brand) => `<option value="${esc(brand)}">${esc(brandLabel(brand))}</option>`).join("");
   }
   renderBrandOptions();
+  const brandCards = attachPaletteBrandCards({host:$('#ws-brand-cards'),getCatalog:()=>bridge.getPaletteCatalog?.() || [],getActiveKey:()=>palettes.getActivePalette().key,label:brandLabel,onSelect:key=>{const [brand,size]=key.split('-');palettes.setActivePalette(brand,Number(size));refreshPaletteOptions();scheduleAutoGenerate(0);}});
   function refreshPaletteOptions() {
     const active = palettes.getActivePalette(); const [brand, size] = active.key.split("-");
     $("#ws-brand").value = brand;
     const sizes = palettes.getPalettes().filter((key) => key.startsWith(`${brand}-`)).map((key) => Number(key.split("-")[1])).sort((a,b) => b-a);
     $("#ws-palette-size").innerHTML = sizes.map((count) => `<option value="${count}">${count} 色</option>`).join("");
     $("#ws-palette-size").value = size;
+    brandCards.render();
   }
   refreshPaletteOptions();
+  let reductionPreview=null;
+  const reductionRange=$('#ws-reduction-range'),reductionCanvas=$('#ws-reduction-preview'),reductionApply=$('#ws-reduction-apply');
+  function resetReductionPreview(){reductionPreview=null;reductionCanvas.hidden=true;reductionApply.disabled=true;const grid=bridge.getResult().grid||[],count=new Set(grid.flat().filter(Boolean).map(paletteIdOf)).size;reductionRange.max=String(Math.max(1,count));reductionRange.value=String(Math.max(1,count));$('#ws-reduction-target').textContent=String(count);$('#ws-reduction-status').textContent=count?`当前 ${count} 色 · 拖动预览，不修改作品`:'请先生成或打开作品';}
+  function previewReduction(){const grid=bridge.getResult().grid||[],target=Number(reductionRange.value);$('#ws-reduction-target').textContent=String(target);if(!grid.length)return;const preview=previewEditorColorReduction(grid,target);reductionPreview={...preview,source:grid,revision:gridRevision,paletteKey:palettes.getActivePalette().key};const width=grid[0].length,height=grid.length;reductionCanvas.width=width;reductionCanvas.height=height;const ctx=reductionCanvas.getContext('2d');ctx.clearRect(0,0,width,height);preview.grid.forEach((row,y)=>row.forEach((color,x)=>{if(color){ctx.fillStyle=`rgb(${color.rgb.join(',')})`;ctx.fillRect(x,y,1,1);}}));reductionCanvas.style.width=`${Math.min(260,width*3)}px`;reductionCanvas.hidden=false;reductionApply.disabled=!preview.changedCells;$('#ws-reduction-status').textContent=`${preview.beforeColors} → ${preview.afterColors} 色 · 修改 ${preview.changedCells} 格${preview.forcedProtected?' · 为达到目标，部分保护色也将合并，请检查细节':''}`;}
+  let reductionTimer=null;
+  reductionRange.addEventListener('input',()=>{clearTimeout(reductionTimer);$('#ws-reduction-target').textContent=reductionRange.value;reductionApply.disabled=true;reductionTimer=setTimeout(previewReduction,140);});
+  $('#ws-reduction-reset').addEventListener('click',()=>{clearTimeout(reductionTimer);resetReductionPreview();});
+  $('#ws-reduction-panel').addEventListener('toggle',()=>{if($('#ws-reduction-panel').open)resetReductionPreview();});
+  reductionApply.addEventListener('click',()=>{const preview=reductionPreview,grid=bridge.getResult().grid;if(!preview)return;if(preview.source!==grid||preview.revision!==gridRevision||preview.paletteKey!==palettes.getActivePalette().key){resetReductionPreview();$('#ws-reduction-status').textContent='作品或色卡已改变，请重新预览';return;}const changes=[];grid.forEach((row,y)=>row.forEach((before,x)=>{const after=preview.grid[y][x];if(paletteIdOf(before)!==paletteIdOf(after))changes.push({x,y,before,after});}));if(changes.length)editorService.executeCommand(createCellCommand(bridge,{type:'COLOR_REDUCTION',label:'智能降色',changes,width:grid[0].length,height:grid.length}));resetReductionPreview();});
+  window.addEventListener('libms:grid-edited',resetReductionPreview);
+  window.addEventListener('libms:project-result',resetReductionPreview);
+  resetReductionPreview();
   // 第三方品牌色板是异步 import 的，可能晚于本初始化；到达后重建下拉并恢复选中项。
   window.addEventListener("libms:brand-palettes-ready", () => {
     renderBrandOptions();
     refreshPaletteOptions();
   });
 
-  right.querySelector(".ws-side-tabs").querySelectorAll("[data-ws-panel]").forEach((button) => button.addEventListener("click", () => store.setState({ ui: { activePanel: button.dataset.wsPanel } })));
+  right.querySelector(".ws-side-tabs").querySelectorAll("[data-ws-panel]").forEach((button) => button.addEventListener("click", () => { if(button.dataset.wsPanel==='build'){setWorkspaceMode('build');return;}if(buildActive())setWorkspaceMode("edit");store.setState({ ui: { activePanel: button.dataset.wsPanel } }); }));
+  right.querySelector(".ws-inspector-head").insertAdjacentHTML("beforeend",'<button type="button" class="ws-mobile-panel-close" aria-label="收起属性面板">收起</button>');
+  right.querySelector(".ws-mobile-panel-close").addEventListener("click",()=>right.classList.remove("is-mobile-panel-open"));
+  right.querySelector(".ws-side-tabs").addEventListener("click",event=>{if(event.target.closest("[data-ws-panel]"))right.classList.add("is-mobile-panel-open");});
   left.querySelectorAll("[data-ws-mode]").forEach((button) => button.addEventListener("click", () => setWorkspaceMode(button.dataset.wsMode)));
   dock.addEventListener("click", (event) => { const button = event.target.closest("[data-ws-view]"); if (button) store.setState({ view: { mode: button.dataset.wsView } }); });
   $("#ws-project-name").addEventListener("input", (event) => store.setState({ project: { name: event.target.value }, status: { dirty: true } }));
@@ -631,6 +799,7 @@ export function mountWorkspace(bridge) {
     }
   }
   function scheduleAutoGenerate(delay = 320) {
+    autoGenQueued = false;
     if (autoGenTimer) clearTimeout(autoGenTimer);
     autoGenTimer = setTimeout(runAutoGenerate, delay);
   }
@@ -639,11 +808,13 @@ export function mountWorkspace(bridge) {
   // 所以不再需要向外暴露 setState 入口。
   const generationPanel = new GenerationPanel({
     root: "#generationPanel",
+    backgroundRoot: "#ws-generation-background-host",
     initialState: { maxColors: get().palette.maxColors || 0 },
     // 这里只处理**非尺寸**参数。尺寸已经和这条链路彻底分开：
     // 它由顶栏草稿 +「应用尺寸」显式提交（见下方「生成尺寸」一节），
     // 所以拖尺寸滑杆不会走到 onChange，也就不会触发生成（B0 §5 / §7）。
     onChange: (settings) => {
+      if (get().generation.engine === 'pindou') return;
       if (Number(settings.maxColors) !== get().palette.maxColors) palettes.setMaxColors(Number(settings.maxColors) || 0);
       // Stage B2 §17 §18：界面只有一个「去除纯色背景」开关（backgroundRemoval）。
       // 引擎读的是 autoBackground，所以这里把同一个值同时写给两者 ——
@@ -671,6 +842,118 @@ export function mountWorkspace(bridge) {
       try { await generation.generate({ overwriteApproved: true }); } catch (error) { store.setState({ status: { notice: error.message } }); }
     },
   });
+  $("#ws-generation-palette-slot").append($("#ws-brand-selector"));
+  // Six numbered task groups reuse the original panel nodes and their event
+  // handlers; this is presentation-only and keeps one editor/store state.
+  const inspectorScroll=right.querySelector('.ws-inspector-scroll');
+  // 「参考图」已整节搬到右栏（见下方 referenceGroup 处理），左栏不再保留这一节。
+  const stepSpecs=[['3','一键预设'],['1','画面调整'],['2','扩容画布'],['4','马赛克采样'],['8','高级设置'],['5','颜色量化'],['6','编辑检查']];
+const steps=new Map(stepSpecs.map(([number,label],index)=>{const section=document.createElement('section');section.className='ws-step-card';section.dataset.wsStep=number;section.innerHTML=`<h2><span>${index+1}</span>${label}</h2><div class="ws-step-content"></div>`;inspectorScroll.append(section);return[number,section.querySelector('.ws-step-content')];}));
+  steps.get('2').closest('.ws-step-card').hidden = true;
+  let visibleStep = 0;
+  for (const content of steps.values()) if (!content.closest('.ws-step-card').hidden) content.previousElementSibling.querySelector('span').textContent = String(++visibleStep);
+  const moveToStep=(number,node)=>{if(node)steps.get(number)?.append(node);};
+  importView.hidden=true;
+  moveToStep('1',right.querySelector('[data-ws-inspector="source"]'));
+  const sourcePanel = steps.get('1').querySelector('[data-ws-inspector="source"]');
+  // Retain the legacy bindings for imported source transforms, but remove the
+  // redundant crop/rotate entry points from the visible adjustment card.
+  const sourceLegacyControls = document.createElement('div');
+  sourceLegacyControls.hidden = true;
+  const adjustmentHeading = [...sourcePanel.querySelectorAll('.ws-section-title')].find(node => node.textContent === '画面调整');
+  while (sourcePanel.firstElementChild && sourcePanel.firstElementChild !== adjustmentHeading) {
+    sourceLegacyControls.append(sourcePanel.firstElementChild);
+  }
+  sourcePanel.prepend(sourceLegacyControls);
+  const expandHeading = [...sourcePanel.querySelectorAll('.ws-section-title')].find(node => node.textContent.startsWith('扩容画布'));
+  if (expandHeading) {
+    let node = expandHeading;
+    while (node && (node === expandHeading || !node.classList.contains('ws-section-title'))) {
+      const next = node.nextElementSibling;
+      moveToStep('2', node); node = next;
+    }
+  }
+  // 「参考图」整节搬到右栏（左侧不再保留任何东西），并配一根**竖向**透明度滑杆：
+  // 「参考图」整节不再在右栏露面：添加/替换、删除、显示、适配、质量、缩放、调整位置这些字段
+  // 全部收起来（节点与监听一个没删，只是不显示）。参考图只剩一个入口 —— 底栏「对照」：
+  //   没有参考图 → 「对照」变成上传入口；有了参考图 → 按住「对照」临时只看参考图。
+  const referenceGroup=$('#ws-ref-pick')?.closest('.ws-editor-group');
+  if(referenceGroup){
+    referenceGroup.classList.add('ws-reference-group');
+    referenceGroup.hidden=true;
+    // 横向那行「透明度」与竖向滑杆是同一份 reference.opacity，留一个就够。
+    // 位置要紧：必须在任何搬移之前改 —— 一旦节点落进游离容器，$()（= wrap.querySelector）
+    // 就查不到它，而 ?. 会把失败静默吞掉。
+    referenceGroup.querySelector('#ws-ref-opacity')?.closest('label')?.setAttribute('hidden','');
+  }
+  // 右栏改成「最左侧一条竖向透明度条 + 右侧内容」两栏：滑杆贴着画布那一侧，是独立的控件条，
+  // 不混进右栏内容流，也不再把内容挤窄。透明度条只在真的有参考图时才出现。
+  const paletteContent=document.createElement('div');paletteContent.className='ws-palette-content';
+  while(paletteSummary.firstChild)paletteContent.append(paletteSummary.firstChild);
+  const opacityRail=document.createElement('div');opacityRail.className='ws-reference-opacity';opacityRail.id='ws-reference-opacity';opacityRail.hidden=true;
+  opacityRail.innerHTML='<span class="ws-ref-rail-label">参考图</span>'
+    +'<output id="ws-ref-opacity-vertical-value">40%</output>'
+    +'<input type="range" id="ws-ref-opacity-vertical" min="0" max="100" step="1" value="40" orient="vertical" aria-label="参考图透明度（越高参考图越明显）">'
+    +'<button type="button" id="ws-ref-remove" title="移除参考图" aria-label="移除参考图">×</button>';
+  paletteSummary.append(opacityRail,paletteContent);
+  moveToStep('2',generationTopControls.querySelector('.ws-size-block'));
+  moveToStep('2',right.querySelector('[data-ws-inspector="project"]'));
+  const generationPanelRoot=$('#generationPanel');
+  const presetSection=generationPanelRoot.querySelector('.sl-preset-grid')?.closest('.sl-panel-section');
+  const regenerateSection=$('#ws-generation-regenerate')?.closest('.sl-panel-section');
+  moveToStep('3',presetSection);
+  if (regenerateSection !== presetSection && regenerateSection) {
+    regenerateSection.hidden = true;
+    regenerateSection.style.display = 'none';
+  }
+  moveToStep('4',generationTopControls.querySelector('#ws-generation-background-host'));
+  moveToStep('4',right.querySelector('[data-ws-inspector="generation"]'));
+  moveToStep('8',generationPanelRoot.querySelector('.sl-advanced-section'));
+  moveToStep('5',right.querySelector('[data-ws-inspector="color"]'));
+  for(const panel of ['edit','check','material','build'])moveToStep('6',right.querySelector(`[data-ws-inspector="${panel}"]`));
+  // Keep the original delegated generation event root around the moved live
+  // controls, so preset/advanced actions and syncUI retain their bindings.
+  const generationParent = generationPanelRoot.parentElement;
+  while (generationPanelRoot.firstChild) generationParent.insertBefore(generationPanelRoot.firstChild, generationPanelRoot);
+  generationPanelRoot.remove();
+  for (const content of steps.values()) generationPanelRoot.append(content.closest('.ws-step-card'));
+  inspectorScroll.append(generationPanelRoot);
+  // Parameters only: reuse existing cards; do not replace the v3 layout shell.
+  const nativeEngineField = document.createElement('label');
+  nativeEngineField.className = 'ws-field';
+  const nativeEngineSelect = $('#ws-engine');
+  nativeEngineField.append('生成引擎', nativeEngineSelect);
+  nativeEngineSelect.hidden = false;
+  steps.get('5').prepend(nativeEngineField);
+  // One production entry. Preserve compatibility config, but never let a saved
+  // native engine's 64-grid defaults take ownership of the shared size model.
+  if (get().generation.engine !== 'v2.5') {
+    bridge.setGenerationEngine('v2.5');
+    store.setState({ generation: { engine: 'v2.5' } });
+  }
+  const nativeParameterRoot = document.createElement('div');
+  nativeParameterRoot.id = 'pindouFullPanel';
+  nativeParameterRoot.hidden = true;
+  steps.get('8').append(nativeParameterRoot);
+  const pindouControls = bindPindouControls({
+    root: nativeParameterRoot,
+    // Native-only presets cannot act on the unified V2.5 post-processing path.
+    // Keep their compatibility controls private rather than expose inert cards.
+    presetRoot: null,
+    isActive: () => get().generation.engine === 'pindou',
+    read: () => get().generation.pindouOptions || bridge.getPindouOptions(),
+    sourceSize: () => ({width: bridge.getResult().sourceWidth, height: bridge.getResult().sourceHeight}),
+    onChange: config => {
+      if (get().generation.engine === 'pindou' && bridge.isGenerating()) bridge.cancelGeneration();
+      bridge.setPindouOptions(config);
+      store.setState({generation: {pindouOptions: config}, status: {dirty: true}});
+      scheduleAutoGenerate();
+    },
+  });
+  right.querySelector('.ws-side-tabs').hidden=true;right.querySelector('.ws-inspector-head').hidden=true;
+  steps.get('1').closest('.ws-step-card').querySelector('h2').addEventListener('click',()=>store.setState({ui:{activePanel:'source'}}));
+  const buildEntry=document.createElement('button');buildEntry.type='button';buildEntry.className='ws-button ws-wide';buildEntry.textContent='打开施工分区预览';buildEntry.addEventListener('click',()=>{if(get().status.hasPattern)setWorkspaceMode('build');});steps.get('6').prepend(buildEntry);
+  const exportEntry=document.createElement('button');exportEntry.type='button';exportEntry.className='ws-button ws-wide';exportEntry.textContent='打开保存与导出';exportEntry.addEventListener('click',()=>exportNow.click());steps.get('6').prepend(exportEntry);
   // ===================== Stage B2 §6：生成前背景预检 =====================
   // 「去除纯色背景」打开后**不立刻静默应用**。先跑一次轻量预检（长边封顶 160，
   // 见 services/background-preview-service.mjs），把结论摆到画布下方，由用户选
@@ -770,7 +1053,8 @@ export function mountWorkspace(bridge) {
   $("#ws-bg-preview-dismiss")?.addEventListener("click", () => { hideBackgroundPreview(); scheduleAutoGenerate(0); });
 
   $("#ws-engine").addEventListener("change", (event) => {
-    const engine = event.target.value;
+    const engine = 'v2.5';
+    if (bridge.isGenerating()) bridge.cancelGeneration();
     bridge.setGenerationEngine(engine);
     store.setState({ generation: { engine }, status: { dirty: true } });
     scheduleAutoGenerate(0);
@@ -803,6 +1087,13 @@ export function mountWorkspace(bridge) {
       },
     });
   });
+  const projectMenu = $(".ws-project-menu");
+  projectMenu.addEventListener("click", (event) => {
+    if (event.target.closest('[role="menuitem"]')) projectMenu.open = false;
+  }, true);
+  document.addEventListener("pointerdown", (event) => {
+    if (!projectMenu.contains(event.target)) projectMenu.open = false;
+  });
   $("#ws-import-again").addEventListener("click", () => {
     // 必须在这次 click 的同步用户手势里打开文件选择器。经过异步 dialog/await 后，
     // Safari 与部分 Chromium 会把 input.click() 当成非用户触发并直接拦截。
@@ -812,16 +1103,16 @@ export function mountWorkspace(bridge) {
   $("#ws-source-open").addEventListener("click", () => store.setState({ ui: { activePanel: "source" } }));
   $("#ws-new-blank").addEventListener("click", () => document.querySelector("#blank-board-modal")?.showModal());
   $("#ws-import-pattern").addEventListener("click", () => document.querySelector("#direct-pattern-file-input")?.click());
-  $("#ws-save-project").addEventListener("click", () => { if (get().status.hasPattern) bridge.downloadProjectJson(); });
+  $("#ws-save-project").addEventListener("click", () => { if (get().status.hasPattern) bridge.downloadProjectJson(get().project.name); });
   const railPreferenceKey = "libms.workspace.toolRail.collapsed";
   const setRailCollapsed = (collapsed) => {
     left.classList.toggle("is-collapsed", collapsed);
-    grid.style.setProperty("--ws-rail-width", collapsed ? "58px" : "102px");
+    grid.style.setProperty("--ws-rail-width", collapsed ? "54px" : "58px");
     $("#ws-rail-collapse").textContent = collapsed ? "›" : "‹";
     $("#ws-rail-collapse").setAttribute("aria-label", collapsed ? "展开工具栏" : "收起工具栏");
     $("#ws-rail-collapse").title = collapsed ? "展开工具栏" : "收起工具栏";
     try { localStorage.setItem(railPreferenceKey, collapsed ? "1" : "0"); } catch {}
-    requestAnimationFrame(() => { viewport?.fitToViewport?.(); navigator?.requestDraw?.(); });
+    requestAnimationFrame(() => { viewport?.fitToViewport?.();  });
   };
   try { setRailCollapsed(localStorage.getItem(railPreferenceKey) === "1"); } catch { setRailCollapsed(false); }
   $("#ws-rail-collapse").addEventListener("click", () => setRailCollapsed(!left.classList.contains("is-collapsed")));
@@ -833,36 +1124,76 @@ export function mountWorkspace(bridge) {
   exportButton.removeAttribute("onclick");legacyExportButton.replaceWith(exportButton);
   exportButton.addEventListener("click", (event) => { event.preventDefault();event.stopPropagation();store.setState({ ui: { exportDrawerOpen: true } });setTimeout(() => { drawer.classList.add("open");refreshPosterPreview(); }, 0); });
   $("#ws-export-close").addEventListener("click", () => { store.setState({ ui: { exportDrawerOpen: false } }); drawer.classList.remove("open"); });
+  document.addEventListener("pointerdown", event => {
+    if (!drawer.classList.contains("open") || drawer.contains(event.target)) return;
+    store.setState({ ui: { exportDrawerOpen: false } });
+    drawer.classList.remove("open");
+  }, true);
   drawer.addEventListener("click", async (event) => { const button = event.target.closest("[data-ws-export]"); if (!button) return; try { $("#ws-export-message").textContent = "正在准备导出…"; await exports.export(button.dataset.wsExport); $("#ws-export-message").textContent = "已启动下载"; } catch (error) { $("#ws-export-message").textContent = error.message; } });
-  const posterConfig=()=>({ratio:$("#ws-poster-ratio").value,background:$("#ws-poster-background").value,solidColor:$("#ws-poster-solid-color").value,artworkSize:$("#ws-poster-size").value,backing:$("#ws-poster-backing").value,brand:$("#ws-poster-brand").value,showLogo:$("#ws-poster-logo").checked,signatureText:$("#ws-poster-signature").value,signaturePrefix:$("#ws-poster-prefix").value,signatureStyle:$("#ws-poster-style").value,showTitle:$("#ws-poster-title-toggle").checked,showMetadata:$("#ws-poster-meta").checked});
-  let posterPreviewToken=0;const refreshPosterPreview=async()=>{if(!get().status.hasPattern)return;const token=++posterPreviewToken,preview=await exportV2.previewPoster(posterConfig(),{width:300});if(token!==posterPreviewToken)return;const canvas=$("#ws-poster-preview"),ctx=canvas.getContext("2d");canvas.width=preview.width;canvas.height=preview.height;ctx.drawImage(preview,0,0);};
-  ["ws-poster-ratio","ws-poster-background","ws-poster-size","ws-poster-backing","ws-poster-brand","ws-poster-logo","ws-poster-signature","ws-poster-prefix","ws-poster-style","ws-poster-title-toggle","ws-poster-meta"].forEach(id=>$("#"+id).addEventListener(id==="ws-poster-signature"?"input":"change",()=>{$("#ws-poster-solid-controls").hidden=$("#ws-poster-background").value!=="solid";refreshPosterPreview();}));
+  const posterConfig=()=>({ratio:$("#ws-poster-ratio").value,background:$("#ws-poster-background").value,solidColor:$("#ws-poster-solid-color").value,artworkSize:$("#ws-poster-size").value,backing:$("#ws-poster-backing-paper").value,brand:$("#ws-poster-brand").value,showLogo:$("#ws-poster-logo").checked,removeBackground:$("#ws-poster-transparent").checked,signatureText:$("#ws-poster-signature").value,signaturePrefix:$("#ws-poster-prefix").value,signatureStyle:$("#ws-poster-style").value,showTitle:$("#ws-poster-title-toggle").checked,showMetadata:$("#ws-poster-meta").checked});
+  let posterPreviewToken=0;const refreshPosterPreview=async()=>{if(!get().status.hasPattern)return;const token=++posterPreviewToken,preview=await exportV2.previewPoster(posterConfig(),{width:300});if(token!==posterPreviewToken)return;const canvas=$("#ws-poster-preview"),ctx=canvas.getContext("2d");canvas.width=preview.width;canvas.height=preview.height;ctx.drawImage(preview,0,0);const hint=$("#ws-poster-background-status");if(hint)hint.textContent=preview.dataset.backgroundStatus==="removed"?"已去除边缘连通浅色底；同色主体也可能受影响，请核对预览。原图纸不变。":preview.dataset.backgroundStatus==="ambiguous"?"外围含复杂底色或原图杂线，无法安全自动去除。请先清理或导入透明作品，避免误删主体。":"透明空格保持透明。可勾选海报去底色并核对预览；与背景连通的同色主体也可能移除，原图纸不变。";};
+  ["ws-poster-ratio","ws-poster-background","ws-poster-size","ws-poster-backing-paper","ws-poster-brand","ws-poster-logo","ws-poster-transparent","ws-poster-signature","ws-poster-prefix","ws-poster-style","ws-poster-title-toggle","ws-poster-meta"].forEach(id=>$("#"+id).addEventListener(id==="ws-poster-signature"?"input":"change",()=>{$("#ws-poster-solid-controls").hidden=$("#ws-poster-background").value!=="solid";refreshPosterPreview();}));
   $("#ws-poster-solid-color").addEventListener("input",event=>{$("#ws-poster-solid-hex").value=event.target.value.toUpperCase();refreshPosterPreview();});
   $("#ws-poster-solid-hex").addEventListener("input",event=>{if(/^#[0-9a-f]{6}$/i.test(event.target.value)){$("#ws-poster-solid-color").value=event.target.value;refreshPosterPreview();}});
-  drawer.addEventListener("click", async (event) => { const button=event.target.closest("[data-export-v2]");if(!button)return;const options={quality:$("#ws-export-quality").value,showGrid:$("#ws-export-grid").checked,showCodes:$("#ws-export-codes").checked};try{$("#ws-export-message").textContent="正在以目标分辨率绘制…";if(button.dataset.exportV2==="png")await exportV2.png(options);else if(button.dataset.exportV2==="pdf")await exportV2.pdf(options);else if(button.dataset.exportV2==="pixler")await exportV2.pixler();else if(button.dataset.exportV2==="poster")await exportV2.poster(posterConfig());else await exportV2.boards({showCodes:$("#ws-board-codes").checked,showGrid:$("#ws-board-grid").checked});$("#ws-export-message").textContent="已启动下载";}catch(error){$("#ws-export-message").textContent=error.message;}});
-  $("#ws-export-title").addEventListener("input",event=>store.setState({project:{name:event.target.value},status:{dirty:true}}));
+  drawer.addEventListener("click", async (event) => { const button=event.target.closest("[data-export-v2]");if(!button)return;const options={quality:$("#ws-export-quality").value,showGrid:$("#ws-export-grid").checked,showCodes:$("#ws-export-codes").checked,showCoordinates:$("#ws-export-coords").checked,majorGridInterval,mirror:$("#ws-export-mirror").value};try{$("#ws-export-message").textContent="正在以目标分辨率绘制…";if(button.dataset.exportV2==="png")await exportV2.png(options);else if(button.dataset.exportV2==="pdf")await exportV2.pdf(options);else if(button.dataset.exportV2==="pixler")await exportV2.pixler();else if(button.dataset.exportV2==="poster")await exportV2.poster(posterConfig());else await exportV2.boards({showCodes:$("#ws-board-codes").checked,showGrid:$("#ws-board-grid").checked,majorGridInterval,mirror:options.mirror});$("#ws-export-message").textContent="已启动下载";}catch(error){$("#ws-export-message").textContent=error.message;}});
+  $("#ws-export-title").addEventListener("input",event=>store.setState({project:{name:$('#ws-export-mirror').value==='none'?event.target.value:event.target.value.replace(/\s*·\s*镜像$/,'')},status:{dirty:true}}));
+  $('#ws-export-mirror').addEventListener('change',()=>{cellColorPopover.close();paint(get(),{exportSettings:get().exportSettings});renderer.requestDraw();});
   $("#ws-export-quality").addEventListener("change",()=>paint(get(),{exportSettings:get().exportSettings}));
   [["#ws-export-grid","showGrid"],["#ws-export-codes","showCodes"],["#ws-export-coords","showCoordinates"]].forEach(([selector, field]) => $(selector).addEventListener("change", (event) => store.setState({ exportSettings: { pattern: { ...get().exportSettings.pattern, [field]: event.target.checked } } })));
   $("#ws-grid").addEventListener("change", (event) => store.setState({ view: { showGrid: event.target.checked } }));
-  $("#ws-codes").addEventListener("change", (event) => store.setState({ view: { showCodes: event.target.checked } }));
+  store.setState({ view: { showCodes: Boolean(readEditorPreference("codes", get().view.showCodes)) } });
+  $("#ws-codes").addEventListener("change", (event) => { saveEditorPreference("codes", event.target.checked); store.setState({ view: { showCodes: event.target.checked } }); });
   viewBar.addEventListener("click", (event) => { const button = event.target.closest("[data-ws-view]"); if (button) store.setState({ view: { mode: button.dataset.wsView } }); });
   const well = $("#ws-canvas-well"), layers = $("#ws-canvas-layers");
   const viewport = createViewportService(store, () => ({ viewportWidth: well.clientWidth, viewportHeight: well.clientHeight,
     gridWidth: bridge.getResult().width || 0, gridHeight: bridge.getResult().height || 0 }));
+  let popoverSelection=null,popoverSelectionRevision=0;
+  let requestColorPreviewDraw=()=>{};
+  const cellColorPopover = createCellColorPopover({host:well,viewport,surfaces,onPreviewChange:()=>requestColorPreviewDraw(),getEditor:()=>get().editor,
+    getColor:(x,y)=>{const color=editorService.getCell(x,y);return color?{...color,paletteId:paletteIdOf(color)}:null;},
+    getContextKey:()=>{if(popoverSelection!==get().editor.selection){popoverSelection=get().editor.selection;popoverSelectionRevision++;}return [gridRevision,popoverSelectionRevision];},
+    getContextGroups:(source)=>{
+      const state=get(), result=bridge.getResult(), region=state.editor.selection;
+      const cells=region?selectionCells(region,result.width,result.height):(state.editor.selectedCell?[state.editor.selectedCell]:[]);
+      const inside=new Set(cells.map(({x,y})=>`${x},${y}`)), nearby=new Map(), visited=new Set();
+      for(const {x,y} of cells)for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const nx=x+dx,ny=y+dy,key=`${nx},${ny}`;
+        if(inside.has(key)||visited.has(key))continue;visited.add(key);
+        if(nx<0||ny<0||nx>=result.width||ny>=result.height)continue;
+        const color=editorService.getCell(nx,ny),id=paletteIdOf(color);
+        const real=id&&editorService.resolveColor(id);
+        if(real){const prior=nearby.get(id);nearby.set(id,{color:{...real,paletteId:paletteIdOf(real)},count:(prior?.count||0)+1});}
+      }
+      return buildColorRecommendationGroups(paletteColors(),paletteIdOf(source),
+        [...nearby.values()].sort((a,b)=>b.count-a.count||paletteIdOf(a.color).localeCompare(paletteIdOf(b.color))).map(entry=>entry.color));
+    },
+    getTarget:()=>editorService.resolveColor($("#ws-current-color-target").value),
+    targetInput:$("#ws-current-color-target"),localButton:$("#ws-selection-color-replace"),globalButton:$("#ws-current-color-replace"),
+    isAvailable:()=>get().status.hasPattern&&!buildActive()&&get().view.mode!=="original"});
   const effectiveReference=()=>{const s=get();return {...s.reference,url:s.reference.url||(s.reference.useSource!==false?s.source.image:"")};};
-  const renderer = createCanvasRenderer(layers, viewport, () => bridge.getResult(), () => get().view, () => get().editor, effectiveReference, (code) => editorService.resolveColor(code), () => diagnosticOverlayVisible ? diagnosticOverlayIssues : [], () => repairPreview);
-  const navigatorHost = document.createElement("aside");
-  well.append(navigatorHost);
-  const navigator = Navigator({
-    host: navigatorHost,
-    getResult: () => bridge.getResult(),
-    getView: () => get().view,
-    getViewportSize: () => ({ width: well.clientWidth, height: well.clientHeight }),
-    getGridRevision: () => gridRevision,
-    onNavigate: (x, y) => viewport.focusCell(x, y, { center: true, preserveZoom: true }),
-  });
+  let brushShape = readEditorPreference("brushShape", "square") === "round" ? "round" : "square";
+let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinates=true,majorGridInterval=Math.max(3,Math.min(50,Number(readEditorPreference('majorGridInterval',5))||5));
+  // 「主网格」只留勾选：间隔固定 5 格，输入框不再暴露（默认打开即可，不需要调）。
+  // 元素本身保留（readEditorPreference 仍在读写 majorGridInterval，导出侧也读它），只是不显示。
+  const guideControls=document.createElement('span');guideControls.className='ws-grid-guides';guideControls.innerHTML='<label><input type="checkbox" id="ws-major-grid">主网格</label><input type="number" id="ws-major-grid-interval" min="3" max="50" step="1" aria-label="主网格间隔（格）" title="主网格间隔（格）" hidden>';
+  viewBar.querySelector('.ws-view-toggles').append(guideControls);
+  $('#ws-major-grid').checked=showMajorGrid;$('#ws-major-grid-interval').value=majorGridInterval;
+  guideControls.addEventListener('change',()=>{showMajorGrid=$('#ws-major-grid').checked;majorGridInterval=Math.max(3,Math.min(50,Math.round(Number($('#ws-major-grid-interval').value)||5)));$('#ws-major-grid-interval').value=majorGridInterval;saveEditorPreference('majorGrid',showMajorGrid);saveEditorPreference('majorGridInterval',majorGridInterval);renderer.requestDraw();});
+  // Fine grid is the default; only the major-grid emphasis needs a visible toggle.
+  $('#ws-grid').closest('label').hidden = true;
+  store.setState({ view: { showGrid: true } });
+  const previewMirror=()=>drawer.classList.contains('open')&&['pattern','print'].includes(drawer.dataset.outputCurrent)?$('#ws-export-mirror').value:'none';
+  let mirrorCache={};
+  const displayResult=()=>{const result=bridge.getResult(),mode=previewMirror();if(mode==='none')return result;if(mirrorCache.grid!==result.grid||mirrorCache.revision!==gridRevision||mirrorCache.mode!==mode)mirrorCache={grid:result.grid,revision:gridRevision,mode,result:{...result,grid:mirroredPreviewGrid(result.grid,mode)}};return mirrorCache.result;};
+  const renderer = createCanvasRenderer(layers, viewport, displayResult, () => ({...get().view,showMajorGrid,showCoordinates,majorGridInterval,...(previewMirror()!=='none'?{mode:'pattern'}:{})}), () => (previewMirror()!=='none'?{brushShape}:({...get().editor,brushShape,colorHoverPreview:cellColorPopover.getPreview(),previewSelectedCell:get().editor.selectedCell,...(cellColorPopover.isOpen()?{selectedCell:null}:{}),dwellRing})), () => previewMirror()==='none'?effectiveReference():{visible:false}, (code) => editorService.resolveColor(code), () => previewMirror()==='none'?resolveDiagnosticOverlayIssues({visible:diagnosticOverlayVisible,issues:diagnosticOverlayIssues,inspection:inspectionState}):[], () => previewMirror()==='none'?repairPreview:null);
+  attachArtworkBirthController({ container: layers, preferenceHost: viewBar.querySelector('.ws-view-toggles'), compactPreferenceHost: top, viewport, bridge, onFinish: () => renderer.requestDraw() });
+  const syncMirrorHeading=()=>{const input=$('#ws-project-name');input.value=mirroredTitle(get().project.name,previewMirror());input.readOnly=previewMirror()!=='none';renderer.requestDraw();};
+  new MutationObserver(syncMirrorHeading).observe(drawer,{attributes:true,attributeFilter:['class','data-output-current']});
+  $('#ws-export-mirror').addEventListener('change',syncMirrorHeading);
+  requestColorPreviewDraw=()=>renderer.requestDraw();
   const sourceCanvas = $("#ws-source-canvas"), sourcePreview = $("#ws-source-preview");
   let sourceImage = null, sourceImageUrl = "", sourceLayout = null, sourceDrawPending = false, sourceDrag = null;
+  let referenceSampleImage = null, referenceSampleUrl = "", referenceSamplePromise = null;
   const requestSourceDraw = () => { if (!sourceDrawPending) { sourceDrawPending = true; requestAnimationFrame(drawSourceEditor); } };
   const loadSourceEditorImage = () => {
     const url = bridge.getResult().sourceOriginalUrl;
@@ -871,8 +1202,15 @@ export function mountWorkspace(bridge) {
     const image = new Image(); image.onload = () => { if (sourceImageUrl === url) { sourceImage = image; requestSourceDraw(); } }; image.src = url;
   };
   const drawSourceEditor = () => {
-    sourceDrawPending = false; if (get().ui.activePanel !== "source") return;
+    sourceDrawPending = false;
     loadSourceEditorImage(); if (!sourceImage) return;
+    const transform=bridge.getSourceTransform();
+    const preview=renderSourceTransform(sourceImage,transform,Math.min(360,sourcePreview.clientWidth || 300));
+    sourcePreview.width=preview.width;sourcePreview.height=preview.height;
+    sourcePreview.getContext("2d").drawImage(preview,0,0);
+    const geometry=sourceOutputGeometry(sourceImage.naturalWidth,sourceImage.naturalHeight,transform);
+    $("#ws-source-size").textContent=`处理后 ${geometry.width} × ${geometry.height} px · 调整基于上传原图。`;
+    if (get().ui.activePanel !== "source") return;
     const dpr = Math.min(3,Math.max(1,window.devicePixelRatio||1)), w=well.clientWidth,h=well.clientHeight;
     sourceCanvas.width=Math.round(w*dpr); sourceCanvas.height=Math.round(h*dpr);
     sourceCanvas.style.width=`${w}px`; sourceCanvas.style.height=`${h}px`;
@@ -880,40 +1218,78 @@ export function mountWorkspace(bridge) {
     const scale=Math.min(Math.max(1,w-100)/sourceImage.naturalWidth,Math.max(1,h-100)/sourceImage.naturalHeight,1);
     sourceLayout={x:(w-sourceImage.naturalWidth*scale)/2,y:(h-sourceImage.naturalHeight*scale)/2,width:sourceImage.naturalWidth*scale,height:sourceImage.naturalHeight*scale};
     context.drawImage(sourceImage,sourceLayout.x,sourceLayout.y,sourceLayout.width,sourceLayout.height);
-    const transform=bridge.getSourceTransform(), crop=transform.crop;
+    const crop=transform.crop;
     if (crop) { const x=sourceLayout.x+crop.x*scale,y=sourceLayout.y+crop.y*scale,cw=crop.width*scale,ch=crop.height*scale;
       context.fillStyle="rgba(14,25,34,.45)"; context.fillRect(sourceLayout.x,sourceLayout.y,sourceLayout.width,Math.max(0,y-sourceLayout.y));
       context.fillRect(sourceLayout.x,y,Math.max(0,x-sourceLayout.x),ch); context.fillRect(x+cw,y,Math.max(0,sourceLayout.x+sourceLayout.width-x-cw),ch);
       context.fillRect(sourceLayout.x,y+ch,sourceLayout.width,Math.max(0,sourceLayout.y+sourceLayout.height-y-ch));
       context.strokeStyle="#ffffff";context.lineWidth=2;context.strokeRect(x,y,cw,ch); }
-    const preview=renderSourceTransform(sourceImage,transform,660);
-    sourcePreview.width=preview.width;sourcePreview.height=preview.height;
-    sourcePreview.getContext("2d").drawImage(preview,0,0);
-    const geometry=sourceOutputGeometry(sourceImage.naturalWidth,sourceImage.naturalHeight,transform);
-    $("#ws-source-size").textContent=`处理后 ${geometry.width} × ${geometry.height} px · 生成时才写入图纸。`;
   };
   const sourceNorm = (event) => { if (!sourceLayout) return null; const p=point(event);
     return {x:clamp((p.x-sourceLayout.x)/sourceLayout.width,0,1),y:clamp((p.y-sourceLayout.y)/sourceLayout.height,0,1)}; };
-  const sampleOriginalSource = (norm) => {
-    if (!sourceImage || !norm) return;
-    const x=Math.min(sourceImage.naturalWidth-1,Math.floor(norm.x*sourceImage.naturalWidth)),y=Math.min(sourceImage.naturalHeight-1,Math.floor(norm.y*sourceImage.naturalHeight));
+  const sampleOriginalSource = (norm, image = sourceImage) => {
+    if (!image || !norm) return;
+    const x=Math.min(image.naturalWidth-1,Math.floor(norm.x*image.naturalWidth)),y=Math.min(image.naturalHeight-1,Math.floor(norm.y*image.naturalHeight));
     const sample=document.createElement("canvas");sample.width=1;sample.height=1;
-    const ctx=sample.getContext("2d",{willReadFrequently:true});ctx.drawImage(sourceImage,x,y,1,1,0,0,1,1);
-    const rgb=[...ctx.getImageData(0,0,1,1).data].slice(0,3);
+    const ctx=sample.getContext("2d",{willReadFrequently:true});ctx.drawImage(image,x,y,1,1,0,0,1,1);
+    const rgba=[...ctx.getImageData(0,0,1,1).data];
+    if (rgba[3] === 0) return null;
+    const rgb=rgba.slice(0,3);
     const hex="#"+rgb.map((channel)=>channel.toString(16).padStart(2,"0")).join("").toUpperCase();
     const matched=bridge.getNearestPaletteCandidates(rgb);
-    $("#ws-source-sample").innerHTML=`<strong>原图 X${x+1} / Y${y+1} · RGB ${rgb.join(",")} · ${hex}</strong><p>现有色卡最近：${esc(matched.nearest || "—")}</p><div>${matched.candidates.map((color)=>`<button type="button" data-ws-source-candidate="${esc(color.code)}"><span class="ws-swatch" style="background:${esc(color.hex)}"></span>${esc(color.code)} · ΔE ${color.distance.toFixed(1)}</button>`).join("")}</div>`;
+    $("#ws-source-sample").innerHTML=`<strong>原图 X${x+1} / Y${y+1} · RGB ${rgb.join(",")} · ${hex}</strong><p>现有色卡最近：${colorChip(editorService.resolveColor(matched.nearest), matched.nearest || "—")}</p><div>${matched.candidates.map((color)=>`<button type="button" data-ws-source-candidate="${esc(color.code)}">${colorChip(color)} · ΔE ${color.distance.toFixed(1)}</button>`).join("")}</div>`;
+    return matched;
+  };
+  const sampleIndependentReference = p => {
+    const ref = effectiveReference(), url = ref.url;
+    if (!url || ref.visible === false || ref.displayMode === 'grid-only') { notify('请先显示参考图，再使用参考图取色'); return; }
+    if (referenceSampleUrl !== url) {
+      referenceSampleUrl = url; referenceSampleImage = null;
+      referenceSamplePromise = new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => { if (referenceSampleUrl === url) referenceSampleImage = image; resolve(image); };
+        image.onerror = () => reject(new Error('参考图加载失败'));
+        image.src = url;
+      });
+    }
+    const sample = image => {
+      if (referenceSampleUrl !== url || !image?.naturalWidth) return;
+      const origin = viewport.gridToScreen(0, 0), cell = BASE_CELL * get().view.zoom;
+      const box = { x: origin.x, y: origin.y, width: bridge.getResult().width * cell, height: bridge.getResult().height * cell, cell };
+      const pixel = referencePixelAt(p, image.naturalWidth, image.naturalHeight, box, ref);
+      if (!pixel) { notify('请在参考图覆盖范围内点击取色'); return; }
+      try {
+        const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
+        const context = canvas.getContext('2d', { willReadFrequently: true }); context.drawImage(image, pixel.x, pixel.y, 1, 1, 0, 0, 1, 1);
+        const rgba = sampleReferencePixel(context.getImageData(0, 0, 1, 1), { x: 0, y: 0 });
+        if (!rgba) { notify('取色位置透明，没有可用颜色'); return; }
+        const match = bridge.getNearestPaletteCandidates(rgba.rgb);
+        const candidates = (match?.candidates || []).slice(0, 6);
+        $('#ws-reference-candidates').innerHTML = candidates.map(color => `<button type="button" data-reference-candidate="${esc(paletteIdOf(color) || color.code)}" title="${esc(color.code)} · ΔE ${Number(color.distance || 0).toFixed(1)}">${colorChip(color)}</button>`).join('') || '没有匹配到可用色卡';
+        if (match?.nearest) pickCurrentColor(match.nearest);
+        notify(`参考图取色：${rgba.rgb.join(', ')} · 最近色号 ${match?.nearest || '无'}`);
+      } catch (error) {
+        notify(error?.name === 'SecurityError' ? '这张参考图受浏览器跨域限制，暂时无法吸取' : `参考图取色失败：${error.message}`);
+      }
+    };
+    if (referenceSampleImage) sample(referenceSampleImage);
+    else referenceSamplePromise?.then(sample).catch(error => notify(error.message));
   };
   const setSourcePatch = (patch) => { bridge.setSourceTransform(patch); requestSourceDraw(); };
   $("#ws-source-ratio").addEventListener("change", (event) => setSourcePatch({cropRatio:event.target.value}));
   right.querySelectorAll("[data-ws-source-rotate]").forEach((button) => button.addEventListener("click", () => setSourcePatch({rotation:(bridge.getSourceTransform().rotation+Number(button.dataset.wsSourceRotate)+360)%360})));
   right.querySelectorAll("[data-ws-source-flip]").forEach((button) => button.addEventListener("click", () => { const key=button.dataset.wsSourceFlip; setSourcePatch({[key]:!bridge.getSourceTransform()[key]}); }));
-  right.querySelectorAll("[data-ws-source-adjust]").forEach((input) => input.addEventListener("input", () => { const key=input.dataset.wsSourceAdjust; $("#ws-source-"+key+"-value").textContent=input.value; setSourcePatch({[key]:Number(input.value)}); }));
+  const sourceAdjustments = attachSourceAdjustmentControls({ root:wrap,getTransform:()=>bridge.getSourceTransform(),setTransform:patch=>bridge.setSourceTransform(patch),requestPreview:requestSourceDraw,scheduleGenerate:scheduleAutoGenerate,hasSource:()=>get().status.hasSource });
   right.querySelectorAll("[data-ws-source-expand]").forEach((input) => input.addEventListener("input", () => { if (input.value === "" || Number(input.value) < 0) return; setSourcePatch({expand:{[input.dataset.wsSourceExpand]:clamp(Number(input.value),0,500)}}); }));
   $("#ws-source-background").addEventListener("input", (event) => setSourcePatch({background:event.target.value}));
   $("#ws-source-pick-mode").addEventListener("click", () => store.setState({editor:{tool:"source-eyedropper"},ui:{activePanel:"source"}}));
   $("#ws-source-sample").addEventListener("click", (event) => { const button=event.target.closest("[data-ws-source-candidate]"); if (button) activateColor(button.dataset.wsSourceCandidate,false); });
-  $("#ws-source-reset").addEventListener("click", () => { setSourcePatch(defaultSourceTransform()); $("#ws-source-ratio").value="free"; right.querySelectorAll("[data-ws-source-adjust]").forEach((input)=>{input.value="0"; $("#ws-source-"+input.dataset.wsSourceAdjust+"-value").textContent="0";});right.querySelectorAll("[data-ws-source-expand]").forEach((input)=>{input.value="0";});$("#ws-source-background").value="#ffffff"; });
+  $('#ws-reference-candidates').addEventListener('click', event => {
+    const button = event.target.closest('[data-reference-candidate]');
+    if (button) pickCurrentColor(button.dataset.referenceCandidate);
+  });
+  $("#ws-source-apply").hidden = true;
+  $("#ws-source-apply").style.display = 'none';
   $("#ws-source-apply").addEventListener("click", async () => { if (bridge.getResult().manualEdited && !await askConfirmation("重新生成将覆盖当前人工编辑。继续吗？")) return;
     try { await generation.generate({overwriteApproved:true}); store.setState({ui:{activePanel:"project"}}); } catch(error) { $("#ws-source-size").textContent=error.message; } });
   let zoomControls;
@@ -926,10 +1302,58 @@ export function mountWorkspace(bridge) {
   const point = (event) => { const rect = well.getBoundingClientRect(); return { x: event.clientX - rect.left, y: event.clientY - rect.top }; };
   well.addEventListener("wheel", (event) => {
     if (!get().status.hasPattern) return;
-    event.preventDefault(); viewport.zoomAroundPoint(get().view.zoom * Math.exp(-event.deltaY * 0.0015), point(event));
+    event.preventDefault(); viewport.zoomAroundPoint(get().view.zoom * canvasWheelZoomFactor(event), point(event));
   }, { passive: false });
-  // 右键在画布上用于取色，禁掉浏览器默认右键菜单，否则会和取色手势冲突。
-  well.addEventListener("contextmenu", (event) => event.preventDefault());
+  const sourcePickPoint = event => {
+    const state = get(), p = point(event);
+    let box;
+    if (state.ui.activePanel === 'source') box = sourceImage && sourceLayout;
+    else if (state.view.mode === 'original' && bridge.getResult().sourceUrl) {
+      const origin = viewport.gridToScreen(0, 0), cell = BASE_CELL * state.view.zoom;
+      box = { ...origin, width: bridge.getResult().width * cell, height: bridge.getResult().height * cell };
+    }
+    if (!box || p.x < box.x || p.x >= box.x + box.width || p.y < box.y || p.y >= box.y + box.height) return null;
+    return { x: (p.x - box.x) / box.width, y: (p.y - box.y) / box.height };
+  };
+  let originalPickImage = null, originalPickUrl = '', originalPickPromise = null;
+  const pickDisplayedOriginal = norm => {
+    if (!norm) return;
+    if (get().ui.activePanel === 'source') {
+      const matched = sampleOriginalSource(norm); if (matched?.nearest) pickCurrentColor(matched.nearest); return;
+    }
+    const url = bridge.getResult().sourceUrl;
+    if (!url) return;
+    if (url !== originalPickUrl) {
+      originalPickUrl = url; originalPickImage = null;
+      originalPickPromise = new Promise((resolve, reject) => {
+        const image = new Image(); image.onload = () => { if (originalPickUrl === url) originalPickImage = image; resolve(image); };
+        image.onerror = () => reject(new Error('原图加载失败')); image.src = url;
+      });
+    }
+    const sample = image => {
+      if (originalPickUrl !== url || bridge.getResult().sourceUrl !== url || get().view.mode !== 'original') return;
+      try { const matched = sampleOriginalSource(norm, image); if (matched?.nearest) pickCurrentColor(matched.nearest); }
+      catch (error) { notify(`原图取色失败：${error.message}`); }
+    };
+    if (originalPickImage) sample(originalPickImage); else originalPickPromise.then(sample).catch(error => notify(error.message));
+  };
+  const canvasPickColor = event => {
+    if (get().ui.activePanel === 'source' || get().view.mode === 'original' || !get().status.hasPattern || buildActive() || previewMirror() !== 'none') return null;
+    const p = point(event), cell = viewport.screenToGrid(p.x, p.y);
+    return cell ? editorService.getCell(cell.x, cell.y) : null;
+  };
+  well.addEventListener('contextmenu', event => {
+    if (event.target.closest('button,input,select,.ws-cell-color-popover')) return;
+    const norm = sourcePickPoint(event), color = canvasPickColor(event);
+    if (!norm && !color) return;
+    event.preventDefault();
+    if (norm) pickDisplayedOriginal(norm);
+    else pickCurrentColor(paletteIdOf(color));
+  });
+  well.addEventListener('pointermove', event => {
+    well.classList.toggle('ws-color-pickable', !event.target.closest('button,input,select,.ws-cell-color-popover') && Boolean(sourcePickPoint(event) || canvasPickColor(event)));
+  });
+  well.addEventListener('pointerleave', () => { well.classList.remove('ws-color-pickable'); clearDwell(); });
   let drag = null, spaceDown = false;
   // 文字面板实例在下面（notify 定义之后）才创建：这里先声明，好让画布的指针分支
   // 能在闭包里引用到它 —— 指针回调是运行时才执行的，那时已经赋值。
@@ -937,7 +1361,20 @@ export function mountWorkspace(bridge) {
   // 用 function 声明（会提升）而不是 const 箭头：画布指针分支注册得比这里早，
   // 虽然回调是运行时执行，但保持「谁先注册都能引用」的写法更不容易踩 TDZ。
   function currentTextLayers() { return get().editor.textLayers || []; }
+  if (typeof window !== "undefined") window.LibmsTextLayers = { composeLockedTextGrid };
   function setTextLayers(layers, activeId = null) { store.setState({ editor: { textLayers: layers, activeTextLayerId: activeId } }); }
+  function commitTextObjects(type, label, before, after, beforeActive, afterActive) {
+    if (JSON.stringify(before) === JSON.stringify(after)) return false;
+    const previous = structuredClone(before), next = structuredClone(after);
+    const apply = (layers, active) => { setTextLayers(structuredClone(layers), active); store.setState({status:{dirty:true}}); renderer.requestDraw(); return true; };
+    return editorService.executeCommand(createEditorCommand({kind:"object",type,label,
+      execute:()=>apply(next,afterActive),undo:()=>apply(previous,beforeActive),redo:()=>apply(next,afterActive)}));
+  }
+  function patchTextObject(id, patch) {
+    const before = currentTextLayers();
+    if (!before.some(layer=>layer.id===id)) return false;
+    return commitTextObjects("TEXT_UPDATE", "修改文字", before, before.map(layer=>layer.id===id?{...layer,...patch}:layer), get().editor.activeTextLayerId, id);
+  }
   function textDropPoint() {
     const { w, h } = gridSize();
     const origin = viewport.origin(), cell = origin.cell || BASE_CELL;
@@ -946,14 +1383,14 @@ export function mountWorkspace(bridge) {
     return { x: clamp(Math.round(x), 0, Math.max(0, w - 1)), y: clamp(Math.round(y), 0, Math.max(0, h - 1)) };
   }
   function addTextLayer(at = textDropPoint()) {
-    if (!get().status.hasPattern) { notify("先生成图纸，再添加文字。"); return null; }
+    if (!get().status.hasPattern) { notify("先创建或打开图纸，再添加文字。"); return null; }
     // 当前色走真源；真源为空时退到色板第一色（保留原行为）。
-    // 工作台上 paletteId 恒等于色号 code，所以 color 与 paletteId 写同一个值。
+    // 图层保存真实 paletteId，显示色号由现有色板解析。
     const fallback = editorService.getPaletteColors()[0];
     const id = currentPaletteId() || (fallback ? paletteIdOf(fallback) : "");
     const layer = createTextLayer({ x: at.x, y: at.y, color: id || "", paletteId: id || "" });
-    setTextLayers([...currentTextLayers(), layer], layer.id);
-    store.setState({ editor: { tool: "text" }, ui: { activePanel: "edit" }, view: { mode: "blocks" } });
+    commitTextObjects("TEXT_ADD", "添加文字", currentTextLayers(), [...currentTextLayers(), layer], get().editor.activeTextLayerId, layer.id);
+    store.setState({ editor: { tool: "text" }, ui: { activePanel: "edit" }, view: { mode: "pattern" } });
     renderer.requestDraw();
     return layer;
   }
@@ -982,100 +1419,127 @@ export function mountWorkspace(bridge) {
     const color = selectedId ? editorService.resolveColor(selectedId) : null;
     store.setState({ editor: { shapePreview: { cells, hex: color?.hex || null } } });
   };
-  well.addEventListener("pointerdown", (event) => {
+  const captureCanvasPointer = (id) => { try { well.setPointerCapture(id); } catch { /* button-directed touch reuses the canvas action without capture */ } };
+  const syncPickedReplacementTarget = (color) => {
+    const input=$("#ws-current-color-target");
+    input.value=color.code;
+    input.dispatchEvent(new Event("change",{bubbles:true}));
+  };
+  let lastSelectionTap=null;
+  const onCanvasDown = (event) => {
+    // Right-click is handled on contextmenu; it must not close selections or start paint.
+    if (event.button === 2) return;
+    cellColorPopover.close();
+    if(buildActive()){if(event.button===0||event.button===1){captureCanvasPointer(event.pointerId);drag={type:"pan",x:event.clientX,y:event.clientY,panX:get().view.panX,panY:get().view.panY};}return;}
     if (get().ui.activePanel === "source") { const norm=sourceNorm(event); if (!norm || !sourceImage || !sourceLayout || event.button !== 0) return;
       if (get().editor.tool === "source-eyedropper") { sampleOriginalSource(norm); return; }
-      well.setPointerCapture(event.pointerId); sourceDrag={ start:norm, previous:bridge.getSourceTransform().crop, moved:false }; return; }
+      captureCanvasPointer(event.pointerId); sourceDrag={ start:norm, previous:bridge.getSourceTransform().crop, moved:false }; return; }
     if (!get().status.hasPattern) return;
-    if(get().reference.adjusting&&effectiveReference().url&&event.button===0){well.setPointerCapture(event.pointerId);drag={type:"reference",x:event.clientX,y:event.clientY,reference:{...get().reference}};return;}
-    const selectedTool = get().editor.tool, tool = event.altKey ? "eyedropper" : selectedTool, p = point(event), cell = viewport.screenToGrid(p.x, p.y);
-    // 右键取色：在任意工具下都能从画布取色设为当前色，不切换工具、不改图纸。
-    // 与「取色」工具的区别：工具是点一下取完自动切回画笔；右键是纯取色，工具态不动。
-    if (event.button === 2 && cell) {
-      const picked = editorService.getCell(cell.x, cell.y);
-      if (picked) activateColor(paletteIdOf(picked), false);
+    if(get().reference.adjusting&&effectiveReference().url&&event.button===0){captureCanvasPointer(event.pointerId);drag={type:"reference",x:event.clientX,y:event.clientY,reference:{...get().reference}};return;}
+    const selectedTool = get().editor.tool, tool = event.altKey && selectedTool !== "wand" ? "eyedropper" : selectedTool, p = point(event), cell = viewport.screenToGrid(p.x, p.y);
+    if(event.button===0&&get().view.mode==='blocks'&&EDIT_OVERLAY_TOOLS.includes(tool))store.setState({view:{mode:'pattern'}});
+    if (tool === "pan" || spaceDown || event.button === 1) {
+      captureCanvasPointer(event.pointerId); drag = { type: "pan", x: event.clientX, y: event.clientY, panX: get().view.panX, panY: get().view.panY, inspectCell: tool === "pan" && !spaceDown && event.button === 0 ? cell : null, moved: false };
+      well.classList.toggle("is-panning",event.button===1); return;
+    }
+    if (event.button !== 0) return;
+    if (get().view.mode === "original") { if (['eyedropper', 'source-eyedropper', 'reference-eyedropper'].includes(tool)) pickDisplayedOriginal(sourcePickPoint(event)); return; }
+    if (tool === 'reference-eyedropper') { sampleIndependentReference(p); return; }
+    if (tool === 'selection-move' && cell && get().editor.selection) {
+      captureCanvasPointer(event.pointerId); drag = { type: 'selection-move', start: cell, selection: get().editor.selection, plan: null }; return;
+    }
+    if (tool === 'closed-lasso') {
+      captureCanvasPointer(event.pointerId);
+      drag = { type: 'closed-lasso', points: [viewport.screenToGridFloat(p.x,p.y)], previousSelection: get().editor.selection, mode: combineMode(event) };
       return;
     }
-    if (tool === "pan" || spaceDown || event.button === 1) {
-      well.setPointerCapture(event.pointerId); drag = { type: "pan", x: event.clientX, y: event.clientY, panX: get().view.panX, panY: get().view.panY };
-      well.classList.add("is-panning"); return;
-    }
-    if (event.button !== 0 || get().view.mode === "original") return;
     if (tool === "replace" && cell) {
       const code = editorService.getCell(cell.x, cell.y)?.code || "";
       $("#ws-replace-from").value = code;
       $("#ws-replace-impact").textContent = `影响 ${affectedCount(code).toLocaleString("zh-CN", { useGrouping: false })} 颗`;
       store.setState({ editor: { selectedCell: cell }, ui: { activePanel: "color" } }); return;
     }
-    if (tool === "region" && cell) { well.setPointerCapture(event.pointerId); drag = { type: "region", start: cell }; store.setState({ editor: { selection: rectangularSelection(cell.x, cell.y, cell.x, cell.y, bridge.getResult().width, bridge.getResult().height) } }); return; }
-    if (tool === "wand" && cell) {
-      // 默认「重新圈选」；按住 Shift 在当前选区内叠加，按住 Alt 从当前选区里减掉。
-      // 默认就限制在旧选区内会让人点不出新区域，这个交互坑过一次，故改为行业惯用的修饰键语义。
-      const current = get().editor.selection;
-      let selection;
-      if (event.altKey && current?.mask) {
-        const hits = magicWandSelection(bridge.getResult().grid, cell.x, cell.y, { tolerance: get().editor.wandTolerance });
-        const rest = hits?.mask
-          ? [...current.mask].filter((id) => !hits.mask.has(id)).map((id) => { const [x, y] = id.split(",").map(Number); return { x, y }; })
-          : [];
-        selection = fitSelectionBox(rest, "magic-wand");
-      } else {
-        selection = magicWandSelection(bridge.getResult().grid, cell.x, cell.y, { tolerance: get().editor.wandTolerance, within: event.shiftKey ? current : null });
+    if (tool === "select" && cell) {
+      if(event.button===0&&lastSelectionTap&&performance.now()-lastSelectionTap.time<450&&lastSelectionTap.x===cell.x&&lastSelectionTap.y===cell.y){
+        lastSelectionTap=null;const color=editorService.getCell(cell.x,cell.y);
+        if(color){store.setState({editor:{selection:connectedSelection(bridge.getResult().grid,cell.x,cell.y),selectedCell:cell,...buildActivateColorPatch(paletteIdOf(color),paletteColors(),{highlight:false})},ui:{activePanel:'edit'}});cellColorPopover.open();}return;
       }
-      store.setState({ editor: { selection, selectedCell: cell }, ui: { activePanel: "edit" } }); return;
+      captureCanvasPointer(event.pointerId);
+      drag = { type: "select", start: cell, x: event.clientX, y: event.clientY, moved: false, previousSelection: get().editor.selection,
+        previousFocus: { selectedCell: get().editor.selectedCell, ...buildHighlightOnlyPatch(get().editor.highlightedPaletteId) } };
+      return;
+    }
+    if (tool === "region" && cell) { captureCanvasPointer(event.pointerId); drag = { type: "region", start: cell, mode:combineMode(event), previousSelection:get().editor.selection,previousFocus:{selectedCell:get().editor.selectedCell,...buildHighlightOnlyPatch(get().editor.highlightedPaletteId)} }; store.setState({ editor: { selection: combineSelection(drag.previousSelection,rectangularSelection(cell.x, cell.y, cell.x, cell.y, bridge.getResult().width, bridge.getResult().height),drag.mode) } }); return; }
+    if (tool === "lasso") {
+      captureCanvasPointer(event.pointerId);
+      const at=viewport.screenToGridFloat(p.x,p.y),result=bridge.getResult();
+      drag = {type:'lasso', last:at, hits:lassoSelection([at],result.width,result.height),mode:combineMode(event), previousSelection:get().editor.selection,previousFocus:{selectedCell:get().editor.selectedCell,...buildHighlightOnlyPatch(get().editor.highlightedPaletteId)}};
+      store.setState({editor:{selection:combineSelection(drag.previousSelection,drag.hits,drag.mode),selectedCell:null,...buildHighlightOnlyPatch(null,{enabled:false})},ui:{activePanel:'edit'}});return;
+    }
+    if (tool === "wand" && cell) {
+      // 默认重新选择；Shift 合并旧选区；Alt 减去命中的格子。
+      const current = get().editor.selection;
+      const result=bridge.getResult(),hits=magicWandSelection(result.grid,cell.x,cell.y,{tolerance:get().editor.wandTolerance});
+      const selection=combineSelections(current,hits,result.width,result.height,combineMode(event));
+      const color=editorService.getCell(cell.x,cell.y);
+      store.setState({ editor: { selection, selectedCell: cell,...(color?buildActivateColorPatch(paletteIdOf(color),paletteColors(),{highlight:false}):{}) }, ui: { activePanel: "edit" } }); if(color)cellColorPopover.open();return;
     }
     if (SHAPE_TOOLS[tool] && cell) {
       if (!currentPaletteId()) { store.setState({ ui: { activePanel: "edit" } }); return; }
-      well.setPointerCapture(event.pointerId);
+      captureCanvasPointer(event.pointerId);
       drag = { type: "shape", kind: SHAPE_TOOLS[tool], start: cell, end: cell };
       updateShapePreview(cell, event.shiftKey);
       return;
     }
-    if (["same","connected"].includes(tool) && cell) { const original = get().editor.selection, selection = tool === "same" ? sameColorSelection(bridge.getResult().grid, cell.x, cell.y, original) : connectedSelection(bridge.getResult().grid, cell.x, cell.y, original); store.setState({ editor: { selection, selectedCell: cell }, ui: { activePanel: "edit" } }); return; }
+    if (["same","connected"].includes(tool) && cell) { const within = event.shiftKey ? get().editor.selection : null, withinSelection = within || (selectionUI?.within() ? get().editor.selection : null), selection = tool === "same" ? sameColorSelection(bridge.getResult().grid, cell.x, cell.y, withinSelection) : connectedSelection(bridge.getResult().grid, cell.x, cell.y, withinSelection);const color=editorService.getCell(cell.x,cell.y);store.setState({ editor: { selection, selectedCell: cell,...(color?buildActivateColorPatch(paletteIdOf(color),paletteColors(),{highlight:false}):{}) }, ui: { activePanel: "edit" } });if(color)cellColorPopover.open(); return; }
     if (tool === "fill" && cell) { const selected=currentPaletteId(); if(selected) editorService.fillAt(cell.x,cell.y,selected); store.setState({editor:{selectedCell:cell},ui:{activePanel:"edit"}}); return; }
     if (["brush","eraser"].includes(tool) && cell) {
       const selected = currentPaletteId();
       if (tool === "brush" && !selected) { store.setState({ ui: { activePanel: "edit" } }); return; }
-      well.setPointerCapture(event.pointerId); drag = { type: "stroke" };
+      captureCanvasPointer(event.pointerId); drag = { type: "stroke" };
       const editor=get().editor,baseId=editor.rampBasePaletteId||selected;
       const rampData=rampCache(),rampPaletteIds=editor.rampPaletteIds?.length?editor.rampPaletteIds:buildRamp(rampData.palette,baseId,{size:editor.rampSize||5,cache:rampData.cache}).map(color=>color.paletteId);
-      editorService.beginStroke(tool === "brush" ? selected : null, { size:editor.brushSize, shape:"square", pixelPerfect:editor.pixelPerfect, inkMode:tool==="brush"?(editor.inkMode||"normal"):"normal",rampPaletteIds, ...symmetryOptions() });
+      editorService.beginStroke(tool === "brush" ? selected : null, { size:editor.brushSize, shape:brushShape, pixelPerfect:editor.pixelPerfect, inkMode:tool==="brush"?(editor.inkMode||"normal"):"normal",rampPaletteIds, ...symmetryOptions() });
       editorService.strokeCell(cell.x, cell.y); renderer.requestDraw();
       return;
     }
     if (tool === "eyedropper" && cell) {
       // §7：吸管只读格子的颜色身份（paletteIdOf → cell.code），**绝不按 RGB 反猜**。
-      const color = editorService.getCell(cell.x, cell.y); if (color) activateColor(paletteIdOf(color),false);
-      store.setState({ editor: { selectedCell:cell, ...(selectedTool === "eyedropper" ? {tool:"brush"} : {}) }, ui: { activePanel: "edit" } }); return;
+      clearDwell();
+      pickCellColor(cell);
+      return;
     }
     if (tool === "bead" && cell) {
       const selected = currentPaletteId();
       if (selected) editorService.setCellColor(cell.x, cell.y, selected);
       store.setState({ editor: { selectedCell: cell }, ui: { activePanel: "edit" } }); return;
     }
-    // 文字工具：点已有文字 = 选中并拖动；点空白 = 就地新建一个图层。
-    // 文字是「浮动图层」，只画在 overlay 层、不写 grid，所以从放到拖全程撤销栈都是干净的，
-    // 只有「向下合并」才产生一步历史。
+    // 空白点击只取消文字选中。新增必须通过明确的「添加文字」按钮。
     if (tool === "text") {
       const { w, h } = gridSize();
       // 用连续格坐标（含小数）：拖动取整交给栅格化那一步，手感才连续不跳格。
       const at = viewport.screenToGridFloat(p.x, p.y);
+      const active=currentTextLayers().find(layer=>layer.id===get().editor.activeTextLayerId);
+      const frame=active&&!active.locked?textFrameControls(cellsBox(rasterizeTextCached(active,w,h).cells),viewport):null;
+      const control=hitTextFrameControl(frame,p);
+      if(active&&control){
+        captureCanvasPointer(event.pointerId);
+        drag={type:control==='resize'?'text-resize':'text-move',id:active.id,grabX:at.x-active.x,grabY:at.y-active.y,before:structuredClone(currentTextLayers()),beforeActive:active.id,initialScale:active.scale||100,start:p,anchor:{x:frame.x,y:frame.y}};
+        well.style.cursor=control==='resize'?'nwse-resize':'grabbing';
+        return;
+      }
       const hit = [...currentTextLayers()].reverse()
         .find((layer) => layerContainsCell(layer, w, h, Math.floor(at.x), Math.floor(at.y)));
       if (hit) {
         store.setState({ editor: { activeTextLayerId: hit.id } });
-        well.setPointerCapture(event.pointerId);
-        drag = { type: "text-move", id: hit.id, grabX: at.x - hit.x, grabY: at.y - hit.y, moved: false };
+        if (hit.locked) return;
+        captureCanvasPointer(event.pointerId);
+        drag = { type: "text-move", id: hit.id, grabX: at.x - hit.x, grabY: at.y - hit.y, before:structuredClone(currentTextLayers()), beforeActive:hit.id };
+        well.style.cursor='grabbing';
         renderer.requestDraw();
         return;
       }
-      const selected = currentPaletteId();
-      if (!selected) { store.setState({ ui: { activePanel: "edit" } }); notify("先在「色彩」里选一个色号，再在画布上放文字。"); return; }
-      const layer = createTextLayer({ x: Math.round(at.x), y: Math.round(at.y), color: selected, paletteId: selected });
-      setTextLayers([...currentTextLayers(), layer], layer.id);
-      store.setState({ ui: { activePanel: "edit" } });
-      well.setPointerCapture(event.pointerId);
-      drag = { type: "text-move", id: layer.id, grabX: 0, grabY: 0, moved: false };
+      store.setState({ editor:{activeTextLayerId:null}, ui: { activePanel: "edit" } });
       renderer.requestDraw();
       return;
     }
@@ -1084,36 +1548,175 @@ export function mountWorkspace(bridge) {
     const paletteId = inspected?.paletteId || null;
     store.setState({
       // 点到空格 / 画布外时**不覆盖当前颜色**，只挪选中格并把高亮清掉 —— 与原行为一致。
-      editor: { selectedCell: cell, ...(paletteId ? buildActivateColorPatch(paletteId, paletteColors()) : buildHighlightOnlyPatch(null, { enabled: false })), selection: null },
+      editor: { selectedCell: cell, ...(paletteId ? buildActivateColorPatch(paletteId, paletteColors(), { highlight: false }) : buildHighlightOnlyPatch(null, { enabled: false })) },
       ui: { activePanel: cell ? "edit" : get().ui.activePanel },
     });
-  });
-  well.addEventListener("pointermove", (event) => {
+    if (paletteId && tool === "select") cellColorPopover.open();
+  };
+  // —— 吸管停留取色 ——
+  // 悬停停在「有色豆格」上停留满 EYEDROPPER_DWELL_MS 才吸取，期间画布上画进度环。
+  // 500ms 的依据：无意识扫过一格约 80–250ms（随缩放与手速），
+  // 「有意停看一下」普遍 >500ms（hover-intent / tooltip 通用区间 300–500ms 的上沿）。
+  // 取色会同时改当前色并切回画笔，误触成本高，所以取上沿而不是 200ms 的激进值。
+  const EYEDROPPER_DWELL_MS = 500;
+  let dwellCell = null, dwellRaf = 0;
+  const dwellRing = { cell: null, progress: 0 };
+  const clearDwell = () => {
+    dwellCell = null;
+    if (dwellRaf) { cancelAnimationFrame(dwellRaf); dwellRaf = 0; }
+    dwellRing.cell = null; dwellRing.progress = 0;
+  };
+  // 点击取色与停留自动取色共用：只按格子的颜色身份（paletteIdOf → cell.code）取色，绝不按 RGB 反猜。
+  // 空格子不取色，但保持原有「点击即退回画笔」的语义不变。
+  const pickCellColor = (cell) => {
+    const color = editorService.getCell(cell.x, cell.y);
+    if (color) { activateColor(paletteIdOf(color), false); syncPickedReplacementTarget(color); }
+    store.setState({ editor: { ...(!get().editor.selection ? { selectedCell: cell } : {}), ...(get().editor.tool === "eyedropper" && !get().editor.selection ? { tool: "brush" } : {}) }, ...(!inspectionState.active ? { ui: { activePanel: "edit" } } : {}) });
+  };
+  const updateEyedropperDwell = (cell) => {
+    if (get().editor.tool !== "eyedropper" || !cell || !editorService.getCell(cell.x, cell.y)) { clearDwell(); return; }
+    if (dwellCell && dwellCell.x === cell.x && dwellCell.y === cell.y) return; // 同一格：计时继续
+    clearDwell();
+    dwellCell = { x: cell.x, y: cell.y };
+    dwellRing.cell = dwellCell;
+    const startedAt = performance.now();
+    const tick = () => {
+      dwellRaf = 0;
+      // 停留期间工具被切换（快捷键/点按钮）或格子被清空：立刻作废，绝不延迟误吸。
+      if (!dwellCell || get().editor.tool !== "eyedropper") { clearDwell(); return; }
+      const progress = (performance.now() - startedAt) / EYEDROPPER_DWELL_MS;
+      if (progress >= 1) { const picked = dwellCell; clearDwell(); pickCellColor(picked); return; }
+      dwellRing.progress = progress;
+      renderer.requestDraw();
+      dwellRaf = requestAnimationFrame(tick);
+    };
+    dwellRaf = requestAnimationFrame(tick);
+  };
+  const onCanvasMove = (event) => {
     if (sourceDrag) { const norm=sourceNorm(event); if (!norm || !sourceImage) return;
       if (Math.abs(norm.x-sourceDrag.start.x)*sourceLayout.width+Math.abs(norm.y-sourceDrag.start.y)*sourceLayout.height < 5) return;
       sourceDrag.moved=true; setSourcePatch({crop:cropFromDrag(sourceDrag.start.x,sourceDrag.start.y,norm.x,norm.y,sourceImage.naturalWidth,sourceImage.naturalHeight,$("#ws-source-ratio").value)}); return; }
     if (!get().status.hasPattern) return;
     const p = point(event), cell = viewport.screenToGrid(p.x, p.y);
-    if (drag?.type === "pan") { viewport.setPan(drag.panX + event.clientX - drag.x, drag.panY + event.clientY - drag.y); return; }
+    if (drag?.type === "pan") {
+      if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 4) drag.moved = true;
+      if (drag.moved) viewport.setPan(drag.panX + event.clientX - drag.x, drag.panY + event.clientY - drag.y);
+      return;
+    }
     if(drag?.type==="reference"){const cell=BASE_CELL*get().view.zoom;store.setState({reference:moveReference(drag.reference,event.clientX-drag.x,event.clientY-drag.y,cell)});return;}
-    if (drag?.type === "region" && cell) { store.setState({ editor: { selection: rectangularSelection(drag.start.x, drag.start.y, cell.x, cell.y, bridge.getResult().width, bridge.getResult().height) } }); return; }
+    if (drag?.type === "select") {
+      if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 4) drag.moved = true;
+      if (!drag.moved) return;
+      const end = viewport.screenToGridClamped(p.x, p.y);
+      store.setState({ editor: { selectedCell: drag.start, selection: rectangularSelection(drag.start.x, drag.start.y, end.x, end.y, bridge.getResult().width, bridge.getResult().height), ...buildHighlightOnlyPatch(null, { enabled: false }) } });
+      return;
+    }
+    if (drag?.type === 'selection-move') {
+      const end = viewport.screenToGridClamped(p.x, p.y), dx = end.x - drag.start.x, dy = end.y - drag.start.y;
+      drag.dx = dx; drag.dy = dy;
+      drag.plan = editorService.planSelectionTransform(drag.selection, 'move', { dx, dy });
+      const plan = drag.plan;
+      store.setState({ editor: { shapePreview: plan ? { selectionTransform: true, changes: plan.changes } : null } });
+      return;
+    }
+    if (drag?.type === 'closed-lasso') {
+      const at = viewport.screenToGridFloat(p.x, p.y), last = drag.points[drag.points.length - 1];
+      if (Math.hypot(at.x - last.x, at.y - last.y) >= .18) drag.points.push(at);
+      store.setState({ editor: { shapePreview: { selectionPath: drag.points } } });
+      return;
+    }
+    if (drag?.type === "region") { const end = viewport.screenToGridClamped(p.x, p.y); store.setState({ editor: { selection: rectangularSelection(drag.start.x, drag.start.y, end.x, end.y, bridge.getResult().width, bridge.getResult().height) } }); return; }
+    if (drag?.type === 'lasso') {
+      const at=viewport.screenToGridFloat(p.x,p.y),result=bridge.getResult();
+      store.setState({editor:{selection:lassoSelection([drag.last,at],result.width,result.height,get().editor.selection)}});
+      drag.last=at;
+      return;
+    }
     if (drag?.type === "stroke") { if (cell) { editorService.strokeCell(cell.x, cell.y); renderer.requestDraw(); } return; }
     if (drag?.type === "shape") {
       // 形状用夹取后的坐标：拖出画布边界时端点停在边界格上，继续跟随鼠标。
       updateShapePreview(viewport.screenToGridClamped(p.x, p.y), event.shiftKey);
       return;
     }
+    if (drag?.type === "text-resize") {
+      const scale=resizedTextScale(drag.initialScale,drag.start,p,drag.anchor);
+      setTextLayers(currentTextLayers().map(layer=>layer.id===drag.id?{...layer,scale}:layer),drag.id);
+      return;
+    }
     if (drag?.type === "text-move") {
-      // 拖动只改浮动图层的 x/y，一格豆都不写：所以拖多远撤销栈都是干净的。
+      // 拖动是实时预览，释放时只提交一条对象历史。
       // 不夹边界 —— 拖出画布时文字继续跟着走，否则会「粘」在边上。
       const at = viewport.screenToGridFloat(p.x, p.y);
       setTextLayers(currentTextLayers().map((layer) => (layer.id === drag.id ? { ...layer, x: at.x - drag.grabX, y: at.y - drag.grabY } : layer)), drag.id);
       return;
     }
     const old = get().editor.hoveredCell;
-    if (old?.x !== cell?.x || old?.y !== cell?.y) store.setState({ editor: { hoveredCell: cell } });
-  });
+    if (old?.x !== cell?.x || old?.y !== cell?.y) { store.setState({ editor: { hoveredCell: cell } }); clearDwell(); }
+    updateEyedropperDwell(cell);
+  };
+  const openSelectionColorPopover = (preferredCell) => {
+    const selection=get().editor.selection,result=bridge.getResult();
+    const cell=preferredCell&&selectionContains(selection,preferredCell.x,preferredCell.y)&&editorService.getCell(preferredCell.x,preferredCell.y)
+      ? preferredCell : selectionCells(selection,result.width,result.height).find(cell=>editorService.getCell(cell.x,cell.y));
+    if(!cell)return;
+    const color=editorService.getCell(cell.x,cell.y);
+    usageScrolledPaletteId=null;
+    store.setState({editor:{selectedCell:cell,...buildActivateColorPatch(paletteIdOf(color),paletteColors(),{highlight:false})},ui:{activePanel:'edit'}});
+    cellColorPopover.open();
+  };
   const endDrag = (cancel = false) => { if (sourceDrag) { if (cancel && sourceDrag.moved) setSourcePatch({crop:sourceDrag.previous}); sourceDrag=null; requestSourceDraw(); }
+    if (drag?.type === 'lasso') {
+      if(cancel)store.setState({editor:{selection:drag.previousSelection,...drag.previousFocus}});
+      else openSelectionColorPopover();
+    }
+    if (drag?.type === 'closed-lasso') {
+      if (cancel) store.setState({ editor: { selection: drag.previousSelection } });
+      else {
+        const { width, height } = bridge.getResult();
+        const hits = closedLassoSelection(drag.points, width, height);
+        if (hits) {
+          store.setState({ editor: { selection: combineSelection(drag.previousSelection, hits, drag.mode), selectedCell: null, ...buildHighlightOnlyPatch(null, { enabled: false }) }, ui: { activePanel: 'edit' } });
+          openSelectionColorPopover();
+        }
+      }
+      store.setState({ editor: { shapePreview: null } });
+    }
+    if (drag?.type === 'selection-move') {
+      const { width, height } = bridge.getResult();
+      const preview = drag.plan;
+      if (cancel) store.setState({ editor: { shapePreview: null } });
+      else if (preview) {
+        if (preview.changes.length) editorService.applySelectionTransform(preview);
+        else if (drag.dx || drag.dy) store.setState({ editor: { selection: translateSelection(drag.selection, drag.dx, drag.dy, width, height) } });
+        store.setState({ editor: { shapePreview: null } });
+      }
+    }
+    if(drag?.type==='region'){
+      if(cancel)store.setState({editor:{selection:drag.previousSelection,...drag.previousFocus}});
+      else openSelectionColorPopover(drag.start);
+    }
+    if (drag?.type === "select") {
+      if (cancel) store.setState({ editor: { selection: drag.previousSelection, ...drag.previousFocus } });
+      else {
+        const inspected = editorService.inspectCell(drag.start.x, drag.start.y);
+        lastSelectionTap=drag.moved?null:{...drag.start,time:performance.now()};
+        usageScrolledPaletteId = null;
+        store.setState({ editor: { selectedCell: drag.start, ...(!drag.moved ? { selection: null } : {}), ...(inspected?.paletteId ? buildActivateColorPatch(inspected.paletteId, paletteColors(), { highlight: false }) : buildHighlightOnlyPatch(null, { enabled: false })) }, ui: { activePanel: "edit" } });
+        if(drag.moved)openSelectionColorPopover(drag.start);
+        else if (inspected?.paletteId) cellColorPopover.open();
+      }
+    }
+    if (!cancel && drag?.type === "pan" && !drag.moved && drag.inspectCell) {
+      const cell = drag.inspectCell, inspected = editorService.inspectCell(cell.x, cell.y);
+      usageScrolledPaletteId = null;
+      store.setState({ editor: { selectedCell: cell, ...(inspected?.paletteId ? buildActivateColorPatch(inspected.paletteId, paletteColors(), { highlight: false }) : buildHighlightOnlyPatch(null, { enabled: false })) } });
+      if(inspected?.paletteId)cellColorPopover.open();
+    }
+    if (drag?.type === "text-move" || drag?.type === "text-resize") {
+      if (cancel) setTextLayers(drag.before,drag.beforeActive);
+      else commitTextObjects(drag.type==='text-resize'?"TEXT_UPDATE":"TEXT_MOVE",drag.type==='text-resize'?"缩放文字":"移动文字",drag.before,currentTextLayers(),drag.beforeActive,drag.id);
+      well.style.cursor='';
+    }
     if (drag?.type === "stroke") cancel ? editorService.cancelStroke() : editorService.endStroke();
     if (drag?.type === "shape") {
       const selected = currentPaletteId();
@@ -1122,7 +1725,56 @@ export function mountWorkspace(bridge) {
       store.setState({ editor: { shapePreview: null } });
     }
     drag = null; well.classList.remove("is-panning"); renderer.requestDraw(); };
-  well.addEventListener("pointerup", () => endDrag()); well.addEventListener("pointercancel", () => endDrag(true));
+  // 历史操作先取消尚未提交的手势；否则 pointerup 会把已撤销对象重新记入历史。
+  const undoEditor = () => { endDrag(true); return editorService.undo(); };
+  const redoEditor = () => { endDrag(true); return editorService.redo(); };
+  const touchPoints = new Map();
+  let gesturePair = null, touchAction = false, touchCursor = null;
+  let touchEnabled = Boolean(readEditorPreference("touchButtons", false));
+  const interactionControls = document.createElement("div");
+  interactionControls.innerHTML = `<label class="ws-field">笔触<select id="ws-brush-shape"><option value="square">方形</option><option value="round">圆形</option></select></label><label class="ws-switch-row"><input id="ws-touch-enabled" type="checkbox">触屏按钮绘制</label><p class="ws-note">适合手机和平板。单指移动光标，按住操作按钮才落笔；双指缩放和平移。关闭时单指只平移，避免误画。</p>`;
+  $("#ws-brush-size").closest("label").after(interactionControls);
+  $("#ws-brush-shape").value = brushShape;
+  $("#ws-brush-shape").addEventListener("change", event => { brushShape = event.target.value; saveEditorPreference("brushShape", brushShape);renderer.requestDraw(); });
+  const touchBar = document.createElement("div"); touchBar.className = "ws-touch-bar";
+  touchBar.innerHTML = `<span>移动光标后</span><button type="button" id="ws-touch-action">按住操作</button>`;
+  const cursorMarker = document.createElement("span"); cursorMarker.className = "ws-touch-cursor"; cursorMarker.hidden = true; well.append(cursorMarker); wrap.append(touchBar);
+  const updateTouchControls = () => { $("#ws-touch-enabled").checked = touchEnabled; touchBar.hidden = !touchEnabled; wrap.classList.toggle("has-touch-controls",touchEnabled); if (!touchEnabled) cursorMarker.hidden=true; };
+  updateTouchControls();
+  $("#ws-touch-enabled").addEventListener("change",event=>{endDrag(true);touchAction=false;touchEnabled=event.target.checked;saveEditorPreference("touchButtons",touchEnabled);updateTouchControls();if(touchEnabled)right.classList.remove("is-mobile-panel-open");});
+  // Synthetic cursor actions must not steal the held button's real pointer capture.
+  const cursorEvent = () => ({clientX:touchCursor?.x??0,clientY:touchCursor?.y??0,pointerId:-1,button:0,altKey:false,shiftKey:false});
+  const moveTouchCursor = event => { touchCursor={x:event.clientX,y:event.clientY}; const p=point(event);cursorMarker.hidden=false;cursorMarker.style.left=`${p.x}px`;cursorMarker.style.top=`${p.y}px`;onCanvasMove(cursorEvent(event)); };
+  touchBar.querySelector("button").addEventListener("pointerdown",event=>{if(!touchCursor||!get().status.hasPattern)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);touchAction=true;onCanvasDown(cursorEvent(event));});
+  const endTouchAction = (cancel=false) => { if(touchAction)endDrag(cancel);touchAction=false; };
+  touchBar.querySelector("button").addEventListener("pointerup",()=>endTouchAction());
+  touchBar.querySelector("button").addEventListener("pointercancel",()=>endTouchAction(true));
+  well.addEventListener("pointerdown",event=>{
+    if(previewMirror()!=='none'&&event.button!==1){$('#ws-export-message').textContent='镜像预览中；关闭输出面板或取消镜像后可编辑原图纸。';return;}
+    if(event.pointerType!=="touch"){onCanvasDown(event);return;}
+    event.preventDefault();captureCanvasPointer(event.pointerId);touchPoints.set(event.pointerId,{x:event.clientX,y:event.clientY});
+    if(touchPoints.size>1){endTouchAction(true);endDrag(true);gesturePair=touchPair(touchPoints.values());cursorMarker.hidden=true;touchCursor=null;return;}
+    if(touchEnabled)moveTouchCursor(event);else onCanvasDown({...cursorEvent(event),clientX:event.clientX,clientY:event.clientY,button:1});
+  });
+  well.addEventListener("pointermove",event=>{
+    if(event.pointerType!=="touch"){onCanvasMove(event);return;}
+    if(!touchPoints.has(event.pointerId))return;event.preventDefault();touchPoints.set(event.pointerId,{x:event.clientX,y:event.clientY});
+    if(touchPoints.size>1){const next=touchPair(touchPoints.values());if(gesturePair){const anchor=point({clientX:gesturePair.x,clientY:gesturePair.y});viewport.setZoom(get().view.zoom*next.distance/gesturePair.distance,anchor);viewport.panBy(next.x-gesturePair.x,next.y-gesturePair.y);}gesturePair=next;return;}
+    if(touchEnabled)moveTouchCursor(event);else if(!gesturePair)onCanvasMove(event);
+  });
+  const endCanvasPointer=(event,cancel=false)=>{if(event.pointerType!=="touch"){if(!cancel&&['lasso','closed-lasso','selection-move'].includes(drag?.type))onCanvasMove(event);endDrag(cancel);return;}touchPoints.delete(event.pointerId);if(cancel){endTouchAction(true);endDrag(true);touchPoints.clear();gesturePair=null;cursorMarker.hidden=true;return;}if(!touchPoints.size){gesturePair=null;if(!touchAction)endDrag(false);} };
+  well.addEventListener("pointerup",event=>endCanvasPointer(event));well.addEventListener("pointercancel",event=>endCanvasPointer(event,true));
+  well.addEventListener('dblclick',event=>{
+    if(previewMirror()!=='none'||event.button!==0||event.target.closest('button,input,select,.ws-cell-color-popover')||buildActive()||get().ui.activePanel==='source'||get().reference.adjusting||spaceDown||event.altKey||!get().status.hasPattern||!['select','region'].includes(get().editor.tool))return;
+    const p=point(event),cell=viewport.screenToGrid(p.x,p.y);if(!cell)return;
+    const color=editorService.getCell(cell.x,cell.y);if(!color)return;
+    event.preventDefault();endDrag(true);
+    const selection=connectedSelection(bridge.getResult().grid,cell.x,cell.y);
+    usageScrolledPaletteId=null;
+    store.setState({editor:{selection,selectedCell:cell,...buildActivateColorPatch(paletteIdOf(color),paletteColors(),{highlight:false})},ui:{activePanel:'edit'}});
+    cellColorPopover.open();
+  });
+  window.addEventListener("blur",()=>{endTouchAction(true);endDrag(true);touchPoints.clear();gesturePair=null;spaceDown=false;});
 
   // 色格墙一屏最多渲染多少个（§10 惰性渲染）。
   // 优肯 418 色一次性铺 418 个 button，且每个 button 的 title 都要查一次用量 ——
@@ -1137,27 +1789,28 @@ export function mountWorkspace(bridge) {
     const palette = paletteColors();
     const series = state.editor.paletteCategory || "all";
     const query = $("#ws-color-search").value;
+    // Hover/zoom paints must not replace focused or hovered palette nodes.
+    const selectedId = readCurrentPaletteId(state.editor);
+    const signature = `${palettes.getActivePalette().key}|${palette.length}|${series}|${query}|${selectedId}|${pickerExpanded}|${gridRevision}|${JSON.stringify(state.editor.recentColors)}`;
+    if (signature === pickerSignature) return;
+    pickerSignature = signature;
     // 系列片来自 registry 元数据（entry.group），不是 code 前缀猜的。
     // 盼盼 / 咪小窝的 7 个官方中文系列在这里才第一次真正出现在界面上。
-    const seriesList = listPaletteSeries(palette);
+    const seriesList = listPaletteSeries(palette).sort((a,b) => /^[A-Z]+$/.test(a.key) && /^[A-Z]+$/.test(b.key) ? a.key.localeCompare(b.key, 'en', { numeric: true }) : 0);
     $("#ws-palette-categories").innerHTML = seriesList.length
       ? [`<button type="button" data-ws-category="all" class="${series === "all" ? "active" : ""}">全部 ${palette.length}</button>`,
         ...seriesList.map((entry) => `<button type="button" data-ws-category="${esc(entry.key)}" class="${series === entry.key ? "active" : ""}" title="${esc(entry.label)} · ${entry.count} 色">${esc(entry.label)} ${entry.count}</button>`)].join("")
       : "";
-    $("#ws-recent-colors").innerHTML = state.editor.recentColors.length ? `最近 · ${state.editor.recentColors.map((code)=>`<button type="button" data-ws-pick="${esc(code)}">${esc(code)}</button>`).join("")}` : "";
+    $("#ws-recent-colors").innerHTML = state.editor.recentColors.length ? `最近 · ${state.editor.recentColors.map((code)=>`<button type="button" data-ws-pick="${esc(code)}">${colorChip(editorService.resolveColor(code),code)}</button>`).join("")}` : "";
     // 签名守卫：paint 会被高频调用（悬停、选区、缩放），签名不变就不重建 DOM。
-    const selectedId = readCurrentPaletteId(state.editor);
-    const signature = `${palette.length}|${series}|${query}|${selectedId}|${pickerExpanded}`;
-    if (signature === pickerSignature) return;
-    pickerSignature = signature;
-    const matched = filterPaletteColors(palette, { series: series === "all" ? PALETTE_SERIES_ALL : series, query });
+    const matched = filterPaletteColors(palette, { series: series === "all" ? PALETTE_SERIES_ALL : series, query }).sort((a,b) => String(a.code).localeCompare(String(b.code), 'en', { numeric: true }));
     const shown = pickerExpanded ? matched : matched.slice(0, PICKER_PAGE);
     // 用量一次性建表（一次 Map 构造），替掉逐色 getColorUsage 的全色板克隆。
     const usage = editorService.getPaletteUsageCounts();
     const cards = shown.map((color) => {
       const id = paletteIdOf(color);
       const used = usage.get(id) || 0;
-      return `<button type="button" data-ws-pick="${esc(color.code)}" title="${esc(color.code)}${used ? ` · 图上 ${used} 颗` : " · 未使用"}" class="${selectedId === id ? "active" : ""}"><span style="background:${esc(color.hex)}"></span><small>${esc(color.code)}</small></button>`;
+      return `<button type="button" data-ws-pick="${esc(color.code)}" aria-label="${esc(color.code)}" title="${esc(color.code)}${used ? ` · 图上 ${used} 颗` : " · 未使用"}" class="${selectedId === id ? "active" : ""}"><span data-ws-color-pick="${esc(id)}" style="background:${esc(color.hex)};color:${swatchInk(color)}">${esc(color.code)}</span></button>`;
     });
     const more = !pickerExpanded && matched.length > shown.length
       ? `<button type="button" class="ws-picker-more" id="ws-picker-more">显示其余 ${matched.length - shown.length} 色</button>`
@@ -1191,13 +1844,14 @@ export function mountWorkspace(bridge) {
       zoomControls.setZoom(Math.round(state.view.zoom * 100), false);
       $("#ws-canvas-hint").textContent = canvasHint(state.view);
       if (buildActive()) updateBuildOverlay();
-      renderer.requestDraw(); navigator.requestDraw(); return;
+      renderer.requestDraw();  return;
     }
     const hasSource = state.status.hasSource, hasPattern = state.status.hasPattern;
+    syncToolOptions(state);
     // 源图一变（新导入 / 恢复会话）就重新识别像素倍数。挂在 paint 上而不是只挂
     // libms:source-loaded，否则「恢复上次会话」这条路径永远识别不到，倍数会停在 1×。
     detectMultipleFor(state.source.image);
-    importView.hidden = hasSource || hasPattern; canvas.hidden = !hasSource && !hasPattern;
+    importView.hidden = true; canvas.hidden = !hasSource && !hasPattern;
     // 「重新生成」平时不显示：只有存在手动编辑、自动生成主动让路时，才作为显式覆盖出口出现。
     const manualEdited = Boolean(bridge.getResult().manualEdited);
     $("#ws-generate").hidden = !(hasSource && manualEdited);
@@ -1209,10 +1863,27 @@ export function mountWorkspace(bridge) {
     // 「取消生成」只在真的在跑时出现（B3 §31）：大尺寸生成期间界面必须能操作。
     const cancelButton = $("#ws-cancel-generate");
     if (cancelButton) cancelButton.hidden = !state.status.generating;
-    $("#ws-engine").value = state.generation.engine || "v2.5";
+    $("#ws-engine").value = "v2.5";
+    nativeParameterRoot.hidden = true;
+    pindouControls.sync();
+    // V2.5 parameters keep their values, but cannot masquerade as native inputs.
+    for (const control of generationPanelRoot.querySelectorAll('[data-field], [data-preset], [data-step-field], [data-color-cap], [data-range-step]')) {
+      if (!nativeParameterRoot.hidden && !control.hasAttribute('data-native-disabled-before')) {
+        control.dataset.nativeDisabledBefore = String(Boolean(control.disabled));
+        control.disabled = true;
+      } else if (nativeParameterRoot.hidden && control.hasAttribute('data-native-disabled-before')) {
+        control.disabled = control.dataset.nativeDisabledBefore === 'true';
+        delete control.dataset.nativeDisabledBefore;
+      }
+    }
+    for (const button of presetSection.querySelectorAll('[data-preset]')) {
+      button.disabled = state.generation.engine !== 'v2.5';
+    }
     $("#ws-source-open").hidden = !hasSource;
     right.querySelector('.ws-side-tabs [data-ws-panel="source"]').disabled = !hasSource;
-    $("#ws-making").disabled = !hasPattern; $("#ws-export").disabled = !hasPattern; $("#ws-open-editor").disabled = !hasPattern;
+    $("#ws-making").disabled = !hasPattern; $("#ws-open-editor").disabled = !hasPattern;
+    const legacyExportButton=$("#ws-export");if(legacyExportButton)legacyExportButton.disabled=!hasPattern;
+    ["#ws-output-preview","#ws-output-a4","#ws-output-boards"].forEach(selector=>{const button=$(selector);if(button)button.disabled=!hasPattern;});
     $("#ws-bead-size").disabled = !hasPattern;
     $("#ws-replace-confirm").disabled = !hasPattern;
     $("#ws-ref-pick").disabled = !hasPattern;
@@ -1227,30 +1898,38 @@ export function mountWorkspace(bridge) {
         : state.status.generating
           ? (state.status.generationPhase || "正在生成")
           : bridge.getResult().manualEdited ? "已手动编辑" : state.status.dirty ? "参数待更新" : hasPattern ? "已生成" : hasSource ? "图片已导入" : "未开始";
-    $("#ws-legacy-retry").hidden = !state.status.generationError;
-    if (document.activeElement !== top.querySelector("#ws-project-name")) top.querySelector("#ws-project-name").value = state.project.name;
+    $("#ws-legacy-retry").hidden = true;
+    if (document.activeElement !== $('#ws-project-name')) $('#ws-project-name').value = mirroredTitle(state.project.name,previewMirror());
     const activePalette = palettes.getActivePalette();
+    $("#ws-summary-brand").textContent = brandLabel(activePalette.key.split('-')[0]);
+    $("#ws-summary-series").textContent = paletteKitLabel(activePalette.key);
+    $("#ws-summary-colors").textContent = String(hasPattern ? state.stats.usedColors : 0);
+    const summaryResult = bridge.getResult();
+    $("#ws-summary-grid").textContent = hasPattern ? `${summaryResult.width} × ${summaryResult.height}` : '—';
+    $("#ws-summary-beads").textContent = (hasPattern ? state.stats.totalBeads : 0).toLocaleString('zh-CN',{useGrouping:false});
     $("#ws-project-meta").textContent = hasPattern
       ? `${state.canvas.width}×${state.canvas.height} · ${state.stats.usedColors}色 · ${state.stats.totalBeads.toLocaleString("zh-CN", { useGrouping: false })}颗 · ${activePalette.key}`
       : hasSource ? "图片已导入 · 等待生成" : "尚未创建图纸";
     // Stage C0 §11：Tab 切换只有 **一个真源** —— `state.ui.activePanel`。
     // 这里只负责把真源映射到 DOM（active 类 + panel.hidden），不持有任何自己的 tab 状态。
-    right.querySelector(".ws-side-tabs").querySelectorAll("[data-ws-panel]").forEach((button) => { button.classList.toggle("active", button.dataset.wsPanel === state.ui.activePanel); button.disabled = button.dataset.wsPanel === "source" && !hasSource; });
-    right.querySelectorAll("[data-ws-inspector]").forEach((panel) => { panel.hidden = panel.dataset.wsInspector !== state.ui.activePanel; });
-    const titles = { project: "作品", source: "图片调整", generation: "生成", color: "色彩", edit: "编辑", check: "检查", material: "材料", build: "施工" };
-    const subtitles = { project: "当前设计", source: "原图对象", generation: "输出规格", color: "色号与用量", edit: "对象与工具", check: "校验结果", material: "备料与台账", build: "分块施工" };
+    right.querySelector(".ws-side-tabs").querySelectorAll("[data-ws-panel]").forEach((button) => { button.classList.toggle("active", button.dataset.wsPanel === state.ui.activePanel); button.disabled = button.dataset.wsPanel === "source" && !hasSource || button.dataset.wsPanel === "build" && !hasPattern; });
+    $("#ws-tool-options").hidden = !toolParametersOpen;
+    const titles = { project: "作品", source: "图片调整", generation: "生成", color: "色彩", edit: "对象与属性", check: "检查", material: "材料", build: "施工图预览" };
+    const subtitles = { project: "当前设计", source: "原图对象", generation: "输出规格", color: "色号与用量", edit: "选中对象", check: "校验结果", material: "备料与台账", build: "临时查看 · 返回编辑保留原视口" };
     $("#ws-inspector-title").textContent = titles[state.ui.activePanel] || "";
     const subtitleNode = $("#ws-inspector-subtitle");
     if (subtitleNode) subtitleNode.textContent = subtitles[state.ui.activePanel] || "";
     // 施工模式下右栏整体换成施工面板，6 个 tab 收起
-    const buildMode = document.body.classList.contains("ws-mode-build");
-    right.querySelector(".ws-side-tabs").hidden = buildMode;
+    const buildMode = document.body.classList.contains("ws-output-preview");
+    right.querySelector(".ws-side-tabs").hidden = true;
+    right.querySelectorAll('[data-ws-inspector]').forEach(panel=>{panel.hidden=panel.dataset.wsInspector==='build'&&!buildMode;});
     left.querySelectorAll("[data-ws-mode]").forEach((button) => button.classList.toggle("active", button.dataset.wsMode === (buildMode ? "build" : "edit")));
     const sourceActive=state.ui.activePanel === "source" && hasSource;
     sourceCanvas.hidden = !sourceActive; layers.style.visibility = sourceActive ? "hidden" : "visible";
-    if (sourceActive) requestSourceDraw();
+    sourceAdjustments.sync();
+    if (sourceActive || sourceImageUrl !== bridge.getResult().sourceOriginalUrl) requestSourceDraw();
     $("#ws-bead-size").value = String(state.canvas.beadSize);
-    $("#ws-physical-size").textContent = state.status.dirty && !bridge.getResult().manualEdited ? "参数已修改 · 重新生成后显示实际尺寸" : hasPattern ? `${state.canvas.width} × ${state.canvas.height} 豆 · 约 ${(state.canvas.width * state.canvas.beadSize / 10).toFixed(1)} × ${(state.canvas.height * state.canvas.beadSize / 10).toFixed(1)} cm` : "导入后显示实际尺寸";
+    $("#ws-physical-size").textContent = state.status.dirty && !bridge.getResult().manualEdited ? "待重新生成" : hasPattern ? `${(state.canvas.width * state.canvas.beadSize / 10).toFixed(1)} × ${(state.canvas.height * state.canvas.beadSize / 10).toFixed(1)} cm` : "—";
     $("#ws-used-colors").textContent = hasPattern ? `实际使用 ${state.stats.usedColors} 色 · ${state.stats.totalBeads.toLocaleString("zh-CN", { useGrouping: false })} 颗${state.palette.maxColors > 0 && state.stats.usedColors > state.palette.maxColors ? ` · 手动编辑超过生成限制 ${state.palette.maxColors} 色` : ""}` : "尚未生成";
     // §12：横向用色统计条。按 gridRevision 判陈旧 —— 只在图纸真的变了才重建，
     // 悬停/选区这类高频 paint 不会碰它。
@@ -1269,7 +1948,7 @@ export function mountWorkspace(bridge) {
     }
     // 施工模式：图纸变了要重算区块与颜色，视图变了要重定位叠加层
     if (buildActive()) { if (patch.stats || patch.status) { renderBlockMap(); renderBlockColors(); } updateBuildOverlay(); }
-    navigator.requestDraw();
+    
     // 「当前使用色」竖列面板已删除（B1 §11）。
     // 删除理由（不是审美）：
     //   1) 它的数据源 state.stats.colors 是**生成期**统计（app.js calculateStats，按 code 聚合），
@@ -1285,6 +1964,7 @@ export function mountWorkspace(bridge) {
       const priorSources=new Set([...$("#ws-merge-sources").selectedOptions].map((option)=>option.value));
       const mergeOptions=state.stats.colors.map((color)=>{const resolved=editorService.resolveColor(color.code),id=paletteIdOf(resolved);return `<option value="${esc(id)}" ${priorSources.has(id)?"selected":""}>${esc(color.code)} · ${color.count}颗</option>`;}).join("");
       $("#ws-merge-sources").innerHTML=mergeOptions;
+      $("#ws-merge-source-colors").innerHTML=state.stats.colors.map((color)=>{const resolved=editorService.resolveColor(color.code),id=paletteIdOf(resolved);return `<label style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" data-ws-merge-source="${esc(id)}" ${priorSources.has(id)?"checked":""}>${colorChip(resolved,color.code)} · ${color.count}颗</label>`;}).join("");
     }
     const checks = bridge.getChecks(); $("#ws-check-results").innerHTML = hasPattern ? `<p>尺寸：${state.canvas.width} × ${state.canvas.height}</p><p>颜色：${state.stats.usedColors} 色${checks.validation?.valid === false ? " · 超出当前上限" : " · 已校验"}</p>${checks.structural ? `<p>结构检测：${esc(JSON.stringify(checks.structural))}</p>` : ""}` : "生成后显示可验证的尺寸、色数与结构报告。";
     // ── Stage C0 §4：生成状态（「正在分析图片…」这类人话）也进「生成」面板 ──
@@ -1303,7 +1983,8 @@ export function mountWorkspace(bridge) {
       button.classList.toggle("active", button.dataset.wsView === state.view.mode);
       button.disabled = button.dataset.wsView === "original" ? !hasSource : !hasPattern;
     });
-    $("#ws-compare").disabled = !hasSource;
+    // 「对照」只在连图纸都没有时才禁用：没有对照图时它是上传入口，不能灰掉。
+    $("#ws-compare").disabled = !hasPattern;
     $("#ws-grid").disabled = !hasPattern; $("#ws-codes").disabled = !hasPattern;
     $("#ws-grid").checked = state.view.showGrid; $("#ws-codes").checked = state.view.showCodes;
     zoomControls.setZoom(Math.round(state.view.zoom * 100), false);
@@ -1354,14 +2035,35 @@ export function mountWorkspace(bridge) {
     $("#ws-apply-outline").disabled = !hasPattern || !hasSelection || !selectedPaletteId;
     const selected = state.editor.selectedCell;
     const selectedColor = selected ? editorService.getCell(selected.x, selected.y) : null;
-    const inspectedColor = selectedPaletteId ? (editorService.getPaletteColors().find((color) => paletteIdOf(color) === selectedPaletteId) || selectedColor) : null;
-    const inspectedCount = selectedPaletteId ? editorService.getColorUsage(selectedPaletteId) : 0;
+    const replacementSourceId = selected ? paletteIdOf(selectedColor) : selectedPaletteId;
+    const inspectedColor = replacementSourceId ? (editorService.getPaletteColors().find((color) => paletteIdOf(color) === replacementSourceId) || selectedColor) : null;
+    const inspectedCount = replacementSourceId ? editorService.getColorUsage(replacementSourceId) : 0;
     const paletteCurrent=$("#ws-palette-current"),paletteCurrentColor=editorService.resolveColor(selectedPaletteId);
-    if(paletteCurrent)paletteCurrent.innerHTML=paletteCurrentColor?`<strong>当前颜色：${esc(paletteCurrentColor.code)}</strong><span class="ws-current-color-swatch" style="background:${esc(paletteCurrentColor.hex||"#ccc")}"></span>`:"当前颜色：未选择";
+    if(paletteCurrent)paletteCurrent.innerHTML=paletteCurrentColor?`<strong>当前</strong>${colorChip(paletteCurrentColor)}`:"当前颜色：未选择";
+    // 当前色前后各 2 色（同一份色板顺序，同一个 data-ws-pick 通道）。
+    const neighborsNode=$("#ws-color-neighbors");
+    if(neighborsNode){
+      const paletteList=editorService.getPaletteColors();
+      const currentIndex=selectedPaletteId?paletteList.findIndex((color)=>paletteIdOf(color)===selectedPaletteId):-1;
+      if(currentIndex<0){neighborsNode.hidden=true;neighborsNode.innerHTML="";}
+      else{
+        const items=[];
+        for(let offset=-2;offset<=2;offset++){
+          const color=paletteList[currentIndex+offset];if(!color)continue;
+          const isCurrent=offset===0,code=color.code;
+          items.push(`<button type="button" data-ws-pick="${esc(code)}" class="${isCurrent?"is-current":""}" title="${esc(code)}" aria-label="${esc(code)}"${isCurrent?' aria-current="true"':""}>${colorChip(color)}</button>`);
+        }
+        neighborsNode.innerHTML=items.join("");
+        neighborsNode.hidden=false;
+      }
+    }
     const paletteById = new Map(editorService.getPaletteColors().map((color) => [paletteIdOf(color), color]));
     const selectionUsage = hasSelection ? editorService.getSelectionPaletteUsage(state.editor.selection) : new Map();
     const selectionTotal = [...selectionUsage.values()].reduce((sum, count) => sum + count, 0);
-    const selectionSourceCount = selectedPaletteId ? (selectionUsage.get(selectedPaletteId) || 0) : 0;
+    well.dataset.tool=state.editor.tool;
+    const selectionActions=$('#ws-selection-actionbar');
+    if(selectionActions){selectionActions.hidden=!hasSelection;selectionActions.querySelector('strong').textContent=`已选 ${selectionTotal} 颗 · ${selectionUsage.size} 色`;}
+    const selectionSourceCount = selectionTotal;
     $("#ws-current-color-summary").innerHTML = inspectedColor
       ? `<strong>当前：${esc(inspectedColor.code)}</strong><span class="ws-current-color-swatch" style="background:${esc(inspectedColor.hex || "#cccccc")}"></span><b>${inspectedCount.toLocaleString("zh-CN", { useGrouping: false })}颗</b>`
       : "点击画布中的拼豆格子识别颜色";
@@ -1373,14 +2075,19 @@ export function mountWorkspace(bridge) {
       $("#ws-selection-palette-summary").textContent = `${width} × ${height} · ${selectionTotal.toLocaleString("zh-CN", { useGrouping: false })} 颗 · ${selectionUsage.size} 色`;
       $("#ws-selection-palette-list").innerHTML = [...selectionUsage]
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .map(([paletteId, count]) => { const color = paletteById.get(paletteId); return `<button type="button" data-ws-inspect-palette="${esc(paletteId)}"><span style="background:${esc(color?.hex || "#ccc")}"></span><b>${esc(color?.code || paletteId)}</b><small>${count}颗</small></button>`; }).join("");
+        .map(([paletteId, count]) => { const color = paletteById.get(paletteId); return `<button type="button" data-ws-inspect-palette="${esc(paletteId)}">${colorChip(color,paletteId)}<small>${count}颗</small></button>`; }).join("");
     } else {
       $("#ws-selection-palette-summary").textContent = "框选区域后显示颜色统计。";
       $("#ws-selection-palette-list").innerHTML = "";
     }
     const similar = selectedPaletteId ? editorService.findSimilarPaletteColors(selectedPaletteId, { limit: 6 }) : [];
+    // 底栏那份「相近颜色」清单已移除，ΔE 与图上用量并进这里的 title，
+    // 否则删掉重复入口会连信息一起丢掉（同一份 findSimilarPaletteColors 结果）。
     $("#ws-similar-colors").innerHTML = similar.length
-      ? similar.map((color) => `<button type="button" data-ws-similar-target="${esc(color.paletteId)}" title="${esc(color.name || color.code)}"><span style="background:${esc(color.hex || "#ccc")}"></span><small>${esc(color.code)}</small></button>`).join("")
+      ? similar.map((color) => {
+        const used = editorService.getColorUsage(color.paletteId), delta = Number(color.distance ?? 0).toFixed(1);
+        return `<button type="button" data-ws-similar-target="${esc(color.paletteId)}" title="${esc(color.name || color.code)} · ΔE ${delta}${used ? ` · 图上 ${used} 颗` : ""}">${colorChip(color)}</button>`;
+      }).join("")
       : '<span class="ws-note">选择当前颜色后显示推荐。</span>';
     const rampBaseId = state.editor.rampBasePaletteId || selectedPaletteId;
     const rampData=rampCache(),generatedRamp = rampBaseId ? buildRamp(rampData.palette, rampBaseId, { size: state.editor.rampSize || 5,cache:rampData.cache }) : [];
@@ -1388,10 +2095,10 @@ export function mountWorkspace(bridge) {
       ? state.editor.rampPaletteIds.filter((id) => paletteById.has(id)) : generatedRamp.map((color) => color.paletteId);
     const rampColors = rampIds.map((id) => paletteById.get(id)).filter(Boolean);
     const rampBase = paletteById.get(rampBaseId);
-    $("#ws-ramp-base-label").textContent = rampBase ? `基础 ${rampBase.code}` : "选择一个基础色";
+    $("#ws-ramp-base-label").innerHTML = rampBase ? `基础 ${colorChip(rampBase)}` : "选择一个基础色";
     $("#ws-ramp-size").value = String(state.editor.rampSize || 5);
     $("#ws-ink-mode").value = state.editor.inkMode || "normal";
-    $("#ws-color-ramp").innerHTML = rampColors.length ? rampColors.map((color,index)=>`<button type="button" data-ws-ramp-index="${index}" data-ws-ramp-color="${esc(paletteIdOf(color))}" class="${paletteIdOf(color)===rampBaseId?"is-active":""}" title="${esc(color.code)}"><span style="background:${esc(color.hex||"#ccc")}"></span><small>${esc(color.code)}</small></button>`).join("") : '<span class="ws-note">选择当前颜色后生成真实色阶。</span>';
+    $("#ws-color-ramp").innerHTML = rampColors.length ? rampColors.map((color,index)=>`<button type="button" data-ws-ramp-index="${index}" data-ws-ramp-color="${esc(paletteIdOf(color))}" class="${paletteIdOf(color)===rampBaseId?"is-active":""}" title="${esc(color.code)}"><span data-ws-color-pick="${esc(paletteIdOf(color))}" style="background:${esc(color.hex||"#ccc")}"></span><small>${esc(color.code)}</small></button>`).join("") : '<span class="ws-note">选择当前颜色后生成真实色阶。</span>';
     // §21：替换当前级 / 选择替换色都改用共享 datalist。
     // 这两处原来是「重建整份色板 <select> + 把上一个值按 option 是否仍存在来还原」——
     // 输入框的值天然跨 paint 保留，所以整段还原逻辑直接删掉，语义不变。
@@ -1403,13 +2110,18 @@ export function mountWorkspace(bridge) {
     const targetSelect = $("#ws-current-color-target");
     targetSelect.disabled = !selectedPaletteId;
     const targetColor = editorService.resolveColor(targetSelect.value);
-    $("#ws-current-color-impact").textContent = inspectedColor && targetColor
-      ? `${inspectedColor.code} → ${targetColor.code} · 全局 ${inspectedCount.toLocaleString("zh-CN", { useGrouping: false })} 颗${hasSelection ? ` · 选区内 ${selectionSourceCount.toLocaleString("zh-CN", { useGrouping: false })} 颗` : ""}`
+    $("#ws-current-color-impact").innerHTML = inspectedColor && targetColor
+      ? `${colorChip(inspectedColor)} → ${colorChip(targetColor)} · 全局 ${inspectedCount.toLocaleString("zh-CN", { useGrouping: false })} 颗${hasSelection ? ` · 选区全部 ${selectionTotal.toLocaleString("zh-CN", { useGrouping: false })} 颗` : ""}`
       : selectedPaletteId ? `当前颜色共 ${inspectedCount.toLocaleString("zh-CN", { useGrouping: false })} 颗` : "选择当前颜色后显示替换数量。";
     $("#ws-current-color-replace").textContent = inspectedColor ? `全局替换 ${inspectedColor.code}` : "全局替换";
     $("#ws-current-color-replace").disabled = !selectedPaletteId || !targetColor || !inspectedCount;
-    $("#ws-selection-color-replace").textContent = inspectedColor ? `选区替换 ${inspectedColor.code}` : "仅选区替换";
-    $("#ws-selection-color-replace").disabled = !hasSelection || !selectedPaletteId || !targetColor || !selectionSourceCount;
+    const localCount=hasSelection?selectionTotal:(selectedColor?1:0);
+    const localTargetCount=targetColor?(hasSelection?(selectionUsage.get(paletteIdOf(targetColor))||0):(selectedColor&&paletteIdOf(selectedColor)===paletteIdOf(targetColor)?1:0)):0;
+    const localReplace=$("#ws-selection-color-replace");
+    localReplace.textContent=hasSelection?'选区全部换色':'仅替换此格';
+    localReplace.dataset.scope=hasSelection?`选中 ${localCount} 颗换色`:'仅当前 1 格换色';
+    localReplace.disabled=!targetColor||!localCount||localTargetCount===localCount;
+    localReplace.title=!targetColor?'请先选择替换色':!localCount?'选区内没有有色格':localTargetCount===localCount?'选区内已全部是目标色':'';
     // §17：低频色阈值档位 ≤3 / ≤5 / ≤10，**默认 ≤5**。
     // 旧默认是 3（而且 select 的首项就是 3，浏览器默认选中它），档位里也没有 10。
     // 默认 3 会把「只用了 4~5 颗」这类正常收尾色误报成问题色 —— 专业用户先看到的应该是真问题。
@@ -1437,7 +2149,7 @@ export function mountWorkspace(bridge) {
     diagnosticOverlayIssues = issues;
     inspectionState = setInspectionIssues(inspectionState, issues);
     $("#ws-rare-colors").innerHTML = rare.length
-      ? rare.map((entry) => { const color = paletteById.get(entry.paletteId); return `<button type="button" data-ws-rare-palette="${esc(entry.paletteId)}"><span style="background:${esc(color?.hex || "#ccc")}"></span><b>${esc(entry.code)}</b><small>${entry.count}颗</small></button>`; }).join("")
+      ? rare.map((entry) => { const color = paletteById.get(entry.paletteId); return `<button type="button" data-ws-rare-palette="${esc(entry.paletteId)}">${colorChip(color,entry.code)}<small>${entry.count}颗</small></button>`; }).join("")
       : '<span class="ws-note">当前阈值内没有低频颜色。</span>';
     const visibleCounts = new Map();
     allIssues.filter((issue) => !ignoredIssueKeys.has(stableIssueKey(issue))).forEach((issue) => visibleCounts.set(issue.type,(visibleCounts.get(issue.type)||0)+1));
@@ -1450,7 +2162,7 @@ export function mountWorkspace(bridge) {
     $("#ws-inspection-toggle").disabled = !issues.length;
     const typeNames = {"rare-color":"低频颜色","isolated-pixel":"孤立像素","tiny-region":"微小区域","edge-contamination":"边缘污染"};
     const suggestion = currentIssue?.meta?.suggestedPaletteId ? editorService.resolveColor(currentIssue.meta.suggestedPaletteId) : null;
-    $("#ws-inspection-current").textContent = currentIssue ? `${typeNames[currentIssue.type] || currentIssue.type} · ${currentIssue.label}${suggestion ? ` · 建议颜色 ${suggestion.code}` : ""}` : "当前没有符合筛选的问题。";
+    $("#ws-inspection-current").innerHTML = currentIssue ? `${esc(typeNames[currentIssue.type] || currentIssue.type)} · ${esc(currentIssue.label)} ${colorChip(editorService.resolveColor(currentIssue.paletteId))}${suggestion ? ` · 建议颜色 ${colorChip(suggestion)}` : ""}` : "当前没有符合筛选的问题。";
     $("#ws-inspection-status").textContent = currentIssue ? `${inspectionState.index + 1} / ${issues.length}` : "0 / 0";
     $("#ws-inspection-cell-status").textContent = issueCellCount ? `${inspectionState.cellIndex + 1} / ${issueCellCount}` : "0 / 0";
     $("#ws-inspection-prev").disabled = !inspectionState.active || inspectionState.index <= 0;
@@ -1460,7 +2172,7 @@ export function mountWorkspace(bridge) {
     const currentRepair = currentIssue ? repairSuggestions.find((item) => item.issueKey === stableIssueKey(currentIssue)) : null;
     const confidenceNames = { high:"高置信", medium:"中置信", low:"低置信" };
     $("#ws-repair-current").innerHTML = currentRepair
-      ? `<strong>建议 ${esc(editorService.resolveColor(currentRepair.targetPaletteId)?.code || currentRepair.targetPaletteId)} · ${confidenceNames[currentRepair.confidenceLevel]}</strong><br>${esc(currentRepair.reasonText)}<br>仅修改问题对应 ${currentRepair.cells.length} 颗拼豆。`
+      ? `<strong>建议 ${colorChip(editorService.resolveColor(currentRepair.targetPaletteId),currentRepair.targetPaletteId)} · ${confidenceNames[currentRepair.confidenceLevel]}</strong><br>${esc(currentRepair.reasonText)}<br>仅修改问题对应 ${currentRepair.cells.length} 颗拼豆。`
       : "当前问题没有可用的真实色卡修复建议。";
     // §21：改用共享 datalist（留空 = 采用建议颜色，与原空选项语义一致）。
     const repairTarget = $("#ws-repair-target");
@@ -1476,10 +2188,14 @@ export function mountWorkspace(bridge) {
     $("#ws-repair-apply-high").disabled = !repairQueue.highPlan.changes.length;
     $("#ws-repair-apply-high").textContent = repairQueue.highPlan.changes.length ? `应用全部高置信 · ${repairQueue.highPlan.changes.length}颗` : "应用全部高置信建议";
     $("#ws-cell-details").innerHTML = state.editor.selection ? `<strong>${esc({rectangle:"矩形", "same-color":"同色",connected:"连通", "magic-wand":"魔棒", inverse:"反选", selection:"区域"}[state.editor.selection.kind] || "区域")}选区 · ${selectionCells(state.editor.selection, state.canvas.width, state.canvas.height).length.toLocaleString("zh-CN", { useGrouping: false })} 豆</strong><p>X ${state.editor.selection.x0 + 1}–${state.editor.selection.x1 + 1} · Y ${state.editor.selection.y0 + 1}–${state.editor.selection.y1 + 1}</p><p>选区换色、擦除与描边仅影响对应豆格。方向键可整体搬移。</p>` : selected ? `<strong>${esc(selectedColor?.code || "空白")}</strong><p>位置 · X ${selected.x + 1} / Y ${selected.y + 1}</p><p>${selectedColor ? `${esc(selectedColor.hex || "")} · RGB ${esc(selectedColor.rgb?.join(",") || "")}` : "真正空豆"}</p><p>使用 · ${selectedColor ? editorService.getColorUsage(paletteIdOf(selectedColor)).toLocaleString("zh-CN", { useGrouping: false }) : 0} 颗</p>` : "用选择工具点击画布中的一颗豆。";
-    const toolInfo = {select:"选择 · 点击查看豆格",bead:"单豆 · 选中色号后点击豆格",brush:"画笔 · 拖动为一笔历史，笔宽见检查器",eraser:"橡皮 · 拖动擦成真正空豆，笔宽见检查器",fill:"填充 · 四方向连续色块",line:"直线 · 从起点拖到终点，Shift 吸附 45°",rect:"矩形 · 拖出外接框，Shift 约束正方形",ellipse:"圆形 · 拖出外接框，Shift 约束正圆",region:"框选 · 拖出矩形选区",wand:"魔棒 · 按色差容差圈选连续区域，Shift 叠加 / Alt 减掉",same:"同色选择 · 点击任意豆格",connected:"连通选择 · 点击连续色块",eyedropper:"取色 · 点击豆格设置当前色","source-eyedropper":"原图取色 · 点击中央原图",outline:"描边 · 先选择区域再应用",replace:"换色 · 在色彩面板设置色号",pan:"移动 · 拖动画布",text:"文字 · 点画布放一个文字图层，拖动可移动；调好字体/颜色/字号后点「向下合并」写进图纸"};
-    const inkLabel=state.editor.tool==="brush"&&state.editor.inkMode!=="normal"?(state.editor.inkMode==="darker"?" · Shade Darker":" · Shade Lighter"):"";
+    if (!state.editor.selection && selectedColor) $("#ws-cell-details strong").innerHTML = colorChip(selectedColor);
+    const toolInfo = {select:"选择 · 点击查看豆格",bead:"单豆 · 选中色号后点击豆格",brush:"画笔 · 拖动为一笔历史，笔宽见检查器",eraser:"橡皮 · 拖动擦成真正空豆，笔宽见检查器",fill:"填充 · 四方向连续色块",line:"直线 · 从起点拖到终点，Shift 吸附 45°",rect:"矩形 · 拖出外接框，Shift 约束正方形",ellipse:"圆形 · 拖出外接框，Shift 约束正圆",heart:"心形 · 拖出外接框绘制",diamond:"菱形 · 拖出外接框绘制",star:"五角星 · 拖出外接框绘制",region:"框选 · 拖出矩形选区",wand:"魔棒 · 按色差容差圈选连续区域，Shift 叠加 / Alt 减掉",same:"同色选择 · 点击任意豆格",connected:"连通选择 · 点击连续色块",eyedropper:"取色 · 点击豆格设置当前色","source-eyedropper":"原图取色 · 点击中央原图",outline:"描边 · 先选择区域再应用",replace:"换色 · 在色彩面板设置色号",pan:"移动 · 拖动画布",text:"文字 · 点画布放一个文字图层，拖动可移动；调好字体/颜色/字号后点「向下合并」写进图纸"};
+    const inkLabel=state.editor.tool==="brush"&&state.editor.inkMode!=="normal"?(state.editor.inkMode==="darker"?" · 加深":" · 提亮"):"";
+    const dockToolEl=$("#ws-dock-tool");
+    if(dockToolEl)dockToolEl.textContent=`当前 ${(toolInfo[state.editor.tool]||"工具").split("·")[0].trim()}${inkLabel}`;
     const toolSelectedId = readCurrentPaletteId(state.editor);
-    $("#ws-tool-details").textContent = `${toolInfo[state.editor.tool] || state.editor.tool}${inkLabel}${toolSelectedId ? ` · 当前 ${toolSelectedId}` : ""}`;
+    $("#ws-tool-details").innerHTML = `${esc(toolInfo[state.editor.tool] || state.editor.tool)}${esc(inkLabel)}${toolSelectedId ? ` · 当前 ${colorChip(editorService.resolveColor(toolSelectedId),toolSelectedId)}` : ""}`;
+    for (const picker of paletteColorPickers) picker?.sync();
     $("#ws-history-label").textContent = editorService.getHistory().at(-1)?.label || "";
     $("#ws-undo").disabled = !state.editor.history.canUndo; $("#ws-redo").disabled = !state.editor.history.canRedo;
     gridToolbar.setHistory(state.editor.history.canUndo, state.editor.history.canRedo);
@@ -1490,7 +2206,7 @@ export function mountWorkspace(bridge) {
     };
     ["mirror-horizontal", "mirror-vertical"].forEach((action) => setActionDisabled(action, !hasPattern));
     // 不满足前置条件的工具直接禁用，避免出现“按钮能点、画布却毫无反应”的假功能。
-    for (const tool of ["select", "bead", "text", "brush", "eraser", "fill", "line", "rect", "ellipse", "region", "wand", "same", "connected", "eyedropper", "pan"]) {
+    for (const tool of ["select", "bead", "text", "brush", "eraser", "fill", "line", "rect", "ellipse", "heart", "diamond", "star", "region", "wand", "same", "connected", "eyedropper", "pan"]) {
       gridToolbar.setToolDisabled(tool, !hasPattern);
     }
     // 尺寸控件的可用性**不在这里**决定 —— 见 syncSizeUi()。
@@ -1499,13 +2215,13 @@ export function mountWorkspace(bridge) {
     syncReferenceUi(state);
     // 当前色变了也要重建色格墙的 active 态。用 `in` 而不是取值判断 ——
     // 清空（写 null）同样需要重绘，否则选中态会残留在旧色格上。
-    if ((patch.editor && ("currentPaletteId" in patch.editor || "selectedPaletteId" in patch.editor || "paletteCategory" in patch.editor)) || patch.stats || patch.ui?.activePanel === "edit") renderPicker();
+    if (patch.palette || (patch.editor && ("currentPaletteId" in patch.editor || "selectedPaletteId" in patch.editor || "paletteCategory" in patch.editor)) || patch.stats || patch.ui?.activePanel === "edit") renderPicker();
     // 文字面板：字体/颜色/加粗倾斜/字号/旋转/落豆数都要每次状态变化回灌一次。
     // 面板内部用「结构签名」自己判断该不该重建 DOM，所以这里无条件调用是安全的。
     renderTextPanel(state);
     // 打开状态由按钮直接控制；普通 canvas/state repaint 不应意外把导出中心关掉。
     if (state.ui.exportDrawerOpen) drawer.classList.add("open");
-    if (document.activeElement !== $("#ws-export-title")) $("#ws-export-title").value = state.project.name || "";
+    if (document.activeElement !== $("#ws-export-title")) $("#ws-export-title").value = mirroredTitle(state.project.name,['pattern','print'].includes(drawer.dataset.outputCurrent)?$('#ws-export-mirror').value:'none');
     // ── Stage C0 §16：分板摘要「关着不算、开着也只算一次」 ────────────────
     // 改之前这里是 `if (hasPattern) { … }` —— 只要出过图就**每次 paint** 无条件跑，
     // 而 `exportV2.estimate()` 与 `exportV2.split()` 内部都会调
@@ -1518,7 +2234,7 @@ export function mountWorkspace(bridge) {
     // 现在：抽屉关着 → 一个字段都不算（打开抽屉会 setState，paint 自然会重来）；
     // 开着 → 只在图纸真的变了时重算。
     if (hasPattern && state.ui.exportDrawerOpen) {
-      const estimate = exportV2.estimate($("#ws-export-quality").value);
+      const estimate = exportV2.estimate($("#ws-export-quality").value,{showCoordinates:$("#ws-export-coords").checked,majorGridInterval});
       $("#ws-export-pixels").textContent = `预计 ${estimate.width} × ${estimate.height}px`;
       const splitSignature = `${gridRevision}|${state.canvas.width}x${state.canvas.height}`;
       if (splitSignature !== boardSplitSignature) {
@@ -1551,11 +2267,17 @@ export function mountWorkspace(bridge) {
     const sources=mergeSelection(),target=$("#ws-merge-target").value;
     const total=sources.reduce((sum,id)=>sum+editorService.getColorUsage(id),0);
     const targetColor=editorService.resolveColor(target);
-    $("#ws-merge-impact").textContent=sources.length&&targetColor?`${sources.length} 种来源色 → ${targetColor.code} · 共影响 ${total} 颗` : "请选择来源色和目标色。";
+    $("#ws-merge-impact").innerHTML=sources.length&&targetColor?`${sources.length} 种来源色 → ${colorChip(targetColor)} · 共影响 ${total} 颗` : "请选择来源色和目标色。";
     $("#ws-merge-confirm").disabled=!sources.length||!targetColor||!total;
   };
   $("#ws-color-manual-merge").addEventListener("click",()=>{const panel=$("#ws-manual-merge-panel");panel.hidden=!panel.hidden;if(!panel.hidden)updateMergeImpact();});
   $("#ws-merge-sources").addEventListener("change",updateMergeImpact);$("#ws-merge-target").addEventListener("change",updateMergeImpact);
+  $("#ws-merge-source-colors").addEventListener("change",event=>{
+    const checkbox=event.target.closest("[data-ws-merge-source]");if(!checkbox)return;
+    const option=[...$("#ws-merge-sources").options].find(item=>item.value===checkbox.dataset.wsMergeSource);
+    if(option)option.selected=checkbox.checked;
+    $("#ws-merge-sources").dispatchEvent(new Event("change",{bubbles:true}));
+  });
   $("#ws-merge-confirm").addEventListener("click",()=>{
     const sources=mergeSelection(),target=$("#ws-merge-target").value,total=sources.reduce((sum,id)=>sum+editorService.getColorUsage(id),0),targetColor=editorService.resolveColor(target);
     if(!sources.length||!targetColor||!total)return;
@@ -1565,38 +2287,62 @@ export function mountWorkspace(bridge) {
     const {changes,conflicts}=repairQueue.highPlan;if(!changes.length){$("#ws-merge-impact").textContent="当前没有可自动处理的高置信问题。";return;}
     askConfirmation(`自动优化将保守处理 ${changes.length} 颗拼豆${conflicts.length?`，并跳过 ${conflicts.length} 个冲突位置`:""}。继续吗？`).then((accepted)=>{if(!accepted)return;editorService.applyRepairChanges(changes.map((change)=>({sourcePaletteId:change.sourcePaletteId,targetPaletteId:change.targetPaletteId,cells:[{x:change.x,y:change.y}]})),"自动优化");});
   });
-  $("#ws-color-cleanup").addEventListener("click",()=>{$("#ws-diagnostic-category").value="all";store.setState({ui:{activePanel:"edit"}});paint(get(),{editor:{selectedPaletteId:get().editor.selectedPaletteId}});});
+  $("#ws-color-cleanup").addEventListener("click",()=>{$("#ws-diagnostic-category").value="all";store.setState({ui:{activePanel:"check"}});paint(get(),{editor:{selectedPaletteId:get().editor.selectedPaletteId}});});
   // ===================== Stage B1 §12–§16：横向用色统计 / 颜色巡检 =====================
   // 数据源是 palette-usage 的**实时**索引（editorService.getPaletteUsageCounts()），
   // 每次 libms:grid-edited 失效重算 —— 手动改色后数字不会骗人（旧竖列面板的毛病）。
   // 排序默认「数量↓」（先看用量最大的，这才是核对材料时要看的）。
   let usageSort = USAGE_SORT_DEFAULT;
   let usageSelected = null;
+  let usageScrolledPaletteId = null;
   let usageRenderedRevision = -1;
+  function clearColorHighlight() {
+    store.setState({ editor: buildHighlightOnlyPatch(null, { enabled: false }) });
+    renderUsageStrip();
+  }
   function usageEntries() {
-    return buildUsageEntries(editorService.getPaletteUsageCounts(), paletteColors(), {
+    const entries = buildUsageEntries(editorService.getPaletteUsageCounts(), paletteColors(), {
       sort: usageSort,
-      // 换品牌后旧 paletteId 可能已不在当前色板里 —— 交给 editorService 解析，
-      // 解不出就用 paletteId 本身当色号显示，绝不按 RGB 猜一个颜色顶上。
-      resolve: (paletteId) => editorService.resolveColor(paletteId),
+      // 换品牌后仍显示工程中实际使用的原色，复用用量索引；不按 RGB 猜色号。
+      resolve: (paletteId) => editorService.getUsedPaletteColor(paletteId),
     });
+    return filterAndSortUsage(entries.map(entry=>({...entry,rgb:editorService.getUsedPaletteColor(entry.paletteId)?.rgb})),{query:$("#ws-usage-search")?.value||"",hue:usageSort==="hue"});
   }
   function renderUsageActions() {
-    const color = usageSelected ? editorService.resolveColor(usageSelected) : null;
+    const color = usageSelected ? editorService.getUsedPaletteColor(usageSelected) : null;
     $("#ws-usage-actions").hidden = !color;
     if (!color) { $("#ws-usage-similar-list").hidden = true; $("#ws-usage-similar-list").innerHTML = ""; return; }
     const count = editorService.getColorUsage(usageSelected);
-    $("#ws-usage-current").textContent = `${color.code} · ${count.toLocaleString("zh-CN", { useGrouping: false })} 颗`;
+    $("#ws-usage-current").innerHTML = `${colorChip(color)} · ${count.toLocaleString("zh-CN", { useGrouping: false })} 颗`;
   }
   function renderUsageStrip() {
     const entries = usageEntries();
     $("#ws-usage-summary").textContent = formatUsageSummary(entries);
-    $("#ws-usage-strip").innerHTML = entries.map((entry) => `<button type="button" role="listitem" data-ws-usage="${esc(entry.paletteId)}" class="ws-usage-card${usageSelected === entry.paletteId ? " active" : ""}" title="${esc(entry.code)} · ${entry.count} 颗"><span class="ws-swatch" style="background:${esc(entry.hex)}"></span><small>${esc(entry.code)}</small><em>${entry.count.toLocaleString("zh-CN", { useGrouping: false })}</em></button>`).join("") || '<p class="ws-note">生成图纸后按色号显示用量。</p>';
+    $("#ws-usage-strip").innerHTML = entries.map((entry) => `<button type="button" role="listitem" data-ws-usage="${esc(entry.paletteId)}" class="ws-usage-card${usageSelected === entry.paletteId ? " active" : ""}" title="${esc(entry.code)} · ${entry.count} 颗"><span class="ws-swatch" data-ws-color-pick="${esc(entry.paletteId)}" style="background:${esc(entry.hex)};color:${swatchInk(entry)}">${esc(entry.code)}</span><em>${entry.count.toLocaleString("zh-CN", { useGrouping: false })}</em></button>`).join("") || '<p class="ws-note">生成图纸后按色号显示用量。</p>';
+    $("#ws-summary-usage").innerHTML = entries.map(entry=>`<button type="button" role="listitem" class="ws-color-row${usageSelected===entry.paletteId?' active':''}" data-ws-usage="${esc(entry.paletteId)}"><span class="ws-swatch" style="background:${esc(entry.hex)}"></span><strong>${esc(entry.code)}</strong><small>${entry.count.toLocaleString('zh-CN',{useGrouping:false})} 颗</small></button>`).join('') || '<p class="ws-note">创建图纸后显示实际用色。</p>';
+    $("#ws-summary-search").value = $("#ws-usage-search")?.value || '';
+    $("#ws-summary-sort").value = usageSort;
     // 选中的颜色若已不在图上（被替换掉了），收起操作条，别留悬空操作。
-    if (usageSelected && !isUsageEntryPresent(entries, usageSelected)) usageSelected = null;
+    if (usageSelected && !editorService.getColorUsage(usageSelected)) usageSelected = null;
     renderUsageActions();
+    if (usageSelected !== usageScrolledPaletteId) {
+      usageScrolledPaletteId = usageSelected;
+      requestAnimationFrame(() => {
+        const strip = $("#ws-usage-strip");
+        const card = [...strip.querySelectorAll("[data-ws-usage]")].find(item => item.dataset.wsUsage === usageSelected);
+        if (!card) return;
+        const viewportRect = strip.getBoundingClientRect(), cardRect = card.getBoundingClientRect();
+        const offset = (cardRect.left + cardRect.right - viewportRect.left - viewportRect.right) / 2;
+        if (offset) strip.scrollBy({ left: offset, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+      });
+    }
   }
   function renderUsageIfStale() {
+    const selected = currentPaletteId();
+    if (usageSelected !== selected) {
+      usageSelected = selected;
+      renderUsageStrip();
+    }
     if (usageRenderedRevision === gridRevision) return;
     usageRenderedRevision = gridRevision;
     renderUsageStrip();
@@ -1637,7 +2383,7 @@ export function mountWorkspace(bridge) {
     const beads = entries.reduce((sum, entry) => sum + entry.count, 0);
     const format = (value) => value.toLocaleString("zh-CN", { useGrouping: false });
     totalNode.textContent = `${entries.length} 色 · 共 ${format(beads)} 颗`;
-    listNode.innerHTML = entries.map((entry) => `<div class="ws-material-row"><span class="ws-swatch" style="background:${esc(entry.hex)}"></span><b>${esc(entry.code)}</b><em>${format(entry.count)}</em></div>`).join("");
+    listNode.innerHTML = entries.map((entry) => `<div class="ws-material-row">${colorChip(entry)}<em>${format(entry.count)}</em></div>`).join("");
     const split = exportV2.split();
     const widthCm = (state.canvas.width * state.canvas.beadSize / 10).toFixed(1);
     const heightCm = (state.canvas.height * state.canvas.beadSize / 10).toFixed(1);
@@ -1660,15 +2406,30 @@ export function mountWorkspace(bridge) {
     }).join("");
   }
   // §13：点统计卡 = 设 currentPaletteId + 复用既有「同色高亮」（渲染层 alpha 淡化其余色，canvas-renderer.js）。
-  $("#ws-usage-strip").addEventListener("click", (event) => {
+  attachUsageWheel($("#ws-usage-strip"));
+  const handleUsageClick = (event) => {
     const card = event.target.closest("[data-ws-usage]");
     if (!card) return;
+    if (get().editor.highlightedPaletteId === card.dataset.wsUsage) { clearColorHighlight(); return; }
     usageSelected = card.dataset.wsUsage;
-    activatePalette(usageSelected);
+    usageScrolledPaletteId = null;
+    activatePalette(usageSelected, buildHighlightOnlyPatch(usageSelected, { enabled: true }));
+    const result=bridge.getResult(),matches=[];
+    result?.grid?.forEach((row,y)=>row.forEach((color,x)=>{if(paletteIdOf(color)===usageSelected)matches.push({x,y});}));
+    if(matches.length>0&&matches.length<30){
+      const xs=matches.map(p=>p.x),ys=matches.map(p=>p.y),left=Math.min(...xs),right=Math.max(...xs),top=Math.min(...ys),bottom=Math.max(...ys);
+      viewport.setZoom(Math.min(3,(well.clientWidth-80)/((right-left+3)*BASE_CELL),(well.clientHeight-80)/((bottom-top+3)*BASE_CELL)));
+      viewport.focusCell(Math.floor((left+right)/2),Math.floor((top+bottom)/2),{center:true});
+    }
     $("#ws-usage-similar-list").hidden = true;
     $("#ws-same-color-highlight").checked = true;
     renderUsageStrip();
-  });
+  };
+  $("#ws-usage-strip").addEventListener("click", handleUsageClick);
+  $("#ws-summary-usage").addEventListener("click", handleUsageClick);
+  // 底栏原有的「只看此色 / 取消高亮 / 画布选色 / 全局替换 / 相近颜色」五个按钮已移除：
+  // 它们与右栏「选择颜色」区块里的同色高亮、相近颜色、全局换色完全重复，
+  // 而重复的代价是底栏被撑满、色块条被挤窄。功能一个都没删，入口收敛到右栏一处。
   $(".ws-usage-sort")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-ws-usage-sort]");
     if (!button) return;
@@ -1676,52 +2437,20 @@ export function mountWorkspace(bridge) {
     wrap.querySelectorAll("[data-ws-usage-sort]").forEach((item) => item.classList.toggle("active", item === button));
     renderUsageStrip();
   });
-  // §14：三个巡检动作**全部复用现有服务**，不建第二套。
-  // 只看此色 → 复用 #ws-same-color-highlight 的渲染层淡化（勾复选框 + 同步 state）。
-  $("#ws-usage-only").addEventListener("click", () => {
-    if (!usageSelected) return;
-    const next = !$("#ws-same-color-highlight").checked;
-    $("#ws-same-color-highlight").checked = next;
-    store.setState({ editor: buildHighlightOnlyPatch(usageSelected, { enabled: next }) });
-  });
-  // 全局替换 → 复用既有 #ws-replace-from / #ws-replace-to / #ws-replace-confirm
-  // （editorService.replaceColor，一条 COLOR_REPLACE 历史，见 §15）。
-  $("#ws-usage-replace").addEventListener("click", () => {
-    const color = usageSelected ? editorService.resolveColor(usageSelected) : null;
-    if (!color) return;
-    $("#ws-replace-from").value = color.code;
-    $("#ws-replace-impact").textContent = `影响 ${editorService.getColorUsage(usageSelected).toLocaleString("zh-CN", { useGrouping: false })} 颗 · 在下方「全局换色」里选目标色号`;
-    $("#ws-replace-to").focus();
-  });
-  // 相近颜色 → 复用 findSimilarPaletteColors（rgbToLab + CIEDE2000），附 ΔE 与图上已有用量。
-  $("#ws-usage-similar").addEventListener("click", () => {
-    if (!usageSelected) return;
-    const list = $("#ws-usage-similar-list");
-    if (!list.hidden) { list.hidden = true; return; }
-    const similar = editorService.findSimilarPaletteColors(usageSelected, { limit: 6 });
-    list.innerHTML = similar.map((entry) => {
-      const id = paletteIdOf(entry);
-      const used = editorService.getColorUsage(id);
-      const delta = Number(entry.distance ?? 0).toFixed(1);
-      return `<button type="button" data-ws-similar="${esc(id)}" title="ΔE ${delta} · 图上已有 ${used} 颗"><span class="ws-swatch" style="background:${esc(entry.hex)}"></span><small>${esc(entry.code)}</small><em>ΔE ${delta}${used ? ` · ${used}颗` : ""}</em></button>`;
-    }).join("") || '<p class="ws-note">色板里没有可比的相近色。</p>';
-    list.hidden = false;
-  });
-  // 点相近色 = 填进「全局换色」的目标位，再复用同一条替换流程。
-  $("#ws-usage-similar-list").addEventListener("click", (event) => {
-    const button = event.target.closest("[data-ws-similar]");
-    if (!button) return;
-    const color = editorService.resolveColor(button.dataset.wsSimilar);
-    if (!color) return;
-    $("#ws-replace-to").value = color.code;
-    notify(`已把 ${color.code} 填为替换目标，确认后执行全局换色。`);
-  });
+  $("#ws-usage-strip").insertAdjacentHTML("beforebegin",'<input type="search" id="ws-usage-search" placeholder="筛选当前使用色号" aria-label="筛选当前使用色号">');
+  $("#ws-usage-search").addEventListener("input",renderUsageStrip);
+  $("#ws-summary-search").addEventListener('input',event=>{$("#ws-usage-search").value=event.target.value;renderUsageStrip();});
+  $("#ws-summary-sort").addEventListener('change',event=>{usageSort=event.target.value;wrap.querySelectorAll('[data-ws-usage-sort]').forEach(button=>button.classList.toggle('active',button.dataset.wsUsageSort===usageSort));renderUsageStrip();});
+  // 底栏的「只看此色 / 全局替换 / 相近颜色」三个入口已移除，它们对应的
+  // #ws-usage-only / #ws-usage-replace / #ws-usage-similar 按钮和监听一并删除。
+  // 能力仍在：右栏「选择颜色」区块的 #ws-same-color-highlight（同色高亮）、
+  // #ws-similar-colors（相近颜色）、#ws-replace-from/to/confirm（全局换色）是同一套服务。
   $("#ws-replace-from").addEventListener("input", (event) => { $("#ws-replace-impact").textContent = `影响 ${affectedCount(event.target.value.trim().toUpperCase()).toLocaleString("zh-CN", { useGrouping: false })} 颗`; });
   $("#ws-replace-confirm").addEventListener("click", () => {
     const from = $("#ws-replace-from").value.trim().toUpperCase(), to = $("#ws-replace-to").value.trim().toUpperCase();
     const count = affectedCount(from);
     if (!count || !editorService.resolveColor(to)) { $("#ws-replace-impact").textContent = "请填写作品中存在的来源色号和当前色卡中的目标色号。"; return; }
-    askConfirmation(`将 ${count} 颗 ${from} 替换为 ${to}？`).then((accepted) => { if (accepted) editorService.replaceColor(from, to, get().editor.selection); });
+    editorService.replaceColor(from, to, get().editor.selection);
   });
   $("#ws-same-color-highlight").addEventListener("change", (event) => {
     store.setState({ editor: buildHighlightOnlyPatch(currentPaletteId(), { enabled: event.target.checked }) });
@@ -1735,7 +2464,8 @@ export function mountWorkspace(bridge) {
     const issue = currentInspectionIssue(inspectionState);
     if (!inspectionState.active || !issue) return;
     const cell = issue.cells[inspectionState.cellIndex] || issue.cells[0] || null;
-    inspectPalette(issue.paletteId, cell);
+    // 巡检只定位问题，不覆盖用户的修复画笔色，也不离开检查面板。
+    store.setState({ editor: { ...buildHighlightOnlyPatch(issue.paletteId), selectedCell: cell } });
     if (cell) viewport.focusCell(cell.x, cell.y, { preserveZoom: true, margin: .15 });
   };
   const updateInspection = (next) => {
@@ -1752,7 +2482,7 @@ export function mountWorkspace(bridge) {
     const button = event.target.closest("[data-ws-similar-target]");
     if (!button) return;
     $("#ws-current-color-target").value = button.dataset.wsSimilarTarget;
-    paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } });
+    $("#ws-current-color-target").dispatchEvent(new Event("change",{bubbles:true}));
   });
   const generatedRampIds=(baseId,size=get().editor.rampSize||5)=>{const data=rampCache();return buildRamp(data.palette,baseId,{size,cache:data.cache}).map(color=>color.paletteId);};
   $("#ws-color-ramp").addEventListener("click",event=>{
@@ -1872,46 +2602,102 @@ export function mountWorkspace(bridge) {
   });
   $("#ws-current-color-target").addEventListener("change", () => paint(get(), { editor: { selectedPaletteId: get().editor.selectedPaletteId } }));
   $("#ws-selection-color-replace").addEventListener("click", () => {
-    const from = get().editor.selectedPaletteId, to = $("#ws-current-color-target").value, selection = get().editor.selection;
-    const before = editorService.resolveColor(from), after = editorService.resolveColor(to);
-    const count = selection ? (editorService.getSelectionPaletteUsage(selection).get(from) || 0) : 0;
-    if (!selection || !from || !after || !count) return;
-    askConfirmation(`${before?.code || from} → ${after.code}，仅替换选区内 ${count} 颗。继续吗？`).then((accepted) => {
-      if (!accepted || !editorService.replaceColorInSelection(from, to, selection)) return;
-      store.setState({ editor: buildActivateColorPatch(paletteIdOf(after), paletteColors()) });
-    });
+    const to = $("#ws-current-color-target").value, cell=get().editor.selectedCell;
+    const selection = structuredClone(get().editor.selection || (cell?rectangularSelection(cell.x,cell.y,cell.x,cell.y,bridge.getResult().width,bridge.getResult().height):null));
+    const after = editorService.resolveColor(to);
+    const usage = selection ? editorService.getSelectionPaletteUsage(selection) : new Map();
+    const count = [...usage.values()].reduce((sum, count) => sum + count, 0);
+    if (!selection || !after || !count || count === (usage.get(paletteIdOf(after)) || 0)) return;
+    if (!editorService.recolorSelection(selection, to)) return;
+    store.setState({ editor: buildActivateColorPatch(paletteIdOf(after), paletteColors(), { highlight: false }) });
   });
   $("#ws-current-color-replace").addEventListener("click", () => {
-    const from = get().editor.selectedPaletteId;
+    const sourceCell = get().editor.selectedCell;
+    const from = sourceCell ? paletteIdOf(editorService.getCell(sourceCell.x,sourceCell.y)) : currentPaletteId();
     const to = $("#ws-current-color-target").value;
-    const before = editorService.resolveColor(from), after = editorService.resolveColor(to);
+    const after = editorService.resolveColor(to);
     const count = editorService.getColorUsage(from);
     if (!from || !after || !count) return;
-    askConfirmation(`${before?.code || from} → ${after.code}，将替换 ${count} 颗。继续吗？`).then((accepted) => {
-      if (!accepted || !editorService.replaceColor(from, to)) return;
-      store.setState({ editor: buildActivateColorPatch(paletteIdOf(after), paletteColors()) });
-    });
+    if (!editorService.replaceColor(from, to)) return;
+    store.setState({ editor: buildActivateColorPatch(paletteIdOf(after), paletteColors()) });
   });
   // 搜索 / 换系列都要把「显示其余 N 色」的展开状态收回，否则换到别的系列会莫名全展开。
   $("#ws-color-search").addEventListener("input", () => { pickerExpanded = false; renderPicker(); });
+  $("#ws-color-search").insertAdjacentHTML("beforebegin",'<button type="button" class="ws-button ws-wide" id="ws-available-open" title="管理可用颜色，只用我有的颜色">管理可用颜色</button><p id="ws-available-count" class="ws-note"></p>');
+  const availableDialog=document.createElement("dialog");availableDialog.className="ws-available-dialog ws-help-dialog";
+  availableDialog.innerHTML='<div class="ws-help-head"><strong>管理可用颜色</strong><button type="button" data-available-close aria-label="关闭">×</button></div><p class="ws-note">仅约束下一次图片生成。不会修改当前作品，也不会替换真实色卡。</p><input type="search" id="ws-available-search" placeholder="搜索色号" aria-label="搜索可用色号"><div class="ws-selection-actions"><button type="button" data-available-all>全部可用</button><button type="button" data-available-none>清空</button></div><p id="ws-available-summary" role="status"></p><div class="ws-available-grid"></div><div class="ws-selection-actions"><button type="button" data-available-close>取消</button><button type="button" id="ws-available-apply">保存可用颜色</button></div>';
+  wrap.append(availableDialog);let availableDraft=new Set();
+  const updateAvailableCount=()=>{const all=paletteColors(),ids=bridge.getAvailablePaletteIds?.();$("#ws-available-count").textContent=`真实色卡 ${all.length} 色 · 可用 ${ids===null||ids===undefined?all.length:ids.length} 色`;};
+  function renderAvailable(){const all=paletteColors(),query=availableDialog.querySelector("input").value.trim().toLowerCase();availableDialog.querySelector(".ws-available-grid").innerHTML=all.filter(color=>!query||String(color.code).toLowerCase().includes(query)).map(color=>`<label><input type="checkbox" data-available-id="${esc(paletteIdOf(color))}"${availableDraft.has(paletteIdOf(color))?" checked":""}>${colorChip(color)}</label>`).join("");$("#ws-available-summary").textContent=`已选 ${availableDraft.size} / ${all.length} 色${availableDraft.size?"":" · 请至少选择一种颜色，空集合无法生成"}`;}
+  updateAvailableCount();
+  $("#ws-available-open").addEventListener("click",()=>{availableDraft=new Set(bridge.getAvailablePaletteIds?.()??paletteColors().map(paletteIdOf));availableDialog.querySelector("input").value="";renderAvailable();availableDialog.showModal();});
+  availableDialog.querySelector("input").addEventListener("input",renderAvailable);
+  availableDialog.addEventListener("change",event=>{const id=event.target.dataset.availableId;if(!id)return;event.target.checked?availableDraft.add(id):availableDraft.delete(id);$("#ws-available-summary").textContent=`已选 ${availableDraft.size} / ${paletteColors().length} 色${availableDraft.size?"":" · 请至少选择一种颜色"}`;});
+  availableDialog.addEventListener("click",event=>{if(event.target.closest("[data-available-close]"))availableDialog.close();if(event.target.closest("[data-available-all]")){availableDraft=new Set(paletteColors().map(paletteIdOf));renderAvailable();}if(event.target.closest("[data-available-none]")){availableDraft.clear();renderAvailable();}});
+  $("#ws-available-apply").addEventListener("click",()=>{if(!availableDraft.size){$("#ws-available-summary").textContent="请至少选择一种真实颜色后再保存。";return;}bridge.setAvailablePaletteIds?.([...availableDraft]);updateAvailableCount();availableDialog.close();notify("已保存可用颜色，仅在下一次生成时生效。");});
+  $("#ws-brand").addEventListener("change",updateAvailableCount);$("#ws-palette-size").addEventListener("change",updateAvailableCount);
   $("#ws-palette-categories").addEventListener("click", (event) => { const button = event.target.closest("[data-ws-category]"); if (button) { pickerExpanded = false; store.setState({ editor: { paletteCategory: button.dataset.wsCategory } }); } });
-  const activateColor = (code, applySelected = true) => {
+  const activateColor = (code) => {
     const color = editorService.resolveColor(code); if (!color) return;
-    const selected = get().editor.selectedCell, tool = get().editor.tool;
-    store.setState({ editor: { ...buildActivateColorPatch(paletteIdOf(color), paletteColors()), recentColors:[color.code,...get().editor.recentColors.filter((item)=>item!==color.code)].slice(0,10), tool:tool==="select"&&selected?"bead":tool } });
-    if (applySelected && selected && ["select","bead"].includes(tool)) editorService.setCellColor(selected.x, selected.y, color.code);
+    // 选色只选色：不能把查看工具切成涂色工具，更不能暗中修改之前选中的豆格。
+    store.setState({ editor: { ...buildActivateColorPatch(paletteIdOf(color), paletteColors(), { highlight: false }), recentColors:[color.code,...get().editor.recentColors.filter((item)=>item!==color.code)].slice(0,10) } });
   };
+  function pickCurrentColor(id) {
+    const color = editorService.resolveColor(id); if (!color) return false;
+    activateColor(paletteIdOf(color));
+    syncPickedReplacementTarget(color);
+    notify(`已取色 ${color.code}`);
+    return true;
+  }
+  attachUniversalColorPick(wrap, { pick: pickCurrentColor });
   // §10：色格墙惰性渲染的「显示其余 N 色」按钮每次重建，所以用事件委托。
-  ["#ws-bead-picker","#ws-recent-colors"].forEach((selector) => $(selector).addEventListener("click", (event) => {
+  ["#ws-bead-picker","#ws-recent-colors","#ws-color-neighbors"].forEach((selector) => $(selector).addEventListener("click", (event) => {
     if (event.target.closest("#ws-picker-more")) { pickerExpanded = true; renderPicker(); return; }
     const button = event.target.closest("[data-ws-pick]"); if (button) activateColor(button.dataset.wsPick); }));
   $("#ws-erase-selection").addEventListener("click", () => editorService.eraseSelection(get().editor.selection));
+  const removeExteriorBackground = async () => {
+    if (!get().status.hasPattern) { notify("请先创建或打开图纸。"); return; }
+    endDrag(true);
+    const result = bridge.getResult(), background = findExteriorBackground(result.grid || []);
+    if (!background) { notify("外围已透明或没有明确的单一底色；未修改图纸。可使用选择工具手动清除。"); return; }
+    const previousSelection = get().editor.selection;
+    const previousView=structuredClone(get().view),previousDrawerState=get().ui.exportDrawerOpen,previousDrawerOpen=drawer.classList.contains('open');
+    drawer.classList.remove('open');
+    store.setState({ editor: { selection: background.selection },view:{mode:'pattern'},ui:{exportDrawerOpen:false} });
+    renderer.requestDraw();
+    let accepted=false;
+    try{
+      accepted = await askConfirmation(`预览选区为与图纸边缘连通的 ${background.color.code || background.paletteId} 底色，共 ${background.cells.length} 颗。确认后这些格子变为透明空格，材料总数减少 ${background.cells.length} 颗；封闭轮廓内部同色保留。请确认选区没有包含作品本体。此操作可撤销。`);
+      if (accepted) editorService.eraseSelection(background.selection);
+    }finally{
+      store.setState({ editor: { selection: previousSelection },view:previousView,ui:{exportDrawerOpen:previousDrawerState} });
+      drawer.classList.toggle('open',previousDrawerOpen);
+      renderer.requestDraw();
+    }
+    if (accepted) { refreshPosterPreview(); notify("外围底色已变为透明空格；可撤销恢复。"); }
+  };
+  $("#ws-poster-backing-paper").value = "stamp";
+  const exteriorButton = document.createElement("button");
+  exteriorButton.type = "button"; exteriorButton.id = "ws-poster-remove-exterior";
+  exteriorButton.className = "ws-button"; exteriorButton.textContent = "手动清理图纸底色（可撤销）";
+  const exteriorHint = document.createElement("small");
+  exteriorHint.id = "ws-poster-background-status";
+  exteriorHint.textContent = "海报去底色只影响导出；与背景连通的同色主体也可能移除，请核对预览。";
+  $("#ws-poster-preview").after(exteriorHint, exteriorButton);
+  exteriorButton.addEventListener("click", removeExteriorBackground);
   $("#ws-clear-selection").addEventListener("click", () => store.setState({ editor: { selectedCell: null, ...buildClearPalettePatch(), selection: null, shapePreview: null } }));
-  $("#ws-apply-outline").addEventListener("click", () => editorService.outline(get().editor.selection, currentPaletteId(), $("#ws-outline-diagonal").checked));
-  $("#ws-undo").addEventListener("click", () => editorService.undo()); $("#ws-redo").addEventListener("click", () => editorService.redo());
+  $("#ws-apply-outline").addEventListener("click", () => {
+    const target=$("#ws-outline-target").value.trim()||currentPaletteId();
+    const color=editorService.resolveColor(target);
+    if(!color){notify("请选择有效的描边色号。");return;}
+    editorService.outline(get().editor.selection,paletteIdOf(color),$("#ws-outline-diagonal").checked,{includeHoles:$("#ws-outline-holes").checked});
+  });
+  $("#ws-undo").addEventListener("click", undoEditor); $("#ws-redo").addEventListener("click", redoEditor);
   const resizeValue=(name)=>resizeDialog.querySelector(`[name="${name}"]:checked`)?.value;
   const syncResizeSummary=()=>{
     const result=bridge.getResult(),targetWidth=clamp(Math.round(Number($("#ws-resize-width").value)||0),1,1000),targetHeight=clamp(Math.round(Number($("#ws-resize-height").value)||0),1,1000),mode=resizeValue("ws-resize-mode")||"canvas",anchor=resizeValue("ws-resize-anchor")||"center";
+    for (const axis of ['width', 'height']) { const slider = $('#ws-resize-' + axis + '-range'); if (slider) slider.value = $('#ws-resize-' + axis).value; }
+    if ($('#ws-resize-anchor-select')) $('#ws-resize-anchor-select').value = anchor;
     $("#ws-resize-anchor-wrap").hidden=mode!=="canvas";
     if(mode==="pattern"){ $("#ws-resize-summary").textContent="使用最近邻缩放图案；保留原 paletteId，不重新匹配颜色。";return; }
     const crop=resizeCropInsets(result.width||1,result.height||1,targetWidth,targetHeight,{anchor}),hasCrop=Object.values(crop).some(Boolean);
@@ -1919,7 +2705,7 @@ export function mountWorkspace(bridge) {
   };
   const syncResizeInputs = () => { const result=bridge.getResult(),width=result.width||104,height=result.height||104,preset=width===height&&[52,78,104].includes(width); $("#ws-resize-width").value=String(width); $("#ws-resize-height").value=String(height); $("#ws-resize-current").textContent=`${width} × ${height}`; $("#ws-resize-kind").textContent=preset?`${width}×${height}`:"自定义"; $("#ws-resize-from").textContent=`当前：${width} × ${height}`; syncResizeSummary(); };
   syncResizeInputs();
-  $("#ws-resize-open").addEventListener("click",()=>{syncResizeInputs();resizeDialog.showModal();});
+  $("#ws-resize-open").addEventListener("click",()=>showInlineSizeSettings(false));
   resizeDialog.querySelectorAll("[data-resize-preset]").forEach((button)=>button.addEventListener("click",()=>{$("#ws-resize-width").value=button.dataset.resizePreset;$("#ws-resize-height").value=button.dataset.resizePreset;syncResizeSummary();}));
   resizeDialog.addEventListener("input",syncResizeSummary);resizeDialog.addEventListener("change",syncResizeSummary);
   $("#ws-resize-apply").addEventListener("click", () => {
@@ -1932,20 +2718,46 @@ export function mountWorkspace(bridge) {
     const command=createGridResizeCommand(bridge,{grid:result.grid,width:result.width,height:result.height,targetWidth,targetHeight,mode,anchor});
     if (!editorService.executeCommand(command)) return;
     store.setState({canvas:{width:targetWidth,height:targetHeight},editor:{selection:clampSelectionToBounds(get().editor.selection,targetWidth,targetHeight),selectedCell:null},status:{dirty:true,hasPattern:true}});
-    viewport.fitToViewport();navigator.requestDraw();syncResizeInputs();resizeDialog.close("applied");
+    viewport.fitToViewport();syncResizeInputs();hideInlineSizeSettings();
   });
 
+  // 「有没有参考图」和「有没有原图」是两个不同的判定，别混：
+  //   hasReference      = 已上传的参考图（reference.url）—— 只有它才该出现透明度条；
+  //   hasSourceImage    = 上传照片生成的图纸才有的原图（source.image）—— 按住「对照」看它；
+  //   hasReferenceImage = 两者任一 —— 「对照」是否可用的总闸（也是「点击即上传」的闸门）。
+  // 三个都不能用 status.hasSource：导入 .pixler/JSON 工程时它同样为 true，但那种情况
+  // 既没有参考图也没有原图，正是「对照」该变成上传入口的场景。
+  const hasReference = (state = get()) => Boolean(state.reference.url);
+  const hasSourceImage = (state = get()) => Boolean(state.source.image);
+  const hasReferenceImage = (state = get()) => hasReference(state) || hasSourceImage(state);
   const referenceInput = $("#ws-ref-file");
   const syncReferenceUi = (state = get()) => {
-    const hasReference = Boolean(state.reference.url||(state.reference.useSource!==false&&state.source.image));
+    const hasRef = hasReference(state);
     $("#ws-ref-fit").value = state.reference.fit;
     $("#ws-ref-opacity").value = String(state.reference.opacity);
     $("#ws-ref-opacity-value").textContent = `${state.reference.opacity}%`;
+    // 竖向滑杆与横向滑杆是同一份 reference.opacity 的两个视图，永远同步。
+    const vertical=$("#ws-ref-opacity-vertical"),verticalValue=$("#ws-ref-opacity-vertical-value");
+    if(vertical)vertical.value=String(state.reference.opacity);
+    if(verticalValue)verticalValue.textContent=`${state.reference.opacity}%`;
+    // 透明度条只在真的上传了参考图时出现 —— 没有参考图时它没有可调的对象。
+    const opacityRail=$("#ws-reference-opacity");if(opacityRail)opacityRail.hidden=!hasRef;
+    // 「对照」按钮的三副面孔：
+    //   有参考图 → 按住临时只看参考图；只有原图 → 按住临时看原图（原有能力一字未改）；
+    //   两样都没有（导入 .pixler/JSON 工程）→ 按钮整体变成上传入口，点击即选照片当参考图。
+    const compareButton=$("#ws-compare");
+    if(compareButton){
+      const uploadEntry=!hasReferenceImage(state);
+      compareButton.textContent=uploadEntry?"上传参考图":"对照";
+      compareButton.classList.toggle("is-upload-entry",uploadEntry);
+      const hint=uploadEntry?"选择照片作为参考图":(hasRef?"按住临时只看参考图":"按住临时看原图");
+      compareButton.title=hint;compareButton.setAttribute("aria-label",hint);
+    }
     $("#ws-ref-visible").checked = state.reference.visible !== false;
     $("#ws-ref-display").value=state.reference.displayMode||"normal";$("#ws-ref-smoothing").value=state.reference.smoothing||"smooth";
     $("#ws-ref-scale").value=String(Math.round((state.reference.scale||1)*100));$("#ws-ref-scale-value").textContent=`${Math.round((state.reference.scale||1)*100)}%`;
     $("#ws-ref-adjust").textContent=state.reference.adjusting?"完成调整":"调整位置";
-    ["#ws-ref-clear", "#ws-ref-fit", "#ws-ref-opacity", "#ws-ref-visible","#ws-ref-display","#ws-ref-smoothing","#ws-ref-scale","#ws-ref-adjust","#ws-ref-reset"].forEach((selector) => { $(selector).disabled = !hasReference; });
+    ["#ws-ref-clear", "#ws-ref-fit", "#ws-ref-opacity", "#ws-ref-visible","#ws-ref-display","#ws-ref-smoothing","#ws-ref-scale","#ws-ref-adjust","#ws-ref-reset"].forEach((selector) => { $(selector).disabled = !hasReferenceImage(state); });
   };
   $("#ws-ref-pick").addEventListener("click", () => referenceInput.click());
   referenceInput.addEventListener("change", () => {
@@ -1956,7 +2768,11 @@ export function mountWorkspace(bridge) {
     reader.onload = () => store.setState({ reference: { url: String(reader.result || ""),useSource:false,visible:true,fit:"contain",offsetX:0,offsetY:0,scale:1 } });
     reader.readAsDataURL(file);
   });
-  $("#ws-ref-clear").addEventListener("click", () => store.setState({ reference: { url:"",useSource:false,visible:true,adjusting:false } }));
+  // 参考图的两个出口都收敛到「对照」附近：底栏「对照」是唯一入口，右栏透明度条上的「×」是出口。
+  // 顺手把 displayMode 复位成 normal —— 否则在「只看参考图」状态下删掉参考图会卡在空画布。
+  const clearReference = () => store.setState({ reference: { url:"",useSource:false,visible:false,adjusting:false,displayMode:"normal" } });
+  $("#ws-ref-clear").addEventListener("click", clearReference);
+  $("#ws-ref-remove")?.addEventListener("click", clearReference);
   $("#ws-ref-fit").addEventListener("change", (event) => store.setState({ reference: { fit: event.target.value } }));
   $("#ws-ref-display").addEventListener("change",event=>store.setState({reference:{displayMode:event.target.value}}));
   $("#ws-ref-smoothing").addEventListener("change",event=>store.setState({reference:{smoothing:event.target.value}}));
@@ -1966,9 +2782,24 @@ export function mountWorkspace(bridge) {
   $("#ws-ref-opacity").addEventListener("input", (event) => {
     const value = clamp(Math.round(Number(event.target.value) || 0), 0, 100);
     $("#ws-ref-opacity-value").textContent = `${value}%`;
+    const vertical=$("#ws-ref-opacity-vertical");if(vertical)vertical.value=String(value);
+    const verticalValue=$("#ws-ref-opacity-vertical-value");if(verticalValue)verticalValue.textContent=`${value}%`;
     store.setState({ reference: { opacity: value } });
   });
-  $("#ws-ref-visible").addEventListener("change", (event) => store.setState({ reference: { visible: event.target.checked } }));
+  // 竖向滑杆：同一份 reference.opacity，逻辑与上面完全一致，只是把值回写到横向滑杆上。
+  $("#ws-ref-opacity-vertical")?.addEventListener("input", (event) => {
+    const value = clamp(Math.round(Number(event.target.value) || 0), 0, 100);
+    $("#ws-ref-opacity").value = String(value);
+    $("#ws-ref-opacity-value").textContent = `${value}%`;
+    $("#ws-ref-opacity-vertical-value").textContent = `${value}%`;
+    store.setState({ reference: { opacity: value } });
+  });
+  // 没有对照图时，「对照」按钮就是上传入口（hasCompareArtwork 在后面定义，点击时才求值）。
+  $("#ws-compare").addEventListener("click", () => { if (hasCompareArtwork()) return; referenceInput.click(); });
+  $("#ws-ref-visible").addEventListener("change", (event) => store.setState({ reference: {
+    visible: event.target.checked,
+    ...(event.target.checked && !get().reference.url ? { useSource: true } : {}),
+  } }));
 
   // .pixler = ZIP 封装的结构化项目文件。判定不只看后缀：再看 ZIP 签名 PK。
   const isPixlerFile = async (file) => {
@@ -1983,7 +2814,7 @@ export function mountWorkspace(bridge) {
 
   let pixlerNote = "";
   const loadPixlerProject = async (file) => {
-    const { importPixlerProject } = await import("../importers/pixler.mjs?v=20260922-pixler1");
+    const { importPixlerProject } = await import("../importers/pixler.mjs?v=20261008-qa-fixes-r25");
     const result = await importPixlerProject(file, { palette: editorService.getPaletteColors?.() || [] });
     const info = result.report;
     window.LibmsPixlerLastReport = info;
@@ -2001,7 +2832,10 @@ export function mountWorkspace(bridge) {
     store.setState({
       source: { image: "", width: 0, height: 0 },
       status: { hasSource: false, hasPattern: true, dirty: true, generationError: null },
-      view: { mode: "blocks" },
+      // 导入 .pixler / JSON 工程后停在「施工图」(pattern)，不再是 blocks：
+      // 底栏已无「成像」按钮，blocks 是回不去的死状态；而 blocks 分支在画参考图之前就 return，
+      // 停在 blocks 会让「上传参考图 → 透明度条 → 按住对照」整条流程看不到任何参考图。
+      view: { mode: "pattern" },
       editor: { tool: "select", selectedCell: null, ...buildClearPalettePatch(), selection: null, hoveredCell: null, textLayers: [], activeTextLayerId: null },
       ui: { exportDrawerOpen: false },
     });
@@ -2028,41 +2862,122 @@ export function mountWorkspace(bridge) {
   let autoDraft = null;
   try { autoDraft=createAutoDraftService(); } catch (error) { $("#ws-draft-status").textContent="当前浏览器不支持自动草稿"; }
   const draftSnapshot = () => { const result=bridge.getResult(); return {projectTitle:get().project.name||result.sourceName||"未命名作品",width:result.width,height:result.height,grid:result.grid,paletteId:result.paletteKey,projectSource:{type:result.sourceName==="blank-board"?"blank":result.sourceUrl?"image":"project"},metadata:{usedColors:result.usedColors,totalBeads:result.totalBeads}}; };
+  const versions = createProjectVersionService();
+  projectPanel.insertAdjacentHTML("beforeend",'<div class="ws-editor-group"><div class="ws-section-title">手动版本</div><p class="ws-note">仅保存在当前浏览器，最多 20 个版本；不随 Pixler 文件备份。工程文件请另外保存。</p><div class="ws-selection-actions"><button type="button" id="ws-version-save">保存当前版本</button><button type="button" id="ws-version-open">版本记录</button></div></div>');
+  const versionDialog=document.createElement("dialog");versionDialog.className="ws-version-dialog ws-help-dialog";
+  versionDialog.innerHTML='<div class="ws-help-head"><strong>手动版本记录</strong><button type="button" aria-label="关闭">×</button></div><p class="ws-note">预览不会修改作品。恢复可通过撤销返回。</p><div class="ws-version-list"></div><canvas class="ws-version-preview" hidden style="width:100%;max-height:300px;object-fit:contain;image-rendering:pixelated"></canvas>';
+  wrap.append(versionDialog);versionDialog.querySelector("button").addEventListener("click",()=>versionDialog.close());
+  const versionSnapshot=()=>({...draftSnapshot(),palette:paletteColors(),source:{name:bridge.getResult().sourceName||"",url:bridge.getResult().sourceUrl||""},reference:{...get().reference},textObjects:structuredClone(get().editor.textLayers||[])});
+  async function renderVersions(){const rows=await versions.list();versionDialog.querySelector(".ws-version-list").innerHTML=rows.map(row=>`<div class="ws-version-card"><strong>${esc(row.label||row.projectTitle)}</strong><small>${esc(new Date(row.savedAt).toLocaleString("zh-CN"))} · ${row.width}×${row.height} · 手动</small><div class="ws-selection-actions"><button type="button" data-version-preview="${esc(row.id)}">预览</button><button type="button" data-version-restore="${esc(row.id)}">恢复</button><button type="button" data-version-remove="${esc(row.id)}">删除</button></div></div>`).join("")||'<p class="ws-note">尚未保存手动版本。</p>';}
+  $("#ws-version-save").addEventListener("click",async()=>{if(!get().status.hasPattern){notify("请先创建或打开图纸。");return;}try{await versions.save(versionSnapshot(),{label:get().project.name||"未命名作品"});notify("已保存当前手动版本。");}catch(error){notify(error.message);}});
+  $("#ws-version-open").addEventListener("click",async()=>{versionDialog.showModal();try{await renderVersions();}catch(error){notify(error.message);}});
+  versionDialog.addEventListener("click",async event=>{
+    const button=event.target.closest("[data-version-preview],[data-version-restore],[data-version-remove]");if(!button)return;
+    try{
+      if(button.dataset.versionRemove){if(window.confirm("删除这个手动版本？删除后无法恢复。")){await versions.remove(button.dataset.versionRemove);await renderVersions();}return;}
+      const snapshot=await versions.get(button.dataset.versionPreview||button.dataset.versionRestore);if(!snapshot){notify("该版本已不存在。");await renderVersions();return;}
+      if(button.dataset.versionPreview){const preview=versionDialog.querySelector("canvas");preview.width=snapshot.width;preview.height=snapshot.height;preview.hidden=false;const ctx=preview.getContext("2d");ctx.clearRect(0,0,preview.width,preview.height);snapshot.grid.forEach((row,y)=>row.forEach((cell,x)=>{if(cell){ctx.fillStyle=cell.hex||editorService.resolveColor(cell.paletteId)?.hex||"#ccc";ctx.fillRect(x,y,1,1);}}));return;}
+      const currentResult=bridge.getResult();
+      if(snapshot.paletteId!==currentResult.paletteKey||snapshot.source?.url!==(currentResult.sourceUrl||"")||snapshot.source?.name!==(currentResult.sourceName||"")){notify("该版本属于其他原图或色卡。请先打开对应作品与色卡，再恢复；可先预览。");return;}
+      if(!window.confirm("恢复这个版本？当前作品可通过撤销返回。"))return;
+      const before=structuredClone(versionSnapshot()),after=structuredClone(snapshot);
+      const snapshotBridge={replaceGridStructure:value=>{const copy=structuredClone(value),ok=bridge.replaceGridStructure(copy);if(ok){store.setState({project:{name:copy.projectTitle},canvas:{width:copy.width,height:copy.height},reference:copy.reference||{},editor:{selection:null,selectedCell:null,textLayers:copy.textObjects||[],activeTextLayerId:null},status:{hasPattern:true,dirty:true}});}return ok;}};
+      const command=createStructureCommand(snapshotBridge,{type:"RESTORE_VERSION",label:"恢复手动版本",before,after});
+      if(editorService.executeCommand(command)){viewport.fitToViewport();versionDialog.close();notify("已恢复手动版本，可撤销。");}
+    }catch(error){notify(error.message);}
+  });
   const scheduleDraft = () => { if (autoDraft && bridge.getResult().grid?.length) autoDraft.scheduleSave(draftSnapshot()); };
   window.addEventListener("libms:grid-edited",scheduleDraft);
-  top.querySelector("#ws-project-name").addEventListener("change",scheduleDraft);
+  $('#ws-project-name').addEventListener("change",scheduleDraft);
   $("#ws-save-project").addEventListener("click",()=>{ void autoDraft?.discard?.(); });
   autoDraft?.getRecoveryMetadata().then((metadata)=>{ if(!metadata)return;$("#ws-draft-status").textContent=`检测到未保存的作品：${metadata.projectTitle} · ${metadata.width}×${metadata.height} · ${new Date(metadata.savedAt).toLocaleString()}`;$("#ws-draft-actions").hidden=false; });
   $("#ws-draft-restore").addEventListener("click",async()=>{const record=await autoDraft?.load();if(!record)return;const draft=record.project;const grid=draft.grid.map(row=>row.map(cell=>cell?editorService.resolveColor(cell.paletteId):null));bridge.replaceGridStructure({grid,width:draft.width,height:draft.height});store.setState({project:{name:draft.projectTitle},canvas:{width:draft.width,height:draft.height},status:{hasPattern:true,dirty:true},ui:{activePanel:"project"}});editorService.clearHistory();viewport.fitToViewport();$("#ws-draft-actions").hidden=true;$("#ws-draft-status").textContent="已恢复本地草稿";});
   $("#ws-draft-discard").addEventListener("click",async()=>{await autoDraft?.discard();$("#ws-draft-actions").hidden=true;$("#ws-draft-status").textContent="已放弃本地草稿";});
-  let compareMode = null;
-  const endCompare = () => { if (compareMode) { store.setState({ view: { mode: compareMode } }); compareMode = null; } };
-  const toggleCompare = () => { if (!get().status.hasSource) return; if (compareMode) endCompare(); else { compareMode = get().view.mode; store.setState({ view: { mode: "original" } }); } };
-  $("#ws-compare").addEventListener("pointerdown", (event) => { if (!get().status.hasSource) return;
-    compareMode = get().view.mode; event.currentTarget.setPointerCapture(event.pointerId); store.setState({ view: { mode: "original" } }); });
+  // 「对照」按住时看什么：优先看参考图（挂参考图就是为了比着改），没有参考图才看原图。
+  // 走 displayMode:"reference-only" 而不是把透明度拉满 —— 前者是「只看参考图」，与滑杆无关，
+  // 松手后透明度回到用户自己调好的值，不会被一次对照动作改坏。
+  // 判定与 syncReferenceUi 同源，共用 hasReference() / hasSourceImage() / hasReferenceImage()。
+  let compareRestore = null;
+  const endCompare = () => { if (!compareRestore) return; store.setState(compareRestore); compareRestore = null; };
+  const beginCompare = () => {
+    if (compareRestore) return;
+    if (hasReference()) {
+      compareRestore = { reference: { displayMode: get().reference.displayMode || "normal" } };
+      store.setState({ reference: { displayMode: "reference-only" } });
+    } else if (hasSourceImage()) {
+      compareRestore = { view: { mode: get().view.mode } };
+      store.setState({ view: { mode: "original" } });
+    }
+  };
+  const hasCompareArtwork = () => hasReferenceImage();
+  $("#ws-compare").addEventListener("pointerdown", (event) => {
+    if (!hasCompareArtwork()) return;
+    event.currentTarget.setPointerCapture(event.pointerId); beginCompare();
+  });
   $("#ws-compare").addEventListener("pointerup", endCompare); $("#ws-compare").addEventListener("pointercancel", endCompare);
-  const gridToolbar = new GridEditorToolbar({
-    root: toolRail,
-    variant: "rail",
-    activeTool: get().editor.tool,
-    brushSize: get().editor.brushSize,
-    shapeFilled: get().editor.shapeFilled,
-    onToolChange: (tool) => {
-      if (["bead", "brush", "fill", "line", "rect", "ellipse", "text"].includes(tool) && !currentPaletteId()) {
+  // 原图取色是独立入口：不改变「对照」按住查看、松开还原的行为。
+  const originalPickButton = document.createElement('button');
+  originalPickButton.type = 'button'; originalPickButton.id = 'ws-original-pick'; originalPickButton.textContent = '原图取色';
+  originalPickButton.title = '点击显示原图并取色，再点击返回图纸'; originalPickButton.setAttribute('aria-pressed', 'false');
+  $('#ws-compare').after(originalPickButton);
+  let originalPickRestore = null;
+  let originalPickReturnToBuild = false;
+  const syncOriginalPickButton = () => {
+    originalPickButton.disabled = !bridge.getResult().sourceUrl;
+    originalPickButton.setAttribute('aria-pressed', String(Boolean(originalPickRestore)));
+    originalPickButton.textContent = originalPickRestore ? '结束取色' : '原图取色';
+  };
+  originalPickButton.addEventListener('click', () => {
+    endDrag(true);
+    if (originalPickRestore) {
+      const restore = originalPickRestore; originalPickRestore = null; store.setState(restore);
+      if (originalPickReturnToBuild) { originalPickReturnToBuild = false; setWorkspaceMode('build'); }
+    } else if (bridge.getResult().sourceUrl) {
+      originalPickReturnToBuild = buildActive();
+      if (originalPickReturnToBuild) setWorkspaceMode('edit');
+      originalPickRestore = { view: { mode: get().view.mode }, editor: { tool: get().editor.tool }, ui: { activePanel: get().ui.activePanel }, reference: { adjusting: get().reference.adjusting } };
+      store.setState({ view: { mode: 'original' }, editor: { tool: 'eyedropper' }, ui: { activePanel: 'edit' }, reference: { adjusting: false } });
+    }
+    syncOriginalPickButton();
+  });
+  store.subscribe(syncOriginalPickButton); syncOriginalPickButton();
+  // 工具切换的唯一处理器（阶段 1）：顶栏主工具条与「更多工具」里的扩展工具条
+  // 共用同一个函数引用。extended variant 本来就是为「第二个入口」设计的 ——
+  // 它不绑快捷键、不建帮助节点，全部委托到这里；高亮同步走 store → paint。
+  const handleToolChange = (tool) => {
+      hideInlineSizeSettings();
+      hideInlineOutlineSettings();
+      endDrag(true);
+      cellColorPopover.close();
+      if(buildActive())setWorkspaceMode("edit");
+      if (["bead", "brush", "fill", "line", "rect", "ellipse", "heart", "diamond", "star", "text"].includes(tool) && !currentPaletteId()) {
         const fallback = bridge.getResult().colors?.[0]?.code || editorService.getPaletteColors()[0]?.code || null;
         // resolveColor 返回 null 说明 fallback 不是当前色板里的真色号。
         // 旧代码此时会把「当前色」写成那个假色号、却把 paletteId 写成 null ——
         // 正是单真源模型不允许的分叉。现在两个都归 null，由上面的守卫继续提示用户选色。
         if (fallback) { const color=editorService.resolveColor(fallback); store.setState({ editor: buildCurrentPalettePatch(color?paletteIdOf(color):null, paletteColors()) }); }
       }
-      if (tool === "text" && !get().editor.activeTextLayerId) { addTextLayer(); return; }
-      store.setState({ editor: { tool }, ui: { activePanel: tool === "source-eyedropper" ? "source" : tool === "replace" ? "color" : "edit" } });
-    },
+      // Leaving selection for a drawing tool explicitly releases its old mask.
+      // Eyedropper keeps an intentional selection so it can supply a replacement target.
+      const releaseSelection = ["bead", "brush", "eraser", "fill", "line", "rect", "ellipse", "heart", "diamond", "star", "text"].includes(tool);
+      store.setState({ editor: { tool, ...(releaseSelection ? { selection: null, selectedCell: null, shapePreview: null } : {}) }, ui: { activePanel: tool === "source-eyedropper" ? "source" : tool === "replace" ? "color" : inspectionState.active ? get().ui.activePanel : "edit" },...(get().view.mode==='blocks'&&EDIT_OVERLAY_TOOLS.includes(tool)?{view:{mode:'pattern'}}:{}) });
+      if (tool === "text") requestAnimationFrame(() => {
+        right.classList.add("is-mobile-panel-open");
+        $("#textPanel").scrollIntoView({ block: "start", inline: "nearest" });
+      });
+  };
+  const gridToolbar = new GridEditorToolbar({
+    root: toolRail,
+    variant: "rail",
+    activeTool: get().editor.tool,
+    brushSize: get().editor.brushSize,
+    shapeFilled: get().editor.shapeFilled,
+    onToolChange: handleToolChange,
     onBrushSizeChange: (size) => store.setState({ editor: { brushSize: size } }),
     onShapeFilledChange: (filled) => store.setState({ editor: { shapeFilled: filled } }),
     onPanelAction: (action) => {
-      if (action === "undo") { editorService.undo(); return; }
-      if (action === "redo") { editorService.redo(); return; }
+      if (action === "undo") { undoEditor(); return; }
+      if (action === "redo") { redoEditor(); return; }
       if (action === "help") { gridToolbar.openHelp(); return; }
       if (action === "mirror-horizontal") { editorService.flip("horizontal"); return; }
       if (action === "mirror-vertical") { editorService.flip("vertical"); return; }
@@ -2130,6 +3045,7 @@ export function mountWorkspace(bridge) {
    * 直到用户换源图或主动点「自动」档。
    */
   function commitSize() {
+    if (lockedAuthority()) return;
     setLongEdgeAuthority(LONG_EDGE_EVENT.USER_APPLIED);
     pushDraftToBridge();
     // 尺寸可能变化很大，出图后要重新适配窗口，否则用户看到的是一角。
@@ -2141,9 +3057,8 @@ export function mountWorkspace(bridge) {
   /**
    * 识别原图的像素倍数：像素画里 1 个逻辑像素由 k×k 个真实像素组成。
    *
-   * 保留 detectPixelMultiple + logicalSize 的理由：它们不是旧倍数 UI 的残留，
-   * 而是「自动」这一档的**唯一依据** —— 像素画被放大 k 倍后，逻辑尺寸 = 原图 ÷ k。
-   * 删掉它们，「自动」就只剩猜。识别失败退化为 1×（即按原图像素）。
+   * 稳定像素倍数保留实际逻辑尺寸；无法识别时按可见细节推荐长边，
+   * 不再把普通图片统一压到 200 格。识别失败同样能给出保守推荐。
    *
    * 识别结果只写草稿，不触发生成。
    */
@@ -2151,12 +3066,20 @@ export function mountWorkspace(bridge) {
     if (!url) return Promise.resolve(null);
     if (multipleDetectionUrl === url && multipleDetection) return multipleDetection;
     multipleDetectionUrl = url;
+    const revision = sizeSourceRevision;
+    const currentSource = () => isCurrentSizeSource(revision, sizeSourceRevision, url, get().source.image);
     multipleDetection = loadImageData(url)
-      .then(({ imageData }) => { detectedMultiple = detectPixelMultiple(imageData); })
-      .catch(() => { detectedMultiple = 1; })
+      .then(({ imageData, naturalWidth, naturalHeight }) => {
+        if (!currentSource()) return;
+        detectedImageData = imageData;
+        // Downsampled detection cannot establish an original pixel period safely.
+        detectedMultiple = naturalWidth === imageData.width && naturalHeight === imageData.height
+          ? detectPixelMultiple(imageData) : 1;
+      })
+      .catch(() => { if (currentSource()) { detectedMultiple = 1; detectedImageData = null; } })
       // 成功与失败都要走一次 applyLogicalSize()：识别挂了也得把尺寸定下来，
       // 否则首帧生成会一直等下去（B0 §2）。
-      .then(() => { applyLogicalSize(); return detectedMultiple; });
+      .then(() => { if (currentSource()) applyLogicalSize(); return detectedMultiple; });
     return multipleDetection;
   }
 
@@ -2186,14 +3109,22 @@ export function mountWorkspace(bridge) {
     }
     const result = bridge.getResult();
     if (!result.sourceWidth || !result.sourceHeight) return null;
-    const { width, height } = logicalSize(result.sourceWidth, result.sourceHeight, detectedMultiple || 1);
-    const multiple = detectedMultiple || 1;
+    const geometry = sourceOutputGeometry(result.sourceWidth, result.sourceHeight, bridge.getSourceTransform());
+    const recommendation = recommendAutomaticSize({
+      width: geometry.width, height: geometry.height,
+      // A crop not aligned with the detected lattice is not exact grid evidence.
+      multiple: geometry.crop.x % detectedMultiple === 0 && geometry.crop.y % detectedMultiple === 0 ? detectedMultiple || 1 : 1,
+      imageData: detectedImageData,
+      ratio: bridge.getGenerationSize()?.ratio,
+    });
+    if (!recommendation) return null;
+    const { width, height } = recommendation;
     const outcome = bridge.applySourceDimensions({
       width, height,
       // multiple === 1 意味着「没识别出周期」，这不是稳定的倍数证据，
       // 只能算逻辑尺寸估算（权威链最低一级）。
-      authority: multiple >= 2 ? "pixel-multiple" : "logical-heuristic",
-      source: `pixel-multiple:${multiple}`,
+      authority: recommendation.authority,
+      source: recommendation.source,
     });
     if (!outcome?.applied) {
       // 被更强的证据否决：只刷 UI（让它显示那个更强的尺寸），不动草稿、不提交。
@@ -2234,8 +3165,10 @@ export function mountWorkspace(bridge) {
    */
   function scheduleInitialGeneration() {
     const url = get().source.image;
+    const revision = sizeSourceRevision;
     const settled = url ? ensureMultipleDetection(url) : Promise.resolve(null);
     settled.catch(() => {}).then(() => {
+      if (!isCurrentSizeSource(revision, sizeSourceRevision, url, get().source.image)) return;
       if (!shouldAutoWriteLongEdge(longEdgeAuthority)) {
         blockedAutoSizeWrites += 1;
         return;
@@ -2247,8 +3180,10 @@ export function mountWorkspace(bridge) {
 
   // 预设 chip：只改草稿。**大尺寸不会因为点了个预设就悄悄跑起来**，
   // 必须再点一次「应用尺寸」（B0 §8）。
-  topControls.querySelectorAll("[data-size]").forEach((chip) => chip.addEventListener("click", () => {
+  $("#ws-size-chips").querySelectorAll("[data-size]").forEach((chip) => chip.addEventListener("click", () => {
+    if (lockedAuthority()) return;
     if (chip.dataset.size === "auto") {
+      clearTimeout(liveGenerationSizeTimer);
       // 「自动」= 用户主动交还尺寸控制权（B4 §0 的第二个清除口）。
       // 必须先降级再算，否则 applyLogicalSize() 会被刚设上的 user-explicit 挡住。
       setLongEdgeAuthority(LONG_EDGE_EVENT.RESTORE_AUTO);
@@ -2257,15 +3192,19 @@ export function mountWorkspace(bridge) {
     }
     sizeOrigin = "manual";
     setLongEdgeDraft(chip.dataset.size);
+    commitSize();
   }));
-  $("#ws-size-range")?.addEventListener("input", (event) => { sizeOrigin = "manual"; setLongEdgeDraft(event.target.value); });
-  $("#ws-size-number")?.addEventListener("input", (event) => { sizeOrigin = "manual"; setLongEdgeDraft(event.target.value); });
+  let liveGenerationSizeTimer = null;
+  const requestLiveGenerationSize = () => { if(lockedAuthority())return; setLongEdgeAuthority(LONG_EDGE_EVENT.USER_APPLIED); pushDraftToBridge(); clearTimeout(liveGenerationSizeTimer); const revision=sizeSourceRevision; liveGenerationSizeTimer=setTimeout(()=>{if(revision===sizeSourceRevision&&longEdgeAuthority===LONG_EDGE_AUTHORITY.USER_EXPLICIT)commitSize();},120); };
+  $("#ws-size-range")?.addEventListener("input", (event) => { sizeOrigin = "manual"; setLongEdgeDraft(event.target.value); requestLiveGenerationSize(); });
+  $("#ws-size-number")?.addEventListener("input", (event) => { sizeOrigin = "manual"; setLongEdgeDraft(event.target.value); requestLiveGenerationSize(); });
   // 滚轮：±1；Shift+滚轮：±10。只改草稿。
   $("#ws-size-controls")?.addEventListener("wheel", (event) => {
     if (!get().status.hasSource || lockedAuthority()) return;
     event.preventDefault();
     const step = event.shiftKey ? 10 : 1;
     stepLongEdgeDraft(event.deltaY < 0 ? step : -step);
+    requestLiveGenerationSize();
   }, { passive: false });
   // 方向键：↑/↓ ±1；Shift+↑/↓ ±10。只改草稿。
   // 左右键不拦，交给 range 的原生行为（同样只走 input → 只改草稿）。
@@ -2274,8 +3213,10 @@ export function mountWorkspace(bridge) {
     if (lockedAuthority()) return;
     event.preventDefault();
     stepLongEdgeDraft(event.key === "ArrowUp" ? (event.shiftKey ? 10 : 1) : (event.shiftKey ? -10 : -1));
+    requestLiveGenerationSize();
   });
   $("#ws-size-apply")?.addEventListener("click", commitSize);
+  $('#ws-size-apply').hidden=true; $('#ws-size-apply').style.display='none';
 
   /**
    * 刷新尺寸栏。用函数声明（会提升）而非 const 箭头，避免 paint() 早于定义执行时踩 TDZ。
@@ -2325,7 +3266,7 @@ export function mountWorkspace(bridge) {
     // 的半锁定态 —— B0.1 真机探针抓到的就是这个。
     // 锁定（工程文件 / 人工标定 / 网格识别在位）或没有源图 → 整套长边控件让位。
     const sizeControlsDisabled = Boolean(locked) || !get().status.hasSource;
-    topControls.querySelectorAll("[data-size]").forEach((chip) => {
+    $("#ws-size-chips").querySelectorAll("[data-size]").forEach((chip) => {
       const value = chip.dataset.size;
       const active = !locked && (value === "auto" ? sizeOrigin === "auto" : sizeOrigin === "manual" && Number(value) === longEdgeDraft);
       chip.classList.toggle("is-active", active);
@@ -2335,11 +3276,11 @@ export function mountWorkspace(bridge) {
     const authorityNode = $("#ws-size-authority");
     if (authorityNode) {
       const api = window.LibmsSourceDimensions;
-      authorityNode.hidden = !locked;
+      authorityNode.hidden = !derived;
       authorityNode.dataset.authority = locked ? locked.authority : "";
       authorityNode.textContent = locked && api
         ? `${api.describeSourceDimensions(locked)} · 已锁定`
-        : "";
+        : derived ? `${sizeOrigin === "auto" ? "自动推荐" : "手动尺寸"} ${derived.width} × ${derived.height} · 可调整${Math.min(derived.width, derived.height) === 10 && effectiveSourceRatio() && (Math.min(effectiveSourceRatio(), 1 / effectiveSourceRatio()) * derived.longEdge < 9.5) ? " · 短边受最少 10 格限制，比例有调整" : ""}` : "";
     }
     // 分档提示（B0 §8）：301–400 提示大尺寸，>400 提示超大尺寸，都必须显式点「应用尺寸」。
     const tierNode = $("#ws-size-tier");
@@ -2348,7 +3289,7 @@ export function mountWorkspace(bridge) {
       tierNode.hidden = tier === "normal";
       tierNode.dataset.tier = tier;
       tierNode.textContent = tier === "xlarge"
-        ? "超大尺寸：生成可能要很久，确认后点「应用尺寸」"
+        ? "超大尺寸：生成可能要很久"
         : tier === "large" ? "大尺寸：生成会明显变慢" : "";
     }
     for (const id of ["#ws-size-range", "#ws-size-number"]) {
@@ -2360,8 +3301,8 @@ export function mountWorkspace(bridge) {
   }
   // 选区相关的动作统一走这里：按钮、方向键、快捷键三处共用，避免逻辑分叉。
   const selectionActions = {
-    copy: () => { if (editorService.copySelection(get().editor.selection)) notifySelection(`已复制 ${editorService.getClipboard().beads} 颗豆（${editorService.getClipboard().width}×${editorService.getClipboard().height}）`); },
-    cut: () => { if (editorService.cutSelection(get().editor.selection)) notifySelection(`已剪切 ${editorService.getClipboard().beads} 颗豆`); },
+    copy: () => { if (editorService.copySelection(get().editor.selection)) { notifySelection(`已复制 ${editorService.getClipboard().beads} 颗豆（${editorService.getClipboard().width}×${editorService.getClipboard().height}）`); selectionUI.refresh(); } },
+    cut: () => { if (editorService.cutSelection(get().editor.selection)) { notifySelection(`已剪切 ${editorService.getClipboard().beads} 颗豆`); selectionUI.refresh(); } },
     paste: () => {
       if (!editorService.hasClipboard() || !get().status.hasPattern) return;
       const selection = get().editor.selection, cell = get().editor.selectedCell;
@@ -2379,8 +3320,8 @@ export function mountWorkspace(bridge) {
     if (!selection || !get().status.hasPattern || (!dx && !dy)) return;
     const hasContent = selectionCells(selection, width, height).some(({ x, y }) => bridge.getCell(x, y));
     // 选区里有豆子就整体搬移；只是空框则移动选框本身，两种预期都要照顾。
-    if (hasContent) editorService.moveSelection(selection, dx, dy);
-    store.setState({ editor: { selection: translateSelection(selection, dx, dy, width, height) } });
+    if (!hasContent || !editorService.transformSelection(selection, 'move', { dx, dy }))
+      store.setState({ editor: { selection: translateSelection(selection, dx, dy, width, height) } });
   };
   const attachSelectionActions = () => {
     $("#ws-copy-selection").addEventListener("click", selectionActions.copy);
@@ -2420,19 +3361,20 @@ export function mountWorkspace(bridge) {
       const value = clamp(Math.round((Number(input.value) || 0) * 2) / 2, 0, maximum);
       input.value = String(value); store.setState({ editor: { [key]: value } });
     };
-    $("#ws-symmetry-axis-x").addEventListener("change", (event) => updateSymmetryAxis("symmetryAxisX", event.target, Math.max(0, bridge.getResult().width - 1)));
-    $("#ws-symmetry-axis-y").addEventListener("change", (event) => updateSymmetryAxis("symmetryAxisY", event.target, Math.max(0, bridge.getResult().height - 1)));
+    $("#ws-symmetry-axis-x").addEventListener("input", (event) => updateSymmetryAxis("symmetryAxisX", event.target, Math.max(0, bridge.getResult().width - 1)));
+    $("#ws-symmetry-axis-y").addEventListener("input", (event) => updateSymmetryAxis("symmetryAxisY", event.target, Math.max(0, bridge.getResult().height - 1)));
     $("#ws-symmetry-guides").addEventListener("change", (event) => store.setState({ editor: { symmetryGuideVisible: event.target.checked } }));
   };
   attachSelectionActions();
   window.addEventListener("keydown", (event) => {
+    if(buildActive()){if(event.key==="Escape"){event.preventDefault();setWorkspaceMode("edit");}return;}
     if (confirmDialog.open || gridToolbar?.helpDialog?.open || document.querySelector("#editor-modal")?.open || document.querySelector("#assembly-modal")?.open) return;
     const target = event.target;
     if (target instanceof HTMLElement && (target.matches("input,textarea,select") || target.isContentEditable)) return;
     const key = event.key.toLowerCase();
     const withModifier = event.metaKey || event.ctrlKey;
-    if (withModifier && key === "z") { event.preventDefault(); event.shiftKey ? editorService.redo() : editorService.undo(); return; }
-    if (withModifier && key === "y") { event.preventDefault(); editorService.redo(); return; }
+    if (withModifier && key === "z") { event.preventDefault(); event.shiftKey ? redoEditor() : undoEditor(); return; }
+    if (withModifier && key === "y") { event.preventDefault(); redoEditor(); return; }
     if (withModifier && ["a", "i", "c", "x", "v", "d"].includes(key)) {
       if (!get().status.hasPattern) return;
       // ⌘D / Esc 是取消选择；其余四个交给统一的选区动作。
@@ -2443,13 +3385,20 @@ export function mountWorkspace(bridge) {
     }
     if (event.key === " " && !event.repeat) { event.preventDefault(); spaceDown = true; return; }
     if (event.key === "Escape") {
+      cellColorPopover.close();
+      if(drag?.type==='lasso'){event.preventDefault();endDrag(true);return;}
       // 第一次 Esc 只清高亮；第二次清格选中与选区。
       // **不清当前颜色** —— 旧代码只把 selectedPaletteId 置 null、却留着 selectedColor，
       // 画笔靠 `selectedPaletteId || selectedColor` 兜底才没坏。单真源下不允许这种分叉，
       // 于是按「实际可观察行为」保留颜色：清掉颜色会让画笔失能，那是回归不是修复。
-      if (get().editor.highlightedPaletteId) store.setState({ editor: buildHighlightOnlyPatch(null, { enabled: false }) });
+      if (get().editor.highlightedPaletteId) clearColorHighlight();
       else store.setState({ editor: { selectedCell: null, selection: null, shapePreview: null } });
       return;
+    }
+    if ((event.key === "Delete" || event.key === "Backspace") && get().editor.tool === "text" && get().editor.activeTextLayerId) {
+      event.preventDefault();
+      const id=get().editor.activeTextLayerId,before=currentTextLayers(),rest=before.filter(layer=>layer.id!==id);
+      commitTextObjects("TEXT_DELETE","删除文字",before,rest,id,rest.at(-1)?.id||null);return;
     }
     if ((event.key === "Delete" || event.key === "Backspace") && get().editor.selection && get().status.hasPattern) {
       event.preventDefault(); editorService.eraseSelection(get().editor.selection); return;
@@ -2489,13 +3438,10 @@ export function mountWorkspace(bridge) {
     inventoryPanel?.setMessage(message);
   };
 
-  /* ======================== 文字素材（浮动图层） ======================== */
-  // 参考 Pixler 的「添加文字」：文字先作为**浮动图层**摆在画布上（只画在 overlay 层），
-  // 调好字体 / 颜色 / 加粗倾斜 / 字号 / 旋转之后点「向下合并」，才一次性写成真实豆格。
-  // 三个关键取舍：
-  //   · 预览与合并共用 rasterizeText —— 「看到的格子」就是「合下去的格子」，不会差半格；
-  //   · 浮动期间一个豆格都不写 grid —— 所以从放到拖全程撤销栈是干净的，合并只产生一步历史；
-  //   · 新图层落在当前视口正中 —— 点了「添加文字」立刻就能看到，不用满画布去找。
+  /* ======================== 文字素材（独立图层） ======================== */
+  // 文字对象始终独立保存在 editor.textLayers；编辑和锁定都不改底版 grid。
+  // 画布预览与导出都复用同一栅格化结果，锁定对象只合成到导出副本，便于继续编辑系列作品。
+  // 新图层落在当前视口正中 —— 点了「添加文字」立刻就能看到，不用满画布去找。
   function renderTextPanel(state = get()) {
     if (!textPanel) return;
     const layers = state.editor.textLayers || [];
@@ -2504,7 +3450,7 @@ export function mountWorkspace(bridge) {
     textPanel.render({
       layers,
       activeId: active?.id || null,
-      palette: editorService.getPaletteColors(),
+      palette: textPaletteChoices(editorService.getPaletteColors(), bridge.getResult().grid || []),
       recent: state.editor.textRecentColors || [],
       // 落豆数与画布预览、与合并写进去的格子来自同一次栅格化（带缓存），三处必然一致。
       cells: active ? rasterizeTextCached(active, w, h).cells.length : 0,
@@ -2515,14 +3461,32 @@ export function mountWorkspace(bridge) {
     onAdd: () => addTextLayer(),
     onPatch: (id, patch) => {
       if (!id) return;
-      setTextLayers(currentTextLayers().map((layer) => (layer.id === id ? { ...layer, ...patch } : layer)), id);
+      const target = currentTextLayers().find(layer => layer.id === id);
+      if (target?.locked && !Object.prototype.hasOwnProperty.call(patch, "locked")) return;
+      patchTextObject(id,patch);
       renderer.requestDraw();
+    },
+    onLoadLocalFont: async (id, file) => {
+      if (!id || !file) return;
+      if (file.size > 12 * 1024 * 1024) { notify("字体文件需小于 12 MB。"); return; }
+      const family = file.name.replace(/\.(ttf|otf|woff2?)$/i, "").trim() || "自定义字体";
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = "";
+      for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+      const mime = file.type || (/\.woff2?$/i.test(file.name) ? "font/woff2" : /\.otf$/i.test(file.name) ? "font/otf" : "font/ttf");
+      const fontData = `data:${mime};base64,${btoa(binary)}`;
+      try {
+        const face = new FontFace(family, `url(${JSON.stringify(fontData)})`);
+        await face.load(); document.fonts.add(face);
+        patchTextObject(id, { fontFamily: family, fontData });
+        renderer.requestDraw(); notify(`已加载本地字体：${family}`);
+      } catch { notify("字体加载失败，请尝试 TTF、OTF 或 WOFF 字体文件。"); }
     },
     onSelect: (id) => { store.setState({ editor: { activeTextLayerId: id, tool: "text" } }); renderer.requestDraw(); },
     onDelete: (id) => {
       if (!id) return;
       const before=currentTextLayers().map(layer=>({...layer})),rest=before.filter((layer)=>layer.id!==id),beforeActive=get().editor.activeTextLayerId,afterActive=rest.at(-1)?.id||null;
-      editorService.executeCommand(createEditorCommand({kind:"object",type:"TEXT_DELETE",label:`删除文字：${before.find(layer=>layer.id===id)?.text||"文字"}`,execute:()=>{setTextLayers(rest,afterActive);renderer.requestDraw();return true;},undo:()=>{setTextLayers(before,beforeActive);renderer.requestDraw();return true;},redo:()=>{setTextLayers(rest,afterActive);renderer.requestDraw();return true;}}));
+      commitTextObjects("TEXT_DELETE",`删除文字：${before.find(layer=>layer.id===id)?.text||"文字"}`,before,rest,beforeActive,afterActive);
     },
     onMerge: (id) => {
       const layer = currentTextLayers().find((item) => item.id === id);
@@ -2534,10 +3498,14 @@ export function mountWorkspace(bridge) {
       const color = identity ? editorService.resolveColor(identity) : null;
       if (!color) { notify("先给文字选一个色号，再向下合并。"); return; }
       // 合并 = 把整块文字一次性写成豆格。走 applyCells → commit，所以是一步可撤销的历史。
-      const applied = editorService.applyCells(cells, color.code, "TEXT_MERGE", `文字合并：${(layer.text || "").trim().slice(0, 12) || "空文字"} · ${cells.length} 豆`);
-      // 合并后移除该浮动图层：内容已经在图纸上了，再留一份只会重复。
-      const rest = currentTextLayers().filter((item) => item.id !== id);
-      setTextLayers(rest, rest.at(-1)?.id || null);
+      const before=structuredClone(currentTextLayers()),beforeActive=get().editor.activeTextLayerId,rest=before.filter(item=>item.id!==id),afterActive=rest.at(-1)?.id||null;
+      const changes=cells.map(({x,y})=>({x,y,before:bridge.getCell(x,y),after:color})).filter(change=>paletteIdOf(change.before)!==paletteIdOf(change.after));
+      const gridCommand=createCellCommand(bridge,{type:"TEXT_MERGE",label:"文字合并",changes,width:w,height:h});
+      const applyObjects=(layers,active)=>{setTextLayers(structuredClone(layers),active);store.setState({status:{dirty:true}});renderer.requestDraw();return true;};
+      const applied=editorService.executeCommand(createEditorCommand({kind:"cells",type:"TEXT_MERGE",label:`文字合并：${layer.text||"文字"}`,affectedCells:changes.length,width:w,height:h,
+        execute:()=>{if(changes.length&&!gridCommand.execute())return false;return applyObjects(rest,afterActive);},
+        undo:()=>{if(changes.length&&!gridCommand.undo())return false;return applyObjects(before,beforeActive);},
+        redo:()=>{if(changes.length&&!gridCommand.redo())return false;return applyObjects(rest,afterActive);}}));
       store.setState({ editor: buildCurrentPalettePatch(paletteIdOf(color), paletteColors()) });
       renderer.requestDraw();
       notify(applied ? `已合并 ${cells.length} 颗豆，可撤销` : "文字与图纸现有颜色一致，没有需要写入的豆格。");
@@ -2546,8 +3514,8 @@ export function mountWorkspace(bridge) {
       const paletteId = currentPaletteId();
       if (!paletteId) { notify("先在「色彩」里选一个色号。"); return; }
       if (!id) return;
-      // 工作台上 paletteId 恒等于色号 code，两个字段写同一个值（保留图层既有形状）。
-      setTextLayers(currentTextLayers().map((layer) => (layer.id === id ? { ...layer, color: paletteId, paletteId } : layer)), id);
+      // 复用当前颜色身份，不按 RGB 反猜颜色。
+      patchTextObject(id,{color:paletteId,paletteId});
       renderer.requestDraw();
     },
     // 「+」把当前色加进色块行。要与当前显示的候选色**连续**，所以从「已有的最近用色，
@@ -2596,7 +3564,9 @@ export function mountWorkspace(bridge) {
   rulers.innerHTML = ["top", "left", "bottom", "right"].map((side) => `<div class="ws-ruler ws-ruler-${side}" id="ws-ruler-${side}"></div>`).join("");
   well.append(rulers);
 
-  const buildActive = () => document.body.classList.contains("ws-mode-build");
+  const buildActive = () => document.body.classList.contains("ws-output-preview");
+  let previewReturnState = null;
+  let previewReturnMobilePanelOpen = false;
   const gridSize = () => { const r = bridge.getResult(); return { w: r.width || 0, h: r.height || 0, grid: r.grid || [] }; };
 
   // 按图纸宽高比切块，避免出现极窄的条；块数向上取整到 cols×rows ≥ count。
@@ -2657,7 +3627,8 @@ export function mountWorkspace(bridge) {
   }
   function updateBuildOverlay() {
     const on = buildActive() && gridSize().grid.length;
-    buildOverlay.hidden = !on; rulers.hidden = !on;
+    // Coordinates are drawn by the shared canvas renderer; never duplicate sticky DOM ticks.
+    buildOverlay.hidden = !on; rulers.hidden = true;
     if (!on) return;
     const { w, h } = gridSize();
     const o = viewport.origin(), cell = o.cell;
@@ -2665,19 +3636,6 @@ export function mountWorkspace(bridge) {
     const spot = $("#ws-build-spot");
     spot.style.left = `${o.x + x0 * cell}px`; spot.style.top = `${o.y + y0 * cell}px`;
     spot.style.width = `${(x1 - x0) * cell}px`; spot.style.height = `${(y1 - y0) * cell}px`;
-    // 四边标尺：每 5 格一个刻度，10 的倍数用品红强调
-    const ticks = (count, horizontal) => Array.from({ length: count }, (_, i) => i + 1)
-      .filter((n) => n % 5 === 0)
-      .map((n) => {
-        const major = n % 10 === 0;
-        const pos = o[horizontal ? "x" : "y"] + (n - 1) * cell + cell / 2;
-        return pos > -40 && pos < (horizontal ? well.clientWidth : well.clientHeight) + 40
-          ? `<span class="${major ? "is-major" : ""}" style="${horizontal ? "left" : "top"}:${pos}px">${n}</span>` : "";
-      }).join("");
-    $("#ws-ruler-top").innerHTML = ticks(w, true);
-    $("#ws-ruler-bottom").innerHTML = ticks(w, true);
-    $("#ws-ruler-left").innerHTML = ticks(h, false);
-    $("#ws-ruler-right").innerHTML = ticks(h, false);
   }
   function applyBuildColor(code) {
     build.color = code || null;
@@ -2690,19 +3648,32 @@ export function mountWorkspace(bridge) {
   }
   function setWorkspaceMode(mode) {
     const next = mode === "build" ? "build" : "edit";
-    document.body.classList.toggle("ws-mode-build", next === "build");
+    if (next === "build" && buildActive()) return;
+    if (next === "build") {
+      if (!get().status.hasPattern) return;
+      const state=get();
+      previewReturnState=structuredClone({view:state.view,editor:state.editor,ui:{activePanel:state.ui.activePanel}});
+      previewReturnMobilePanelOpen=right.classList.contains("is-mobile-panel-open");
+    }
+    document.body.classList.remove("ws-mode-build");
+    document.body.classList.toggle("ws-output-preview", next === "build");
     if (next === "build") {
       build.block = 0; build.color = null;
       renderBlockMap(); applyBuildColor(null);
-      store.setState({ ui: { activePanel: "build" } });
+      store.setState({ ui: { activePanel: "build" },editor:{tool:"pan"},view:{mode:"pattern"} });
+      right.classList.add("is-mobile-panel-open");
     } else {
-      store.setState({ ui: { activePanel: "project" }, editor: buildHighlightOnlyPatch(null, { enabled: false }) });
+      if (previewReturnState) {
+        store.setState(previewReturnState);previewReturnState=null;
+        right.classList.toggle("is-mobile-panel-open",previewReturnMobilePanelOpen);
+      }
       build.color = null;
     }
     requestAnimationFrame(() => { updateBuildOverlay(); renderer.requestDraw(); });
   }
+  $("#ws-build-return").addEventListener("click",()=>setWorkspaceMode("edit"));
   // 施工面板事件
-  right.querySelector('[data-ws-inspector="build"]').addEventListener("click", (event) => {
+  const handleBuildControlsClick = (event) => {
     const step = event.target.closest("[data-ws-block]");
     if (step) {
       const total = build.cols * build.rows;
@@ -2730,11 +3701,442 @@ export function mountWorkspace(bridge) {
       return;
     }
     if (event.target.closest("#ws-build-reset")) { build.count = 1; build.block = 0; $("#ws-block-count").textContent = "1"; blockLayout(); renderBlockMap(); applyBuildColor(null); updateBuildOverlay(); renderer.requestDraw(); }
-  });
+  };
+  right.querySelector('[data-ws-inspector="build"]').addEventListener('click', handleBuildControlsClick);
 
+  // Move the existing controls, not copies: their original listeners and state
+  // bindings stay attached, while the top row only reveals the active tool.
+  const toolOptions=$("#ws-tool-options");
+  const markToolOptions = state => { toolOptions.dataset.activeTool = state.editor.tool; };
+  store.subscribe(markToolOptions); markToolOptions(get());
+  function moveToolControls(tools,nodes){const group=document.createElement("div");group.className="ws-context-group";group.dataset.tools=tools;nodes.filter(Boolean).forEach(node=>group.append(node));toolOptions.append(group);return group;}
+  $("#ws-shape-filled").closest("label").lastChild.textContent=" 形状实心（矩形 / 圆形 / 心形 / 菱形 / 五角星）";
+  const brushSizeContext = moveToolControls("brush eraser",[$("#ws-brush-size").closest("label")]);
+  $("#ws-brush-shape").closest("label").hidden = true;
+  $("#ws-ink-mode").closest("label").hidden = true;
+  moveToolControls("brush",[$("#ws-pixel-perfect").closest("label")]);
+  const symmetryBar = document.createElement('div'); symmetryBar.className = 'ws-toolbar-symmetry'; symmetryBar.setAttribute('role', 'group'); symmetryBar.setAttribute('aria-label', '对称绘制');
+  for (const [mode, label, path] of [['vertical','左右对称','M12 3v18'],['horizontal','上下对称','M3 12h18'],['both','双向对称','M12 3v18M3 12h18']]) {
+    const button = document.createElement('button'); button.type = 'button'; button.dataset.symmetryMode = mode;
+    button.title = label + '，再次点击关闭；适用于画笔和擦除'; button.setAttribute('aria-label', label);
+    button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3 2"/></svg>`;
+    button.addEventListener('click', () => {
+      hideInlineSizeSettings(); hideInlineOutlineSettings();
+      const nextMode = get().editor.symmetryMode === mode ? 'none' : mode;
+      if (nextMode !== 'none' && !['brush','eraser'].includes(get().editor.tool)) gridToolbar.setTool('brush');
+      const select = $('#ws-symmetry-mode'); select.value = nextMode; select.dispatchEvent(new Event('change', {bubbles:true}));
+      toolParametersOpen = true; toolOptions.hidden = false;
+    });
+    symmetryBar.append(button);
+  }
+  $('#gridEditorToolbar .sl-toolbar-drawing').append(symmetryBar);
+  symmetryControls.classList.add('ws-inline-symmetry');
+  symmetryControls.querySelector('.ws-section-title')?.remove(); symmetryControls.querySelector('.ws-note')?.remove();
+  $('#ws-symmetry-mode').closest('label').hidden = true;
+  for (const id of ['ws-symmetry-axis-x','ws-symmetry-axis-y']) {
+    const input = $('#' + id); input.type = 'range'; input.min = '0'; input.step = '.5'; input.closest('label').classList.add('ws-symmetry-axis-slider');
+    const output = document.createElement('output'); output.id = id + '-value'; input.before(output);
+  }
+  const centerSymmetry = document.createElement('button'); centerSymmetry.type = 'button'; centerSymmetry.className = 'ws-symmetry-center'; centerSymmetry.title = '对称轴回到作品中心'; centerSymmetry.setAttribute('aria-label', centerSymmetry.title);
+  centerSymmetry.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
+  centerSymmetry.addEventListener('click', () => store.setState({editor:{symmetryAxisX:null,symmetryAxisY:null}})); symmetryControls.append(centerSymmetry);
+  const symmetryParameterGroup = moveToolControls('brush eraser',[symmetryControls]);
+  const syncSymmetryToolbar = (state = get()) => {
+    const mode = state.editor.symmetryMode || 'none', result = bridge.getResult();
+    for (const button of symmetryBar.children) { button.setAttribute('aria-pressed', String(button.dataset.symmetryMode === mode)); button.disabled = !state.status.hasPattern; }
+    symmetryControls.hidden = mode === 'none';
+    for (const [axis, size, field] of [['x',result.width,'symmetryAxisX'],['y',result.height,'symmetryAxisY']]) {
+      const input = $('#ws-symmetry-axis-' + axis); input.closest('label').hidden = axis === 'x' ? !['vertical','both'].includes(mode) : !['horizontal','both'].includes(mode);
+      input.max = String(Math.max(0, size - 1));
+      input.value = String(Number.isFinite(state.editor[field]) ? state.editor[field] : (size - 1) / 2);
+      $('#ws-symmetry-axis-' + axis + '-value').textContent = input.value;
+    }
+  };
+  store.subscribe(syncSymmetryToolbar); syncSymmetryToolbar();
+  const inlineOutline = document.createElement('div'); inlineOutline.className = 'ws-inline-outline'; inlineOutline.hidden = true; inlineOutline.append(outlineControls); toolOptions.append(inlineOutline);
+  $('#ws-outline-diagonal').closest('.ws-outline-options').hidden = true;
+  const outlineToolbarButton = document.createElement('button'); outlineToolbarButton.type = 'button'; outlineToolbarButton.id = 'ws-toolbar-outline'; outlineToolbarButton.className = 'sl-tool-button'; outlineToolbarButton.title = '描边设置'; outlineToolbarButton.setAttribute('aria-label', '描边');
+  outlineToolbarButton.innerHTML = '<span class="sl-tool-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="8" y="8" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 2"/></svg></span><span class="sl-tool-label">描边</span>';
+  symmetryBar.before(outlineToolbarButton);
+  outlineToolbarButton.addEventListener('click', () => {
+    if (!inlineOutline.hidden) { hideInlineOutlineSettings(); return; }
+    hideInlineSizeSettings(); gridToolbar.setTool('select'); inlineOutline.hidden = false; toolOptions.dataset.settings = 'outline'; toolParametersOpen = true; toolOptions.hidden = false;
+    outlineToolbarButton.setAttribute('aria-pressed', 'true');
+  });
+  function hideInlineOutlineSettings() {
+    const inline = toolOptions.querySelector('.ws-inline-outline'); if (!inline || inline.hidden) return;
+    inline.hidden = true; if (toolOptions.dataset.settings === 'outline') delete toolOptions.dataset.settings;
+    $('#ws-toolbar-outline').setAttribute('aria-pressed', 'false'); store.setState({editor:{outlinePreview:null}}); renderer.requestDraw();
+  }
+  moveToolControls("rect ellipse heart diamond star",[$("#ws-shape-filled").closest("label")]);
+  moveToolControls("wand",[$("#ws-wand-tolerance").closest("label")]);
+  $("#ws-context-selection-type").addEventListener("change",event=>gridToolbar.setTool(event.target.value));
+  selectionButtons.addEventListener('click',event=>{const button=event.target.closest('[data-selection-tool]');if(button)gridToolbar.setTool(button.dataset.selectionTool);});
+  shapeButtons.addEventListener('click',event=>{const button=event.target.closest('[data-tool]');if(button)gridToolbar.setTool(button.dataset.tool);});
+  // Text content and object settings live together in the left inspector.
+  $("#ws-context-text-properties").remove();
+  $("#textPanel").before($("#ws-context-text"));
+  const toolNames={brush:"画笔",eraser:"橡皮擦",fill:"油漆桶",text:"文字",pan:"移动",eyedropper:"吸管",line:"直线",rect:"矩形",ellipse:"椭圆",heart:"心形",diamond:"菱形",star:"五角星",region:"矩形选区",wand:"相近色选择",same:"同色选择",connected:"连续区域",select:"选择",bead:"单豆"};
+  toolNames.lasso='涂选'; toolNames['closed-lasso']='闭合套索'; toolNames['selection-move']='移动选区'; toolNames['reference-eyedropper']='参考图取色';
+  function syncToolOptions(state){const tool=state.editor.tool;$("#ws-context-tool-label").textContent=toolNames[tool]||"工具";toolOptions.querySelectorAll("[data-tools]").forEach(group=>{const tools=group.dataset.tools.split(" ");group.hidden=group.dataset.menu?openToolMenu?group.dataset.menu!==openToolMenu:!tools.includes(tool):!tools.includes(tool);});toolOptions.querySelectorAll('[data-tool-menu]').forEach(button=>button.setAttribute('aria-expanded',String(button.dataset.toolMenu===openToolMenu)));if(["select","region","lasso","closed-lasso","selection-move","reference-eyedropper","same","connected","wand"].includes(tool))$("#ws-context-selection-type").value=tool;selectionButtons.querySelectorAll('[data-selection-tool]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.selectionTool===tool)));$('#ws-shape-buttons').querySelectorAll('[data-tool]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.tool===tool)));const active=state.editor.textLayers?.find(layer=>layer.id===state.editor.activeTextLayerId);$("#ws-context-text-summary").textContent=active?`${active.text||"空文字"}`:"添加或选择文字对象";}
+  const priorToolGroup=$("#ws-tool-details").closest(".ws-editor-group");priorToolGroup.querySelector(".ws-section-title").textContent="操作设置";$("#ws-tool-details").hidden=true;
+
+  // Canonical usage retains one index and one strip; only its DOM location moves.
+  const usageBand=$("#ws-canvas-stats");usageBand.classList.add("ws-usage-band");
+  // 「已使用颜色 N 种 / M 颗」和搬到下面的配色清单是同一组数字，不再重复显示。
+  // 节点保留（paint 仍在写 #ws-stats-colors/#ws-stats-beads），只是不再露面。
+  const usageTotals=document.createElement("div");usageTotals.className="ws-usage-totals";while(usageBand.firstChild)usageTotals.append(usageBand.firstChild);usageTotals.hidden=true;
+  // 「配色清单」整块从右栏搬到底栏最左侧：品牌/系列 + 种颜色/颗拼豆 + 图纸尺寸/实物尺寸。
+  // 横排后一行就够，右栏因此腾出整块高度留给选色与参考图。
+  const usageSummaryInline=document.createElement("div");usageSummaryInline.className="ws-usage-summary-inline";usageSummaryInline.id="ws-usage-summary-inline";
+  usageSummaryInline.append(paletteSummary.querySelector('.ws-summary-palette'),paletteSummary.querySelector('.ws-summary-totals'),paletteSummary.querySelector('#ws-summary-specs'));
+  const usageSearch=$("#ws-usage-search");
+  const usageBandTools=document.createElement("div");usageBandTools.className="ws-usage-band-tools";usageBandTools.append($(".ws-usage-sort"),usageSearch);
+  // 排序组（数量/色号/色相）移到色块条下方；筛选框撤掉 —— 节点保留，输入监听不动，只是不显示。
+  // 顺序要紧：usageBandTools 此刻还是游离节点，一旦 append 进去，$()（= wrap.querySelector）
+  // 就再也找不到它了，下一行再查会拿到 null，hidden 静默不生效。
+  if(usageSearch)usageSearch.hidden=true;
+  usageBand.append(usageSummaryInline,usageTotals,$("#ws-usage-strip"),usageBandTools,$("#ws-usage-similar-list"));
+  // 单豆直径暂时用不到：隐藏（select 本身保留，实物尺寸换算仍读它的值）。
+  const beadSizeField=$('#ws-bead-size')?.closest('label');if(beadSizeField)beadSizeField.hidden=true;
+  viewBar.prepend($('#ws-usage-actions'));
+  // Artwork statistics belong to the bottom-left dock, not beside the color strip.
+  viewBar.prepend(usageSummaryInline);
+  // The dock spans the window but the color strip begins after the inspector/tool rail.
+  const alignUsageActions=()=>{
+    const strip=$('#ws-usage-strip'),swatch=strip.querySelector('.ws-swatch');
+    const target=strip.getBoundingClientRect().left+(swatch?swatch.getBoundingClientRect().left-swatch.closest('.ws-usage-card').getBoundingClientRect().left:0);
+    viewBar.style.setProperty('--ws-usage-align',`${Math.max(0,target-viewBar.getBoundingClientRect().left)}px`);
+  };
+  const usageAlignmentObserver=new ResizeObserver(alignUsageActions);
+  usageAlignmentObserver.observe($('#ws-canvas-stats'));usageAlignmentObserver.observe(viewBar);
+  new MutationObserver(alignUsageActions).observe($('#ws-usage-strip'),{childList:true});
+  window.addEventListener('resize',alignUsageActions);requestAnimationFrame(alignUsageActions);
+  const dockViewSettings=document.createElement('div');dockViewSettings.className='ws-dock-view-settings';
+  dockViewSettings.append(viewBar.querySelector('.ws-view-modes'),viewBar.querySelector('.ws-view-toggles'));
+  viewBar.append(dockViewSettings);
+  paletteSummary.querySelector('.ws-summary-filter').hidden = true;
+  $('#ws-summary-usage').hidden = true;
+  $('#ws-project-meta').hidden = true;
+  $("#ws-canvas-hint").classList.add("ws-canvas-secondary-hint");
+
+  const outputMenu=document.createElement("details");outputMenu.className="ws-output-menu";outputMenu.id="ws-output-menu";
+  outputMenu.innerHTML='<summary class="ws-button">保存与导出</summary><div class="ws-output-menu-list"><button type="button" id="ws-output-preview">施工图预览</button><button type="button" id="ws-output-a4">A4 纸张分页（图片）</button><button type="button" id="ws-output-boards">104×104 豆板分割（ZIP）</button></div>';
+  const outputItems=outputMenu.querySelector(".ws-output-menu-list");outputItems.prepend($("#ws-save-project"),$("#ws-export"));top.append(outputMenu);
+  $("#ws-making").hidden=true;
+  // ===================== 阶段 1：简洁工作台 =====================
+  // ① 左右面板独立折叠。只翻 class + 记忆：列宽由 CSS :has() 驱动
+  //    （workspace.css「阶段 1」区段），收起后 fitToViewport 让画布重新适配 ——
+  //    不重建画布、不动作品数据与历史，也不写第二套布局数字到 JS。
+  const bindPanelCollapse = (panel, storageKey, label) => {
+    if (!panel) return null;
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'ws-panel-collapse';
+    const sync = (collapsed) => {
+      panel.classList.toggle('is-collapsed', collapsed);
+      button.textContent = collapsed ? '›' : '‹';
+      const hint = collapsed ? `展开${label}` : `收起${label}`;
+      button.setAttribute('aria-label', hint); button.setAttribute('aria-expanded', String(!collapsed)); button.title = hint;
+      try { localStorage.setItem(storageKey, collapsed ? '1' : '0'); } catch {}
+      requestAnimationFrame(() => { try { viewport?.fitToViewport?.(); } catch {} });
+    };
+    button.addEventListener('click', () => sync(!panel.classList.contains('is-collapsed')));
+    try { sync(localStorage.getItem(storageKey) === '1'); } catch { sync(false); }
+    return button;
+  };
+  const paletteCollapseButton = bindPanelCollapse(paletteSummary, 'libms.workspace.palette.collapsed', '色板');
+  paletteSummary?.querySelector('h2')?.append(paletteCollapseButton);
+  const taskPanel = $('.ws-inspector');
+  const taskCollapseButton = bindPanelCollapse(taskPanel, 'libms.workspace.task.collapsed', '任务面板');
+  $('.ws-inspector-head')?.append(taskCollapseButton);
+  // ② 底栏「当前工具」：与统计行同级的 11px 小字，紧跟「C06 · N 颗」右侧（同一行内）。
+  const dockTool = document.createElement('span');
+  dockTool.id = 'ws-dock-tool';
+  const dockSettings = viewBar.querySelector('.ws-dock-view-settings');
+  if (dockSettings) viewBar.insertBefore(dockTool, dockSettings); else viewBar.append(dockTool);
+  // ③ 缩放控件从顶栏移到底栏：比例属于画布状态，顶栏只留「工具 + 历史」。
+  //    注意别叫 zoomControls —— 那个名字已被 ZoomControls 实例占用（L1295）。
+  const zoomControlsNode = topControls.querySelector('#zoomControls');
+  if (zoomControlsNode && dockSettings) viewBar.insertBefore(zoomControlsNode, dockSettings);
+  // ④ 更多工具：extended 工具条（GridEditorToolbar 现成 variant，与主工具条共用
+  //    handleToolChange，不绑第二份快捷键）+ 右栏任务面板快捷入口（委托打开面板，
+  //    不复制控件 ID、不建第二套状态）。参考底图入口不放这里 —— 入口已统一收在
+  //    「对照」按钮（用户 2026-10-14 决策，避免两条上传入口互相覆盖）。
+  const moreTools = document.createElement('details');
+  moreTools.className = 'ws-more-tools'; moreTools.id = 'ws-more-tools';
+  moreTools.innerHTML = '<summary class="ws-button" aria-label="更多工具">更多工具</summary>';
+  const moreBody = document.createElement('div'); moreBody.className = 'ws-more-tools-body';
+  const moreTitle = document.createElement('span'); moreTitle.className = 'ws-more-title'; moreTitle.textContent = '扩展工具 · 与主工具栏通用';
+  const moreToolHost = document.createElement('div');
+  const moreLinks = document.createElement('div'); moreLinks.className = 'ws-more-panel-links';
+  for (const [label, panel] of [['对称绘制','edit'],['外轮廓描边','edit'],['施工分区','build']]) {
+    const link = document.createElement('button');
+    link.type = 'button'; link.className = 'ws-button'; link.textContent = label;
+    link.addEventListener('click', () => { moreTools.open = false; store.setState({ ui: { activePanel: panel } }); });
+    moreLinks.append(link);
+  }
+  moreBody.append(moreTitle, moreToolHost, moreLinks);
+  moreTools.append(moreBody);
+  topControls.append(moreTools);
+  const moreToolbar = new GridEditorToolbar({
+    root: moreToolHost,
+    variant: 'extended',
+    activeTool: get().editor.tool,
+    onToolChange: handleToolChange,
+  });
+  // 主工具条切工具后，扩展实例跟着亮：只推进状态 + sync，不再回调 onToolChange（免循环）。
+  store.subscribe(() => {
+    const tool = get().editor.tool;
+    if (moreToolbar.activeTool !== tool) { moreToolbar.activeTool = tool; moreToolbar.sync(); }
+  });
+  $("#ws-output-preview").addEventListener("click",()=>{outputMenu.open=false;drawer.classList.remove('open');store.setState({ui:{exportDrawerOpen:false}});setWorkspaceMode("build");});
+  $("#ws-output-a4").addEventListener("click",async()=>{outputMenu.open=false;if(!get().status.hasPattern){notify("请先创建或打开图纸。");return;}try{await bridge.downloadA4Pages?.();}catch(error){notify(error.message);}});
+  $("#ws-output-boards").addEventListener("click",async()=>{outputMenu.open=false;if(!get().status.hasPattern){notify("请先创建或打开图纸。");return;}try{await exportV2.boards({showCodes:$("#ws-board-codes").checked,showGrid:$("#ws-board-grid").checked,mirror:$("#ws-export-mirror").value});}catch(error){notify(error.message);}});
+  const editActions=document.createElement("details");editActions.className="ws-output-menu";editActions.id="ws-edit-actions";editActions.innerHTML='<summary class="ws-button">编辑操作</summary><div class="ws-output-menu-list"></div>';right.querySelector('[data-ws-inspector="edit"]').append(editActions);
+  const exteriorEditButton=document.createElement("button");exteriorEditButton.type="button";exteriorEditButton.id="ws-edit-remove-exterior";exteriorEditButton.textContent="去除外围底色";editActions.querySelector(".ws-output-menu-list").append(exteriorEditButton);
+  const editCommandEntries=[['复制','ws-copy-selection'],['剪切','ws-cut-selection'],['粘贴','ws-paste-selection'],['取消选择','ws-clear-selection'],['全选','ws-select-all'],['反选','ws-invert-selection']];
+  for(const [label,id]of editCommandEntries){const command=document.createElement('button');command.type='button';command.textContent=label;command.dataset.editCommand=id;command.addEventListener('click',()=>{const original=$('#'+id);if(original&&!original.disabled)original.click();});editActions.querySelector('.ws-output-menu-list').append(command);}
+  editActions.addEventListener('toggle',()=>{if(editActions.open)editActions.querySelectorAll('[data-edit-command]').forEach(button=>{button.disabled=$('#'+button.dataset.editCommand)?.disabled!==false;});});
+  exteriorEditButton.addEventListener("click",()=>{editActions.open=false;if(buildActive())setWorkspaceMode("edit");removeExteriorBackground();});
+  // Four work areas expose existing panels; the grid, history and viewport remain
+  // the same objects. activePanel remains the single source of panel selection.
+  function openWorkspacePanel(panel){if(buildActive())setWorkspaceMode('edit');store.setState({ui:{activePanel:panel,exportDrawerOpen:false},...(['color','edit','check'].includes(panel)&&get().view.mode==='blocks'?{view:{mode:'pattern'}}:{})});drawer.classList.remove('open');right.classList.add('is-mobile-panel-open');}
+  const exportNow=document.createElement('button');exportNow.type='button';exportNow.id='ws-export-now';exportNow.className='ws-button ws-button-primary';exportNow.textContent='导出作品';
+  const openExportDrawer=()=>{surfaces.open('output');store.setState({ui:{exportDrawerOpen:true}});drawer.classList.add('open');refreshPosterPreview();};
+  exportNow.addEventListener('click',openExportDrawer);
+  top.querySelector('.ws-project-menu').after(exportNow);
+  const projectInfoButton=document.createElement('button');projectInfoButton.type='button';projectInfoButton.textContent='作品信息';projectInfoButton.id='ws-project-info';
+  const projectInfo = document.createElement('section'); projectInfo.className = 'ws-project-information';
+  projectInfo.innerHTML = '<label class="ws-field">创作者<input id="ws-project-creator" maxlength="60" placeholder="填写创作者昵称" aria-label="创作者昵称"></label>';
+  projectInfo.prepend(projectInfoButton);
+  const projectNameField=document.createElement('label');projectNameField.className='ws-field';projectNameField.append(document.createTextNode('作品名称'),$('#ws-project-name'));projectInfoButton.after(projectNameField);
+  const projectInfoBody = document.createElement('div'); projectInfoBody.className = 'ws-project-information-body'; projectInfoBody.hidden = true;
+  // 作品信息进【内容列】，不是右栏本身：右栏现在是一条「最左侧透明度条 + 内容列」的横向两栏，
+  // 直接 prepend 到右栏会让作品信息变成并排的一列（实测被挤成 58px 宽，输入框没法用）。
+  // 放进内容列后它保持原来的整幅宽度，也跟着内容一起滚动。
+  projectInfoBody.append(projectPanel); projectInfo.append(projectInfoBody); paletteContent.prepend(projectInfo);
+  projectInfoButton.setAttribute('aria-expanded','false');
+  projectInfoButton.addEventListener('click',()=>{projectInfoBody.hidden=!projectInfoBody.hidden;projectInfoButton.setAttribute('aria-expanded',String(!projectInfoBody.hidden));});
+  $('#ws-project-creator').addEventListener('input',event=>store.setState({project:{creator:event.target.value},status:{dirty:true}}));
+  store.subscribe(state=>{const input=$('#ws-project-creator');if(document.activeElement!==input)input.value=state.project.creator||'';});
+
+  const checkPanel=right.querySelector('[data-ws-inspector="check"]');
+  const diagnosticsStart=[...colorInspector.children].find(node=>node.classList.contains('ws-section-title')&&node.textContent==='低频颜色');
+  const diagnosisGroup=document.createElement('section');diagnosisGroup.id='ws-check-tools';
+  let diagnosticNode=diagnosticsStart;while(diagnosticNode){const next=diagnosticNode.nextSibling;diagnosisGroup.append(diagnosticNode);diagnosticNode=next;}
+  checkPanel.prepend(diagnosisGroup);
+  right.querySelector('[data-ws-inspector="color"]').prepend(colorInspector);
+
+  const selectionActionBar=document.createElement('div');selectionActionBar.id='ws-selection-actionbar';selectionActionBar.className='ws-selection-actionbar';selectionActionBar.hidden=true;
+  selectionActionBar.innerHTML='<strong></strong><button type="button" id="ws-selection-open-color">换色</button>';
+  ['ws-copy-selection','ws-cut-selection','ws-paste-selection','ws-erase-selection','ws-clear-selection'].forEach(id=>selectionActionBar.append($('#'+id)));
+  well.before(selectionActionBar);$('#ws-selection-open-color').addEventListener('click',()=>{openWorkspacePanel('color');$('#ws-current-color-target').focus();});
+  const singleCellOption=document.createElement('button');singleCellOption.type='button';singleCellOption.textContent='单格落色';singleCellOption.addEventListener('click',()=>gridToolbar.setTool('bead'));
+  moveToolControls('brush bead',[singleCellOption]);
+  // Expose short option sets but retain each original change handler and state owner.
+  const flatOptionGroups=[];
+  for(const select of toolOptions.querySelectorAll('select')){
+    if(select.id==='ws-symmetry-mode')continue;
+    if(select.options.length<2||select.options.length>5)continue;
+    const row=document.createElement('div');row.className='ws-flat-options';row.setAttribute('role','group');row.setAttribute('aria-label',select.closest('label')?.childNodes[0]?.textContent.trim()||'工具选项');
+    for(const option of select.options){const button=document.createElement('button');button.type='button';if(select.id==='ws-brush-shape'){button.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true">${option.value==='round'?'<circle cx="12" cy="12" r="7"/>':'<rect x="5" y="5" width="14" height="14"/>'}</svg>`;button.title=option.textContent+'笔触';button.setAttribute('aria-label',button.title);}else button.textContent=option.textContent;button.dataset.value=option.value;button.addEventListener('click',()=>{select.value=option.value;select.dispatchEvent(new Event('change',{bubbles:true}));syncFlatOptions();});row.append(button);}
+    if(select.id==='ws-brush-shape'){select.closest('label').childNodes.forEach(node=>{if(node.nodeType===Node.TEXT_NODE)node.textContent='';});row.classList.add('ws-brush-shape-options');}
+    select.hidden=true;select.after(row);flatOptionGroups.push({select,row});
+  }
+  const syncFlatOptions=()=>{for(const {select,row}of flatOptionGroups)for(const button of row.children)button.setAttribute('aria-pressed',String(button.dataset.value===select.value));};
+  store.subscribe(syncFlatOptions);syncFlatOptions();
+  // On narrow screens, real advanced controls move into a reachable popup.
+  // Marker nodes restore the same controls in their desktop positions.
+  const mobileBrushOptions=document.createElement('details');
+  mobileBrushOptions.className='ws-mobile-brush-options';
+  mobileBrushOptions.innerHTML='<summary>更多选项</summary><div class="ws-mobile-brush-options-body"></div>';
+  const mobileBrushBody=mobileBrushOptions.querySelector('div');
+  const mobileBrushGroup=moveToolControls('brush eraser',[mobileBrushOptions]);
+  const advancedBrushGroups=[...toolOptions.children].filter(group=>group!==brushSizeContext&&group!==symmetryParameterGroup&&group!==mobileBrushGroup&&group.dataset.tools?.split(' ').includes('brush'));
+  const brushGroupMarkers=advancedBrushGroups.map(group=>{const marker=document.createComment('brush option desktop position');group.before(marker);return {group,marker};});
+  const mobileBrushMedia=matchMedia('(max-width:760px)');
+  const positionMobileBrushOptions=()=>{if(!mobileBrushOptions.open)return;const rect=mobileBrushOptions.querySelector('summary').getBoundingClientRect();mobileBrushBody.style.left='8px';mobileBrushBody.style.top=`${rect.bottom+6}px`;};
+  const syncMobileBrushOptions=()=>{mobileBrushOptions.open=false;for(const {group,marker} of brushGroupMarkers){if(mobileBrushMedia.matches)mobileBrushBody.append(group);else marker.after(group);}};
+  mobileBrushOptions.addEventListener('toggle',positionMobileBrushOptions);
+  mobileBrushMedia.addEventListener('change',syncMobileBrushOptions);
+  window.addEventListener('resize',positionMobileBrushOptions);
+  store.subscribe(state=>{if(!['brush','eraser'].includes(state.editor.tool))mobileBrushOptions.open=false;});
+  syncMobileBrushOptions();
+
+  // Output tasks move live controls, including their existing listeners.
+  const outputTaskNav=document.createElement('nav');outputTaskNav.className='ws-output-tasks';outputTaskNav.setAttribute('aria-label','输出任务');
+  const outputTasks=[['pattern','导出图纸'],['project','保存工程'],['print','打印与分板'],['poster','分享海报']];
+  outputTaskNav.innerHTML=outputTasks.map(([id,label])=>`<button type="button" data-output-task="${id}">${label}</button>`).join('');drawer.querySelector('.ws-drawer-head').after(outputTaskNav);
+  const outputPanels=new Map(outputTasks.map(([id,label])=>{const panel=document.createElement('section');panel.dataset.outputPanel=id;panel.setAttribute('aria-label',label);drawer.insertBefore(panel,$('#ws-export-message'));return[id,panel];}));
+  outputPanels.get('pattern').append($('#ws-export-quality').closest('.ws-export-options'),drawer.querySelector('[data-export-v2="png"]'),drawer.querySelector('[data-export-v2="pdf"]'));
+  outputPanels.get('project').append(drawer.querySelector('[data-export-v2="pixler"]'),drawer.querySelector('[data-ws-export="project-json"]'),$('#ws-save-project'),drawer.querySelector('[data-ws-export="usage-csv"]'));
+  outputPanels.get('print').append($('#ws-board-summary').closest('.ws-export-options'),$('#ws-boards-choice'),$('#ws-output-a4'),$('#ws-output-boards'),$('#ws-output-preview'));
+  const buildSplitSettings = document.createElement('div'); buildSplitSettings.className = 'ws-export-build-split';
+  const splitStepper = $('#ws-block-count').closest('.ws-stepper'), splitNote = splitStepper.previousElementSibling, splitTitle = splitNote.previousElementSibling;
+  splitTitle.textContent = '施工分区';
+  buildSplitSettings.append(splitTitle, splitNote, splitStepper, $('#ws-block-advice'));
+  buildSplitSettings.addEventListener('click', handleBuildControlsClick);
+  outputPanels.get('print').prepend(buildSplitSettings);
+  outputPanels.get('poster').append($('#ws-poster-ratio').closest('.ws-export-options'),drawer.querySelector('[data-export-v2="poster"]'));
+  function showOutputTask(id){drawer.dataset.outputCurrent=id;for(const [key,panel]of outputPanels)panel.hidden=key!==id;outputTaskNav.querySelectorAll('button').forEach(button=>{button.classList.toggle('active',button.dataset.outputTask===id);button.setAttribute('aria-pressed',String(button.dataset.outputTask===id));});$('#ws-export-title').value=mirroredTitle(get().project.name,['pattern','print'].includes(id)?$('#ws-export-mirror').value:'none');if(id==='poster')refreshPosterPreview();}
+  outputTaskNav.addEventListener('click',event=>{const button=event.target.closest('[data-output-task]');if(button)showOutputTask(button.dataset.outputTask);});showOutputTask('pattern');
+  let exportTextLayers = get().editor.textLayers, exportPalette = get().palette.id, exportObjectRevision = 0;
+  const compactExportPanel = attachCompactExportPanel({ drawer,
+    refreshPosterPreview,
+    getGrid: () => composeLockedTextGrid(bridge.getResult().grid || [], currentTextLayers(), paletteColors()),
+    getTitle: () => mirroredTitle(get().project.name, ['pattern','print'].includes(drawer.dataset.outputCurrent) ? $('#ws-export-mirror').value : 'none'),
+    getPaletteLabel: () => bridge.getResult().paletteLabel || get().palette.id,
+    getMajorInterval: () => majorGridInterval,
+    getRevision: () => {
+      const state = get();
+      if (exportTextLayers !== state.editor.textLayers || exportPalette !== state.palette.id) {
+        exportTextLayers = state.editor.textLayers; exportPalette = state.palette.id; exportObjectRevision++;
+      }
+      return `${gridRevision}:${exportObjectRevision}`;
+    },
+  });
+  store.subscribe((state, patch = {}) => {
+    if (patch.palette) exportObjectRevision++;
+    if (patch.canvas || patch.palette || patch.editor?.textLayers || patch.project || patch.status?.hasPattern) compactExportPanel.refresh();
+  });
+  const saveNow=document.createElement('button');saveNow.id='ws-save-now';saveNow.type='button';saveNow.className='ws-button';saveNow.textContent='保存工程';saveNow.addEventListener('click',()=>$('#ws-save-project').click());outputMenu.before(saveNow);
+  saveNow.before(top.querySelector('.ws-project-menu'));
+  outputMenu.after(saveNow);
+  exportButton.remove();outputMenu.remove();
+  exportNow.after(saveNow);
+
+  const featureDialog=document.createElement('dialog');featureDialog.className='ws-feature-search';featureDialog.innerHTML='<div class="ws-help-head"><strong>找功能</strong><button type="button" aria-label="关闭">×</button></div><input type="search" placeholder="去背景、描边、库存、尺寸…" aria-label="查找功能"><div class="ws-feature-results"></div>';
+  wrap.append(featureDialog);featureDialog.querySelector('button').addEventListener('click',()=>featureDialog.close());
+const features=[['生成尺寸','generation','ws-size-controls'],['生成去纯色背景','generation','ws-generation-background-host'],['画面调整 色调','source','ws-source-brightness-value'],['管理可用色卡','color','ws-available-open'],['描边','edit','ws-outline-preview'],['文字对象','edit','ws-text-objects'],['参考底图','edit','ws-ref-pick'],['诊断 检查 修复 低频色','check','ws-check-tools'],['库存 材料 用豆','material','inventoryPanel'],['图纸尺寸','project','ws-resize-open'],['本地版本 历史','project','ws-version-save'],['触屏按钮绘制','edit','ws-touch-enabled']];
+  const renderFeatureResults=()=>{const query=featureDialog.querySelector('input').value.trim().toLowerCase(),results=featureDialog.querySelector('.ws-feature-results');results.replaceChildren();for(const [label,panel,id]of features){if(!$('#'+id)||query&&!label.toLowerCase().includes(query))continue;const button=document.createElement('button');button.type='button';button.textContent=label;button.addEventListener('click',()=>{featureDialog.close();openWorkspacePanel(panel);requestAnimationFrame(()=>$('#'+id)?.scrollIntoView({block:'center',behavior:'auto'}));});results.append(button);}if(!results.children.length)results.textContent='没有匹配的功能，试试其他关键词。';};
+  featureDialog.querySelector('input').addEventListener('input',renderFeatureResults);
+  const featureSearchButton=document.createElement('button');featureSearchButton.type='button';featureSearchButton.id='ws-find-feature';featureSearchButton.className='ws-button';featureSearchButton.textContent='找功能';featureSearchButton.addEventListener('click',()=>{renderFeatureResults();featureDialog.showModal();featureDialog.querySelector('input').focus();});top.append(featureSearchButton);
+
+  surfaces.register('output',{element:drawer,trigger:exportNow,isOpen:()=>drawer.classList.contains('open'),close:()=>{store.setState({ui:{exportDrawerOpen:false}});drawer.classList.remove('open');},restoreFocus:()=>exportNow.focus()});
+  const transientMenus = [projectMenu, editActions];
+  for (const menu of transientMenus) {
+    const trigger=menu.querySelector('summary'),id=menu.id||'symmetry';
+    surfaces.register(id,{element:menu,trigger,isOpen:()=>menu.open,close:()=>{menu.open=false;},restoreFocus:()=>trigger.focus()});
+    menu.addEventListener("click", event => {
+      // Close before the action, including actions that stop propagation.
+      if (event.target.closest("button")) menu.open = false;
+      if (event.target.closest("summary")?.parentElement === menu) {
+        surfaces.open(id);
+      }
+    }, true);
+  }
+
+  wrap.addEventListener('click', event => {
+    const button = event.target.closest('[data-tool]');
+    if (!button || button.disabled) return;
+    hideInlineSizeSettings();
+    hideInlineOutlineSettings();
+    const tool=button.dataset.tool;
+    openToolMenu=SHAPE_TOOLS[tool]?'shape':['select','region','lasso','closed-lasso','selection-move','reference-eyedropper','wand','same','connected'].includes(tool)?'selection':null;
+    toolParametersOpen = button.closest('#ws-tool-options') ? true : tool === get().editor.tool ? !toolParametersOpen : true;
+    syncToolOptions(get());
+  }, true);
+  wrap.addEventListener('click',event=>{const menu=event.target.closest('[data-tool-menu]');if(!menu)return;const name=menu.dataset.toolMenu;openToolMenu=openToolMenu===name?null:name;toolParametersOpen=Boolean(openToolMenu);$('#ws-tool-options').hidden=!toolParametersOpen;syncToolOptions(get());},true);
+  window.addEventListener('keydown', event => {
+    if (event.ctrlKey || event.metaKey || event.altKey || event.target?.closest('input,textarea,select,[contenteditable="true"]') || document.querySelector('dialog[open]:not(#ws-resize-dialog)')) return;
+    if (/^[vntbeglrcmqwyuih]$/i.test(event.key)) {const tool=get().editor.tool;openToolMenu=SHAPE_TOOLS[tool]?'shape':['select','region','lasso','closed-lasso','selection-move','reference-eyedropper','wand','same','connected'].includes(tool)?'selection':null;toolParametersOpen = true;$('#ws-tool-options').hidden=false;syncToolOptions(get());}
+  }, true);
+  const inlineSizeSettings = document.createElement('div');
+  inlineSizeSettings.className = 'ws-inline-size'; inlineSizeSettings.hidden = true;
+  const sizeHome = document.createComment('generation size settings home');
+  generationSizeBlock.before(sizeHome);
+  inlineSizeSettings.append(resizeDialog); toolOptions.append(inlineSizeSettings);
+  resizeDialog.querySelector('form').addEventListener('submit', event => event.preventDefault());
+  const inlineAnchor = document.createElement('label');
+  inlineAnchor.innerHTML = `锚点<select id="ws-resize-anchor-select">${resizeAnchors.map((anchor, index) => `<option value="${anchor}">${resizeAnchorLabels[index]}</option>`).join('')}</select>`;
+  $('#ws-resize-anchor-wrap').append(inlineAnchor);
+  inlineAnchor.querySelector('select').addEventListener('input', event => {
+    resizeDialog.querySelector(`[name="ws-resize-anchor"][value="${event.target.value}"]`).checked = true;
+    syncResizeSummary();
+  });
+  const liveSize = document.createElement('label'); liveSize.className='ws-live-size';
+  liveSize.innerHTML='<output id="ws-live-size-value"></output><input id="ws-live-size-range" type="range" min="1" max="1000" step="1" aria-label="图纸尺寸（按当前宽高比例）">';
+  const sizeNumbers=$('#ws-resize-width').closest('.ws-selection-actions');sizeNumbers.hidden=true;sizeNumbers.before(liveSize);
+  $('#ws-resize-apply').hidden=true;$('#ws-resize-apply').style.display='none';
+  let liveSizeBaseline=null, liveSizeCommand=null;
+  let liveSizeSource=null, liveSizeAppliedGrid=null, liveSizeAppliedRevision=-1;
+  // The size slider scales the whole pattern. Only directional +29 buttons
+  // use canvas expansion; size changes must never invoke cropping.
+  resizeDialog.querySelector('[name="ws-resize-mode"][value="pattern"]').checked=true;
+  resizeDialog.querySelector('.ws-resize-modes').hidden=true;
+  resizeDialog.querySelector('.ws-resize-modes').style.display='none';
+  $('#ws-resize-anchor-wrap').hidden=true;
+  const updateLiveSizeUi=()=>{const result=bridge.getResult();const slider=$('#ws-live-size-range');const sourceGeneration=Boolean(result.sourceUrl&&!result.manualEdited);slider.min=sourceGeneration?'10':'1';slider.max=sourceGeneration?'500':'1000';$('#ws-live-size-value').textContent=`${result.width} × ${result.height}`;if(!liveSizeBaseline)slider.value=String(Math.max(result.width,result.height));};
+  function finishLiveSize() {
+    if(liveSizeCommand){editorService.executeCommand(liveSizeCommand);liveSizeAppliedGrid=bridge.getResult().grid;liveSizeAppliedRevision=gridRevision;}
+    liveSizeBaseline=null;liveSizeCommand=null;updateLiveSizeUi();
+  }
+  const syncLiveResize = () => {const result=bridge.getResult();store.setState({canvas:{width:result.width,height:result.height},editor:{selection:null,selectedCell:null},status:{dirty:true,hasPattern:true}});viewport.fitToViewport();syncResizeInputs();updateLiveSizeUi();};
+  $('#ws-live-size-range').addEventListener('input',event=>{
+    if(lockedAuthority())return;
+    sizeOrigin='manual';setLongEdgeDraft(event.target.value);
+    setLongEdgeAuthority(LONG_EDGE_EVENT.USER_APPLIED);pushDraftToBridge();
+    // Unedited source images must regenerate at the requested resolution;
+    // structural resize would mark them manually edited and block generation.
+    if(bridge.getResult().sourceUrl&&!bridge.getResult().manualEdited){requestLiveGenerationSize();return;}
+    if(!liveSizeBaseline){const result=bridge.getResult();if(!result.grid?.length)return;
+      if(!liveSizeSource||result.grid!==liveSizeAppliedGrid||gridRevision!==liveSizeAppliedRevision)liveSizeSource={grid:structuredClone(result.grid),width:result.width,height:result.height};
+      liveSizeBaseline={grid:structuredClone(result.grid),width:result.width,height:result.height};}
+    const edge=Number(event.target.value),longEdge=Math.max(liveSizeSource.width,liveSizeSource.height);
+    const targetWidth=Math.max(1,Math.round(liveSizeSource.width*edge/longEdge)),targetHeight=Math.max(1,Math.round(liveSizeSource.height*edge/longEdge));
+    liveSizeCommand=createGridResizeCommand(bridge,{...liveSizeBaseline,patternSource:liveSizeSource,targetWidth,targetHeight,mode:'pattern'});
+    liveSizeCommand.execute();liveSizeAppliedGrid=bridge.getResult().grid;liveSizeAppliedRevision=gridRevision;syncLiveResize();
+  });
+  $('#ws-live-size-range').addEventListener('change',finishLiveSize);
+  $('#ws-live-size-range').addEventListener('blur',finishLiveSize);
+  resizeDialog.querySelectorAll('[data-resize-preset]').forEach(button=>button.addEventListener('click',()=>{const slider=$('#ws-live-size-range');slider.value=button.dataset.resizePreset;slider.dispatchEvent(new Event('input',{bubbles:true}));finishLiveSize();}));
+  store.subscribe((state,patch={})=>{if(patch.canvas&&!liveSizeBaseline)updateLiveSizeUi();});
+  const expansionButtons=document.createElement('div'); expansionButtons.className='ws-inline-expand';
+  expansionButtons.innerHTML=[['left','左'],['right','右'],['top','上'],['bottom','下']].map(([direction,label])=>`<button type="button" data-expand-direction="${direction}">${label}＋29</button>`).join('');
+  inlineSizeSettings.append(expansionButtons);
+  expansionButtons.addEventListener('click',event=>{
+    const direction=event.target.closest('[data-expand-direction]')?.dataset.expandDirection;if(!direction)return;finishLiveSize();
+    const result=bridge.getResult();if(!result.grid?.length)return;
+    const targetWidth=result.width+(['left','right'].includes(direction)?29:0),targetHeight=result.height+(['top','bottom'].includes(direction)?29:0);
+    if(targetWidth>1000||targetHeight>1000){notify('图纸尺寸最多为 1000 × 1000 格');return;}
+    const gridCommand=createGridResizeCommand(bridge,{grid:result.grid,width:result.width,height:result.height,targetWidth,targetHeight,mode:'canvas',anchor:{left:'right',right:'left',top:'bottom',bottom:'top'}[direction]});
+    const before=structuredClone(currentTextLayers()),after=before.map(layer=>({...layer,x:layer.x+(direction==='left'?29:0),y:layer.y+(direction==='top'?29:0)})),active=get().editor.activeTextLayerId;
+    editorService.executeCommand(createEditorCommand({kind:'structure',type:'RESIZE_CANVAS',label:`${direction}＋29`,execute:()=>{const ok=gridCommand.execute();if(ok)setTextLayers(structuredClone(after),active);return ok;},undo:()=>{const ok=gridCommand.undo();if(ok)setTextLayers(structuredClone(before),active);return ok;},redo:()=>{const ok=gridCommand.redo();if(ok)setTextLayers(structuredClone(after),active);return ok;}}));
+    syncLiveResize();
+  });
+  function hideInlineSizeSettings() {
+    const inline = toolOptions.querySelector('.ws-inline-size'); if (!inline || inline.hidden) return;
+    finishLiveSize();inline.hidden = true; delete toolOptions.dataset.settings;
+    sizeHome.after(generationSizeBlock); resizeDialog.close();
+    $('#ws-toolbar-size')?.setAttribute('aria-expanded', 'false');
+  }
+  function showInlineSizeSettings(generation = false) {
+    if (!inlineSizeSettings.hidden) { hideInlineSizeSettings(); return; }
+    hideInlineOutlineSettings();
+    syncResizeInputs();
+    updateLiveSizeUi();
+    if (generation) { resizeDialog.removeAttribute('open'); inlineSizeSettings.append(generationSizeBlock); }
+    else { sizeHome.after(generationSizeBlock); resizeDialog.setAttribute('open', ''); }
+    inlineSizeSettings.hidden = false; toolOptions.dataset.settings = 'size';
+    toolParametersOpen = true; toolOptions.hidden = false;
+    $('#ws-toolbar-size')?.setAttribute('aria-expanded', 'true');
+  }
+  resizeDialog.querySelector('.ws-resize-foot button[value="cancel"]').addEventListener('click', event => { event.preventDefault(); hideInlineSizeSettings(); });
+  attachWorkspaceV3Layout({
+    top, controls: topControls,
+    navigateSize: () => showInlineSizeSettings(workareaForPanel(get().ui.activePanel) === 'generate' && Boolean(bridge.getResult().sourceUrl) && !lockedAuthority() && !bridge.getResult().manualEdited),
+  });
   store.subscribe(paint);
+  store.subscribe((state,patch={})=>{
+    if(patch.editor&&(Object.hasOwn(patch.editor,"tool")||
+      (!Object.hasOwn(patch.editor,"selectedCell")&&["currentPaletteId","selectedPaletteId","highlightedPaletteId"].some(key=>Object.hasOwn(patch.editor,key)))))cellColorPopover.close();
+    cellColorPopover.update();
+  });
   syncLegacy(); paint(get(), { status: true, stats: true });
   renderPicker();
+  paletteColorPickers.push(...["#ws-current-color-target", "#ws-repair-target", "#ws-merge-target", "#ws-outline-target", "#ws-ramp-level-target"].map(selector=>attachPaletteColorPicker($(selector), {getColors:paletteColors,surfaces})));
+  const replacementSourceColors=()=>[...new Map([...paletteColors(),...[...editorService.getPaletteUsageCounts().keys()].map(id=>editorService.getUsedPaletteColor(id)).filter(Boolean)].map(color=>[paletteIdOf(color),color])).values()];
+  paletteColorPickers.push(attachPaletteColorPicker($("#ws-replace-from"), {getColors:replacementSourceColors,surfaces,valueMode:"code"}),attachPaletteColorPicker($("#ws-replace-to"), {getColors:paletteColors,surfaces,valueMode:"code"}));
   // 可复现浏览器 QA 入口只在本机开放；固定夹具不进入工程格式，也不会影响线上用户。
   const qaProject = new URLSearchParams(location.search).get("qaProject");
   if (["localhost", "127.0.0.1"].includes(location.hostname) && qaProject === "editor-104") {

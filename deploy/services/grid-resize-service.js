@@ -121,13 +121,14 @@ export function createGridResizeCommand(bridge, {
   targetHeight,
   mode = "canvas",
   anchor = "center",
+  patternSource = null,
 } = {}) {
   if (!Array.isArray(grid) || width < 1 || height < 1) throw new TypeError("Resize 需要有效 canonical grid");
   const nextWidth = dimension(targetWidth, "targetWidth"), nextHeight = dimension(targetHeight, "targetHeight");
   if (!['canvas', 'pattern'].includes(mode)) throw new RangeError(`未知 Resize 模式：${mode}`);
   const before = cloneGridSnapshot({ grid, width, height });
   const resized = mode === "pattern"
-    ? scalePatternNearest(before.grid, nextWidth, nextHeight)
+    ? scalePatternNearest(patternSource?.grid ?? before.grid, nextWidth, nextHeight)
     : resizeCanvasGrid(before.grid, nextWidth, nextHeight, { anchor });
   const after = cloneGridSnapshot({ grid: resized, width: nextWidth, height: nextHeight });
   // replaceGridStructure 的具体桥接实现可能直接接管传入矩阵；每次应用都再克隆，

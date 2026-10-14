@@ -1,3 +1,4 @@
+import { getSrgbContext, readSrgbImageData } from './srgb-canvas.mjs?v=20261007-v3-srgb';
 export const defaultSourceTransform = () => ({
   crop: null, cropRatio: "free", rotation: 0, flipX: false, flipY: false,
   brightness: 0, contrast: 0, saturation: 0, sharpen: 0,
@@ -34,29 +35,46 @@ export function cropFromDrag(ax, ay, bx, by, width, height, ratio = "free") {
   return normalizeSourceCrop({x:x0*width,y:y0*height,width:Math.max(1,(x1-x0)*width),height:Math.max(1,(y1-y0)*height)},width,height);
 }
 
-function adjustPixels(canvas, transform) {
+// Always derive a new buffer from the unchanged input. Sharpen reads the
+// completed tonal pass, never partially updated or pre-adjustment neighbours.
+export function adjustSourcePixels(input, width, height, transform = {}) {
+  if (input.length !== width * height * 4) throw new RangeError('Invalid RGBA dimensions');
+  const pixels = new Uint8ClampedArray(input);
   const brightness = clamp(transform.brightness,-100,100)*2.55, contrast = 1 + clamp(transform.contrast,-100,100)/100;
   const saturation = 1 + clamp(transform.saturation,-100,100)/100, sharpen = clamp(transform.sharpen,0,100)/100;
-  if (!brightness && contrast === 1 && saturation === 1 && !sharpen) return;
-  const ctx = canvas.getContext("2d", {willReadFrequently:true}), image = ctx.getImageData(0,0,canvas.width,canvas.height), pixels = image.data;
-  const original = sharpen ? new Uint8ClampedArray(pixels) : null, w = canvas.width, h = canvas.height;
+  if (!brightness && contrast === 1 && saturation === 1 && !sharpen) return pixels;
+  const w = width, h = height;
   for (let y=0;y<h;y++) for (let x=0;x<w;x++) {
     const index=(y*w+x)*4; if (!pixels[index+3]) continue;
     let rgb=[pixels[index],pixels[index+1],pixels[index+2]].map((v)=>(v-128)*contrast+128+brightness);
     const gray=rgb[0]*.299+rgb[1]*.587+rgb[2]*.114;
     rgb=rgb.map((v)=>gray+(v-gray)*saturation);
-    if (sharpen) {
-      for (let channel=0;channel<3;channel++) {
-        let total=0,count=0;
-        for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-          const nx=x+dx,ny=y+dy; if(nx<0||ny<0||nx>=w||ny>=h)continue;
-          total+=original[(ny*w+nx)*4+channel]; count++;
-        }
-        if (count) rgb[channel]+=(original[index+channel]-total/count)*sharpen*.8;
-      }
-    }
     for(let c=0;c<3;c++)pixels[index+c]=clamp(Math.round(rgb[c]),0,255);
   }
+  if (sharpen) {
+    const adjusted = new Uint8ClampedArray(pixels);
+    for (let y=0;y<h;y++) for (let x=0;x<w;x++) {
+      const index=(y*w+x)*4;
+      if (!adjusted[index+3]) continue;
+      for (let channel=0;channel<3;channel++) {
+        let total=0,weight=0;
+        for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+          const nx=x+dx,ny=y+dy; if(nx<0||ny<0||nx>=w||ny>=h)continue;
+          const neighbour=(ny*w+nx)*4, alpha=adjusted[neighbour+3]/255;
+          total+=adjusted[neighbour+channel]*alpha; weight+=alpha;
+        }
+        if (weight) pixels[index+channel]=clamp(Math.round(adjusted[index+channel]+(adjusted[index+channel]-total/weight)*sharpen*.8),0,255);
+      }
+    }
+  }
+  return pixels;
+}
+
+function adjustPixels(canvas, transform) {
+  if (!transform.brightness && !transform.contrast && !transform.saturation && !transform.sharpen) return;
+  const {context:ctx}=getSrgbContext(canvas,{willReadFrequently:true});
+  const image=readSrgbImageData(ctx,0,0,canvas.width,canvas.height).imageData;
+  image.data.set(adjustSourcePixels(image.data,canvas.width,canvas.height,transform));
   ctx.putImageData(image,0,0);
 }
 
@@ -65,14 +83,22 @@ export function renderSourceTransform(image, transform = defaultSourceTransform(
   const scale=Math.min(1, maxSide/Math.max(geometry.width,geometry.height)), sw=Math.max(1,Math.round(geometry.crop.width*scale)), sh=Math.max(1,Math.round(geometry.crop.height*scale));
   const rotated=document.createElement("canvas"), swap=Math.abs(Math.round(transform.rotation/90))%2===1;
   rotated.width=swap?sh:sw; rotated.height=swap?sw:sh;
-  const ctx=rotated.getContext("2d",{willReadFrequently:true});
+  const {context:ctx}=getSrgbContext(rotated,{willReadFrequently:true});
   ctx.translate(rotated.width/2,rotated.height/2); ctx.rotate((Number(transform.rotation)||0)*Math.PI/180);
   ctx.scale(transform.flipX?-1:1,transform.flipY?-1:1);
   ctx.drawImage(image,geometry.crop.x,geometry.crop.y,geometry.crop.width,geometry.crop.height,-sw/2,-sh/2,sw,sh);
   ctx.setTransform(1,0,0,1,0,0); adjustPixels(rotated,transform);
   const result=document.createElement("canvas"), left=Math.round(geometry.left*scale), right=Math.round(geometry.right*scale), top=Math.round(geometry.top*scale), bottom=Math.round(geometry.bottom*scale);
   result.width=rotated.width+left+right; result.height=rotated.height+top+bottom;
-  const out=result.getContext("2d"); out.fillStyle=transform.background || "#ffffff"; out.fillRect(0,0,result.width,result.height);
+  const {context:out}=getSrgbContext(result);
+  // Background belongs to the newly expanded margins, not underneath the
+  // source image. Filling the whole result destroyed PNG alpha even for an
+  // automatic crop, rotation or brightness-only adjustment.
+  out.fillStyle=transform.background || "#ffffff";
+  if (top) out.fillRect(0,0,result.width,top);
+  if (bottom) out.fillRect(0,top+rotated.height,result.width,bottom);
+  if (left) out.fillRect(0,top,left,rotated.height);
+  if (right) out.fillRect(left+rotated.width,top,right,rotated.height);
   out.drawImage(rotated,left,top); return result;
 }
 

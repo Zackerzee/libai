@@ -54,12 +54,14 @@ export function encodeGenerationResult(result = {}) {
         continue;
       }
       const code = String(cell.code);
-      let index = indexByCode.get(code);
+      const identity = cell.paletteId == null ? code : String(cell.paletteId);
+      let index = indexByCode.get(identity);
       if (index === undefined) {
         index = palette.length;
-        indexByCode.set(code, index);
+        indexByCode.set(identity, index);
         palette.push(Object.freeze({
           code,
+          ...(cell.paletteId == null ? {} : { paletteId: String(cell.paletteId) }),
           rgb: Object.freeze(toRgbTriple(cell.rgb)),
           hex: cell.hex == null ? null : String(cell.hex),
         }));
@@ -103,7 +105,7 @@ export function decodeGenerationResult(compact = {}) {
       const index = indices ? Number(indices[y * width + x]) : GENERATION_NULL_INDEX;
       if (index < 0 || !palette[index]) { row[x] = null; continue; }
       const entry = palette[index];
-      row[x] = { code: entry.code, rgb: toRgbTriple(entry.rgb), hex: entry.hex };
+      row[x] = { code: entry.code, ...(entry.paletteId == null ? {} : { paletteId: String(entry.paletteId) }), rgb: toRgbTriple(entry.rgb), hex: entry.hex };
     }
     grid.push(row);
   }

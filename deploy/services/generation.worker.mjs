@@ -19,7 +19,7 @@
  * 结果用紧凑契约回（§28）：palette + Int32Array 下标，避免 25 万个对象跨线程克隆。
  */
 
-import { executeGenerationJob } from "./generation-job.mjs";
+import { executeGenerationJob } from "./generation-job.mjs?v=20261014-fusion-production-1";
 import { encodeGenerationResult } from "./generation-result-codec.mjs";
 
 const post = (payload, transfer = []) => {

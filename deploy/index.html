@@ -2,27 +2,32 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
       content="LIBMS Studio 是时里白造物推出的专业拼豆设计与制作工作台，提供智能生成、真实色号、精细编辑、材料统计、大图分板与专业输出。"
     />
     <title>LIBMS Studio｜专业拼豆设计与制作工作台</title>
-    <link rel="icon" href="./libai-logo-pixel.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=20260930-home-v1" />
-    <link rel="stylesheet" href="./styles/tokens.css?v=20260922-pixler" />
-    <link rel="stylesheet" href="./styles/workspace.css?v=20261001-stage-a-hotfix" />
-    <link rel="stylesheet" href="./styles/generation-editor.css?v=20260922-pixler" />
+    <link rel="icon" href="./assets/libms-logo.png" type="image/png" />
+    <link rel="stylesheet" href="./styles.css?v=20261007-menu-dismiss" />
+    <link rel="stylesheet" href="./styles/tokens.css?v=20261013-v3-layout-p8" />
+<link rel="stylesheet" href="./styles/workspace.css?v=20261015-stage1-1" />
+    <link rel="stylesheet" href="./styles/palette-brand-cards.css?v=20261010-editor-r31" />
+    <link rel="stylesheet" href="./styles/generation-editor.css?v=20261006-studio" />
     <link rel="stylesheet" href="./vendor/fusion-pixel/fusion-pixel.css?v=20260922" />
-    <link rel="stylesheet" href="./styles/pixler-skin.css?v=20260930-export-cjk5" />
-    <link rel="stylesheet" href="./styles/homepage.css?v=20260930-home-v1" />
+    <link rel="stylesheet" href="./styles/pixler-skin.css?v=20261006-studio" />
+    <link rel="stylesheet" href="./styles/homepage.css?v=20261008-palette-poster-r18" />
+    <link rel="stylesheet" href="./styles/studio-system.css?v=20261010-editor-r31" />
+    <link rel="stylesheet" href="./styles/quick-start-motion.css?v=20261007-flower-r1" />
+    <link rel="stylesheet" href="./vendor/misans/ui-font.css?v=20261014-ui-type-1" />
+    <link rel="stylesheet" href="./styles/ui-typography.css?v=20261014-ui-type-light-3" />
   </head>
   <body>
     <div class="app-shell">
       <header class="topbar">
         <div class="topbar-inner">
           <a class="brand" href="#" aria-label="LIBMS Studio 首页">
-            <img src="./assets/brand/shiliber-mark-256.png" alt="时里白造物四色圆环标志" width="48" height="48" />
+            <img src="./assets/libms-logo.png" alt="时里白造物四色圆环标志" width="48" height="48" decoding="async" />
             <span class="brand-lockup">
               <strong>LIBMS Studio</strong>
               <small>by 时里白造物</small>
@@ -76,6 +81,10 @@
                 </div>
 
                 <div class="hero-workflow-visual" aria-label="从原图到拼豆图纸、真实色号和 104 分板的工作流示意">
+                  <div class="hero-artwork">
+                    <img src="./assets/studio-bloom.svg" alt="原创像素花束作品示意" width="560" height="560" decoding="async" fetchpriority="high" />
+                    <span class="hero-artwork-caption">让灵感，有形可拼。</span>
+                  </div>
                   <div class="hero-visual-glow" aria-hidden="true"></div>
                   <div class="workflow-card source-card">
                     <span class="workflow-card-label">原图</span>
@@ -106,6 +115,7 @@
                   <p>快速开始</p>
                   <h2 id="quick-start-title">选择你的创作方式</h2>
                 </div>
+                <div class="quick-start-layout">
                 <div class="start-panel homepage-start-panel">
                 <label
                   class="start-card upload-zone"
@@ -134,6 +144,28 @@
                   <span class="start-link">打开工程 <span aria-hidden="true">→</span></span>
                 </button>
                 <input id="landing-project-input" class="file-input-hidden" type="file" accept="application/json,.json,.pixler" />
+                </div>
+                <figure class="quick-start-motion" aria-labelledby="quick-start-motion-caption">
+                  <svg class="quick-start-motion-svg" viewBox="0 0 420 300" role="img" aria-label="同一朵小花从原图、色号图纸到拼豆作品的三层示意">
+                    <defs>
+                      <linearGradient id="quick-flower-paper" x2="0.8" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#ede9fa"/></linearGradient>
+                      <filter id="quick-flower-shadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="7" stdDeviation="8" flood-color="#514472" flood-opacity=".12"/></filter>
+                    </defs>
+                    <g data-flower-layer="0"><g transform="matrix(.92 .24 -.48 .68 129 17)">
+                      <rect width="218" height="218" rx="16" fill="url(#quick-flower-paper)" stroke="#d9d2eb" filter="url(#quick-flower-shadow)"/>
+                      <g data-flower-original></g>
+                    </g><text class="quick-flower-layer-label" x="60" y="57">01 原图</text></g>
+                    <g data-flower-layer="1"><g transform="matrix(.92 .24 -.48 .68 129 53)">
+                      <rect width="218" height="218" rx="12" fill="#fcfbff" stroke="#d9d2eb" filter="url(#quick-flower-shadow)"/>
+                      <g data-flower-grid></g>
+                    </g><text class="quick-flower-layer-label" x="49" y="133">02 色号图纸</text></g>
+                    <g data-flower-layer="2"><g transform="matrix(.92 .24 -.48 .68 129 89)">
+                      <rect width="218" height="218" rx="12" fill="#f7f4ff" stroke="#d9d2eb" filter="url(#quick-flower-shadow)"/>
+                      <g data-flower-beads></g>
+                    </g><text class="quick-flower-layer-label" x="36" y="222">03 拼豆作品</text></g>
+                  </svg>
+                  <figcaption id="quick-start-motion-caption"><span>一张图片，一份图纸，一件作品。</span><button type="button" class="quick-start-motion-toggle" aria-pressed="false">展开看看</button></figcaption>
+                </figure>
                 </div>
               </section>
 
@@ -452,7 +484,7 @@
           <aside class="side-panel" aria-label="公益邀请注册">
             <section class="panel invite-panel">
               <div class="invite-logo" aria-hidden="true">
-                <img src="./libai-logo-pixel.svg" alt="" />
+                <img src="./assets/libms-logo.png" alt="" />
               </div>
               <p class="invite-kicker">公益项目</p>
               <h2>邀请制使用</h2>
@@ -492,7 +524,7 @@
         <div class="footer-container">
           <div class="footer-main">
             <div class="footer-brand">
-              <img src="./assets/brand/shiliber-mark-256.png" alt="时里白造物四色圆环标志" width="72" height="72" loading="lazy" />
+              <img src="./assets/libms-logo.png" alt="时里白造物四色圆环标志" width="72" height="72" loading="lazy" decoding="async" fetchpriority="low" />
               <div>
                 <strong>LIBMS Studio</strong>
                 <span>专业拼豆设计与制作工作台</span>
@@ -512,6 +544,7 @@
           </div>
           <details class="compliance-disclosure">
             <summary>网站免责与合规声明</summary>
+            <p>界面字体：苹果设备优先使用苹方，其余设备使用小米 MiSans。MiSans 字体来自小米官方，遵循<a href="https://hyperos.mi.com/font/zh/download/" target="_blank" rel="noopener noreferrer">MiSans 字体许可协议</a>；作品文字和导出字体独立设置。</p>
             <p>
               本站为开源/公益性拼豆图纸本地生成工具。所有图片转换、像素化处理均在用户本地浏览器（客户端）完成，本站服务器不存储、不传输、不审核任何用户上传的图片。用户使用本工具生成的任何拼豆图纸，其原始图片版权及由此引发的法律责任完全由操作用户本人承担。本站严禁任何用户利用本工具生成涉及政治敏感、暴恐、色情、侵权等违反国家法律法规的内容。图纸中所附带的“网站 Logo 与名称”仅作为工具技术出处的数字水印，不代表本站赞同、认可或审核过该生成内容。任何恶意生成违规内容并传播者，本站将积极配合有关部门追究其法律责任。
             </p>
@@ -558,7 +591,7 @@
           </button>
         </div>
         <div class="register-body">
-          <img src="./libai-logo-pixel.svg" alt="" />
+          <img src="./assets/libms-logo.png" alt="" />
           <label class="field">
             <span>创作者名称</span>
             <input id="register-name" type="text" autocomplete="name" placeholder="请输入你的名称" />
@@ -990,7 +1023,10 @@
       </div>
     </dialog>
 
-    <script src="./state/store.js" defer></script>
-    <script src="./app.js?v=20260930-lazy-b1" defer></script>
+    <script src="./state/store.js?v=20261014-main-native-1" defer></script>
+    <script src="./services/mard-kit-data.js?v=20261008-selection-popover-r24" defer></script>
+    <script src="./services/automatic-palette-policy.js?v=20261014-transparent-1" defer></script>
+    <script src="./app.js?v=20261014-transparent-1" defer></script>
+    <script type="module" src="./ui/quick-start-motion.js?v=20261007-flower-r1"></script>
   </body>
 </html>

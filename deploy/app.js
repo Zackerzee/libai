@@ -407,7 +407,7 @@ const DEFAULT_PALETTE_SIZE = 221;
 const BRAND_PROFILES = {
   mard: {
     label: "MARD 2026",
-    options: PALETTE_SIZE_OPTIONS,
+    options: globalThis.LibmsMardKits.options,
     sourceUrl: MARD_COLOR_SOURCE_URL,
     sourceVersion: MARD_COLOR_SOURCE_VERSION,
   },
@@ -462,8 +462,10 @@ function getPaletteEngine(palette) {
 function createPaletteCatalog() {
   const catalog = {};
   for (const [brand, profile] of Object.entries(BRAND_PROFILES)) {
-    for (const count of profile.options) {
-      catalog[getPaletteKey(brand, count)] = buildPaletteVariant(MARD_FULL_COLORS, count, brand, profile);
+    for (const count of new Set(brand === 'mard' ? [...profile.options, ...PALETTE_SIZE_OPTIONS] : profile.options)) {
+      const colors = brand === 'mard' && globalThis.LibmsMardKits.kits[count]
+        ? globalThis.LibmsMardKits.select(MARD_FULL_COLORS, count) : MARD_FULL_COLORS;
+      catalog[getPaletteKey(brand, count)] = buildPaletteVariant(colors, count, brand, profile);
     }
   }
   return catalog;
@@ -480,6 +482,7 @@ function buildPaletteVariant(colors, count, brand, profile) {
     sourceHex: color.hex || rgbToHex(color.rgb),
     sourceUrl: profile.sourceUrl || "",
     sourceVersion: profile.sourceVersion || "",
+    ...(color.paletteId ? { paletteId: color.paletteId } : {}),
     brand: profile.label,
     // Stage B1 §3：把官方色卡的**系列**元数据带进运行时条目。
     // 以前这里只搬运 code/hex/rgb，group 被丢掉 —— 于是 UI 只能靠
@@ -548,6 +551,7 @@ function registerExternalBrandPalettes(palettes, source) {
       .filter((color) => color && color.code && Array.isArray(color.rgb) && color.rgb.length >= 3)
       .map((color) => ({
         code: String(color.code),
+        ...(color.paletteId ? { paletteId: String(color.paletteId) } : {}),
         rgb: [...color.rgb],
         hex: color.hex || rgbToHex(color.rgb),
         group: color.group || "",
@@ -561,7 +565,7 @@ function registerExternalBrandPalettes(palettes, source) {
       external: true,
       sourceId: entry.sourceId || "",
       sourceVersion: entry.sourceVersion || "",
-      sourceUrl: source?.url || "",
+      sourceUrl: entry.sourceUrl || source?.url || "",
       tierLabel: entry.tierLabel || "",
       summary: entry.summary || "",
       colors,
@@ -598,6 +602,12 @@ function appendExternalBrandButtons() {
 }
 
 function loadExternalBrandPalettes() {
+  import("./smart-preprocessing/palette-international.mjs?v=20261008-selection-popover-r24")
+    .then(module_ => registerExternalBrandPalettes(
+      module_.BRAND_PALETTES.map(entry => ({ ...entry,
+        colors: entry.colors.map(color => ({ ...color, paletteId: `${entry.id}:${color.code}` }))
+      })), module_.BRAND_PALETTE_SOURCE))
+    .catch(error => console.info("[palette] 国际品牌参考色卡暂不可用：", error?.message || error));
   import("./smart-preprocessing/palette-brands.mjs?v=20260920-brands")
     .then((module_) => {
       const added = registerExternalBrandPalettes(module_.BRAND_PALETTES, module_.BRAND_PALETTE_SOURCE);
@@ -878,6 +888,7 @@ function ensureGenerationRuntime() {
   if (!generationRuntimePromise) {
     generationRuntimePromise = Promise.all([
       import("./smart-preprocessing/palette-engine.mjs"),
+      import("./services/srgb-canvas.mjs?v=20261007-v3-srgb").then(mod => { window.LibmsSrgbCanvas = mod; }),
       import("./smart-preprocessing/pixel-ready-stylizer.mjs"),
       import("./smart-preprocessing/render-policy.mjs?v=20260928-v3"),
       import("./smart-preprocessing/structural-transition-analyzer.mjs?v=20260915-detection-only"),
@@ -893,9 +904,9 @@ function ensureGenerationRuntime() {
       import("./services/generation-size.mjs?v=20261001-stage-b0").then((mod) => { window.LibmsGenerationSize = mod; }),
       // query 必须与 processImage / processProductionV2 里的动态 import 完全一致，
       // 否则同一个模块会被实例化两份（两份模块级状态），这是很难查的隐性分叉。
-      import("./services/source-editor-service.js?v=20260916-phase35-source1").then((mod) => { window.LibmsSourceEditor = mod; }),
+      import("./services/source-editor-service.js?v=20261014-transparent-1").then((mod) => { window.LibmsSourceEditor = mod; }),
       import("./services/generation-request.mjs?v=20261001-stage-b0").then((mod) => { window.LibmsGenerationRequest = mod; }),
-      import("./services/generation-job.mjs?v=20261001-stage-b0").then((mod) => { window.LibmsGenerationJob = mod; }),
+      import("./services/generation-job.mjs?v=20261014-fusion-production-1").then((mod) => { window.LibmsGenerationJob = mod; }),
       // Stage B0.1：尺寸权威链。结构化工程 / 人工标定 / 网格识别给出的尺寸是绝对值，
       // 不允许被长边、裁剪比例或像素倍数再算一遍。
       import("./services/source-dimensions.mjs?v=20261003-stage-b4").then((mod) => { window.LibmsSourceDimensions = mod; }),
@@ -903,7 +914,7 @@ function ensureGenerationRuntime() {
       // worker 的 URL 在 generation-worker-client.mjs 里，必须与这里同一份（含 query），
       // 否则 Worker 会加载到第二份模块图。
       import("./services/generation-result-codec.mjs?v=20261002-stage-b3").then((mod) => { window.LibmsGenerationResultCodec = mod; }),
-      import("./services/generation-worker-client.mjs?v=20261002-stage-b3").then((mod) => { window.LibmsGenerationWorkerClient = mod; }),
+      import("./services/generation-worker-client.mjs?v=20261014-fusion-production-1").then((mod) => { window.LibmsGenerationWorkerClient = mod; }),
     ]).catch((error) => { generationRuntimePromise = null; throw error; });
   }
   return generationRuntimePromise;
@@ -991,7 +1002,7 @@ async function loadWorkspaceOnce() {
   if (workspaceMounted) return workspaceController;
   if (!workspaceLoadPromise) {
     setWorkspaceLoading("正在打开工作台…");
-    workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261001-stage-a-hotfix"), ensureGenerationRuntime()])
+workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261015-stage1-1"), ensureGenerationRuntime()])
       .then(([{ bootstrapWorkspace }]) => {
         workspaceLoaded = true;
         initializeWorkspaceRuntime();
@@ -1554,6 +1565,41 @@ function getCurrentPalette() {
   return PALETTES[getCurrentPaletteKey()] || PALETTES[getPaletteKey(DEFAULT_BRAND, DEFAULT_PALETTE_SIZE)];
 }
 
+let availablePalettePreferencesLoaded = false;
+function getAvailablePaletteIds() {
+  if (!availablePalettePreferencesLoaded) {
+    availablePalettePreferencesLoaded = true;
+    try {
+      const saved = JSON.parse(localStorage.getItem("libms.available-palettes.v1") || "{}");
+      if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+        window.libmsStore.patchState("paletteState", { availableColorsByPalette: saved });
+      }
+    } catch (_) { /* 损坏或不可用的本机偏好不会阻止打开作品。 */ }
+  }
+  const map = window.libmsStore.getState().paletteState.availableColorsByPalette || {};
+  const ids = map[getCurrentPaletteKey()];
+  return Array.isArray(ids) ? [...ids] : null;
+}
+function setAvailablePaletteIds(ids) {
+  getAvailablePaletteIds();
+  const palette = getCurrentPalette();
+  const valid = new Set(palette.map(color => color.paletteId || color.code));
+  const selected = ids === null ? null : [...new Set(ids)].filter(id => valid.has(id));
+  const map = { ...window.libmsStore.getState().paletteState.availableColorsByPalette, [getCurrentPaletteKey()]: selected };
+  window.libmsStore.patchState("paletteState", { availableColorsByPalette: map });
+  try { localStorage.setItem("libms.available-palettes.v1", JSON.stringify(map)); }
+  catch (_) { setStatus("可用颜色已更新，但浏览器无法保存此偏好"); }
+  return { ids: selected, count: selected === null ? palette.length : selected.length, total: palette.length };
+}
+function getGenerationPaletteColors() {
+  const ids = getAvailablePaletteIds();
+  const palette = getCurrentPalette();
+  if (!globalThis.LibmsAutomaticPalettePolicy) throw new Error("自动色卡规则尚未加载，请刷新页面后重试");
+  const result = globalThis.LibmsAutomaticPalettePolicy.automaticPaletteColors(palette, state.selectedBrand, ids);
+  if (!result.length) throw new Error("请先在可用颜色中至少选择一种真实拼豆颜色");
+  return result;
+}
+
 function getEditorPalette() {
   return (
     PALETTES[els.editorPaletteSelect?.value] ||
@@ -1947,6 +1993,7 @@ function enableMiddleButtonPan(element) {
   });
 }
 
+let artworkUploadRevision = 0;
 async function loadFile(file) {
   if (state.manualEdited && !state.importApproved) { setStatus("手动修改尚未确认覆盖，请先使用工作台的换图操作"); return; }
   state.importApproved = false;
@@ -1958,6 +2005,8 @@ async function loadFile(file) {
     state.sourceSafetyChecked = false;
     return;
   }
+  const uploadRevision = ++artworkUploadRevision;
+  window.dispatchEvent(new CustomEvent("libms:artwork-upload-started", { detail: { uploadRevision } }));
 
   if (state.importMode === "restore" || state.importMode === "ocr") {
     if (els.modeSelect) els.modeSelect.value = "palette";
@@ -1968,8 +2017,10 @@ async function loadFile(file) {
     setStatus("读取图片");
     els.processButton.disabled = true;
     const prepared = await prepareLocalImage(file);
+    if (uploadRevision !== artworkUploadRevision) return;
     setStatus("本地审查中");
     const safety = await runLocalContentSafetyCheck(prepared.dataUrl);
+    if (uploadRevision !== artworkUploadRevision) return;
     if (!safety.allowed) {
       state.sourceDataUrl = "";
       state.sourceName = "";
@@ -1995,14 +2046,27 @@ async function loadFile(file) {
     // 否则上一张图的绝对权威（例如 222×295 的工程）会把新图的弱证据全部挡掉。
     resetSourceDimensions("source-replaced");
     const loadedSource = await loadImage(prepared.dataUrl);
+    if (uploadRevision !== artworkUploadRevision) return;
     state.sourceNaturalWidth = loadedSource.naturalWidth;
     state.sourceNaturalHeight = loadedSource.naturalHeight;
     state.sourceName = file.name;
+    globalThis.window?.libmsStore?.patchState?.("documentState", { creator: "" });
+    // Non-destructive automatic framing applies only to ordinary images, never projects/OCR.
+    if (state.importMode === "photo") {
+      const importedTransform = state.sourceTransform;
+      const { transparentImageBounds } = await import("./services/automatic-generation-size.mjs");
+      if (uploadRevision !== artworkUploadRevision) return;
+      const automaticCrop = await transparentImageBounds(loadedSource);
+      if (uploadRevision !== artworkUploadRevision) return;
+      // Same bytes can be imported twice: transform identity also distinguishes imports.
+      if (state.sourceDataUrl !== prepared.dataUrl || state.sourceTransform !== importedTransform) return;
+      importedTransform.crop = automaticCrop;
+    }
     // restore / OCR：源图一落地就把识别结果交给权威链，**早于** libms:source-loaded
     // 触发的工作台首帧流程。这样工作台的像素倍数识别（pixel-multiple）会被
     // grid-detection 挡下，不会拿一个更弱的证据把图纸尺寸改掉。
     applyRestoreSizing(loadedSource);
-    window.dispatchEvent(new CustomEvent("libms:source-loaded", { detail: { name: file.name, url: prepared.dataUrl, width: state.sourceNaturalWidth, height: state.sourceNaturalHeight } }));
+    window.dispatchEvent(new CustomEvent("libms:source-loaded", { detail: { name: file.name, url: prepared.dataUrl, width: state.sourceNaturalWidth, height: state.sourceNaturalHeight, uploadRevision, importMode: state.importMode } }));
     state.sourceSafetyChecked = true;
     els.sourcePreview.src = state.sourceDataUrl;
     els.sourcePreview.hidden = false;
@@ -2026,12 +2090,13 @@ async function loadFile(file) {
       if (!workspaceMounted) requestAnimationFrame(() => { processImage(); });
     }
   } catch (error) {
+    if (uploadRevision !== artworkUploadRevision) return;
     console.error(error);
     state.autoProcessAfterLoad = false;
     state.restoreAutoSizePending = false;
     setStatus("读取失败");
   } finally {
-    els.processButton.disabled = !state.sourceDataUrl;
+    if (uploadRevision === artworkUploadRevision) els.processButton.disabled = !state.sourceDataUrl;
   }
 }
 
@@ -2145,10 +2210,14 @@ function imageToImageData(image) {
   const canvas = document.createElement("canvas");
   canvas.width = image.naturalWidth || image.width;
   canvas.height = image.naturalHeight || image.height;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
+  const srgb = window.LibmsSrgbCanvas;
+  const boundary = srgb?.getSrgbContext(canvas, { willReadFrequently: true });
+  const context = boundary?.context || canvas.getContext("2d", { colorSpace: "srgb", willReadFrequently: true });
   if (!context) throw new Error("canvas context unavailable");
   context.drawImage(image, 0, 0);
-  return context.getImageData(0, 0, canvas.width, canvas.height);
+  const read = srgb?.readSrgbImageData(context, 0, 0, canvas.width, canvas.height);
+  console.debug("[V3 color space]", { inputColorSpace: "browser-decoded; ICC handled by browser", paletteColorSpace: "srgb", ...boundary?.diagnostics, ...read?.diagnostics });
+  return read?.imageData || context.getImageData(0, 0, canvas.width, canvas.height);
 }
 
 function mapDetailProtectionValue(value) {
@@ -2187,6 +2256,8 @@ function buildV25Options(options = {}, maxColors = 0) {
     autoBackground: options.autoBackground === true,
     strokeProtection: options.strokeProtection === true,
     accentProtection: options.accentProtection === true,
+    smartColorTolerance: { enabled: false, strength: 0, policy: "quality-first", ...options.smartColorTolerance },
+    ...(options.smartToleranceContext ? { smartToleranceContext: options.smartToleranceContext } : {}),
   };
 }
 
@@ -2447,6 +2518,65 @@ function commitPhase(on) {
   return on ? performance.now() : 0;
 }
 
+let smartToleranceSession = null;
+let smartToleranceGenerationRevision = 0;
+let smartToleranceCommittedGrid = null;
+let smartTolerancePaletteContext = null;
+
+function smartToleranceContext(width, height, maxColors, paletteContext = smartTolerancePaletteContext) {
+  const processing = window.libmsStore?.getState()?.processingState || {};
+  // Panel settings may change before generation-service refreshes its options
+  // snapshot. Observe their real store source too, without request/strength noise.
+  const panelSettings = Object.fromEntries([
+    "maxColors", "detailProtection", "edgeProtection", "cleanupStrength",
+    "preserveHighlights", "preserveEyes", "preserveMicroDetails", "backgroundRemoval",
+    "subjectCrop", "autoBackground", "strokeProtection", "accentProtection", "colorTuning",
+    "generationPreset", "generationSampling",
+  ].map(key => [key, processing[key]]));
+  const options = { ...(state.productionGenerationOptions || {}) };
+  delete options.smartColorTolerance;
+  delete options.smartToleranceContext;
+  const serialized = JSON.stringify({
+    source: state.sourceDataUrl, crop: state.sourceTransform,
+    width, height, longEdge: state.generationLongEdge, sourceDimensions: state.sourceDimensions,
+    maxColors, requestedMaxColors: els.maxColorsInput?.value,
+    engine: state.generationEngine, algorithm: state.algorithmEngine,
+    palette: getCurrentPaletteKey(), registry: getCurrentPalette(),
+    paletteContext, options, panelSettings,
+    tolerancePolicy: { enabled: processing.smartColorTolerance?.enabled === true,
+      policy: processing.smartColorTolerance?.policy ?? "quality-first" },
+    resolved: { ...buildV25Options(options, maxColors), smartColorTolerance: undefined },
+    algorithmVersion: "v1-optin-1",
+  });
+  return serialized;
+}
+
+async function getSmartToleranceSession() {
+  if (!smartToleranceSession) {
+    const { createSmartToleranceSession } = await import("./services/smart-tolerance-session.mjs");
+    smartToleranceSession ||= createSmartToleranceSession({
+      isCurrent: (requestId, baselineRevision) => !isStaleGenerationRequest(requestId)
+        && state.smartColorTolerance?.enabled === true && state.smartColorTolerance.policy === "quality-first"
+        && state.smartToleranceBaselineRevision === baselineRevision && !state.manualEdited
+        && state.grid === smartToleranceCommittedGrid
+        && state.generationEngine === "v2.5" && state.algorithmEngine === "current"
+        && smartToleranceSession.getMetadata()?.context === smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0),
+      commit: ({ grid, diagnostics }) => {
+        state.grid = grid;
+        smartToleranceCommittedGrid = state.grid;
+        state.stats = calculateStats(grid);
+        state.smartToleranceReport = diagnostics.smartColorTolerance || null;
+        state.generationOriginalGrid = cloneGrid(grid);
+        refreshChartUrl();
+        updateResultUi();
+        window.dispatchEvent(new CustomEvent("libms:project-result", { detail: window.LibmsWorkspaceBridge?.getResult() }));
+        if (commitProfileOn()) console.debug("[smart-color-tolerance]", diagnostics);
+      },
+    });
+  }
+  return smartToleranceSession;
+}
+
 async function processImageV2(image, palette, { width, height, requestId = null, maxColors, options = {}, saveGallery = true }) {
   const startedAt = performance.now();
   // ⚠️ 2026-10-04 修：`requestId` 必须**在这里解构**。
@@ -2480,6 +2610,25 @@ async function processImageV2(image, palette, { width, height, requestId = null,
   autoTuneReport = null;
   const sourceImageData = imageToImageData(image);
   const resolved = buildV25Options(options, maxColors);
+  // Unified production entry: native sampling when safe, shared V2.5 finishing.
+  resolved.localFusionEnabled = true;
+  const toleranceEnabled = resolved.smartColorTolerance.enabled === true;
+  let tolerancePaletteContext = null;
+  if (toleranceEnabled) {
+    const paletteKey = getCurrentPaletteKey();
+    const registrySnapshot = JSON.stringify(getCurrentPalette());
+    const { resolveSmartTolerancePaletteContext } = await import("./services/smart-color-tolerance-palette-adapter.mjs");
+    tolerancePaletteContext = resolveSmartTolerancePaletteContext({ paletteEntries: palette, paletteKey });
+    if (isStaleGenerationRequest(reqId) || paletteKey !== getCurrentPaletteKey()
+      || registrySnapshot !== JSON.stringify(getCurrentPalette())) return false;
+  }
+  const toleranceContext = toleranceEnabled ? smartToleranceContext(width, height, maxColors, tolerancePaletteContext) : null;
+  const toleranceGenerationRevision = toleranceEnabled ? ++smartToleranceGenerationRevision : null;
+  if (toleranceEnabled) {
+    state.smartToleranceBaselineRevision = `pending:${toleranceGenerationRevision}`;
+    smartToleranceSession?.clear();
+    resolved.smartToleranceContext = { contextKey: toleranceContext, gridRevision: toleranceGenerationRevision, paletteContext: tolerancePaletteContext };
+  }
   // §13：智能模式先跑 Auto Tune（小尺寸上比几套候选，再按目标尺寸生成一次）。
   // 返回 null = 「这次不调优」（模式不适用 / 只有一个候选），照常走下面的单次生成。
   let result = null;
@@ -2508,8 +2657,12 @@ async function processImageV2(image, palette, { width, height, requestId = null,
       requestId: reqId,
     });
   }
+  const toleranceSession = toleranceEnabled && result.diagnostics?.smartToleranceBaseline
+    ? await getSmartToleranceSession() : null;
   // 执行体是一个 await 边界（未来换成 Worker 后更是），回来时可能已经有更新的请求在跑。
   if (isStaleGenerationRequest(reqId)) return false;
+  if (toleranceEnabled && state.smartToleranceBaselineRevision !== `pending:${toleranceGenerationRevision}`) return false;
+  if (toleranceEnabled && toleranceContext !== smartToleranceContext(width, height, maxColors, tolerancePaletteContext)) return false;
   // ── 提交路径分段计时（§12，默认关闭）──────────────────────────────
   // 段的切法与「修法」一一对应，而不是按代码块随意切：
   //   gridObjectConstruction —— 建 w×h 个新对象。要省它只能让 renderer
@@ -2521,7 +2674,7 @@ async function processImageV2(image, palette, { width, height, requestId = null,
   state.grid = result.grid.map((row) => row.map((cell) => {
     if (!cell) return null;
     const rgbValue = Array.isArray(cell.rgb) ? cell.rgb : [cell.rgb?.[0] ?? 0, cell.rgb?.[1] ?? 0, cell.rgb?.[2] ?? 0];
-    return { code: cell.code, rgb: [...rgbValue], hex: cell.hex || rgbToHex(rgbValue) };
+    return { code: cell.code, rgb: [...rgbValue], hex: cell.hex || rgbToHex(rgbValue), ...(toleranceEnabled && cell.paletteId != null ? { paletteId: cell.paletteId } : {}) };
   }));
   commitMark("gridObjectConstruction", t);
   state.width = result.width;
@@ -2541,12 +2694,29 @@ async function processImageV2(image, palette, { width, height, requestId = null,
   state.showingOptimizedGrid = true;
   state.paletteBudget = { mode: maxColors ? "fixed" : "auto", requested: maxColors || null, recommended: result.diagnostics?.colorsAfterBudget || state.stats.length, effective: maxColors || 0 };
   state.smartFeatures = result.diagnostics?.smartFeatures || null;
+  state.smartToleranceReport = result.diagnostics?.smartColorTolerance || null;
+  if (toleranceEnabled && result.diagnostics?.smartToleranceBaseline) {
+    smartTolerancePaletteContext = structuredClone(tolerancePaletteContext);
+    toleranceSession.adoptBaseline(result.diagnostics.smartToleranceBaseline, toleranceContext, result.diagnostics.smartToleranceHierarchy);
+    state.smartToleranceBaselineRevision = result.diagnostics.smartToleranceBaseline.baselineRevision;
+    smartToleranceCommittedGrid = state.grid;
+  } else {
+    smartToleranceSession?.clear();
+    state.smartToleranceBaselineRevision = null;
+    smartToleranceCommittedGrid = null;
+    smartTolerancePaletteContext = null;
+  }
+  if (profiling && state.smartToleranceReport) console.debug("[smart-color-tolerance]", state.smartToleranceReport);
   state.smartReport = {
+    localFusion: result.diagnostics?.localFusion || null,
     subjectCrop: result.diagnostics?.subjectCrop || null,
     autoBackground: result.diagnostics?.autoBackground || null,
     strokeProtection: result.diagnostics?.strokeProtection || null,
     accentProtection: result.diagnostics?.accentProtection || null,
   };
+  if (profiling || ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)) {
+    console.debug("[local-fusion]", JSON.stringify(state.smartReport.localFusion));
+  }
   state.backgroundDecision = "";
   state.paletteLabel = getCurrentPaletteLabel();
   state.assemblyHideCellText = false;
@@ -2612,9 +2782,11 @@ async function processProductionV2(options = {}) {
       ? sourceEditor.renderSourceTransform(original, state.sourceTransform).toDataURL("image/png") : state.sourceDataUrl;
     const image = state.processedSourceDataUrl === state.sourceDataUrl ? original : await loadImage(state.processedSourceDataUrl);
     if (isStaleGenerationRequest(options.requestId)) return false;
-    state.sourceNaturalWidth = image.naturalWidth;
-    state.sourceNaturalHeight = image.naturalHeight;
-    const palette = getCurrentPalette();
+    // Source geometry must remain original; transformed dimensions are derived
+    // below. Reusing processed dimensions applies crop/rotation a second time.
+    state.sourceNaturalWidth = original.naturalWidth;
+    state.sourceNaturalHeight = original.naturalHeight;
+    const palette = getGenerationPaletteColors();
     // 尺寸只由「长边 + 有效比例」派生；比例未就绪就延后，不猜方图。
     const size = resolveGenerationDimensions(getGenerationLongEdge());
     if (!size) return deferGenerationForUnresolvedSize();
@@ -2753,7 +2925,7 @@ async function processProductionBgs(options = {}) {
   try {
     const { convertImageToBeads } = await import(`./src/algorithms/bgs/index.mjs${BGS_MODULE_QUERY}`);
     const { image, imageData } = await loadProductionRaster();
-    const palette = getCurrentPalette();
+    const palette = getGenerationPaletteColors();
     const size = resolveGenerationDimensions(getGenerationLongEdge());
     if (!size) throw new Error("源图比例尚未就绪，暂不能生成");
     const width = size.width, height = size.height;
@@ -2874,7 +3046,7 @@ async function processProductionPw(options = {}) {
   const startedAt = performance.now();
   try {
     const { image, imageData } = await loadProductionRaster();
-    const palette = getCurrentPalette();
+    const palette = getGenerationPaletteColors();
     const size = resolveGenerationDimensions(getGenerationLongEdge());
     if (!size) throw new Error("源图比例尚未就绪，暂不能生成");
     const width = size.width, height = size.height;
@@ -2918,7 +3090,118 @@ async function processProductionPw(options = {}) {
   }
 }
 
+/** Full native pipeline: only the host publication is shared with V2.5. */
+async function processProductionPindou(options = {}) {
+  if (!state.sourceDataUrl) throw new Error("请先上传图片");
+  if (state.manualEdited && !options.overwriteApproved) throw new Error("手动编辑尚未确认覆盖");
+  if (state.isProcessingImage) throw new Error("正在生成，请稍候");
+  const source = state.sourceDataUrl;
+  const requestId = options.requestId ?? (Number(state.generationRequestId) || 0);
+  const settings = JSON.stringify(state.pindouOptions || {});
+  const palette = getGenerationPaletteColors().map(color => ({ ...color, rgb: [...color.rgb] }));
+  const paletteKey = getCurrentPaletteKey();
+  const paletteIdentity = JSON.stringify(palette);
+  const longEdge = getGenerationLongEdge();
+  const current = () => !isStaleGenerationRequest(requestId)
+    && state.generationEngine === "pindou" && state.sourceDataUrl === source
+    && settings === JSON.stringify(state.pindouOptions || {})
+    && getCurrentPaletteKey() === paletteKey && JSON.stringify(getGenerationPaletteColors()) === paletteIdentity
+    && getGenerationLongEdge() === longEdge;
+  state.isProcessingImage = true;
+  state.lastGenerationError = "";
+  els.processButton.disabled = true;
+  const startedAt = performance.now();
+  const pindouTiming = { longTasks: [] };
+  const pindouObserver = typeof PerformanceObserver === "function" ? new PerformanceObserver(list => {
+    for (const entry of list.getEntries()) pindouTiming.longTasks.push({ startTime: entry.startTime, duration: entry.duration });
+  }) : null;
+  try { pindouObserver?.observe({ type: "longtask", buffered: false }); } catch { /* Unsupported browsers report no observations. */ }
+  try {
+    if (!state.sourceSafetyChecked) {
+      setStatus("本地审查中");
+      const safety = await runLocalContentSafetyCheck(source);
+      if (!current()) throw generationOutcomeError("stale");
+      if (!safety.allowed) throw new Error("检测到图片可能包含违规内容，无法生成");
+      state.sourceSafetyChecked = true;
+    }
+    const [{ runPindouWorker, materializePindouResult }, { normalizePindouConfig }] = await Promise.all([
+      import("./services/pindou-worker-client.mjs?v=20261014-native-preview-3"), import("./src/algorithms/pindou-full/config.mjs?v=20261014-host-2"),
+    ]);
+    if (!current()) throw generationOutcomeError("stale");
+    const config = normalizePindouConfig({ ...state.pindouOptions, paletteId: paletteKey,
+      ...(options.width != null && options.height != null ? { lockAspect: false } : {}),
+      ...(options.width != null ? { gridW: options.width } : {}),
+      ...(options.height != null ? { gridH: options.height } : {}),
+    });
+    setStatus("拼豆引擎正在后台生成");
+    const workerStart = performance.now();
+    const result = await runPindouWorker({ source, palette, config, requestId }, { isCurrent: current });
+    pindouTiming.workerRoundtripMs = performance.now() - workerStart;
+    const materializeStart = performance.now();
+    const native = await materializePindouResult(result, { isCurrent: current });
+    pindouTiming.materializeMs = performance.now() - materializeStart;
+    const previewUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(result.previewBlob);
+    });
+    if (!current()) throw generationOutcomeError("stale");
+    state.grid = native.grid;
+    state.pindouOptions = native.config;
+    state.width = native.width;
+    state.height = native.height;
+    state.stats = native.stats;
+    state.manualEdited = false;
+    state.generationEngineLast = "pindou";
+    state.algorithmEngineLast = "pindou-full";
+    state.generationOriginalGrid = native.originalGrid;
+    state.generationOptimizedGrid = null;
+    state.optimizerReport = null;
+    state.showingOptimizedGrid = true;
+    state.generationMilliseconds = Math.round(performance.now() - startedAt);
+    state.paletteBudget = { mode: "pindou-native", requested: native.config.colors, effective: native.stats.length, recommended: native.stats.length };
+    state.smartFeatures = null;
+    state.smartReport = null;
+    const publishStart = performance.now();
+    state.pindouReport = { engine: "pindou", sourceSha: "ad668369a648027208ed188e44322a868a67f6a9", config: native.config, stages: native.metrics, performance: pindouTiming };
+    state.processedSourceDataUrl = source;
+    state.backgroundDecision = "";
+    state.paletteLabel = getCurrentPaletteLabel();
+    state.assemblyHideCellText = false;
+    // Worker encodes a compact preview. Export still renders the applied grid on demand.
+    state.previewUrl = previewUrl;
+    state.chartUrl = previewUrl;
+    state.previewRenderCell = 1;
+    updateResultUi();
+    updateOptimizationToggle();
+    window.dispatchEvent(new CustomEvent("libms:project-result", { detail: window.LibmsWorkspaceBridge?.getResult() }));
+    pindouTiming.publishMs = performance.now() - publishStart;
+    pindouTiming.totalMs = performance.now() - startedAt;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      for (const entry of pindouObserver?.takeRecords() || []) pindouTiming.longTasks.push({ startTime: entry.startTime, duration: entry.duration });
+      pindouObserver?.disconnect();
+      if (["localhost", "127.0.0.1", "::1"].includes(window.location.hostname) && !isStaleGenerationRequest(requestId)
+        && state.generationEngineLast === "pindou" && state.pindouReport?.performance === pindouTiming)
+        document.body.dataset.pindouReport = JSON.stringify(state.pindouReport);
+    }));
+    return true;
+  } catch (error) {
+    pindouObserver?.disconnect();
+    if (["AbortError", "StaleGenerationError"].includes(error?.name)) {
+      markExpectedGenerationOutcome(error.name === "AbortError" ? "cancelled" : "stale");
+      return false;
+    }
+    state.lastGenerationError = error.message || String(error);
+    setStatus(`拼豆引擎生成失败：${state.lastGenerationError}`);
+    window.dispatchEvent(new CustomEvent("libms:generation-error", { detail: state.lastGenerationError }));
+    return false;
+  } finally {
+    state.isProcessingImage = false;
+    els.processButton.disabled = false;
+  }
+}
+
 async function processImage(options = {}) {
+  if (state.generationEngine === "pindou") return processProductionPindou(options);
   // 算法引擎开关：只有显式选到新引擎才走新模块，否则完全落到原有分支。
   if (state.algorithmEngine === "pindou-workbench" || state.algorithmEngine === "hybrid-pw") {
     return processProductionPw(options);
@@ -2965,7 +3248,7 @@ async function processImage(options = {}) {
     // 留在这里等于只有选 legacy 引擎时才恢复尺寸（v2.5 默认走 processProductionV2，
     // 根本不经过本函数）—— 这正是 B0.1 之前 restore/OCR 尺寸失效的第二个原因。
     // 现在统一由 loadFile() 在源图落地时提交给尺寸权威链。
-    const palette = getCurrentPalette();
+    const palette = getGenerationPaletteColors();
     const regionalBlockV2 = els.modeSelect?.value === "regional-block-v2";
     const portraitPremium = els.modeSelect?.value === "portrait-premium" || regionalBlockV2;
     const startedAt = performance.now();
@@ -3338,6 +3621,7 @@ async function scanReadyMadePattern(file, gridWidth, gridHeight) {
   });
   state.sourceDataUrl = dataUrl;
   state.sourceName = file.name || "direct-pattern";
+  globalThis.window?.libmsStore?.patchState?.("documentState", { creator: "" });
   state.sourceSafetyChecked = true;
   state.paletteLabel = `直接拼-C色号-${simplified.stats.length}色`;
   state.backgroundDecision = `已合并相似色，过滤 ${simplified.removedCount} 个杂色格`;
@@ -3598,7 +3882,7 @@ function getGenerationLongEdge() {
  */
 async function loadSourceEditor() {
   if (window.LibmsSourceEditor) return window.LibmsSourceEditor;
-  const mod = await import("./services/source-editor-service.js?v=20260916-phase35-source1");
+  const mod = await import("./services/source-editor-service.js?v=20261014-transparent-1");
   window.LibmsSourceEditor = mod;
   return mod;
 }
@@ -3707,6 +3991,7 @@ function getGenerationWorkerClient() {
  * @returns {boolean} 是否真有任务被取消
  */
 function cancelGeneration(reason = "生成已取消") {
+  window.dispatchEvent(new CustomEvent("libms:artwork-motion-cancel"));
   // §13：调优过程中可能有 2–4 个候选在排队。先给调优器打上取消标记，
   // 否则杀掉当前 Worker 之后，循环里的下一个候选会**接着跑** ——
   // 用户点了取消，界面却在继续生成，正是 B3 §29 要消灭的那种行为。
@@ -3736,6 +4021,10 @@ async function runGenerationJob({ image, mode, size, palette, maxColors, overrid
   const job = window.LibmsGenerationJob;
   const contract = window.LibmsGenerationRequest;
   if (!job || !contract) {
+    if (overrides?.localFusionEnabled === true) {
+      const { runLocalFusionEngine } = await import("./services/local-fusion-engine.mjs");
+      return runLocalFusionEngine({ image, mode, size, palette, maxColors, overrides });
+    }
     const { runGenerationPipeline } = await import("./services/generation-pipeline.mjs?v=20260930-pipeline");
     return runGenerationPipeline({ image, mode, size, palette, maxColors, overrides });
   }
@@ -4511,11 +4800,12 @@ function calculateStats(grid) {
   for (const row of grid) {
     for (const color of row) {
       if (!color) continue;
-      const existing = map.get(color.code);
+      const key = color.paletteId || color.code;
+      const existing = map.get(key);
       if (existing) {
         existing.count += 1;
       } else {
-        map.set(color.code, { ...cloneColor(color), count: 1 });
+        map.set(key, { ...cloneColor(color), count: 1 });
       }
     }
   }
@@ -4673,6 +4963,10 @@ function createGalleryThumbnailCanvas(grid) {
   return canvas;
 }
 
+// Existing source images stay session-local; no gallery/project storage format changes.
+const galleryMotionSources = new Map();
+let galleryMotionCleanup = null;
+let galleryMotionRenderRevision = 0;
 function saveCurrentToGallery() {
   if (!state.grid.length || !els.generatedGallery) return;
   const total = state.stats.reduce((sum, item) => sum + item.count, 0);
@@ -4701,6 +4995,9 @@ function saveCurrentToGallery() {
     0,
     MAX_GALLERY_ITEMS,
   );
+  if (state.sourceDataUrl) galleryMotionSources.set(item.id, state.processedSourceDataUrl || state.sourceDataUrl);
+  const keptIds = new Set(items.map((entry) => entry.id));
+  for (const id of galleryMotionSources.keys()) if (!keptIds.has(id)) galleryMotionSources.delete(id);
   persistGeneratedGallery(items);
   renderGeneratedGallery();
   renderEditorLibraryOptions();
@@ -4744,7 +5041,7 @@ function getActivePaletteKeyForStorage() {
 
 function serializeGridForLibrary(grid) {
   return grid
-    .map((row) => row.map((color) => (color ? `${color.code}|${rgbToHex(color.rgb)}` : ".")).join(","))
+    .map((row) => row.map((color) => (color ? `${color.code}|${rgbToHex(color.rgb)}${color.paletteId ? `|${color.paletteId}` : ""}` : ".")).join(","))
     .join(";");
 }
 
@@ -4755,8 +5052,8 @@ function deserializeGridFromLibrary(item) {
     .map((row) =>
       row.split(",").map((token) => {
         if (!token || token === ".") return null;
-        const [code, hex] = token.split("|");
-        if (hex && /^#[0-9a-f]{6}$/i.test(hex)) return colorFromHex(code, hex);
+        const [code, hex, paletteId] = token.split("|");
+        if (hex && /^#[0-9a-f]{6}$/i.test(hex)) return { ...colorFromHex(code, hex), ...(paletteId ? { paletteId } : {}) };
         return cloneColor(findColorByCode(code, item.paletteKey));
       }),
     );
@@ -4780,6 +5077,9 @@ function findColorByCode(code, preferredPaletteKey = "") {
 
 function renderGeneratedGallery() {
   if (!els.generatedGallery) return;
+  galleryMotionCleanup?.();
+  galleryMotionCleanup = null;
+  const motionRevision = ++galleryMotionRenderRevision;
   const query = (els.gallerySearch?.value || "").trim().toLowerCase();
   const allItems = getGeneratedGallery();
   const items = query
@@ -4803,6 +5103,7 @@ function renderGeneratedGallery() {
     const card = document.createElement("button");
     card.className = "gallery-card";
     card.type = "button";
+    card.dataset.artworkId = item.id;
     card.addEventListener("click", () => openGalleryPreview(item));
 
     const image = document.createElement("img");
@@ -4822,6 +5123,17 @@ function renderGeneratedGallery() {
 
     card.append(image, overlay, caption);
     els.generatedGallery.append(card);
+  }
+  if (items.some((item) => galleryMotionSources.has(item.id))) {
+    import("./ui/artwork-motion-controller.mjs?v=20261014-motion-toggle-1").then(({ attachGalleryBirthMotion }) => {
+      if (motionRevision !== galleryMotionRenderRevision) return;
+      galleryMotionCleanup = attachGalleryBirthMotion(els.generatedGallery, (id) => {
+        const item = items.find((entry) => entry.id === id);
+        const sourceUrl = galleryMotionSources.get(id);
+        if (!item || !sourceUrl) return null;
+        return { sourceUrl, grid: deserializeGridFromLibrary(item), width: item.width, height: item.height };
+      });
+    }).catch((error) => console.warn("Artwork gallery motion unavailable", error));
   }
 }
 
@@ -4850,6 +5162,7 @@ function openGalleryPreview(item) {
 }
 
 function clearGeneratedGallery() {
+  galleryMotionSources.clear();
   localStorage.removeItem(GALLERY_STORAGE_KEY);
   if (els.gallerySearch) els.gallerySearch.value = "";
   renderGeneratedGallery();
@@ -5024,117 +5337,31 @@ function createChartCanvas(grid, stats, options = {}) {
 }
 
 function createA4PageCanvas(tile, details) {
-  const { pageWidth, pageHeight, marginPx, pageIndex, pageCount, orientation, mirrorLabel } =
-    details;
-  const headerHeight = 218;
-  const footerHeight = 92;
-  const labelBand = 34;
-  const grid = tile.grid;
-  const rows = grid.length;
-  const columns = grid[0]?.length || 0;
-  const availableWidth = pageWidth - marginPx * 2 - labelBand * 2;
-  const availableHeight = pageHeight - marginPx * 2 - headerHeight - footerHeight - labelBand * 2;
-  const cell = Math.max(
-    14,
-    Math.floor(Math.min(availableWidth / Math.max(1, columns), availableHeight / Math.max(1, rows))),
-  );
-  const boardWidth = columns * cell;
-  const boardHeight = rows * cell;
-  const boardX = marginPx + labelBand + Math.max(0, (availableWidth - boardWidth) / 2);
-  const boardY = marginPx + headerHeight + labelBand;
+  const { pageWidth, pageHeight, marginPx, pageIndex, pageCount, mirrorLabel } = details;
+  const options = {
+    title: `${buildGalleryTitle()}${mirrorLabel ? " · 镜像" : ""} · 第 ${pageIndex}/${pageCount} 页`,
+    pageCount,
+    coordinateX: tile.x0,
+    coordinateY: tile.y0,
+    artworkColumns: details.fullWidth,
+    artworkRows: details.fullHeight,
+  };
+  let cellSize = 48;
+  let size = constructionSheetPixelSize(tile.grid, cellSize, { constructionSheet: true, showCoordinates: true });
+  const width = pageWidth - marginPx * 2, height = pageHeight - marginPx * 2;
+  while (cellSize > 1 && (size.width > width || size.height > height)) {
+    cellSize--;
+    size = constructionSheetPixelSize(tile.grid, cellSize, { constructionSheet: true, showCoordinates: true });
+  }
+  const sheet = renderLegacyConstructionSheet(tile.grid, { ...options, cellSize });
   const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("canvas context unavailable");
   canvas.width = pageWidth;
   canvas.height = pageHeight;
-
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("canvas context unavailable");
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, pageWidth, pageHeight);
-  context.strokeStyle = "rgba(38, 38, 34, 0.3)";
-  context.setLineDash([12, 12]);
-  context.strokeRect(marginPx + 0.5, marginPx + 0.5, pageWidth - marginPx * 2, pageHeight - marginPx * 2);
-  context.setLineDash([]);
-
-  drawLogoMark(context, marginPx, marginPx, 96);
-  context.textAlign = "left";
-  context.textBaseline = "alphabetic";
-  context.fillStyle = "#111827";
-  context.font = `900 42px ${CANVAS_FONT_STACK}`;
-  context.fillText("里白造物拼豆图纸", marginPx + 118, marginPx + 43);
-  context.fillStyle = "#4b5563";
-  context.font = `800 24px ${CANVAS_FONT_STACK}`;
-  context.fillText(
-    `A4打印分版 · 第 ${pageIndex} / ${pageCount} 页 · ${orientation === "landscape" ? "横版" : "竖版"}${mirrorLabel ? ` · ${mirrorLabel}` : ""}`,
-    marginPx + 118,
-    marginPx + 82,
-  );
-  context.font = `700 20px ${CANVAS_FONT_STACK}`;
-  context.fillText(
-    `全图 ${details.fullWidth} x ${details.fullHeight} · 本页列 ${tile.x0 + 1}-${tile.x1} · 行 ${tile.y0 + 1}-${tile.y1} · 边距 ${details.marginMm}mm`,
-    marginPx + 118,
-    marginPx + 118,
-  );
-
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  const labelStep = Math.max(columns, rows) <= 30 ? 1 : 5;
-  context.font = `700 15px ${CANVAS_FONT_STACK}`;
-  for (let x = 0; x < columns; x += 1) {
-    const label = tile.x0 + x + 1;
-    if (!shouldShowCoordinateLabel(label, tile.x0 + 1, tile.x1, labelStep)) continue;
-    const cx = boardX + x * cell + cell / 2;
-    context.fillStyle = "#69716e";
-    context.fillText(label, cx, boardY - 18);
-    context.fillText(label, cx, boardY + boardHeight + 18);
-  }
-  for (let y = 0; y < rows; y += 1) {
-    const label = tile.y0 + y + 1;
-    if (!shouldShowCoordinateLabel(label, tile.y0 + 1, tile.y1, labelStep)) continue;
-    const cy = boardY + y * cell + cell / 2;
-    context.fillStyle = "#69716e";
-    context.textAlign = "right";
-    context.fillText(label, boardX - 12, cy);
-    context.textAlign = "left";
-    context.fillText(label, boardX + boardWidth + 12, cy);
-    context.textAlign = "center";
-  }
-
-  for (let y = 0; y < rows; y += 1) {
-    for (let x = 0; x < columns; x += 1) {
-      const color = grid[y][x];
-      const px = boardX + x * cell;
-      const py = boardY + y * cell;
-      if (color) {
-        context.fillStyle = rgb(color);
-        context.fillRect(px, py, cell, cell);
-      } else {
-        drawEmptyCell(context, px, py, cell);
-      }
-    }
-  }
-  drawCountingGrid(context, boardX, boardY, columns, rows, cell);
-
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  for (let y = 0; y < rows; y += 1) {
-    for (let x = 0; x < columns; x += 1) {
-      const color = grid[y][x];
-      if (!color) continue;
-      const px = boardX + x * cell;
-      const py = boardY + y * cell;
-      context.fillStyle = isDark(color.rgb) ? "#ffffff" : "#1f2422";
-      context.font = `900 ${getCodeFontSize(color.code, cell)}px ${CANVAS_FONT_STACK}`;
-      context.fillText(color.code, px + cell / 2, py + cell / 2 + 1);
-    }
-  }
-
-  context.fillStyle = "#4b5563";
-  context.font = `700 18px ${CANVAS_FONT_STACK}`;
-  context.fillText(
-    "虚线框为A4页边距预留区域，请按页面顺序拼接使用。",
-    pageWidth / 2,
-    pageHeight - marginPx - 28,
-  );
+  context.drawImage(sheet, Math.floor((pageWidth - sheet.width) / 2), marginPx);
   return canvas;
 }
 
@@ -5629,11 +5856,54 @@ function setPreviewZoom(value) {
   els.modalPreviewImage.style.transform = `scale(${state.previewZoom})`;
 }
 
-function downloadPreviewImage() {
+let constructionSheetRenderer;
+let constructionSheetPixelSize;
+const constructionSheetRendererReady = import("./services/png-pattern-export-renderer.js?v=20261008-selection-popover-r24").then((module) => {
+  constructionSheetRenderer = module.renderPngPatternCanvas;
+  constructionSheetPixelSize = module.pngPatternPixelSize;
+});
+
+function renderLegacyConstructionSheet(grid, options = {}) {
+  if (!constructionSheetRenderer) throw new Error("图纸渲染器正在加载，请稍后重试");
+  return constructionSheetRenderer(grid, {
+    cellSize: getDownloadCellSize(),
+    title: `${buildGalleryTitle()}${getMirrorLabel() ? " · 镜像" : ""}`,
+    paletteLabel: getChartPaletteLabel(),
+    showGrid: true,
+    showCodes: true,
+    ...options,
+    constructionSheet: true,
+    showCoordinates: true,
+  });
+}
+
+async function downloadLegacyPatternPdf(settings = {}) {
+  if (state.generationEngine !== "v2.5" && !ensureInviteRegistered()) return false;
+  if (!state.grid.length) throw new Error("请先生成图纸");
+  const grid = getExportGrid();
+  const { buildPatternPdfWithCjk } = await import("./services/export-v2-service.js?v=20261008-selection-popover-r24");
+  const blob = await buildPatternPdfWithCjk(grid, {
+    title: `${settings.name || buildGalleryTitle()}${getMirrorLabel() ? " · 镜像" : ""}`,
+    paletteLabel: getChartPaletteLabel(),
+    artworkColumns: grid[0]?.length || 0,
+    artworkRows: grid.length,
+    cellSize: 24,
+    showGrid: settings.grid !== false,
+    showCodes: settings.codes !== false,
+    showCoordinates: true,
+    pageCount: 1,
+  });
+  downloadBlob(blob, buildPatternDownloadName("pdf"));
+  setStatus("已导出矢量 PDF 图纸（含作品信息、材料清单与四边坐标）");
+  return true;
+}
+
+async function downloadPreviewImage() {
   if (!state.grid.length) return;
   const exportGrid = getExportGrid();
   recordLocalExportGrid(exportGrid, "preview", { showCodes: false, showGrid: false });
-  const canvas = renderBeadPattern({ matrix: exportGrid, preset: "PREVIEW_EXPORT", cell: 8 });
+  await constructionSheetRendererReady;
+  const canvas = renderLegacyConstructionSheet(exportGrid, { showCodes: false, showGrid: false });
   downloadUrl(canvas.toDataURL("image/png"), buildPreviewDownloadName());
   setStatus("已下载预览图");
 }
@@ -5652,18 +5922,14 @@ async function downloadPattern(renderOptions = {}) {
 
   const exportGrid = getExportGrid();
   recordLocalExportGrid(exportGrid, "pattern", renderOptions);
-  const exportStats = calculateStats(exportGrid);
+  await constructionSheetRendererReady;
   const tileSize = getSelectedTileSize();
   if (tileSize && (exportGrid[0]?.length > tileSize || exportGrid.length > tileSize)) {
     await downloadSplitPattern(tileSize, exportGrid);
     return;
   }
 
-  const canvas = renderBeadPattern({ matrix: exportGrid, stats: exportStats, preset: "PATTERN_EXPORT",
-    cell: getDownloadCellSize(),
-    margin: 88,
-    minLongSide: EXPORT_MIN_LONG_SIDE,
-    subtitle: getExportSubtitle(),
+  const canvas = renderLegacyConstructionSheet(exportGrid, {
     ...(renderOptions?.showGrid == null ? {} : { showGrid: renderOptions.showGrid }),
     ...(renderOptions?.showCodes == null ? {} : { showCodes: renderOptions.showCodes }),
     ...(renderOptions?.showCoordinates == null ? {} : { showCoordinates: renderOptions.showCoordinates }),
@@ -5680,19 +5946,22 @@ function ensureInviteRegistered() {
 }
 
 async function downloadSplitPattern(tileSize, grid = getExportGrid()) {
+  await constructionSheetRendererReady;
   const split = splitGridIntoTiles(grid, tileSize);
   const files = [];
   const cell = getSplitDownloadCellSize(tileSize);
   const mirrorLabel = getMirrorLabel();
 
   for (const tile of split.tiles) {
-    const canvas = createChartCanvas(tile.grid, tile.stats, {
-      cell,
-      margin: 88,
+    const canvas = renderLegacyConstructionSheet(tile.grid, {
+      cellSize: cell,
       showCodes: true,
-      minLongSide: EXPORT_MIN_LONG_SIDE,
-      title: `第 ${tile.index} / ${split.tiles.length} 版 (R${tile.row} C${tile.col})`,
-      subtitle: `全图 ${grid[0]?.length || 0} x ${grid.length}${mirrorLabel ? ` · ${mirrorLabel}` : ""} · 本版 ${tile.width} x ${tile.height} · 列 ${tile.x0 + 1}-${tile.x1} · 行 ${tile.y0 + 1}-${tile.y1} · ${tile.stats.length} 色 · ${getChartPaletteLabel()}`,
+      title: `${buildGalleryTitle()}${mirrorLabel ? " · 镜像" : ""} · 第 ${tile.index}/${split.tiles.length} 版 (R${tile.row} C${tile.col})`,
+      pageCount: split.tiles.length,
+      coordinateX: tile.x0,
+      coordinateY: tile.y0,
+      artworkColumns: grid[0]?.length || 0,
+      artworkRows: grid.length,
     });
     files.push({
       name: `board-r${padNumber(tile.row)}-c${padNumber(tile.col)}_cols-${tile.x0 + 1}-${tile.x1}_rows-${tile.y0 + 1}-${tile.y1}.png`,
@@ -5718,6 +5987,7 @@ async function downloadA4PrintPattern() {
   }
 
   const grid = getExportGrid();
+  await constructionSheetRendererReady;
   const orientation = getPrintOrientation();
   const marginMm = getPrintMarginMm();
   const printSet = splitGridIntoA4Pages(grid, orientation, marginMm);
@@ -5861,14 +6131,16 @@ function getExportSubtitle() {
 }
 
 function getExportGrid() {
-  let grid = isMirrorEnabled() ? mirrorGrid(state.grid) : cloneGrid(state.grid);
+  let grid = cloneGrid(state.grid);
   const maxColors = state.paletteBudget?.effective || null;
   if (maxColors != null && !state.manualEdited) {
     const validation = window.LibmsRegionAwareQuantizer?.validateFinalPattern?.(grid, maxColors);
     if (validation && !validation.valid) grid = applyFinalPaletteBudget(grid, maxColors).grid;
     validateCurrentPatternOrThrow(grid, maxColors);
   }
-  return grid;
+  const textLayers = globalThis.window?.libmsStore?.get?.("editorState", "textLayers") || [];
+  const composed = globalThis.window?.LibmsTextLayers?.composeLockedTextGrid?.(grid, textLayers, getCurrentPalette()) || grid;
+  return isMirrorEnabled() ? mirrorGrid(composed) : composed;
 }
 
 function recordLocalExportGrid(grid, kind, settings) {
@@ -7645,18 +7917,15 @@ function updateAssemblyUi() {
   }
 }
 
-function downloadEditorArtwork() {
-  const stats = calculateStats(state.editorGrid);
-  const canvas = createChartCanvas(state.editorGrid, stats, {
-    cell: getDownloadCellSize(),
-    margin: 88,
-    showCodes: true,
-    minLongSide: EXPORT_MIN_LONG_SIDE,
-    subtitle: "编辑器导出",
-  });
+async function downloadEditorArtwork() {
   const base = (els.artworkNameInput?.value || state.sourceName || "bead-pattern")
     .replace(/\.[^.]+$/, "")
     .trim();
+  await constructionSheetRendererReady;
+  const canvas = renderLegacyConstructionSheet(state.editorGrid, {
+    title: base || "未命名作品",
+    paletteLabel: getPaletteLabelForKey(els.editorPaletteSelect.value),
+  });
   downloadUrl(canvas.toDataURL("image/png"), `${base || "bead-pattern"}-editor.png`);
   setStatus("已下载编辑图纸");
 }
@@ -7715,6 +7984,7 @@ function createBlankBoard(options = {}) {
   }
   state.sourceDataUrl = "";
   state.sourceName = "blank-board";
+  globalThis.window?.libmsStore?.patchState?.("documentState", { creator: "" });
   state.autoProcessAfterLoad = false;
   state.restoreAutoSizePending = false;
   state.backgroundDecision = "";
@@ -7748,8 +8018,10 @@ function createBlankBoard(options = {}) {
 }
 
 function resetAll() {
+  window.dispatchEvent(new CustomEvent("libms:artwork-source-reset", { detail: { uploadRevision: ++artworkUploadRevision } }));
   state.sourceDataUrl = "";
   state.sourceName = "";
+  globalThis.window?.libmsStore?.patchState?.("documentState", { creator: "" });
   state.autoProcessAfterLoad = false;
   state.restoreAutoSizePending = false;
   state.backgroundDecision = "";
@@ -7792,7 +8064,7 @@ function cloneGrid(grid) {
 }
 
 function sameColor(a, b) {
-  return a?.code === b?.code || (!a && !b);
+  return (a?.paletteId || a?.code) === (b?.paletteId || b?.code) || (!a && !b);
 }
 
 function rgb(color) {
@@ -7821,6 +8093,7 @@ window.captureLegacyGenerationBaseline = () => ({
 
 // Thin UI adapter: existing Color Grid, palette and generation functions remain authoritative.
 window.LibmsWorkspaceBridge = {
+  getSourceUploadRevision: () => artworkUploadRevision,
   createBlankCanvas: ({ width, height } = {}) => createBlankBoard({ width, height }),
   getResult: () => ({
     width: state.width, height: state.height, grid: state.grid, colors: state.stats,
@@ -7829,6 +8102,8 @@ window.LibmsWorkspaceBridge = {
     patternUrl: state.chartUrl, paletteKey: getCurrentPaletteKey(),
     maxColors: Number(els.maxColorsInput?.value || 0), manualEdited: state.manualEdited,
     algorithmEngine: state.algorithmEngine, algorithmEngineLast: state.algorithmEngineLast || null,
+    generationEngine: state.generationEngine, generationEngineLast: state.generationEngineLast || null,
+    pindouOptions: structuredClone(state.pindouOptions || {}),
   }),
   getCell(x, y) { return cloneColor(state.grid[y]?.[x] || null); },
   /**
@@ -7841,6 +8116,7 @@ window.LibmsWorkspaceBridge = {
   // 上一次生成的「智能辅助」运行报告：给验收脚本与排障用，不参与任何计算。
   getGenerationReport: () => ({
     engine: state.generationEngineLast || null,
+    pindou: state.pindouReport || null,
     algorithmEngine: state.algorithmEngineLast || null,
     pindo: state.pindoReport || null,
     bgs: state.bgsReport || null,
@@ -7853,6 +8129,9 @@ window.LibmsWorkspaceBridge = {
     generationMilliseconds: state.generationMilliseconds ?? null,
   }),
   getPaletteColors: () => getCurrentPalette().map(cloneColor),
+  getAvailablePaletteIds,
+  setAvailablePaletteIds,
+  getGenerationPaletteColors: () => getGenerationPaletteColors().map(cloneColor),
   applyCellChanges(changes, { live = false, finalize = false } = {}) {
     if (!state.grid.length || !Array.isArray(changes)) return 0;
     let count = 0;
@@ -7860,11 +8139,13 @@ window.LibmsWorkspaceBridge = {
       const x = Number(change.x), y = Number(change.y);
       if (!Number.isInteger(x) || !Number.isInteger(y) || !state.grid[y] || x < 0 || x >= state.grid[y].length) continue;
       const next = change.after ? cloneColor(change.after) : null;
-      if (state.grid[y][x]?.code === next?.code) continue;
+      if (sameColor(state.grid[y][x], next)) continue;
       state.grid[y][x] = next;
       count++;
     }
-    if (count) state.manualEdited = true;
+    if (count) { state.manualEdited = true;
+      if (state.generationEngineLast === "pindou") state.generationRequestId = (Number(state.generationRequestId) || 0) + 1;
+    }
     if ((count || finalize) && !live) {
       state.manualEdited = true;
       state.stats = calculateStats(state.grid);
@@ -7877,7 +8158,45 @@ window.LibmsWorkspaceBridge = {
   },
   setProductionOptions({ engine = "v2.5", generationOptions = {} } = {}) {
     state.generationEngine = engine;
+    // Unified workspace must not inherit an imported PW/BGS algorithm override.
+    if (engine === "v2.5") state.algorithmEngine = "current";
+    if (engine === "pindou" && generationOptions.pindouOptions) state.pindouOptions = structuredClone(generationOptions.pindouOptions);
     state.productionGenerationOptions = generationOptions;
+    state.smartColorTolerance = { enabled: false, strength: 0, policy: "quality-first", ...generationOptions.smartColorTolerance };
+    if (!state.smartColorTolerance.enabled) {
+      smartToleranceSession?.clear();
+      state.smartToleranceBaselineRevision = null;
+      smartTolerancePaletteContext = null;
+    } else smartToleranceSession?.invalidate(smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0));
+  },
+  async updateSmartColorTolerance({ strength, paletteContext } = {}) {
+    if (!Number.isFinite(strength) || strength < 0 || strength > 100) throw new RangeError("strength must be 0..100");
+    if (!state.smartColorTolerance?.enabled || state.smartColorTolerance.policy !== "quality-first") throw new Error("Smart color tolerance is not enabled");
+    const requestId = ++state.generationRequestId;
+    const baselineRevision = state.smartToleranceBaselineRevision;
+    const capturedGrid = state.grid;
+    let capturedContext = smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0);
+    const current = () => state.generationRequestId === requestId
+      && state.smartToleranceBaselineRevision === baselineRevision
+      && state.smartColorTolerance?.enabled === true && state.smartColorTolerance.policy === "quality-first"
+      && !state.manualEdited && state.grid === capturedGrid && state.grid === smartToleranceCommittedGrid
+      && capturedContext === smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0);
+    const stale = () => ({ committed: false, stale: true });
+    if (paletteContext !== undefined) {
+      const { resolveSmartTolerancePaletteContext } = await import("./services/smart-color-tolerance-palette-adapter.mjs");
+      if (!current()) return stale();
+      smartTolerancePaletteContext = structuredClone(resolveSmartTolerancePaletteContext(paletteContext));
+      capturedContext = smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0);
+    }
+    const session = await getSmartToleranceSession();
+    if (!current()) return stale();
+    if (session.invalidate(smartToleranceContext(state.width, state.height, state.paletteBudget?.effective || 0)) || !state.smartToleranceBaselineRevision || state.manualEdited || state.grid !== smartToleranceCommittedGrid) {
+      state.smartToleranceBaselineRevision = null;
+      throw new Error("Smart tolerance baseline changed; regenerate before evaluating strength");
+    }
+    state.smartColorTolerance = { ...state.smartColorTolerance, strength };
+    state.productionGenerationOptions = { ...state.productionGenerationOptions, smartColorTolerance: { ...state.smartColorTolerance } };
+    return session.evaluate({ strength, requestId, baselineRevision: baselineRevision });
   },
   /**
    * 背景预检（Stage B2 §6）。给工作台「开启去除纯色背景 → 先问用户」用。
@@ -7972,13 +8291,14 @@ window.LibmsWorkspaceBridge = {
     }
     if (maxColors != null && els.maxColorsInput) els.maxColorsInput.value = String(maxColors);
     try {
-      const generated = await processImage({ overwriteApproved, requestId });
+      const generated = await processImage({ overwriteApproved, requestId, ...(state.generationEngine === "pindou" ? { width, height } : {}) });
       // 先看深层留下的「为什么没结果」：取消 / 过期必须原样上抛（带 name），
       // 绝不能被下面的 `!generated` 分支误判成算法失败。
       const outcome = takeExpectedGenerationOutcome();
       if (outcome) throw generationOutcomeError(outcome);
       if (isStaleGenerationRequest(requestId)) throw generationOutcomeError("stale");
       if (!generated && state.lastGenerationError) {
+        if (state.generationEngine === "pindou") throw new Error(`拼豆引擎生成失败：${state.lastGenerationError}`);
         // 独立算法失败时保留原算法选择，不静默回退。
         if (state.algorithmEngine === "bgs") throw new Error(`BGS 算法失败：${state.lastGenerationError}`);
         if (state.algorithmEngine === "pindou-workbench" || state.algorithmEngine === "hybrid-pw") {
@@ -8009,7 +8329,9 @@ window.LibmsWorkspaceBridge = {
   isGenerating() { return Boolean(generationWorkerClient?.busy) || Boolean(state.isProcessingImage); },
   /** 这个错误是不是「预期结局」（取消 / 过期 / 延后）。适配层据此只提示、不报错。 */
   isExpectedGenerationOutcome(error) { return isExpectedGenerationOutcome(error); },
-  setGenerationEngine(engine) { state.generationEngine = engine === "legacy" ? "legacy" : "v2.5"; },
+  setGenerationEngine(engine) { state.generationEngine = ["legacy", "pindou"].includes(engine) ? engine : "v2.5"; },
+  setPindouOptions(config) { state.pindouOptions = structuredClone(config || {}); },
+  getPindouOptions: () => structuredClone(state.pindouOptions || {}),
   // ===== 算法引擎开关（Batch E + F）=====
   // current = 现有链路；bgs = src/algorithms/bgs；
   // pindou-workbench / hybrid-pw = src/algorithms/pindou-workbench。
@@ -8223,6 +8545,8 @@ window.LibmsWorkspaceBridge = {
   getEffectiveSourceRatio: () => resolveEffectiveSourceRatio(),
   getSourceTransform: () => ({ ...state.sourceTransform, crop: state.sourceTransform.crop ? { ...state.sourceTransform.crop } : null, expand: { ...state.sourceTransform.expand } }),
   setSourceTransform(patch) {
+    // Cancel old parameter work before writing the newest source transform.
+    if (state.isProcessingImage || generationWorkerClient?.busy) cancelGeneration("画面调整参数已更新");
     state.sourceTransform = { ...state.sourceTransform, ...patch,
       expand: { ...state.sourceTransform.expand, ...(patch.expand || {}) } };
     state.processedSourceDataUrl = "";
@@ -8230,7 +8554,7 @@ window.LibmsWorkspaceBridge = {
     return this.getSourceTransform();
   },
   getNearestPaletteCandidates(rgb) {
-    const palette = getCurrentPalette(), sourceLab = window.LibmsPaletteEngine?.rgbToLab?.(rgb);
+    const palette = getGenerationPaletteColors(), sourceLab = window.LibmsPaletteEngine?.rgbToLab?.(rgb);
     const candidates = palette.map((color) => ({ ...cloneColor(color), distance: sourceLab
       ? window.LibmsPaletteEngine.deltaE2000(sourceLab, window.LibmsPaletteEngine.rgbToLab(color.rgb))
       : Math.sqrt(color.rgb.reduce((sum, channel, i) => sum + (channel - rgb[i]) ** 2, 0)) }));
@@ -8239,6 +8563,7 @@ window.LibmsWorkspaceBridge = {
     return { nearest: nearest?.code || null, candidates: candidates.slice(0,5) };
   },
   getPalettes: () => Object.keys(PALETTES),
+  getPaletteCatalog: () => Object.entries(PALETTES).filter(([key]) => !key.startsWith('mard-') || BRAND_PROFILES.mard.options.includes(Number(key.split('-')[1]))).map(([key, colors]) => ({ key, tierLabel: BRAND_PROFILES[key.split('-')[0]]?.tierLabel || '', summary: BRAND_PROFILES[key.split('-')[0]]?.summary || '', colors: colors.map(color => cloneColor(color)) })),
   getActivePalette: () => ({ key: getCurrentPaletteKey(), colors: getCurrentPalette() }),
   setActivePalette(brand, size) {
     if (BRAND_PROFILES[brand]) state.selectedBrand = brand;
@@ -8289,6 +8614,7 @@ window.LibmsWorkspaceBridge = {
     return canvas.toDataURL("image/png");
   },
   downloadPreview: () => downloadPreviewImage(),
+  downloadA4Pages: () => downloadA4PrintPattern(),
   async downloadPattern({ split = false, settings = {} } = {}) {
     const previous = els.tileSizeSelect?.value;
     if (els.tileSizeSelect) els.tileSizeSelect.value = split ? (previous && previous !== "0" ? previous : "52") : "0";
@@ -8315,14 +8641,7 @@ window.LibmsWorkspaceBridge = {
   },
   renderExportPattern(settings = {}) {
     const exportGrid = getExportGrid();
-    return renderBeadPattern({
-      matrix: exportGrid,
-      stats: calculateStats(exportGrid),
-      preset: "PATTERN_EXPORT",
-      cell: getDownloadCellSize(),
-      margin: 88,
-      minLongSide: EXPORT_MIN_LONG_SIDE,
-      subtitle: getExportSubtitle(),
+    return renderLegacyConstructionSheet(exportGrid, {
       ...(settings.showGrid == null ? {} : { showGrid: settings.showGrid }),
       ...(settings.showCodes == null ? {} : { showCodes: settings.showCodes }),
       ...(settings.showCoordinates == null ? {} : { showCoordinates: settings.showCoordinates }),
@@ -8331,6 +8650,7 @@ window.LibmsWorkspaceBridge = {
   async downloadPatternJpg(settings = {}) {
     if (state.generationEngine !== "v2.5" && !ensureInviteRegistered()) return false;
     if (!state.grid.length) throw new Error("请先生成图纸");
+    await constructionSheetRendererReady;
     const canvas = this.renderExportPattern(settings);
     const blob = await new Promise((resolve, reject) => {
       canvas.toBlob((value) => (value ? resolve(value) : reject(new Error("JPG 编码失败"))), "image/jpeg", 0.94);
@@ -8360,16 +8680,21 @@ window.LibmsWorkspaceBridge = {
       version: 1,
       savedAt: new Date().toISOString(),
       projectName: getSchemeName() || state.sourceName.replace(/\.[^.]+$/, "") || "未命名作品",
+      ...(globalThis.window?.libmsStore?.get?.("documentState", "creator") ? { metadata: { creator: globalThis.window.libmsStore.get("documentState", "creator") } } : {}),
       canvas: { width: state.width, height: state.height },
       palette: { key: getCurrentPaletteKey(), label: getCurrentPaletteLabel(), maxColors: Number(els.maxColorsInput?.value || 0) },
       stats: { usedColors: state.stats.length, totalBeads: state.stats.reduce((sum, item) => sum + item.count, 0) },
-      colors: state.stats.map((item) => ({ code: item.code, name: item.name || "", hex: item.hex || hexFromRgb(item.rgb), rgb: [...item.rgb] })),
+      colors: state.stats.map((item) => ({ code: item.code, ...(item.paletteId ? { paletteId: item.paletteId } : {}), name: item.name || "", hex: item.hex || hexFromRgb(item.rgb), rgb: [...item.rgb] })),
       grid: state.grid.map((row) => row.map((color) => (color ? color.code : null))),
+      ...(state.grid.some((row) => row.some((color) => color?.paletteId)) ? { gridPaletteIds: state.grid.map((row) => row.map((color) => color?.paletteId || null)) } : {}),
+      textObjects: JSON.parse(JSON.stringify(globalThis.window?.libmsStore?.get?.("editorState", "textLayers") || [])),
     };
   },
-  downloadProjectJson() {
+  downloadProjectJson(projectName) {
     const payload = this.buildProjectJson();
-    downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), `${payload.projectName}-project.json`);
+    payload.projectName = String(projectName ?? payload.projectName).trim() || "未命名作品";
+    const filename = payload.projectName.replace(/[\\/:*?"<>|\u0000-\u001F]/g, "-").replace(/[. ]+$/g, "") || "未命名作品";
+    downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), `${filename}.json`);
     setStatus("已保存工程文件");
     return payload;
   },
@@ -8379,6 +8704,29 @@ window.LibmsWorkspaceBridge = {
       try { payload = JSON.parse(source); } catch { throw new Error("工程文件不是合法 JSON"); }
     }
     if (!payload || typeof payload !== "object") throw new Error("工程文件内容为空");
+    if (payload.type === "libai-maker-project") {
+      const legacyGrid = deserializeGridFromLibrary(payload);
+      if (!legacyGrid?.length || !legacyGrid[0]?.length) throw new Error("项目网格为空");
+      const paletteKey = String(payload.paletteKey || "legacy");
+      const colors = new Map();
+      const gridPaletteIds = legacyGrid.map((row) => row.map((color) => {
+        if (!color) return null;
+        const paletteId = color.paletteId || `${paletteKey}:${color.code}:${color.hex}`;
+        colors.set(paletteId, { ...color, paletteId });
+        return paletteId;
+      }));
+      payload = {
+        format: "libms-project", version: 1,
+        projectName: payload.name || payload.sourceName || "导入工程",
+        metadata: payload.metadata,
+        canvas: { width: legacyGrid[0].length, height: legacyGrid.length },
+        palette: { key: paletteKey, maxColors: payload.settings?.colorLimit },
+        colors: [...colors.values()],
+        grid: legacyGrid.map((row) => row.map((color) => color?.code || null)),
+        gridPaletteIds,
+        textObjects: payload.textObjects || [],
+      };
+    }
     if (payload.format !== "libms-project") throw new Error("不是里白造物工程文件");
     if (Number(payload.version) > 1) throw new Error(`工程文件版本 ${payload.version} 高于当前支持的 1`);
     const width = Math.round(Number(payload.canvas?.width) || 0);
@@ -8386,18 +8734,19 @@ window.LibmsWorkspaceBridge = {
     if (!width || !height || !Array.isArray(payload.grid) || payload.grid.length !== height) {
       throw new Error("工程文件缺少可用的画布尺寸或矩阵");
     }
-    // 色号优先按当前色卡解析；跨色卡打开时用存档里的颜色信息兜底，避免丢豆子。
-    const archived = new Map((payload.colors || []).map((color) => [String(color.code).toUpperCase(), color]));
-    const active = new Map(getCurrentPalette().map((color) => [color.code.toUpperCase(), color]));
-    const resolve = (code) => {
+    // 有品牌身份的颜色按存档恢复；旧工程仍优先按当前色卡解析色号。
+    const archived = new Map((payload.colors || []).map((color) => [String(color.paletteId || color.code).toUpperCase(), color]));
+    const active = new Map(getCurrentPalette().flatMap((color) => [[color.code.toUpperCase(), color], ...(color.paletteId ? [[color.paletteId.toUpperCase(), color]] : [])]));
+    const resolve = (code, paletteId) => {
       if (code == null) return null;
-      const key = String(code).toUpperCase();
-      const found = active.get(key) || archived.get(key);
+      const key = String(paletteId || code).toUpperCase();
+      const saved = archived.get(key);
+      const found = saved?.paletteId ? saved : active.get(key) || saved;
       return found ? cloneColor(found) : null;
     };
-    const grid = payload.grid.map((row) => {
+    const grid = payload.grid.map((row, rowIndex) => {
       if (!Array.isArray(row) || row.length !== width) throw new Error("工程文件矩阵宽高与画布尺寸不一致");
-      return row.map(resolve);
+      return row.map((code, columnIndex) => resolve(code, payload.gridPaletteIds?.[rowIndex]?.[columnIndex]));
     });
     // 工程存档只包含图纸矩阵，不包含原始图片。清掉上一项目的源图，避免工作台仍在
     // 「原图」视图时显示旧图片，而 Navigator 已经显示刚载入的新图纸。
@@ -8407,6 +8756,8 @@ window.LibmsWorkspaceBridge = {
     state.sourceNaturalHeight = 0;
     state.sourceName = String(payload.projectName || "导入工程");
     if (!this.replaceGridStructure({ grid, width, height })) throw new Error("工程文件无法载入当前画布");
+    globalThis.window?.libmsStore?.patchState?.("documentState", { creator: typeof payload.metadata?.creator === "string" ? payload.metadata.creator.trim() : "" });
+    globalThis.window?.libmsStore?.patchState?.("editorState", { textLayers: JSON.parse(JSON.stringify(Array.isArray(payload.textObjects) ? payload.textObjects : [])), activeTextLayerId: null });
     // 结构化工程里的 canvas.width/height 是**绝对权威**：文件说 222×295，那就是 222×295。
     // 不经过 generationLongEdge、不经过裁剪比例、不经过像素倍数，也不接受 104 默认值。
     // 放在 replaceGridStructure 成功之后：只有矩阵真的载入了，这个尺寸才成立。
@@ -8426,79 +8777,18 @@ window.LibmsWorkspaceBridge = {
 
 init();
 
-// ===== PDF Export (added by liStudio upgrade) =====
+// ===== PDF Export =====
 document.getElementById('pdf-export-button')?.addEventListener('click', async function() {
-  const previewImg = document.getElementById('result-preview');
-  if (!previewImg || previewImg.hidden) {
-    alert('请先生成图纸');
-    return;
-  }
-  
+  const previousLabel = this.textContent;
   try {
     this.textContent = '正在生成 PDF...';
     this.disabled = true;
-    
-    // Dynamically load jspdf
-    const { jsPDF } = await import('https://cdn.jsdelivr.net/npm/jspdf@2.5.2/+esm');
-    
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    
-    // Page 1: cover with material info
-    doc.setFontSize(22);
-    doc.text('拼豆电子图纸 - 精确材料清单', 20, 25);
-    
-    // Try to get color data from the app state
-    const colorCounts = window.__libms_colorData || [];
-    doc.setFontSize(12);
-    doc.text('生成时间: ' + new Date().toLocaleString(), 20, 35);
-    doc.text('颜色数量: ' + (colorCounts.length || '--') + ' 色', 20, 42);
-    
-    if (colorCounts.length > 0) {
-      let y = 55;
-      doc.setFontSize(11);
-      doc.text('色号', 25, y);
-      doc.text('颜色', 60, y);
-      doc.text('数量', 110, y);
-      doc.line(20, y + 2, 190, y + 2);
-      y += 10;
-      
-      for (let i = 0; i < colorCounts.length; i++) {
-        if (y > 270) { doc.addPage(); y = 20; }
-        const c = colorCounts[i];
-        doc.text('C' + (i + 1), 25, y);
-        doc.text(c.count + ' 颗', 110, y);
-        if (c.hex) {
-          doc.setFillColor(
-            parseInt(c.hex.slice(1,3), 16),
-            parseInt(c.hex.slice(3,5), 16),
-            parseInt(c.hex.slice(5,7), 16)
-          );
-          doc.rect(60, y - 4, 12, 5, 'F');
-        }
-        y += 8;
-      }
-    }
-    
-    // Add pages with the generated pattern image
-    const canvas = document.createElement('canvas');
-    canvas.width = previewImg.naturalWidth || previewImg.width;
-    canvas.height = previewImg.naturalHeight || previewImg.height;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(previewImg, 0, 0);
-    const imgData = canvas.toDataURL('image/png');
-    
-    doc.addPage();
-    doc.setFontSize(14);
-    doc.text('生成图纸', 20, 15);
-    doc.addImage(imgData, 'PNG', 15, 25, 180, 180);
-    
-    doc.save('libms_pattern_project.pdf');
-    
+    await downloadLegacyPatternPdf();
   } catch (err) {
     console.error('PDF export error:', err);
     alert('PDF 导出失败: ' + err.message);
   } finally {
-    this.textContent = '📄 导出 PDF（含材料清单）';
+    this.textContent = previousLabel;
     this.disabled = false;
   }
 });
@@ -8630,7 +8920,7 @@ function applyExportOverlays(canvas, settings) {
   ctx.restore();
 }
 
-function renderExportPreview() {
+async function renderExportPreview() {
   const modal = document.getElementById("export-settings-modal");
   if (!modal || !modal.open) return;
   const grid = getExportGridForSettings();
@@ -8641,7 +8931,10 @@ function renderExportPreview() {
   }
   const stats = calculateStats(grid);
   const settings = readExportSettings();
-  const canvas = renderBeadPattern(buildExportRenderOptions(grid, stats, settings));
+  await constructionSheetRendererReady;
+  const canvas = settings.format === "poster"
+    ? renderBeadPattern(buildExportRenderOptions(grid, stats, settings))
+    : renderLegacyConstructionSheet(grid, { title: `${settings.name}${getMirrorLabel() ? " · 镜像" : ""}`, showGrid: settings.grid, showCodes: settings.codes });
   if (settings.watermark || settings.qrcode || settings.author || settings.sharecode) {
     applyExportOverlays(canvas, settings);
   }
@@ -8663,7 +8956,7 @@ function updateExportSpecs(grid, stats, settings) {
   const op = document.getElementById("spec-output");
   if (sz) sz.textContent = `${cols} × ${rows}`;
   if (cl) cl.textContent = `${stats.length} 色`;
-  if (op) op.textContent = settings.format === "pdf" ? "A4 多页 PDF" : settings.format === "poster" ? "标准 PNG 海报" : "标准 PNG 大图";
+  if (op) op.textContent = settings.format === "pdf" ? "矢量 PDF 图纸" : settings.format === "poster" ? "标准 PNG 海报" : "标准 PNG 大图";
 }
 
 function setExportFormat(fmt) {
@@ -8697,8 +8990,11 @@ function closeExportSettingsModal() {
 async function exportWithSettings() {
   const settings = readExportSettings();
   if (settings.format === "pdf") {
-    closeExportSettingsModal();
-    downloadA4PrintPattern();
+    try {
+      if (await downloadLegacyPatternPdf(settings)) closeExportSettingsModal();
+    } catch (error) {
+      setStatus(`PDF 导出失败：${error.message}`);
+    }
     return;
   }
   if (state.generationEngine !== "v2.5" && !ensureInviteRegistered()) {
@@ -8711,7 +9007,10 @@ async function exportWithSettings() {
     return;
   }
   const stats = calculateStats(grid);
-  const canvas = renderBeadPattern(buildExportRenderOptions(grid, stats, settings));
+  await constructionSheetRendererReady;
+  const canvas = settings.format === "poster"
+    ? renderBeadPattern(buildExportRenderOptions(grid, stats, settings))
+    : renderLegacyConstructionSheet(grid, { title: `${settings.name}${getMirrorLabel() ? " · 镜像" : ""}`, showGrid: settings.grid, showCodes: settings.codes });
   if (settings.watermark || settings.qrcode || settings.author || settings.sharecode) {
     applyExportOverlays(canvas, settings);
   }

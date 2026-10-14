@@ -40,7 +40,7 @@ export class GenerationStaleError extends Error {
   }
 }
 
-export const DEFAULT_GENERATION_WORKER_URL = "./services/generation.worker.mjs?v=20261002-stage-b3";
+export const DEFAULT_GENERATION_WORKER_URL = "./services/generation.worker.mjs?v=20261014-fusion-production-1";
 
 /**
  * @param {object} [options]

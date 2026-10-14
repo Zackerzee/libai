@@ -206,6 +206,13 @@ export function applyBudgetPlan(grid, getColorKey, plan, keyToCell) {
       cell.rgb = Array.isArray(targetCell.rgb) ? [...targetCell.rgb] : targetCell.rgb;
       if (targetCell.hex) cell.hex = targetCell.hex;
       if (targetCell.name) cell.name = targetCell.name;
+      // 身份必须跟着目标色一起走：paletteIdOf 先读 paletteId 再回落 code，
+      // 合并后只改 code/rgb 会让格子带着来源色的旧身份（实测 P1 的格子
+      // code 已是 P2、paletteId 还是 test:P1），编解码按 identity 归并
+      // 色板时会把两个色号并成一条，导出身份随之错配。
+      // 目标色没有 paletteId 时（合成色对象 / hybrid 内部矩阵）删字段，
+      // 对不携带身份的调用方行为不变。
+      if (targetCell.paletteId == null) delete cell.paletteId; else cell.paletteId = targetCell.paletteId;
       applied++;
     }
   }

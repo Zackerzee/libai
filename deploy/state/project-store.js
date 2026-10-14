@@ -23,7 +23,7 @@
  * 字段映射依据：PROJECT-STORE-AUDIT.md §4（归属设计）与 §5（语义冲突）。
  * 凡"同名不同义"的字段一律【不合流】，用独立字段承接（canvasState / wsTool / wsSelection）。
  */
-import "./store.js"; // 副作用导入：确保 globalThis.libmsStoreApi 就绪。
+import "./store.js?v=20261007-layout-consolidation"; // 副作用导入：确保 globalThis.libmsStoreApi 就绪。
 // 浏览器里 store.js 已由 <script defer> 以 classic 方式加载过；
 // store.js 内部有幂等守卫，此处再次执行不会创建第二个 store 实例。
 
@@ -111,6 +111,7 @@ function snapshot(store) {
     },
     generation: {
       engine: s.processingState.generationEngine,
+      ...(s.processingState.pindouOptions ? { pindouOptions: structuredClone(s.processingState.pindouOptions) } : {}),
       algorithm: s.processingState.algorithmEngine,
       preset: s.processingState.generationPreset,
       sampling: s.processingState.generationSampling,
@@ -127,6 +128,7 @@ function snapshot(store) {
       autoBackground: s.processingState.autoBackground,
       strokeProtection: s.processingState.strokeProtection,
       accentProtection: s.processingState.accentProtection,
+      smartColorTolerance: { ...s.processingState.smartColorTolerance },
       // 算法调色：单独成桶，与 sourceTransform 的同名字段区分
       brightness: s.processingState.colorTuning.brightness,
       contrast: s.processingState.colorTuning.contrast,

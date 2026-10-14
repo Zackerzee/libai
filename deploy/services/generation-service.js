@@ -1,6 +1,8 @@
 export function createGenerationService(bridge, store) {
   return {
     async generate(options = {}) {
+      const artworkUploadRevision = bridge.getSourceUploadRevision?.();
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("libms:artwork-generation-started"));
       // 新一轮生成开始：清掉上一次的提示与阶段文案，否则「已取消生成」会一直挂着，
       // 或者上一轮的「正在匹配真实色号…」会串到这一轮的进度里。
       store.setState({ status: { generating: true, notice: "", generationPhase: "" } });
@@ -40,6 +42,7 @@ export function createGenerationService(bridge, store) {
           stats: { totalBeads: result.totalBeads, usedColors: result.usedColors, colors: result.colors },
           status: { generating: false, hasSource: Boolean(result.sourceUrl), hasPattern: true, dirty: false, notice: "", generationPhase: "" },
         });
+        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("libms:artwork-generation-completed", { detail: { ...result, artworkUploadRevision } }));
         return result;
       } catch (error) {
         store.setState({ status: { generating: false, generationPhase: "" } });
