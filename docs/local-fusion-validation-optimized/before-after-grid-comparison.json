@@ -1,0 +1,295 @@
+{
+  "count": 48,
+  "allEqual": true,
+  "runtimeCaution": "Quality runtimes are single observations, not P50 or statistical performance evidence.",
+  "cases": [
+    {
+      "case": "new-year-sign|52|v25",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 2973.246709,
+      "afterRuntimeMs": 2710.445916
+    },
+    {
+      "case": "new-year-sign|52|auto",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 2744.3492920000003,
+      "afterRuntimeMs": 3588.647
+    },
+    {
+      "case": "new-year-sign|52|fusion-pindou-area",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 2761.5397909999992,
+      "afterRuntimeMs": 2699.134249999999
+    },
+    {
+      "case": "new-year-sign|52|fusion-pindou-nearest",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 2508.0530420000014,
+      "afterRuntimeMs": 3279.7952079999995
+    },
+    {
+      "case": "new-year-sign|52|fusion-pindou-dominant",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 2631.802208000001,
+      "afterRuntimeMs": 2448.54925
+    },
+    {
+      "case": "new-year-sign|52|fusion-pindou-edge",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 2755.1378750000003,
+      "afterRuntimeMs": 2703.147249999998
+    },
+    {
+      "case": "new-year-sign|52|fusion-pindou-dpid",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 2664.608165999998,
+      "afterRuntimeMs": 3222.2878329999985
+    },
+    {
+      "case": "new-year-sign|52|fusion-pindou-ssim",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 2428.8638339999998,
+      "afterRuntimeMs": 3118.517208999998
+    },
+    {
+      "case": "new-year-sign|104|v25",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 3198.381708000001,
+      "afterRuntimeMs": 4737.034250000001
+    },
+    {
+      "case": "new-year-sign|104|auto",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 3079.282875000001,
+      "afterRuntimeMs": 3345.1421249999985
+    },
+    {
+      "case": "new-year-sign|104|fusion-pindou-area",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 3052.686415999997,
+      "afterRuntimeMs": 3403.376833000002
+    },
+    {
+      "case": "new-year-sign|104|fusion-pindou-nearest",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 3880.1341250000005,
+      "afterRuntimeMs": 3360.0550000000003
+    },
+    {
+      "case": "new-year-sign|104|fusion-pindou-dominant",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 3357.508167,
+      "afterRuntimeMs": 3251.608374999996
+    },
+    {
+      "case": "new-year-sign|104|fusion-pindou-edge",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 3793.1357919999937,
+      "afterRuntimeMs": 3223.3876660000024
+    },
+    {
+      "case": "new-year-sign|104|fusion-pindou-dpid",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 3847.853374999999,
+      "afterRuntimeMs": 4803.793792000004
+    },
+    {
+      "case": "new-year-sign|104|fusion-pindou-ssim",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 3437.198292000001,
+      "afterRuntimeMs": 3622.3137080000015
+    },
+    {
+      "case": "brand-logo|52|v25",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 526.5238329999993,
+      "afterRuntimeMs": 413.1707500000048
+    },
+    {
+      "case": "brand-logo|52|auto",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 425.1422079999975,
+      "afterRuntimeMs": 350.72854099999677
+    },
+    {
+      "case": "brand-logo|52|fusion-pindou-area",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 399.1757079999952,
+      "afterRuntimeMs": 334.9083329999994
+    },
+    {
+      "case": "brand-logo|52|fusion-pindou-nearest",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 336.7404999999999,
+      "afterRuntimeMs": 328.0206659999967
+    },
+    {
+      "case": "brand-logo|52|fusion-pindou-dominant",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 318.6211669999975,
+      "afterRuntimeMs": 281.45654099999956
+    },
+    {
+      "case": "brand-logo|52|fusion-pindou-edge",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 422.4779170000038,
+      "afterRuntimeMs": 354.3212500000009
+    },
+    {
+      "case": "brand-logo|52|fusion-pindou-dpid",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 698.7156249999971,
+      "afterRuntimeMs": 354.95141599999624
+    },
+    {
+      "case": "brand-logo|52|fusion-pindou-ssim",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 441.5405830000018,
+      "afterRuntimeMs": 367.19470799999544
+    },
+    {
+      "case": "brand-logo|104|v25",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 1385.2091669999936,
+      "afterRuntimeMs": 815.2323340000003
+    },
+    {
+      "case": "brand-logo|104|auto",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 1341.6921249999941,
+      "afterRuntimeMs": 863.6257499999992
+    },
+    {
+      "case": "brand-logo|104|fusion-pindou-area",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 924.8892909999995,
+      "afterRuntimeMs": 696.6127909999996
+    },
+    {
+      "case": "brand-logo|104|fusion-pindou-nearest",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 1141.1338749999995,
+      "afterRuntimeMs": 777.1525830000028
+    },
+    {
+      "case": "brand-logo|104|fusion-pindou-dominant",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 1000.5900419999962,
+      "afterRuntimeMs": 730.512459000005
+    },
+    {
+      "case": "brand-logo|104|fusion-pindou-edge",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 989.3247919999994,
+      "afterRuntimeMs": 789.7477920000019
+    },
+    {
+      "case": "brand-logo|104|fusion-pindou-dpid",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 1461.4333750000005,
+      "afterRuntimeMs": 863.6008329999968
+    },
+    {
+      "case": "brand-logo|104|fusion-pindou-ssim",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 1128.4561669999966,
+      "afterRuntimeMs": 818.2351669999989
+    },
+    {
+      "case": "fantasy-illustration|52|v25",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 4050.764875000008,
+      "afterRuntimeMs": 3564.9330830000035
+    },
+    {
+      "case": "fantasy-illustration|52|auto",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 4085.8315000000002,
+      "afterRuntimeMs": 3715.092457999999
+    },
+    {
+      "case": "fantasy-illustration|52|fusion-pindou-area",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 3625.5284170000086,
+      "afterRuntimeMs": 4054.3887499999983
+    },
+    {
+      "case": "fantasy-illustration|52|fusion-pindou-nearest",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 4206.076125000007,
+      "afterRuntimeMs": 3556.8369590000075
+    },
+    {
+      "case": "fantasy-illustration|52|fusion-pindou-dominant",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 4124.164540999991,
+      "afterRuntimeMs": 4260.87866599999
+    },
+    {
+      "case": "fantasy-illustration|52|fusion-pindou-edge",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 4775.440042000002,
+      "afterRuntimeMs": 3580.058290999994
+    },
+    {
+      "case": "fantasy-illustration|52|fusion-pindou-dpid",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 6795.3194159999985,
+      "afterRuntimeMs": 3662.9517919999926
+    },
+    {
+      "case": "fantasy-illustration|52|fusion-pindou-ssim",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 7621.788415999996,
+      "afterRuntimeMs": 4298.587791999991
+    },
+    {
+      "case": "fantasy-illustration|104|v25",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 10426.163583000001,
+      "afterRuntimeMs": 4884.412375
+    },
+    {
+      "case": "fantasy-illustration|104|auto",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 9114.011583999993,
+      "afterRuntimeMs": 4662.360333999997
+    },
+    {
+      "case": "fantasy-illustration|104|fusion-pindou-area",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 8615.529834,
+      "afterRuntimeMs": 4737.50570899999
+    },
+    {
+      "case": "fantasy-illustration|104|fusion-pindou-nearest",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 9497.671833,
+      "afterRuntimeMs": 4610.05479200001
+    },
+    {
+      "case": "fantasy-illustration|104|fusion-pindou-dominant",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 9462.385875000007,
+      "afterRuntimeMs": 5222.773125000007
+    },
+    {
+      "case": "fantasy-illustration|104|fusion-pindou-edge",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 7225.392791999999,
+      "afterRuntimeMs": 5105.849042000002
+    },
+    {
+      "case": "fantasy-illustration|104|fusion-pindou-dpid",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 10137.003583999991,
+      "afterRuntimeMs": 4403.942666000003
+    },
+    {
+      "case": "fantasy-illustration|104|fusion-pindou-ssim",
+      "fullGridHashEqual": true,
+      "beforeRuntimeMs": 7361.965124999988,
+      "afterRuntimeMs": 4508.199792000014
+    }
+  ]
+}

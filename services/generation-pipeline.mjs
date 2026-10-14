@@ -19,6 +19,7 @@
 import { generateV2 } from "../smart-preprocessing/generation-engine-v2.mjs";
 import { resolveLabCandidate } from "../smart-preprocessing/lab/index.mjs";
 import { classifySource } from "./source-classifier.mjs";
+import { isLocalFusionSampler } from "../smart-preprocessing/local-fusion-sampler.mjs";
 import {
   GENERATION_MODES,
   MODE_PROFILES,
@@ -105,7 +106,7 @@ export function analyzeRoutingEvidence(image) {
  * 反过来说：**任何「让 Worker 也支持 lab」的改动都意味着把函数塞进
  * structuredClone**，那是设计错误，不是功能缺失。
  */
-export function runGenerationPipeline({ image, mode = "auto", size, palette, maxColors = 0, overrides = {}, onPhase = null, lab = null }) {
+export function runGenerationPipeline({ image, mode = "auto", size, palette, maxColors = 0, overrides = {}, onPhase = null, lab = null, inspect = false, experimentalSampler = null, routingEvidence = null }) {
   if (typeof onPhase === "function") onPhase("analyze");
   // §13：`overrides.labCandidate` 是**纯字符串**的候选名（例如 "bean-fit"），
   // 在这里被解析成真正的 lab 实例。函数绝不跨进程边界 —— 请求里只有名字。
@@ -116,18 +117,30 @@ export function runGenerationPipeline({ image, mode = "auto", size, palette, max
   // `labCandidate` 必须**从 overrides 里摘掉**再往下走。`toEngineOptions` 只挑
   // 声明过的字段，理论上会丢掉它；但「理论上会丢掉」正是那种会在某次重构后
   // 变成「悄悄漏进引擎选项」的东西 —— 显式摘掉，让它是**结构上不可能**。
-  const { labCandidate, ...engineOverrides } = (overrides && typeof overrides === "object") ? overrides : {};
+  const { labCandidate, localFusionSampler, ...engineOverrides } = (overrides && typeof overrides === "object") ? overrides : {};
+  const selectedSampler = experimentalSampler ?? localFusionSampler;
+  if (localFusionSampler != null && !isLocalFusionSampler(localFusionSampler)) {
+    throw new RangeError('未知的本地融合采样策略：' + String(localFusionSampler));
+  }
+  if (typeof selectedSampler === 'string' && selectedSampler.startsWith('fusion-') && !isLocalFusionSampler(selectedSampler)) {
+    throw new RangeError('未知的本地融合采样策略：' + selectedSampler);
+  }
   // §12.3：路由证据来自 `classifySource()`（19 个信号 + 硬规则 + 候选评分），
   // 不再来自 `analyzeGenerationImage().pixelLikeness`（§12.1 实测命中 9 张、真阳性 0 张）。
   // `routing` 挂在 analysis 上而不是新增一个参数：analysis 就是「路由证据」的载体，
   // 而 `toEngineOptions` 只挑声明过的字段，挂在这里不会漏进引擎选项。
-  const analysis = analyzeRoutingEvidence(image);
+  // Internal synchronous reuse seam: evidence must come from this exact image
+  // and must not be reused after its pixels change. Worker requests do not
+  // deserialize this argument; the local fusion runner owns its computation.
+  const analysis = routingEvidence ?? analyzeRoutingEvidence(image);
   const profile = resolveGenerationPipeline(mode, analysis, engineOverrides);
   const activeLab = lab || (typeof labCandidate === "string" && labCandidate
     ? resolveLabCandidate(labCandidate, { mode: profile.routedMode })
     : null);
   // onPhase 单独传，**不放进 profile** —— 它是函数，配置要能结构化克隆。
   const options = toEngineOptions(profile, { maxColors, onPhase });
+  if (inspect === true) options.inspector = true;
+  if (selectedSampler === "perceptual-v3" || isLocalFusionSampler(selectedSampler)) options.experimentalSampler = selectedSampler;
   const result = generateV2({ source: image, width: size.width, height: size.height, palette, options, lab: activeLab });
   return {
     ...result,

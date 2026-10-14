@@ -1,0 +1,1847 @@
+[
+  {
+    "id": "A",
+    "group": "bench",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": "pixel",
+      "mode": "pixel",
+      "confidence": 1,
+      "reason": "hard-rule:hard-pixel",
+      "hardRule": "hard-pixel",
+      "evidence": [
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "highFrequencyRatio",
+        "antiAliasRatio",
+        "nearWhiteRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "pixel",
+          "score": 0.6773
+        },
+        {
+          "mode": "anime",
+          "score": 0.2293
+        },
+        {
+          "mode": "illustration",
+          "score": 0.1208
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.5620376376848899,
+      "paletteSize95": 10,
+      "localColorVariety": 0.041666666666666664,
+      "edgeDirectionRegularity": 0.6203737495558177,
+      "magnificationTrace": 1,
+      "traceBlockSize": 8,
+      "largeFlatBlockRatio": 0.9589559179118359,
+      "colorCount": 0.3526894231323966,
+      "distinctColorCount": 23,
+      "highFrequencyRatio": 0.0025122549019607845,
+      "antiAliasRatio": 0,
+      "shadingCoverage": 0.2356004712009424,
+      "structureThickness": 0.9863655366372758,
+      "skinRatio": 0.35400390625,
+      "nearWhiteRatio": 0.17919921875,
+      "neutralRatio": 0.378662109375,
+      "flatRegionRatio": 0.9912377450980392,
+      "edgeDensity": 0.00625
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.875,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": true,
+        "lowLocalVariety": true,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": true,
+        "notMagnified": false,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "fusion-pindou-dominant",
+    "calibratedStrategy": "fusion-pindou-dominant"
+  },
+  {
+    "id": "B",
+    "group": "bench",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": "pixel",
+      "mode": "pixel",
+      "confidence": 1,
+      "reason": "hard-rule:hard-pixel",
+      "hardRule": "hard-pixel",
+      "evidence": [
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "highFrequencyRatio",
+        "antiAliasRatio",
+        "nearWhiteRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "pixel",
+          "score": 0.9076
+        },
+        {
+          "mode": "anime",
+          "score": 0.5295
+        },
+        {
+          "mode": "illustration",
+          "score": 0
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.6938774457135946,
+      "paletteSize95": 5,
+      "localColorVariety": 0.041666666666666664,
+      "edgeDirectionRegularity": 0.6172520818248566,
+      "magnificationTrace": 1,
+      "traceBlockSize": 8,
+      "largeFlatBlockRatio": 0.9327298654597309,
+      "colorCount": 0.2159503786198157,
+      "distinctColorCount": 6,
+      "highFrequencyRatio": 0,
+      "antiAliasRatio": 0,
+      "shadingCoverage": 0.06727013454026907,
+      "structureThickness": 0.9864312657166806,
+      "skinRatio": 0.11328125,
+      "nearWhiteRatio": 0.000244140625,
+      "neutralRatio": 0.09814453125,
+      "flatRegionRatio": 0.9833333333333333,
+      "edgeDensity": 0.016666666666666666
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.875,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": true,
+        "lowLocalVariety": true,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": true,
+        "notMagnified": false,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "fusion-pindou-dominant",
+    "calibratedStrategy": "fusion-pindou-dominant"
+  },
+  {
+    "id": "C",
+    "group": "bench",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": "pixel",
+      "mode": "pixel",
+      "confidence": 1,
+      "reason": "hard-rule:hard-pixel",
+      "hardRule": "hard-pixel",
+      "evidence": [
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "highFrequencyRatio",
+        "antiAliasRatio",
+        "nearWhiteRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "pixel",
+          "score": 0.9136
+        },
+        {
+          "mode": "anime",
+          "score": 0.5371
+        },
+        {
+          "mode": "illustration",
+          "score": 0
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.6938774457135946,
+      "paletteSize95": 5,
+      "localColorVariety": 0.041666666666666664,
+      "edgeDirectionRegularity": 0.6759174871299694,
+      "magnificationTrace": 1,
+      "traceBlockSize": 8,
+      "largeFlatBlockRatio": 0.9398598797197595,
+      "colorCount": 0.23076923076923078,
+      "distinctColorCount": 7,
+      "highFrequencyRatio": 0.0018995098039215686,
+      "antiAliasRatio": 0,
+      "shadingCoverage": 0.06014012028024056,
+      "structureThickness": 0.9829822211397954,
+      "skinRatio": 0.00634765625,
+      "nearWhiteRatio": 0,
+      "neutralRatio": 0.060791015625,
+      "flatRegionRatio": 0.9870098039215687,
+      "edgeDensity": 0.011090686274509804
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.875,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": true,
+        "lowLocalVariety": true,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": true,
+        "notMagnified": false,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "fusion-pindou-dominant",
+    "calibratedStrategy": "fusion-pindou-dominant"
+  },
+  {
+    "id": "D",
+    "group": "bench",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": "pixel",
+      "mode": "pixel",
+      "confidence": 0.7729538949187055,
+      "reason": "hard-rule:hard-pixel",
+      "hardRule": "hard-pixel",
+      "evidence": [
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "highFrequencyRatio",
+        "antiAliasRatio",
+        "nearWhiteRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "pixel",
+          "score": 0.9041
+        },
+        {
+          "mode": "anime",
+          "score": 0.6193
+        },
+        {
+          "mode": "illustration",
+          "score": 0
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.7363203839425909,
+      "paletteSize95": 4,
+      "localColorVariety": 0.041666666666666664,
+      "edgeDirectionRegularity": 0.6192038711768122,
+      "magnificationTrace": 1,
+      "traceBlockSize": 16,
+      "largeFlatBlockRatio": 0.8891437782875565,
+      "colorCount": 0.2159503786198157,
+      "distinctColorCount": 6,
+      "highFrequencyRatio": 0,
+      "antiAliasRatio": 0,
+      "shadingCoverage": 0.11085622171244343,
+      "structureThickness": 0.9429124735169492,
+      "skinRatio": 0,
+      "nearWhiteRatio": 0.0078125,
+      "neutralRatio": 0.546875,
+      "flatRegionRatio": 0.9730392156862745,
+      "edgeDensity": 0.02696078431372549
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.875,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": true,
+        "lowLocalVariety": true,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": true,
+        "notMagnified": false,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "fusion-pindou-dominant",
+    "calibratedStrategy": "fusion-pindou-dominant"
+  },
+  {
+    "id": "E",
+    "group": "bench",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": "logo",
+      "mode": "logo",
+      "confidence": 0.633727199261313,
+      "reason": "hard-rule:hard-logo",
+      "hardRule": "hard-logo",
+      "evidence": [
+        "nearWhiteRatio",
+        "colorCount",
+        "largeFlatBlockRatio",
+        "highFrequencyRatio",
+        "structureThickness"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "logo",
+          "score": 0.9042
+        },
+        {
+          "mode": "anime",
+          "score": 0.6657
+        },
+        {
+          "mode": "illustration",
+          "score": 0
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.7910388481722272,
+      "paletteSize95": 3,
+      "localColorVariety": 0.041666666666666664,
+      "edgeDirectionRegularity": 0.5760979726990434,
+      "magnificationTrace": 1,
+      "traceBlockSize": 8,
+      "largeFlatBlockRatio": 0.9439518879037758,
+      "colorCount": 0.15384615384615385,
+      "distinctColorCount": 3,
+      "highFrequencyRatio": 0,
+      "antiAliasRatio": 0,
+      "shadingCoverage": 0.05604811209622419,
+      "structureThickness": 0.8778973509933775,
+      "skinRatio": 0,
+      "nearWhiteRatio": 0.889404296875,
+      "neutralRatio": 0.947998046875,
+      "flatRegionRatio": 0.9861519607843138,
+      "edgeDensity": 0.013848039215686274
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.875,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": true,
+        "lowLocalVariety": true,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": true,
+        "notMagnified": false,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "v2-baseline",
+    "calibratedStrategy": "v2-baseline"
+  },
+  {
+    "id": "F",
+    "group": "bench",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": "pixel",
+      "mode": "pixel",
+      "confidence": 0.9761752668934308,
+      "reason": "hard-rule:hard-pixel",
+      "hardRule": "hard-pixel",
+      "evidence": [
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "highFrequencyRatio",
+        "antiAliasRatio",
+        "nearWhiteRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "pixel",
+          "score": 0.8399
+        },
+        {
+          "mode": "anime",
+          "score": 0.5491
+        },
+        {
+          "mode": "illustration",
+          "score": 0.3219
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.7363203839425909,
+      "paletteSize95": 4,
+      "localColorVariety": 0.041666666666666664,
+      "edgeDirectionRegularity": 0.5848920587247495,
+      "magnificationTrace": 1,
+      "traceBlockSize": 8,
+      "largeFlatBlockRatio": 0.626759253518507,
+      "colorCount": 0.178609853452874,
+      "distinctColorCount": 4,
+      "highFrequencyRatio": 0.03725490196078431,
+      "antiAliasRatio": 0,
+      "shadingCoverage": 0.37324074648149297,
+      "structureThickness": 0.8879498106060606,
+      "skinRatio": 0.1171875,
+      "nearWhiteRatio": 0,
+      "neutralRatio": 0,
+      "flatRegionRatio": 0.903921568627451,
+      "edgeDensity": 0.058823529411764705
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.625,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": false,
+        "lowLocalVariety": true,
+        "lowTexture": false,
+        "thickStructure": true,
+        "limitedShading": true,
+        "notMagnified": false,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "fusion-pindou-dominant",
+    "calibratedStrategy": "fusion-pindou-dominant"
+  },
+  {
+    "id": "G",
+    "group": "bench",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": "pixel",
+      "mode": "pixel",
+      "confidence": 1,
+      "reason": "hard-rule:hard-pixel",
+      "hardRule": "hard-pixel",
+      "evidence": [
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "highFrequencyRatio",
+        "antiAliasRatio",
+        "nearWhiteRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "pixel",
+          "score": 0.8508
+        },
+        {
+          "mode": "illustration",
+          "score": 0.306
+        },
+        {
+          "mode": "anime",
+          "score": 0.3023
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.6044805759138864,
+      "paletteSize95": 8,
+      "localColorVariety": 0.041666666666666664,
+      "edgeDirectionRegularity": 0.5893480321236209,
+      "magnificationTrace": 1,
+      "traceBlockSize": 8,
+      "largeFlatBlockRatio": 0.8323516647033294,
+      "colorCount": 0.3207634616494086,
+      "distinctColorCount": 17,
+      "highFrequencyRatio": 0.006709558823529411,
+      "antiAliasRatio": 0,
+      "shadingCoverage": 0.3605307210614421,
+      "structureThickness": 0.7994984160506864,
+      "skinRatio": 0,
+      "nearWhiteRatio": 0.0810546875,
+      "neutralRatio": 0.231201171875,
+      "flatRegionRatio": 0.9582107843137255,
+      "edgeDensity": 0.0350796568627451
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.75,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": true,
+        "lowLocalVariety": true,
+        "lowTexture": true,
+        "thickStructure": false,
+        "limitedShading": true,
+        "notMagnified": false,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "fusion-pindou-dominant",
+    "calibratedStrategy": "fusion-pindou-dominant"
+  },
+  {
+    "id": "H",
+    "group": "bench",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": "logo",
+      "mode": "logo",
+      "confidence": 0.6015705698914086,
+      "reason": "hard-rule:hard-logo",
+      "hardRule": "hard-logo",
+      "evidence": [
+        "nearWhiteRatio",
+        "colorCount",
+        "largeFlatBlockRatio",
+        "highFrequencyRatio",
+        "structureThickness"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "logo",
+          "score": 0.9162
+        },
+        {
+          "mode": "anime",
+          "score": 0.6856
+        },
+        {
+          "mode": "illustration",
+          "score": 0
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.8681601919712955,
+      "paletteSize95": 2,
+      "localColorVariety": 0.041666666666666664,
+      "edgeDirectionRegularity": 0.6050653874717897,
+      "magnificationTrace": 1,
+      "traceBlockSize": 8,
+      "largeFlatBlockRatio": 0.952259904519809,
+      "colorCount": 0.15384615384615385,
+      "distinctColorCount": 3,
+      "highFrequencyRatio": 0,
+      "antiAliasRatio": 0,
+      "shadingCoverage": 0.04774009548019096,
+      "structureThickness": 0.8394626524390244,
+      "skinRatio": 0,
+      "nearWhiteRatio": 0.919921875,
+      "neutralRatio": 0.9619140625,
+      "flatRegionRatio": 0.9881740196078431,
+      "edgeDensity": 0.011825980392156862
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.875,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": true,
+        "lowLocalVariety": true,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": true,
+        "notMagnified": false,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "v2-baseline",
+    "calibratedStrategy": "v2-baseline"
+  },
+  {
+    "id": "I",
+    "group": "bench",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": "pixel",
+      "mode": "pixel",
+      "confidence": 1,
+      "reason": "hard-rule:hard-pixel",
+      "hardRule": "hard-pixel",
+      "evidence": [
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "highFrequencyRatio",
+        "antiAliasRatio",
+        "nearWhiteRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "pixel",
+          "score": 0.86
+        },
+        {
+          "mode": "anime",
+          "score": 0.0219
+        },
+        {
+          "mode": "illustration",
+          "score": 0
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.4611096836850921,
+      "paletteSize95": 17,
+      "localColorVariety": 0.041666666666666664,
+      "edgeDirectionRegularity": 0.6118377993852858,
+      "magnificationTrace": 1,
+      "traceBlockSize": 8,
+      "largeFlatBlockRatio": 0.8795957591915183,
+      "colorCount": 0.3267636548802758,
+      "distinctColorCount": 18,
+      "highFrequencyRatio": 0.02809436274509804,
+      "antiAliasRatio": 0,
+      "shadingCoverage": 0.12040424080848161,
+      "structureThickness": 0.9913048377403846,
+      "skinRatio": 0.062255859375,
+      "nearWhiteRatio": 0.0625,
+      "neutralRatio": 0.937744140625,
+      "flatRegionRatio": 0.9699448529411765,
+      "edgeDensity": 0.00196078431372549
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.625,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": true,
+        "lowLocalVariety": true,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": true,
+        "notMagnified": false,
+        "visibleStructure": false
+      }
+    },
+    "previousStrategy": "fusion-pindou-dominant",
+    "calibratedStrategy": "fusion-pindou-dominant"
+  },
+  {
+    "id": "J",
+    "group": "bench",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": "pixel",
+      "mode": "pixel",
+      "confidence": 0.9064215416027104,
+      "reason": "scored:pixel",
+      "hardRule": null,
+      "evidence": [
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "edgeDirectionRegularity",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "antiAliasRatio",
+        "shadingCoverage"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "pixel",
+          "score": 0.6794
+        },
+        {
+          "mode": "illustration",
+          "score": 0.4352
+        },
+        {
+          "mode": "portrait",
+          "score": 0.4221
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.29366137220735056,
+      "paletteSize95": 41,
+      "localColorVariety": 0.041666666666666664,
+      "edgeDirectionRegularity": 0.3153432935251259,
+      "magnificationTrace": 1,
+      "traceBlockSize": 8,
+      "largeFlatBlockRatio": 0.3691487382974766,
+      "colorCount": 0.5885424377829945,
+      "distinctColorCount": 200,
+      "highFrequencyRatio": 0.14083946078431372,
+      "antiAliasRatio": 0,
+      "shadingCoverage": 0.7301754603509207,
+      "structureThickness": 0.851281836461126,
+      "skinRatio": 0.3046875,
+      "nearWhiteRatio": 0,
+      "neutralRatio": 0.30859375,
+      "flatRegionRatio": 0.8565870098039216,
+      "edgeDensity": 0.002573529411764706
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.25,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": true,
+        "lowTexture": false,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": false,
+        "visibleStructure": false
+      }
+    },
+    "previousStrategy": "fusion-pindou-dominant",
+    "calibratedStrategy": "fusion-pindou-dominant"
+  },
+  {
+    "id": "K",
+    "group": "noisy-photo",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": "portrait",
+      "mode": "portrait",
+      "confidence": 0.6170415115043685,
+      "reason": "scored:portrait",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.7598
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5662
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4952
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.4120693914817235,
+      "paletteSize95": 22,
+      "localColorVariety": 0.168975830078125,
+      "edgeDirectionRegularity": 0.07415839808548241,
+      "magnificationTrace": 0,
+      "traceBlockSize": 0,
+      "largeFlatBlockRatio": 0.000015500031000062,
+      "colorCount": 0.5901865647670381,
+      "distinctColorCount": 203,
+      "highFrequencyRatio": 0.019638480392156862,
+      "antiAliasRatio": 0.20675105485232068,
+      "shadingCoverage": 0.9658999317998636,
+      "structureThickness": 0.8538521233355616,
+      "skinRatio": 0.0530853271484375,
+      "nearWhiteRatio": 0.00006103515625,
+      "neutralRatio": 0.6654510498046875,
+      "flatRegionRatio": 0.9713924632352942,
+      "edgeDensity": 0.008969056372549019
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.5,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "v2-baseline",
+    "calibratedStrategy": "v2-baseline"
+  },
+  {
+    "id": "L",
+    "group": "noisy-photo",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.053822081963195566,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5895
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5739
+        },
+        {
+          "mode": "realistic",
+          "score": 0.5733
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.45023788831575007,
+      "paletteSize95": 18,
+      "localColorVariety": 0.230987548828125,
+      "edgeDirectionRegularity": 0.007778015580011788,
+      "magnificationTrace": 0,
+      "traceBlockSize": 0,
+      "largeFlatBlockRatio": 0.000062000124000248,
+      "colorCount": 0.5646038463757403,
+      "distinctColorCount": 161,
+      "highFrequencyRatio": 0.16811427696078432,
+      "antiAliasRatio": 0.4552139037433155,
+      "shadingCoverage": 0.9910719821439643,
+      "structureThickness": 0.8606355753223843,
+      "skinRatio": 0.983917236328125,
+      "nearWhiteRatio": 0,
+      "neutralRatio": 0.0153350830078125,
+      "flatRegionRatio": 0.8184512867647059,
+      "edgeDensity": 0.013434436274509805
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.375,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": false,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "v2-baseline",
+    "calibratedStrategy": "v2-baseline"
+  },
+  {
+    "id": "M",
+    "group": "noisy-photo",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.459312942551483,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6258
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5036
+        },
+        {
+          "mode": "portrait",
+          "score": 0.0228
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.40361446010749213,
+      "paletteSize95": 23,
+      "localColorVariety": 0.4338887532552083,
+      "edgeDirectionRegularity": 0.12913079201056954,
+      "magnificationTrace": 0,
+      "traceBlockSize": 0,
+      "largeFlatBlockRatio": 0,
+      "colorCount": 0.573802432202869,
+      "distinctColorCount": 175,
+      "highFrequencyRatio": 0.38978247549019607,
+      "antiAliasRatio": 0.2706002034587996,
+      "shadingCoverage": 0.9940479880959762,
+      "structureThickness": 0.6344654666491482,
+      "skinRatio": 0.172119140625,
+      "nearWhiteRatio": 0,
+      "neutralRatio": 0.0211334228515625,
+      "flatRegionRatio": 0.6049325980392157,
+      "edgeDensity": 0.005284926470588236
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.25,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": false,
+        "thickStructure": false,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "v2-baseline",
+    "calibratedStrategy": "v2-baseline"
+  },
+  {
+    "id": "N",
+    "group": "noisy-photo",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.29058143357109983,
+      "reason": "low-confidence:0.291<0.35",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5296
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4615
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.2717746520787876,
+      "paletteSize95": 46,
+      "localColorVariety": 0.16520182291666666,
+      "edgeDirectionRegularity": 0.3591605481394565,
+      "magnificationTrace": 0,
+      "traceBlockSize": 0,
+      "largeFlatBlockRatio": 0.002030504061008122,
+      "colorCount": 0.6049373957426369,
+      "distinctColorCount": 232,
+      "highFrequencyRatio": 0.005805759803921569,
+      "antiAliasRatio": 0.001447178002894356,
+      "shadingCoverage": 0.975757951515903,
+      "structureThickness": 0.9277662405294009,
+      "skinRatio": 0,
+      "nearWhiteRatio": 0,
+      "neutralRatio": 0.09344482421875,
+      "flatRegionRatio": 0.9751302083333333,
+      "edgeDensity": 0.0190640318627451
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.5,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "v2-baseline",
+    "calibratedStrategy": "v2-baseline"
+  },
+  {
+    "id": "O",
+    "group": "noisy-photo",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.1843414734583717,
+      "reason": "low-confidence:0.184<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.6495
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5975
+        },
+        {
+          "mode": "realistic",
+          "score": 0.3541
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.3802949299097803,
+      "paletteSize95": 26,
+      "localColorVariety": 0.08343505859375,
+      "edgeDirectionRegularity": 0.17300553874857716,
+      "magnificationTrace": 0,
+      "traceBlockSize": 0,
+      "largeFlatBlockRatio": 0.45898691797383595,
+      "colorCount": 0.636266386761875,
+      "distinctColorCount": 308,
+      "highFrequencyRatio": 0.013212316176470588,
+      "antiAliasRatio": 0.24455958549222798,
+      "shadingCoverage": 0.7457994915989832,
+      "structureThickness": 0.9667253716441092,
+      "skinRatio": 0.049835205078125,
+      "nearWhiteRatio": 0,
+      "neutralRatio": 0.0007171630859375,
+      "flatRegionRatio": 0.9775811887254902,
+      "edgeDensity": 0.009206495098039216
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.625,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": true,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "v2-baseline",
+    "calibratedStrategy": "v2-baseline"
+  },
+  {
+    "id": "P",
+    "group": "noisy-photo",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6166
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0398
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.3183980802870455,
+      "paletteSize95": 36,
+      "localColorVariety": 0.088134765625,
+      "edgeDirectionRegularity": 0.5729995206257779,
+      "magnificationTrace": 0,
+      "traceBlockSize": 0,
+      "largeFlatBlockRatio": 0.7973525947051894,
+      "colorCount": 0.5756781367126351,
+      "distinctColorCount": 178,
+      "highFrequencyRatio": 0.04007352941176471,
+      "antiAliasRatio": 0,
+      "shadingCoverage": 0.7831855663711328,
+      "structureThickness": 0.9781132241785848,
+      "skinRatio": 0.0030517578125,
+      "nearWhiteRatio": 0,
+      "neutralRatio": 0.0560302734375,
+      "flatRegionRatio": 0.9572763480392157,
+      "edgeDensity": 0.002650122549019608
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.5,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": true,
+        "lowLocalVariety": true,
+        "lowTexture": false,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": false
+      }
+    },
+    "previousStrategy": "v2-baseline",
+    "calibratedStrategy": "v2-baseline"
+  },
+  {
+    "id": "Q",
+    "group": "noisy-photo",
+    "provenance": "synthetic fixture",
+    "originalRouting": {
+      "candidate": "pixel",
+      "mode": "pixel",
+      "confidence": 1,
+      "reason": "hard-rule:hard-pixel",
+      "hardRule": "hard-pixel",
+      "evidence": [
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "highFrequencyRatio",
+        "antiAliasRatio",
+        "nearWhiteRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "pixel",
+          "score": 0.9008
+        },
+        {
+          "mode": "anime",
+          "score": 0.5196
+        },
+        {
+          "mode": "illustration",
+          "score": 0
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.6938774457135946,
+      "paletteSize95": 5,
+      "localColorVariety": 0.043935139973958336,
+      "edgeDirectionRegularity": 0.5318291892561402,
+      "magnificationTrace": 1,
+      "traceBlockSize": 4,
+      "largeFlatBlockRatio": 0.9356438712877426,
+      "colorCount": 0.23076923076923078,
+      "distinctColorCount": 7,
+      "highFrequencyRatio": 0.003477328431372549,
+      "antiAliasRatio": 0,
+      "shadingCoverage": 0.06435612871225742,
+      "structureThickness": 0.9868617683686177,
+      "skinRatio": 0.10504150390625,
+      "nearWhiteRatio": 0.013671875,
+      "neutralRatio": 0.02313232421875,
+      "flatRegionRatio": 0.9839767156862745,
+      "edgeDensity": 0.012545955882352942
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.875,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": true,
+        "lowLocalVariety": true,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": true,
+        "notMagnified": false,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "fusion-pindou-dominant",
+    "calibratedStrategy": "fusion-pindou-dominant"
+  },
+  {
+    "id": "rf-aa-leak",
+    "group": "real-failure",
+    "provenance": "existing generated failure fixture; not a verified photograph",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6988
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4244
+        },
+        {
+          "mode": "logo",
+          "score": 0.4156
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.6591990401435228,
+      "paletteSize95": 6,
+      "localColorVariety": 0.19087727864583334,
+      "edgeDirectionRegularity": 0.7500000088812,
+      "magnificationTrace": 0,
+      "traceBlockSize": 0,
+      "largeFlatBlockRatio": 0.40940728143109095,
+      "colorCount": 0.3615722860108532,
+      "distinctColorCount": 25,
+      "highFrequencyRatio": 0,
+      "antiAliasRatio": 0.6666102364426387,
+      "shadingCoverage": 0.7850214159737969,
+      "structureThickness": 0.5906067325136062,
+      "skinRatio": 0,
+      "nearWhiteRatio": 0.7729034423828125,
+      "neutralRatio": 1,
+      "flatRegionRatio": 0.7274816176470589,
+      "edgeDensity": 0.2725183823529412
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.5,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": true,
+        "thickStructure": false,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "v2-baseline",
+    "calibratedStrategy": "v2-baseline"
+  },
+  {
+    "id": "rf-anime-hl",
+    "group": "real-failure",
+    "provenance": "existing generated failure fixture; not a verified photograph",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.29673889145523763,
+      "reason": "low-confidence:0.297<0.35",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.7221
+        },
+        {
+          "mode": "anime",
+          "score": 0.6325
+        },
+        {
+          "mode": "logo",
+          "score": 0.2596
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.7910388481722272,
+      "paletteSize95": 3,
+      "localColorVariety": 0.0704345703125,
+      "edgeDirectionRegularity": 0.17536641373550743,
+      "magnificationTrace": 0,
+      "traceBlockSize": 0,
+      "largeFlatBlockRatio": 0.8285934744268078,
+      "colorCount": 0.45621056442791436,
+      "distinctColorCount": 60,
+      "highFrequencyRatio": 0.0007199754901960785,
+      "antiAliasRatio": 0.06612685560053981,
+      "shadingCoverage": 0.8050516502897456,
+      "structureThickness": 0.9582275803722504,
+      "skinRatio": 0.00018310546875,
+      "nearWhiteRatio": 0.8535003662109375,
+      "neutralRatio": 0.8516387939453125,
+      "flatRegionRatio": 0.993374693627451,
+      "edgeDensity": 0.005905330882352941
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.875,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": true,
+        "lowLocalVariety": true,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "v2-baseline",
+    "calibratedStrategy": "v2-baseline"
+  },
+  {
+    "id": "rf-complex",
+    "group": "real-failure",
+    "provenance": "existing generated failure fixture; not a verified photograph",
+    "originalRouting": {
+      "candidate": "portrait",
+      "mode": "portrait",
+      "confidence": 0.7828371030655824,
+      "reason": "scored:portrait",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.7732
+        },
+        {
+          "mode": "realistic",
+          "score": 0.5286
+        },
+        {
+          "mode": "illustration",
+          "score": 0.4983
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.22768491016658132,
+      "paletteSize95": 58,
+      "localColorVariety": 0.4009602864583333,
+      "edgeDirectionRegularity": 0.47627431013252697,
+      "magnificationTrace": 0,
+      "traceBlockSize": 0,
+      "largeFlatBlockRatio": 0,
+      "colorCount": 0.6711164502399961,
+      "distinctColorCount": 422,
+      "highFrequencyRatio": 0.06003370098039216,
+      "antiAliasRatio": 0.07894736842105263,
+      "shadingCoverage": 0.9871504157218443,
+      "structureThickness": 0.9739822247706422,
+      "skinRatio": 0.07305908203125,
+      "nearWhiteRatio": 0,
+      "neutralRatio": 0,
+      "flatRegionRatio": 0.93359375,
+      "edgeDensity": 0.006372549019607843
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.375,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": false,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "v2-baseline",
+    "calibratedStrategy": "v2-baseline"
+  },
+  {
+    "id": "rf-edge-contam",
+    "group": "real-failure",
+    "provenance": "existing generated failure fixture; not a verified photograph",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.7234778458122717,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5855
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4192
+        },
+        {
+          "mode": "logo",
+          "score": 0.1788
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.5820776963444545,
+      "paletteSize95": 9,
+      "localColorVariety": 0.13480631510416666,
+      "edgeDirectionRegularity": 0.39710332233097445,
+      "magnificationTrace": 0,
+      "traceBlockSize": 0,
+      "largeFlatBlockRatio": 0.000031494079113126735,
+      "colorCount": 0.4698864966752438,
+      "distinctColorCount": 68,
+      "highFrequencyRatio": 0.005254289215686275,
+      "antiAliasRatio": 0.03690036900369004,
+      "shadingCoverage": 0.9259259259259259,
+      "structureThickness": 0.863798632540691,
+      "skinRatio": 0.00457763671875,
+      "nearWhiteRatio": 0.7478179931640625,
+      "neutralRatio": 0.7478179931640625,
+      "flatRegionRatio": 0.9426700367647058,
+      "edgeDensity": 0.052075674019607845
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.625,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "v2-baseline",
+    "calibratedStrategy": "v2-baseline"
+  },
+  {
+    "id": "rf-flat-frag",
+    "group": "real-failure",
+    "provenance": "existing generated failure fixture; not a verified photograph",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.8096610250390082,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.581
+        },
+        {
+          "mode": "realistic",
+          "score": 0.3973
+        },
+        {
+          "mode": "logo",
+          "score": 0.2712
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.6938774457135946,
+      "paletteSize95": 5,
+      "localColorVariety": 0.21150716145833334,
+      "edgeDirectionRegularity": 0.26280310289528486,
+      "magnificationTrace": 0,
+      "traceBlockSize": 0,
+      "largeFlatBlockRatio": 0.006723985890652557,
+      "colorCount": 0.357219706905748,
+      "distinctColorCount": 24,
+      "highFrequencyRatio": 0.00586703431372549,
+      "antiAliasRatio": 0.005574406204556471,
+      "shadingCoverage": 0.7428193499622071,
+      "structureThickness": 0.28912557446279963,
+      "skinRatio": 0,
+      "nearWhiteRatio": 0.50860595703125,
+      "neutralRatio": 0.50860595703125,
+      "flatRegionRatio": 0.7659926470588235,
+      "edgeDensity": 0.228140318627451
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.5,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": true,
+        "thickStructure": false,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "v2-baseline",
+    "calibratedStrategy": "v2-baseline"
+  },
+  {
+    "id": "rf-portrait-eye",
+    "group": "real-failure",
+    "provenance": "existing generated failure fixture; not a verified photograph",
+    "originalRouting": {
+      "candidate": "portrait",
+      "mode": "portrait",
+      "confidence": 0.46319584039387846,
+      "reason": "scored:portrait",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.7751
+        },
+        {
+          "mode": "illustration",
+          "score": 0.6363
+        },
+        {
+          "mode": "realistic",
+          "score": 0.447
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.7910388481722272,
+      "paletteSize95": 3,
+      "localColorVariety": 0.18546549479166666,
+      "edgeDirectionRegularity": 0.07813664103537432,
+      "magnificationTrace": 0,
+      "traceBlockSize": 0,
+      "largeFlatBlockRatio": 0.06667296548248929,
+      "colorCount": 0.4543761996621937,
+      "distinctColorCount": 59,
+      "highFrequencyRatio": 0.002573529411764706,
+      "antiAliasRatio": 0.23062381852551986,
+      "shadingCoverage": 0.9143990929705216,
+      "structureThickness": 0.9614128821608786,
+      "skinRatio": 0.8978118896484375,
+      "nearWhiteRatio": 0.0818634033203125,
+      "neutralRatio": 0.1010894775390625,
+      "flatRegionRatio": 0.9937117034313725,
+      "edgeDensity": 0.003714767156862745
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.5,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": false
+      }
+    },
+    "previousStrategy": "v2-baseline",
+    "calibratedStrategy": "v2-baseline"
+  },
+  {
+    "id": "rf-small-sep",
+    "group": "real-failure",
+    "provenance": "existing generated failure fixture; not a verified photograph",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.3660363338272506,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.746
+        },
+        {
+          "mode": "anime",
+          "score": 0.6335
+        },
+        {
+          "mode": "logo",
+          "score": 0.246
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.8681601919712955,
+      "paletteSize95": 2,
+      "localColorVariety": 0.0582275390625,
+      "edgeDirectionRegularity": 0.08543414037389063,
+      "magnificationTrace": 0,
+      "traceBlockSize": 0,
+      "largeFlatBlockRatio": 0.8215073066263543,
+      "colorCount": 0.46153846153846156,
+      "distinctColorCount": 63,
+      "highFrequencyRatio": 0.00047487745098039215,
+      "antiAliasRatio": 0.18196994991652754,
+      "shadingCoverage": 0.8084530108339633,
+      "structureThickness": 0.9647942266432612,
+      "skinRatio": 0.00030517578125,
+      "nearWhiteRatio": 0.8433380126953125,
+      "neutralRatio": 0.8433380126953125,
+      "flatRegionRatio": 0.9944623161764706,
+      "edgeDensity": 0.00506280637254902
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.875,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": true,
+        "lowLocalVariety": true,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "v2-baseline",
+    "calibratedStrategy": "v2-baseline"
+  },
+  {
+    "id": "rf-thin-struct",
+    "group": "real-failure",
+    "provenance": "existing generated failure fixture; not a verified photograph",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.10772977404312663,
+      "reason": "low-confidence:0.108<0.35",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.7184
+        },
+        {
+          "mode": "anime",
+          "score": 0.6828
+        },
+        {
+          "mode": "logo",
+          "score": 0
+        }
+      ]
+    },
+    "signals": {
+      "paletteDiscreteness": 0.8681601919712955,
+      "paletteSize95": 1,
+      "localColorVariety": 0.057210286458333336,
+      "edgeDirectionRegularity": 0.2589586130619137,
+      "magnificationTrace": 0,
+      "traceBlockSize": 0,
+      "largeFlatBlockRatio": 0.8835978835978836,
+      "colorCount": 0.25553293037595093,
+      "distinctColorCount": 9,
+      "highFrequencyRatio": 0,
+      "antiAliasRatio": 0,
+      "shadingCoverage": 0.6768707482993197,
+      "structureThickness": 0.007462686567164179,
+      "skinRatio": 0,
+      "nearWhiteRatio": 0.97955322265625,
+      "neutralRatio": 1,
+      "flatRegionRatio": 0.9767080269607843,
+      "edgeDensity": 0.023291973039215687
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.625,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": true,
+        "lowLocalVariety": true,
+        "lowTexture": true,
+        "thickStructure": false,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "previousStrategy": "v2-baseline",
+    "calibratedStrategy": "v2-baseline"
+  }
+]

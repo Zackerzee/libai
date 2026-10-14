@@ -1,0 +1,2582 @@
+[
+  {
+    "input": "brand-logo",
+    "variant": "v25",
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "8a7553b40eefcc74bddb7a8d9eea2163025f6e33424dcb4672e8f17f80651750",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "brand-logo",
+    "variant": "previous-auto",
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "8a7553b40eefcc74bddb7a8d9eea2163025f6e33424dcb4672e8f17f80651750",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "brand-logo",
+    "variant": "calibrated-auto",
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "policy": {
+      "category": "clean-flat-structure",
+      "eligible": true,
+      "score": 1,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": true,
+        "lowLocalVariety": true,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": true,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "gridSha256": "6b4a76876bf3f666f2623cdff6fae8f828a7dafdc0f5302895816814756a295c",
+    "colors": 11,
+    "differingCellsVsV25": 2305,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "brand-logo",
+    "variant": "manual-dominant",
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "6b4a76876bf3f666f2623cdff6fae8f828a7dafdc0f5302895816814756a295c",
+    "colors": 11,
+    "differingCellsVsV25": 2305,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "new-year-sign",
+    "variant": "v25",
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "87c66b93e8dc09a594e30ae740604a2a5ce28ce5c7c40756467797ab85779f06",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "new-year-sign",
+    "variant": "previous-auto",
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "87c66b93e8dc09a594e30ae740604a2a5ce28ce5c7c40756467797ab85779f06",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "new-year-sign",
+    "variant": "calibrated-auto",
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.375,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": false,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "gridSha256": "87c66b93e8dc09a594e30ae740604a2a5ce28ce5c7c40756467797ab85779f06",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "new-year-sign",
+    "variant": "manual-dominant",
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "93e35f3b7aabcd29b2fbaa9a4ef3652135729d043d48c8723b99cee6ea9bd5ab",
+    "colors": 16,
+    "differingCellsVsV25": 2203,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "fantasy-illustration",
+    "variant": "v25",
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "d4ab7bfa6f2bf71342fa32e82502fe2bb737f3729eb9056f9622ab5c97fd1236",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "fantasy-illustration",
+    "variant": "previous-auto",
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "d4ab7bfa6f2bf71342fa32e82502fe2bb737f3729eb9056f9622ab5c97fd1236",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "fantasy-illustration",
+    "variant": "calibrated-auto",
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.375,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": false,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "gridSha256": "d4ab7bfa6f2bf71342fa32e82502fe2bb737f3729eb9056f9622ab5c97fd1236",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "fantasy-illustration",
+    "variant": "manual-dominant",
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "49c10a0f06708afed2c784f60081b03902310d229fb119964a411f4bf57497ec",
+    "colors": 16,
+    "differingCellsVsV25": 3557,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "text-handwritten-letter",
+    "variant": "v25",
+    "size": {
+      "width": 84,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5982
+        },
+        {
+          "mode": "realistic",
+          "score": 0.1688
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "9706b26bff80fb6e2fcfb796aeefdff2b1d007abed5074ee1a2ecd41b6d77745",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "text-handwritten-letter",
+    "variant": "previous-auto",
+    "size": {
+      "width": 84,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5982
+        },
+        {
+          "mode": "realistic",
+          "score": 0.1688
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "9706b26bff80fb6e2fcfb796aeefdff2b1d007abed5074ee1a2ecd41b6d77745",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "text-handwritten-letter",
+    "variant": "calibrated-auto",
+    "size": {
+      "width": 84,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5982
+        },
+        {
+          "mode": "realistic",
+          "score": 0.1688
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.375,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": false,
+        "thickStructure": false,
+        "limitedShading": true,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "gridSha256": "9706b26bff80fb6e2fcfb796aeefdff2b1d007abed5074ee1a2ecd41b6d77745",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "text-handwritten-letter",
+    "variant": "manual-dominant",
+    "size": {
+      "width": 84,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5982
+        },
+        {
+          "mode": "realistic",
+          "score": 0.1688
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "d176528ed8c9dbcb9b50ac5726d92c567dea9748dd8d1b7692fdd8fcc22cda70",
+    "colors": 14,
+    "differingCellsVsV25": 6804,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "text-handwritten-pledge",
+    "variant": "v25",
+    "size": {
+      "width": 84,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.39488009126765256,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5984
+        },
+        {
+          "mode": "realistic",
+          "score": 0.5007
+        },
+        {
+          "mode": "portrait",
+          "score": 0.1987
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "95d86f16247280f1ba5faacad2fabf39ac831ca1a77bf0c7626af1f17477f747",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "text-handwritten-pledge",
+    "variant": "previous-auto",
+    "size": {
+      "width": 84,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.39488009126765256,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5984
+        },
+        {
+          "mode": "realistic",
+          "score": 0.5007
+        },
+        {
+          "mode": "portrait",
+          "score": 0.1987
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "95d86f16247280f1ba5faacad2fabf39ac831ca1a77bf0c7626af1f17477f747",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "text-handwritten-pledge",
+    "variant": "calibrated-auto",
+    "size": {
+      "width": 84,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.39488009126765256,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5984
+        },
+        {
+          "mode": "realistic",
+          "score": 0.5007
+        },
+        {
+          "mode": "portrait",
+          "score": 0.1987
+        }
+      ]
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.25,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": false,
+        "thickStructure": false,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "gridSha256": "95d86f16247280f1ba5faacad2fabf39ac831ca1a77bf0c7626af1f17477f747",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "text-handwritten-pledge",
+    "variant": "manual-dominant",
+    "size": {
+      "width": 84,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.39488009126765256,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5984
+        },
+        {
+          "mode": "realistic",
+          "score": 0.5007
+        },
+        {
+          "mode": "portrait",
+          "score": 0.1987
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "5b417c6dfc4d6dba8b1ad0dc613a8b6243b69d662968b57437e145da228eec87",
+    "colors": 16,
+    "differingCellsVsV25": 4498,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "document-license-scan",
+    "variant": "v25",
+    "size": {
+      "width": 104,
+      "height": 78
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "anime",
+      "mode": "anime",
+      "confidence": 1,
+      "reason": "scored:anime",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "edgeDirectionRegularity",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "shadingCoverage",
+        "magnificationTrace"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "anime",
+          "score": 0.7624
+        },
+        {
+          "mode": "illustration",
+          "score": 0
+        },
+        {
+          "mode": "logo",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "62bd71702ac12040a48c538992c823fd6a6b48aaa1a5b83d1669bb4015b3f3b8",
+    "colors": 14,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "document-license-scan",
+    "variant": "previous-auto",
+    "size": {
+      "width": 104,
+      "height": 78
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "anime",
+      "mode": "anime",
+      "confidence": 1,
+      "reason": "scored:anime",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "edgeDirectionRegularity",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "shadingCoverage",
+        "magnificationTrace"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "anime",
+          "score": 0.7624
+        },
+        {
+          "mode": "illustration",
+          "score": 0
+        },
+        {
+          "mode": "logo",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "62bd71702ac12040a48c538992c823fd6a6b48aaa1a5b83d1669bb4015b3f3b8",
+    "colors": 14,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "document-license-scan",
+    "variant": "calibrated-auto",
+    "size": {
+      "width": 104,
+      "height": 78
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "anime",
+      "mode": "anime",
+      "confidence": 1,
+      "reason": "scored:anime",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "edgeDirectionRegularity",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "shadingCoverage",
+        "magnificationTrace"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "anime",
+          "score": 0.7624
+        },
+        {
+          "mode": "illustration",
+          "score": 0
+        },
+        {
+          "mode": "logo",
+          "score": 0
+        }
+      ]
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.625,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": true,
+        "lowLocalVariety": true,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": true,
+        "notMagnified": false,
+        "visibleStructure": false
+      }
+    },
+    "gridSha256": "62bd71702ac12040a48c538992c823fd6a6b48aaa1a5b83d1669bb4015b3f3b8",
+    "colors": 14,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "document-license-scan",
+    "variant": "manual-dominant",
+    "size": {
+      "width": 104,
+      "height": 78
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": "anime",
+      "mode": "anime",
+      "confidence": 1,
+      "reason": "scored:anime",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "edgeDirectionRegularity",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "shadingCoverage",
+        "magnificationTrace"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "anime",
+          "score": 0.7624
+        },
+        {
+          "mode": "illustration",
+          "score": 0
+        },
+        {
+          "mode": "logo",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "d5dca929442a6a9c047fbdfed151dbf954c4f0badac739102ae793cfc6330dfb",
+    "colors": 13,
+    "differingCellsVsV25": 63,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "illustration-2903",
+    "variant": "v25",
+    "size": {
+      "width": 80,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.9527664020304694,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6078
+        },
+        {
+          "mode": "realistic",
+          "score": 0.3869
+        },
+        {
+          "mode": "portrait",
+          "score": 0.1577
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "5f65597b3d897e09a0edec40e717c02c9641ad7709d2c66ecf20a17eb12f7130",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "illustration-2903",
+    "variant": "previous-auto",
+    "size": {
+      "width": 80,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.9527664020304694,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6078
+        },
+        {
+          "mode": "realistic",
+          "score": 0.3869
+        },
+        {
+          "mode": "portrait",
+          "score": 0.1577
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "5f65597b3d897e09a0edec40e717c02c9641ad7709d2c66ecf20a17eb12f7130",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "illustration-2903",
+    "variant": "calibrated-auto",
+    "size": {
+      "width": 80,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.9527664020304694,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6078
+        },
+        {
+          "mode": "realistic",
+          "score": 0.3869
+        },
+        {
+          "mode": "portrait",
+          "score": 0.1577
+        }
+      ]
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.25,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": false,
+        "thickStructure": false,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "gridSha256": "5f65597b3d897e09a0edec40e717c02c9641ad7709d2c66ecf20a17eb12f7130",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "illustration-2903",
+    "variant": "manual-dominant",
+    "size": {
+      "width": 80,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.9527664020304694,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6078
+        },
+        {
+          "mode": "realistic",
+          "score": 0.3869
+        },
+        {
+          "mode": "portrait",
+          "score": 0.1577
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "97047637e9c0d1425a11e673ed27b63530157654c8f11434eb7a5bd3d32dcad5",
+    "colors": 16,
+    "differingCellsVsV25": 1737,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "illustration-pixler-screenshot",
+    "variant": "v25",
+    "size": {
+      "width": 73,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.8515523610872222,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5165
+        },
+        {
+          "mode": "realistic",
+          "score": 0.3393
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "47eeeda9be71bd9bdd4c804733773f60a109ed19abd56db82aa38cb0d96452f4",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "illustration-pixler-screenshot",
+    "variant": "previous-auto",
+    "size": {
+      "width": 73,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.8515523610872222,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5165
+        },
+        {
+          "mode": "realistic",
+          "score": 0.3393
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "47eeeda9be71bd9bdd4c804733773f60a109ed19abd56db82aa38cb0d96452f4",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "illustration-pixler-screenshot",
+    "variant": "calibrated-auto",
+    "size": {
+      "width": 73,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.8515523610872222,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5165
+        },
+        {
+          "mode": "realistic",
+          "score": 0.3393
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.625,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": true,
+        "lowTexture": false,
+        "thickStructure": true,
+        "limitedShading": true,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "gridSha256": "47eeeda9be71bd9bdd4c804733773f60a109ed19abd56db82aa38cb0d96452f4",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "illustration-pixler-screenshot",
+    "variant": "manual-dominant",
+    "size": {
+      "width": 73,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.8515523610872222,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5165
+        },
+        {
+          "mode": "realistic",
+          "score": 0.3393
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "aee1826ab5142969fdc6d85cbb3ed5ac2459ff4bc350aed2bc09367050b12eab",
+    "colors": 16,
+    "differingCellsVsV25": 1267,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "illustration-ai-generated",
+    "variant": "v25",
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.5813521747018477,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5953
+        },
+        {
+          "mode": "realistic",
+          "score": 0.45
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "d6ac09ceca67c1da0611ee2551d2dfbe73803b28c1342becfb862e3905e1a67f",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "illustration-ai-generated",
+    "variant": "previous-auto",
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.5813521747018477,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5953
+        },
+        {
+          "mode": "realistic",
+          "score": 0.45
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "d6ac09ceca67c1da0611ee2551d2dfbe73803b28c1342becfb862e3905e1a67f",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "illustration-ai-generated",
+    "variant": "calibrated-auto",
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.5813521747018477,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5953
+        },
+        {
+          "mode": "realistic",
+          "score": 0.45
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.375,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": false,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "gridSha256": "d6ac09ceca67c1da0611ee2551d2dfbe73803b28c1342becfb862e3905e1a67f",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "illustration-ai-generated",
+    "variant": "manual-dominant",
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.5813521747018477,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5953
+        },
+        {
+          "mode": "realistic",
+          "score": 0.45
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "c37607366c5ce78021e8bc2dbcf959332419d3f38666cd25f3e89435b6c8ce3f",
+    "colors": 16,
+    "differingCellsVsV25": 2854,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "pixel-guoqingsi-preview",
+    "variant": "v25",
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "pixel",
+      "mode": "pixel",
+      "confidence": 0.9688357621396799,
+      "reason": "scored:pixel",
+      "hardRule": null,
+      "evidence": [
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "edgeDirectionRegularity",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "antiAliasRatio",
+        "shadingCoverage"
+      ],
+      "runnerUp": "portrait",
+      "topScores": [
+        {
+          "mode": "pixel",
+          "score": 0.7328
+        },
+        {
+          "mode": "portrait",
+          "score": 0.4559
+        },
+        {
+          "mode": "illustration",
+          "score": 0.4201
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "0c1305f49a188a3fcf588ee3b6981f55ab7842135a7e0bfbcd2c7df2dc5340de",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "pixel-guoqingsi-preview",
+    "variant": "previous-auto",
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": "pixel",
+      "mode": "pixel",
+      "confidence": 0.9688357621396799,
+      "reason": "scored:pixel",
+      "hardRule": null,
+      "evidence": [
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "edgeDirectionRegularity",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "antiAliasRatio",
+        "shadingCoverage"
+      ],
+      "runnerUp": "portrait",
+      "topScores": [
+        {
+          "mode": "pixel",
+          "score": 0.7328
+        },
+        {
+          "mode": "portrait",
+          "score": 0.4559
+        },
+        {
+          "mode": "illustration",
+          "score": 0.4201
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "6a8dffacbf147d11cf5141b00bc2d67acfd56e1a48dbcc029d1b09a3f600904c",
+    "colors": 16,
+    "differingCellsVsV25": 2936,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "pixel-guoqingsi-preview",
+    "variant": "calibrated-auto",
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": "pixel",
+      "mode": "pixel",
+      "confidence": 0.9688357621396799,
+      "reason": "scored:pixel",
+      "hardRule": null,
+      "evidence": [
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "edgeDirectionRegularity",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "antiAliasRatio",
+        "shadingCoverage"
+      ],
+      "runnerUp": "portrait",
+      "topScores": [
+        {
+          "mode": "pixel",
+          "score": 0.7328
+        },
+        {
+          "mode": "portrait",
+          "score": 0.4559
+        },
+        {
+          "mode": "illustration",
+          "score": 0.4201
+        }
+      ]
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.5,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": true,
+        "lowTexture": false,
+        "thickStructure": true,
+        "limitedShading": true,
+        "notMagnified": false,
+        "visibleStructure": true
+      }
+    },
+    "gridSha256": "6a8dffacbf147d11cf5141b00bc2d67acfd56e1a48dbcc029d1b09a3f600904c",
+    "colors": 16,
+    "differingCellsVsV25": 2936,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "pixel-guoqingsi-preview",
+    "variant": "manual-dominant",
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": "pixel",
+      "mode": "pixel",
+      "confidence": 0.9688357621396799,
+      "reason": "scored:pixel",
+      "hardRule": null,
+      "evidence": [
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "edgeDirectionRegularity",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "antiAliasRatio",
+        "shadingCoverage"
+      ],
+      "runnerUp": "portrait",
+      "topScores": [
+        {
+          "mode": "pixel",
+          "score": 0.7328
+        },
+        {
+          "mode": "portrait",
+          "score": 0.4559
+        },
+        {
+          "mode": "illustration",
+          "score": 0.4201
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "6a8dffacbf147d11cf5141b00bc2d67acfd56e1a48dbcc029d1b09a3f600904c",
+    "colors": 16,
+    "differingCellsVsV25": 2936,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "photo-ifs-night-cityscape",
+    "variant": "v25",
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.10125037988803111,
+      "reason": "low-confidence:0.101<0.35",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "portrait",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5522
+        },
+        {
+          "mode": "portrait",
+          "score": 0.5264
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4357
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "8e9bb6df76489824e97c5fcd5e272df06a4db40de1147c0fa2b7dd908584b257",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "photo-ifs-night-cityscape",
+    "variant": "previous-auto",
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.10125037988803111,
+      "reason": "low-confidence:0.101<0.35",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "portrait",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5522
+        },
+        {
+          "mode": "portrait",
+          "score": 0.5264
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4357
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "8e9bb6df76489824e97c5fcd5e272df06a4db40de1147c0fa2b7dd908584b257",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "photo-ifs-night-cityscape",
+    "variant": "calibrated-auto",
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.10125037988803111,
+      "reason": "low-confidence:0.101<0.35",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "portrait",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5522
+        },
+        {
+          "mode": "portrait",
+          "score": 0.5264
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4357
+        }
+      ]
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.375,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": false,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "gridSha256": "8e9bb6df76489824e97c5fcd5e272df06a4db40de1147c0fa2b7dd908584b257",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "photo-ifs-night-cityscape",
+    "variant": "manual-dominant",
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.10125037988803111,
+      "reason": "low-confidence:0.101<0.35",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "portrait",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5522
+        },
+        {
+          "mode": "portrait",
+          "score": 0.5264
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4357
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "997a630caafd60a281f4ae2b6498858008ed53e6881c9cbbe14ec3780388852d",
+    "colors": 16,
+    "differingCellsVsV25": 1546,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "anime-guofeng-character",
+    "variant": "v25",
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.5985851832704392,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4142
+        },
+        {
+          "mode": "portrait",
+          "score": 0.0905
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "0049c56d98da59a365c90adeb835f714b73c1426fcde6d8508d4600a80ab1404",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "anime-guofeng-character",
+    "variant": "previous-auto",
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.5985851832704392,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4142
+        },
+        {
+          "mode": "portrait",
+          "score": 0.0905
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "0049c56d98da59a365c90adeb835f714b73c1426fcde6d8508d4600a80ab1404",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "anime-guofeng-character",
+    "variant": "calibrated-auto",
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.5985851832704392,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4142
+        },
+        {
+          "mode": "portrait",
+          "score": 0.0905
+        }
+      ]
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.375,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": false,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "gridSha256": "0049c56d98da59a365c90adeb835f714b73c1426fcde6d8508d4600a80ab1404",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "anime-guofeng-character",
+    "variant": "manual-dominant",
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 0.5985851832704392,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "realistic",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4142
+        },
+        {
+          "mode": "portrait",
+          "score": 0.0905
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "a367e536e22ea5eaae56df9ec65bff2e8a2074969f4c74d15b1eff6a185e8ba0",
+    "colors": 16,
+    "differingCellsVsV25": 1910,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  }
+]

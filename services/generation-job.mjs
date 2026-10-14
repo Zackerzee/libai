@@ -13,6 +13,7 @@
  */
 
 import { runGenerationPipeline } from "./generation-pipeline.mjs";
+import { runLocalFusionEngine } from "./local-fusion-engine.mjs";
 import {
   createGenerationError,
   createGenerationResult,
@@ -43,7 +44,10 @@ export function executeGenerationJob(request, hooks = {}) {
   const onPhase = typeof safeHooks.onPhase === "function" ? safeHooks.onPhase : null;
   const startedAt = now();
   try {
-    const pipeline = runGenerationPipeline({
+    // Keep the established request/result boundary. Only the unified production
+    // caller opts in; legacy callers remain byte-for-byte on the old pipeline.
+    const run = request.overrides?.localFusionEnabled === true ? runLocalFusionEngine : runGenerationPipeline;
+    const pipeline = run({
       image: request.image,
       mode: request.mode,
       size: { width: request.size.width, height: request.size.height },

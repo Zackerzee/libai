@@ -1,0 +1,747 @@
+[
+  {
+    "input": "brand-logo",
+    "variant": "v25",
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "c3ec7aa29c85c1f1f974ceb4577a7d019142903225bc5f1fafa9aa79a8a3a3e4",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 110,
+    "paletteIdentityMismatchExample": {
+      "code": "F3",
+      "rgb": [
+        247,
+        73,
+        65
+      ],
+      "hex": "#F74941",
+      "paletteId": "mard:F2",
+      "brand": "MARD"
+    },
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "brand-logo",
+    "variant": "previous-auto",
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "c3ec7aa29c85c1f1f974ceb4577a7d019142903225bc5f1fafa9aa79a8a3a3e4",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 110,
+    "paletteIdentityMismatchExample": {
+      "code": "F3",
+      "rgb": [
+        247,
+        73,
+        65
+      ],
+      "hex": "#F74941",
+      "paletteId": "mard:F2",
+      "brand": "MARD"
+    },
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "brand-logo",
+    "variant": "calibrated-auto",
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "policy": {
+      "category": "clean-flat-structure",
+      "eligible": true,
+      "score": 1,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": true,
+        "largeConstantRegions": true,
+        "lowLocalVariety": true,
+        "lowTexture": true,
+        "thickStructure": true,
+        "limitedShading": true,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "gridSha256": "6b4a76876bf3f666f2623cdff6fae8f828a7dafdc0f5302895816814756a295c",
+    "colors": 11,
+    "differingCellsVsV25": 2305,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "brand-logo",
+    "variant": "manual-dominant",
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "6b4a76876bf3f666f2623cdff6fae8f828a7dafdc0f5302895816814756a295c",
+    "colors": 11,
+    "differingCellsVsV25": 2305,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 0,
+    "paletteIdentityMismatchExample": null,
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "new-year-sign",
+    "variant": "v25",
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "2971b27829578a354be74c32bca1f93b23361114b9134bd28d4a6f9506f9d74d",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 1193,
+    "paletteIdentityMismatchExample": {
+      "code": "R1",
+      "rgb": [
+        213,
+        13,
+        33
+      ],
+      "hex": "#D50D21",
+      "paletteId": "mard:G20",
+      "brand": "MARD"
+    },
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "new-year-sign",
+    "variant": "previous-auto",
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "2971b27829578a354be74c32bca1f93b23361114b9134bd28d4a6f9506f9d74d",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 1193,
+    "paletteIdentityMismatchExample": {
+      "code": "R1",
+      "rgb": [
+        213,
+        13,
+        33
+      ],
+      "hex": "#D50D21",
+      "paletteId": "mard:G20",
+      "brand": "MARD"
+    },
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "new-year-sign",
+    "variant": "calibrated-auto",
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.375,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": false,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "gridSha256": "2971b27829578a354be74c32bca1f93b23361114b9134bd28d4a6f9506f9d74d",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 1193,
+    "paletteIdentityMismatchExample": {
+      "code": "R1",
+      "rgb": [
+        213,
+        13,
+        33
+      ],
+      "hex": "#D50D21",
+      "paletteId": "mard:G20",
+      "brand": "MARD"
+    },
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "new-year-sign",
+    "variant": "manual-dominant",
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "0382b4c02c18d5dfa7a9c3dccb341c07ae75fe3529fcc0bd2ac3f0059c863548",
+    "colors": 16,
+    "differingCellsVsV25": 2203,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 6,
+    "paletteIdentityMismatchExample": {
+      "code": "P19",
+      "rgb": [
+        255,
+        254,
+        236
+      ],
+      "hex": "#FFFEEC",
+      "paletteId": "mard:G15",
+      "brand": "MARD"
+    },
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "fantasy-illustration",
+    "variant": "v25",
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "2bb8f8436ee8662b4c40b540da9b0e95fdf348abe06e73e21493d97e881cda97",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 2028,
+    "paletteIdentityMismatchExample": {
+      "code": "H5",
+      "rgb": [
+        72,
+        70,
+        78
+      ],
+      "hex": "#48464E",
+      "paletteId": "mard:R13",
+      "brand": "MARD"
+    },
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "fantasy-illustration",
+    "variant": "previous-auto",
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "2bb8f8436ee8662b4c40b540da9b0e95fdf348abe06e73e21493d97e881cda97",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 2028,
+    "paletteIdentityMismatchExample": {
+      "code": "H5",
+      "rgb": [
+        72,
+        70,
+        78
+      ],
+      "hex": "#48464E",
+      "paletteId": "mard:R13",
+      "brand": "MARD"
+    },
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "fantasy-illustration",
+    "variant": "calibrated-auto",
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "strategy": "v2-baseline",
+    "originalRouting": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": {
+      "category": "unconfirmed-structure",
+      "eligible": false,
+      "score": 0.375,
+      "scoreKind": "experimental-structural-check-fraction-not-probability",
+      "checks": {
+        "fewCoverageColors": false,
+        "largeConstantRegions": false,
+        "lowLocalVariety": false,
+        "lowTexture": false,
+        "thickStructure": true,
+        "limitedShading": false,
+        "notMagnified": true,
+        "visibleStructure": true
+      }
+    },
+    "gridSha256": "2bb8f8436ee8662b4c40b540da9b0e95fdf348abe06e73e21493d97e881cda97",
+    "colors": 16,
+    "differingCellsVsV25": 0,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 2028,
+    "paletteIdentityMismatchExample": {
+      "code": "H5",
+      "rgb": [
+        72,
+        70,
+        78
+      ],
+      "hex": "#48464E",
+      "paletteId": "mard:R13",
+      "brand": "MARD"
+    },
+    "sourceImmutable": true,
+    "exactDimensions": true
+  },
+  {
+    "input": "fantasy-illustration",
+    "variant": "manual-dominant",
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "strategy": "fusion-pindou-dominant",
+    "originalRouting": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "policy": null,
+    "gridSha256": "9aa57cfc66b4e1a0c827705e44a41306cfab2da2a00691d86a26354f0f997a80",
+    "colors": 16,
+    "differingCellsVsV25": 3557,
+    "illegalPaletteCells": 0,
+    "paletteIdentityMismatchCells": 2242,
+    "paletteIdentityMismatchExample": {
+      "code": "C12",
+      "rgb": [
+        28,
+        51,
+        77
+      ],
+      "hex": "#1C334D",
+      "paletteId": "mard:C18",
+      "brand": "MARD"
+    },
+    "sourceImmutable": true,
+    "exactDimensions": true
+  }
+]

@@ -33,6 +33,8 @@ import { applyBackgroundBlanks, DEFAULT_BACKGROUND_CONFIG } from "./auto-backgro
 import { resolveBackgroundDecision, BACKGROUND_STATUS } from "./background-reliability.mjs";
 import { extractStrokeMask } from "./stroke-mask.mjs";
 import { detectAnchorColors } from "./accent-protection.mjs";
+import { sampleGridPerceptualV3 } from "./perceptual-sampler-v3.mjs";
+import { isLocalFusionSampler, sampleGridLocalFusion } from './local-fusion-sampler.mjs';
 import { createSmartColorTolerance } from '../services/smart-color-tolerance.mjs';
 import { paletteIdOf } from '../services/palette-identity.js';
 import { applySmartToleranceBudget, freezeToleranceBaseline, smartToleranceBaselineRevision, SMART_TOLERANCE_ALGORITHM_VERSION } from '../services/smart-tolerance-budget.mjs';
@@ -232,6 +234,14 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
     };
   }
   timing.subjectCrop = Math.round(performance.now() - tCrop);
+  // Opt-in laboratory snapshots: never rematch colors or alter the production cache.
+  const inspector = options.inspector === true ? {
+    executionOrder: ["S1", "S2", "S3", "S5", "S4", "S6"],
+    stages: { S1: { source: { width: samplingSource.width, height: samplingSource.height, data: new Uint8ClampedArray(samplingSource.data) }, resized: false, subjectCrop: subjectCropDiag } },
+  } : null;
+  const snapshotGrid = (stage, value) => {
+    if (inspector) inspector.stages[stage] = { grid: value.map(row => row.map(cell => cell ? { ...cell, rgb: cell.rgb ? [...cell.rgb] : cell.rgb } : null)) };
+  };
 
   // 1. Sampling（AUTO 用 Region-Adaptive，manual 全图单 mode）
   //
@@ -242,11 +252,17 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
   phase("sampling");
   const tSampling = performance.now();
   const samplingPreset = options.preset || "photo";
-  const sampled = cfg.sampling === SamplingMode.AUTO
+  if (typeof options.experimentalSampler === 'string' && options.experimentalSampler.startsWith('fusion-') && !isLocalFusionSampler(options.experimentalSampler)) throw new RangeError(`Unknown local fusion sampler: ${options.experimentalSampler}`);
+  const sampled = options.experimentalSampler === "perceptual-v3"
+    ? sampleGridPerceptualV3(samplingSource, width, height)
+    : isLocalFusionSampler(options.experimentalSampler)
+    ? sampleGridLocalFusion(samplingSource, width, height, options.experimentalSampler, samplingConfig)
+    : cfg.sampling === SamplingMode.AUTO
     ? sampleGridAdaptive(samplingSource, width, height, { preset: samplingPreset, autoProfile: samplingPreset === "auto", ...samplingConfig })
     : sampleGrid(samplingSource, width, height, { mode: cfg.sampling, ...samplingConfig });
   timing.sampling = Math.round(performance.now() - tSampling);
   const resolvedMode = sampled.resolvedMode;
+  if (inspector) inspector.stages.S2 = { colors: sampled.colors.map(row => row.map(color => color ? { ...color } : null)) };
 
   // 2. Palette Matching（复用 palette-engine）
   //
@@ -284,6 +300,7 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
     }
   }
   timing.paletteMatching = Math.round(performance.now() - tMatch);
+  snapshotGrid("S3", grid);
 
   // 2.5 Auto Background（可选）：只把「与边框连通的浅色区」判为真空豆，封闭浅色区保留。
   //     用采样色（而非量化后的色卡色）判定，保留原图层次。
@@ -465,6 +482,7 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
     timing.smartColorTolerance = toleranceRuntimeMs;
   }
   const colorsBeforeBudget = countGridColors(grid, cfg.smartColorTolerance.enabled ? paletteIdOf : getColorKey).size;
+  snapshotGrid("S5", grid);
 
   // 5. Protected Palette Budget（tier/reason 感知 + 可选强调色锚点保护）
   const tBudget = performance.now();
@@ -496,16 +514,20 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
   }
 
   if (!cfg.smartColorTolerance.enabled && cfg.maxColors > 0 && colorsBeforeBudget > cfg.maxColors) {
+    // applyBudgetPlan mutates cells in place. Keep the same row-major cell
+    // references, so first-match lookup remains dynamic without allocating a
+    // full flattened matrix for every recolored bead.
+    const budgetCells = grid.flat();
     budgetPlan = buildPaletteBudgetPlan({
       grid, getColorKey,
-      getRGBByKey: (key) => { const cell = grid.flat().find((c) => c && c.code === key); return cell ? cell.rgb : null; },
+      getRGBByKey: (key) => { const cell = budgetCells.find((c) => c && c.code === key); return cell ? cell.rgb : null; },
       maxColors: cfg.maxColors,
       protectionMap: protection.protectionMap,
       tierMap: protection.tierMap,
       protectionReasonMap: protection.protectionReasonMap,
       protectedKeys: anchorKeys,
     });
-    const keyToCell = (key) => { const cell = grid.flat().find((c) => c && c.code === key); return cell || null; };
+    const keyToCell = (key) => { const cell = budgetCells.find((c) => c && c.code === key); return cell || null; };
     applyBudgetPlan(grid, getColorKey, budgetPlan, keyToCell);
     forcedProtectedMerges = budgetPlan.filter((p) => p.forcedProtected).length;
     if (accentDiag) {
@@ -517,6 +539,8 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
     ({ budgetPlan, forcedProtectedMerges, accentDiag, protectedByAccent } = applySmartToleranceBudget({ grid, protection, cfg }));
   }
   timing.paletteBudget = Math.round(performance.now() - tBudget);
+  snapshotGrid("S4", grid);
+  if (inspector) inspector.stages.S6 = { grid };
 
   phase("finalize");
 
@@ -525,6 +549,11 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
   for (const record of cleanupRecords) cleanupMap[record.y * width + record.x] = 1;
 
   const diagnostics = {
+    experimentalSampler: options.experimentalSampler === "perceptual-v3" || isLocalFusionSampler(options.experimentalSampler) ? sampled.diagnostics : null,
+    specularMask: sampled.specularMask || null,
+    shadowAnchorMask: sampled.shadowAnchorMask || null,
+    contrastMap: sampled.contrastMap || null,
+    importanceMap: sampled.importanceMap || null,
     samplingMode: resolvedMode,
     requestedSampling: cfg.sampling,
     samplingDistribution: sampled.distribution || null,
@@ -650,6 +679,7 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
     diagnostics.smartToleranceBaseline = smartToleranceBaseline;
     diagnostics.smartToleranceHierarchy = smartToleranceHierarchy;
   }
+  if (inspector) diagnostics.inspector = inspector;
   return { grid, width, height, diagnostics };
 }
 

@@ -1,0 +1,52 @@
+{
+  "createdAt": "2026-10-14T05:52:06.266Z",
+  "node": "v22.22.0",
+  "palette": "actual MARD_FULL_COLORS export",
+  "paletteCount": 291,
+  "paletteSha256": "9bc770e6685dd3c0a3b036e54238fa51bf66008531a967907b38ec8d5e2af574",
+  "inputs": [
+    {
+      "id": "new-year-sign",
+      "file": "/Users/gongzhenyan/Downloads/羊年福到金红贺岁牌.png",
+      "category": "user-supplied festive sign illustration; not a real photograph",
+      "sha256": "adb885507c7163e67db8fafd1e837a5aaeb00bb87cafe8a0317c2094a9e5dd37",
+      "dimensions": {
+        "width": 1024,
+        "height": 1536
+      }
+    },
+    {
+      "id": "brand-logo",
+      "file": "/Users/gongzhenyan/Documents/libms-studio/assets/brand/shiliber-mark-256.png",
+      "category": "existing brand logo",
+      "sha256": "c7d52ab15bdf5c02fb4cb1e3a2c8cfe2f1c20fafdaaf2f5bcae2acb4b873223c",
+      "dimensions": {
+        "width": 256,
+        "height": 256
+      }
+    },
+    {
+      "id": "fantasy-illustration",
+      "file": "/Users/gongzhenyan/Documents/libms-studio/tests/fixtures/v3/baseline-v3-before-fix/original.jpg",
+      "category": "existing fantasy illustration with photographic-style rendering; not a real photograph or verified anime input",
+      "sha256": "0a4d2573dfe20fc6f7e62c9a9d97239d9bfb9492f923cc7464215bb75bd644a9",
+      "dimensions": {
+        "width": 1076,
+        "height": 1432
+      }
+    }
+  ],
+  "settings": {
+    "maxColors": 16,
+    "mode": "auto",
+    "fit": "original source, aspect-preserving long-edge target; no crop or background removal; same request for every sampler"
+  },
+  "limitations": [
+    "No verified real photograph or anime source found in inspected fixtures. real-failures metadata explicitly says generated-photographic; excluded.",
+    "Cell differences and palette legality are objective comparisons, not semantic or global visual-quality scores.",
+    "Native canvas decode is not verified browser ICC parity.",
+    "Synchronous Node runtimes measure main-thread blocking compute, not browser UI responsiveness.",
+    "RSS values are before/after process samples, not true peak, and include retained memory from earlier runs.",
+    "Three sequential repetitions, no warmup, fixed ordering; P95 is the maximum of three samples."
+  ]
+}

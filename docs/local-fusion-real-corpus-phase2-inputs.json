@@ -1,0 +1,47 @@
+[
+  {
+    "id": "text-handwritten-letter",
+    "file": "/Users/gongzhenyan/Downloads/0001.JPEG",
+    "provenance": "real handwritten Chinese letter photograph (user disk candidate, approved 2026-10-14); thin-stroke handwriting with seal; real-world text sample, not a designed text graphic"
+  },
+  {
+    "id": "text-handwritten-pledge",
+    "file": "/Users/gongzhenyan/Downloads/2902.JPG",
+    "provenance": "real handwritten compliance pledge photograph (user disk candidate, approved 2026-10-14); thin handwriting plus red seal on paper; real-world text sample"
+  },
+  {
+    "id": "document-license-scan",
+    "file": "/Users/gongzhenyan/Downloads/Adobe Express - file.jpg",
+    "provenance": "business license scan (user disk candidate, approved 2026-10-14); document layout, mostly white; classifier mode label unreliable on documents, decisions are what matter"
+  },
+  {
+    "id": "illustration-2903",
+    "file": "/Users/gongzhenyan/Downloads/2903.JPG",
+    "provenance": "illustration candidate from user disk (approved 2026-10-14); content not semantically verified"
+  },
+  {
+    "id": "illustration-pixler-screenshot",
+    "file": "/Users/gongzhenyan/Downloads/163-Pixler-20261007-2225.png",
+    "provenance": "app screenshot containing artwork (user disk candidate, approved 2026-10-14); UI chrome mixed with artwork; not a clean illustration sample"
+  },
+  {
+    "id": "illustration-ai-generated",
+    "file": "/Users/gongzhenyan/Downloads/ChatGPT 图像 2026年10月1日 09_29_48.png",
+    "provenance": "AI-generated image (user disk candidate, approved 2026-10-14 with limitation label); must NOT be counted as a real photograph or real anime"
+  },
+  {
+    "id": "pixel-guoqingsi-preview",
+    "file": "/Users/gongzhenyan/Downloads/02_国清寺_46x46_10x预览.png",
+    "provenance": "generated pattern preview with pixel structure (user disk candidate, approved 2026-10-14); pixel-structured raster, one real sample only"
+  },
+  {
+    "id": "photo-ifs-night-cityscape",
+    "file": "/Users/gongzhenyan/.workbuddy/clipboard-images/clipboard-2026-10-14T15-01-10-614Z-ad0d7949.webp",
+    "provenance": "real photograph: Chengdu IFS night cityscape (user-provided 2026-10-14, explicitly identified as real photo); 1280x1920; dense city lights, reflections, gradients - the first true photograph sample, closes the photo-class gap of phase 2"
+  },
+  {
+    "id": "anime-guofeng-character",
+    "file": "/Users/gongzhenyan/.workbuddy/clipboard-images/clipboard-2026-10-14T15-01-10-615Z-e8ac1041.jpg",
+    "provenance": "real anime illustration: blue-robe guofeng character standing art (user-provided 2026-10-14, explicitly identified as anime); 1086x1448; anime cel-style shading - the first true anime sample"
+  }
+]

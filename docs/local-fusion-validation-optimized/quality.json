@@ -1,0 +1,2402 @@
+[
+  {
+    "input": "new-year-sign",
+    "edge": 52,
+    "size": {
+      "width": 35,
+      "height": 52
+    },
+    "sampler": "v25",
+    "runtimeMs": 2710.445916,
+    "routedMode": "auto",
+    "routing": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "chosenStrategy": "v2-baseline",
+    "reason": "existing-production-runner",
+    "colors": 16,
+    "nullCount": 445,
+    "differingCellsVsV25": 0,
+    "gridSha256": "1aba9f6860bec247ba68a2d770e8f91afb2b0f550ef9621cf55170ce416e81b5",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 52,
+    "size": {
+      "width": 35,
+      "height": 52
+    },
+    "sampler": "auto",
+    "runtimeMs": 3588.647,
+    "routedMode": "auto",
+    "routing": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "chosenStrategy": "v2-baseline",
+    "reason": "conservative-v2-fallback",
+    "colors": 16,
+    "nullCount": 445,
+    "differingCellsVsV25": 0,
+    "gridSha256": "1aba9f6860bec247ba68a2d770e8f91afb2b0f550ef9621cf55170ce416e81b5",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 52,
+    "size": {
+      "width": 35,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-area",
+    "runtimeMs": 2699.134249999999,
+    "routedMode": "auto",
+    "routing": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-area",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 465,
+    "differingCellsVsV25": 536,
+    "gridSha256": "e8d5d5efbf3c6853bf1727d842e05a01599f2fdb3b594a12882243c89e7dd4ad",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 52,
+    "size": {
+      "width": 35,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-nearest",
+    "runtimeMs": 3279.7952079999995,
+    "routedMode": "auto",
+    "routing": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-nearest",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 593,
+    "differingCellsVsV25": 606,
+    "gridSha256": "e6a62a09f279b929034be80a69c9c6056d95888564870132e63297c1a54b893d",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 52,
+    "size": {
+      "width": 35,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-dominant",
+    "runtimeMs": 2448.54925,
+    "routedMode": "auto",
+    "routing": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-dominant",
+    "reason": "explicit-local-override",
+    "colors": 14,
+    "nullCount": 465,
+    "differingCellsVsV25": 604,
+    "gridSha256": "aac0bf906f57ada164902f22aedd9d67bb6fbb334e5b36e67d841e320f344dcf",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 52,
+    "size": {
+      "width": 35,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-edge",
+    "runtimeMs": 2703.147249999998,
+    "routedMode": "auto",
+    "routing": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-edge",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 465,
+    "differingCellsVsV25": 554,
+    "gridSha256": "2dbc81fde60a55bb4e1c1d7ced60341e5eb6b9248570cb13a86258152cedbba9",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 52,
+    "size": {
+      "width": 35,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-dpid",
+    "runtimeMs": 3222.2878329999985,
+    "routedMode": "auto",
+    "routing": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-dpid",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 465,
+    "differingCellsVsV25": 853,
+    "gridSha256": "aa9ebf2765ecc08d5118771c3a6d6831f412caf0f943b98664340ab166a230a6",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 52,
+    "size": {
+      "width": 35,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-ssim",
+    "runtimeMs": 3118.517208999998,
+    "routedMode": "auto",
+    "routing": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-ssim",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 465,
+    "differingCellsVsV25": 740,
+    "gridSha256": "31eeed9ff61669bd224f72cce3afe78973cf90354a8b72cf9007cdd25f0168a6",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 104,
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "sampler": "v25",
+    "runtimeMs": 4737.034250000001,
+    "routedMode": "auto",
+    "routing": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "chosenStrategy": "v2-baseline",
+    "reason": "existing-production-runner",
+    "colors": 16,
+    "nullCount": 2044,
+    "differingCellsVsV25": 0,
+    "gridSha256": "2971b27829578a354be74c32bca1f93b23361114b9134bd28d4a6f9506f9d74d",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 104,
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "sampler": "auto",
+    "runtimeMs": 3345.1421249999985,
+    "routedMode": "auto",
+    "routing": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "chosenStrategy": "v2-baseline",
+    "reason": "conservative-v2-fallback",
+    "colors": 16,
+    "nullCount": 2044,
+    "differingCellsVsV25": 0,
+    "gridSha256": "2971b27829578a354be74c32bca1f93b23361114b9134bd28d4a6f9506f9d74d",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 104,
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-area",
+    "runtimeMs": 3403.376833000002,
+    "routedMode": "auto",
+    "routing": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-area",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 2091,
+    "differingCellsVsV25": 2316,
+    "gridSha256": "e1c14671914e5ef1652a691ae3e101f16f7c2040fc33ea9e729c7b69c76b4a87",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 104,
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-nearest",
+    "runtimeMs": 3360.0550000000003,
+    "routedMode": "auto",
+    "routing": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-nearest",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 2302,
+    "differingCellsVsV25": 1769,
+    "gridSha256": "5349823e36731902d0ce25a2c33bd432f776e5efc0b0c900da7893342e12ddb5",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 104,
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-dominant",
+    "runtimeMs": 3251.608374999996,
+    "routedMode": "auto",
+    "routing": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-dominant",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 2091,
+    "differingCellsVsV25": 2203,
+    "gridSha256": "0382b4c02c18d5dfa7a9c3dccb341c07ae75fe3529fcc0bd2ac3f0059c863548",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 104,
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-edge",
+    "runtimeMs": 3223.3876660000024,
+    "routedMode": "auto",
+    "routing": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-edge",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 2091,
+    "differingCellsVsV25": 2412,
+    "gridSha256": "40342d777b837d2d6ef561d3d0f11075a522fd40cfdf266d8d801d97e4da8b2e",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 104,
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-dpid",
+    "runtimeMs": 4803.793792000004,
+    "routedMode": "auto",
+    "routing": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-dpid",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 2091,
+    "differingCellsVsV25": 2827,
+    "gridSha256": "acabaa6ae2424a3da3d6560752deced3352259da46330430c0545ae6b267f746",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 104,
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-ssim",
+    "runtimeMs": 3622.3137080000015,
+    "routedMode": "auto",
+    "routing": {
+      "candidate": null,
+      "mode": "auto",
+      "confidence": 0.05366604269131777,
+      "reason": "low-confidence:0.054<0.35",
+      "hardRule": null,
+      "evidence": [
+        "skinRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "localColorVariety",
+        "highFrequencyRatio",
+        "magnificationTrace",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "portrait",
+          "score": 0.5611
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5468
+        },
+        {
+          "mode": "realistic",
+          "score": 0.4721
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-ssim",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 2091,
+    "differingCellsVsV25": 2968,
+    "gridSha256": "5e25ded656bc8d7f9ca994bcf2ef36868e03ad39305c13fefd97ab8eab7c8e6c",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "brand-logo",
+    "edge": 52,
+    "size": {
+      "width": 52,
+      "height": 52
+    },
+    "sampler": "v25",
+    "runtimeMs": 413.1707500000048,
+    "routedMode": "illustration",
+    "routing": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "chosenStrategy": "v2-baseline",
+    "reason": "existing-production-runner",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 0,
+    "gridSha256": "2e19fc2fc506902d32100e3e865d3269661e665b7af600c20b8c07db9d57e93d",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "brand-logo",
+    "edge": 52,
+    "size": {
+      "width": 52,
+      "height": 52
+    },
+    "sampler": "auto",
+    "runtimeMs": 350.72854099999677,
+    "routedMode": "illustration",
+    "routing": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "chosenStrategy": "v2-baseline",
+    "reason": "conservative-v2-fallback",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 0,
+    "gridSha256": "2e19fc2fc506902d32100e3e865d3269661e665b7af600c20b8c07db9d57e93d",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "brand-logo",
+    "edge": 52,
+    "size": {
+      "width": 52,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-area",
+    "runtimeMs": 334.9083329999994,
+    "routedMode": "illustration",
+    "routing": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-area",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 1449,
+    "gridSha256": "2e33e7a35a9cba14d66ad2cfe62c0f39eaddccdf376d145bccdda3bb0616a93f",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "brand-logo",
+    "edge": 52,
+    "size": {
+      "width": 52,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-nearest",
+    "runtimeMs": 328.0206659999967,
+    "routedMode": "illustration",
+    "routing": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-nearest",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 541,
+    "gridSha256": "7c572dc92c2c8c3143872f0bfaaad73bf9a1581e0ef639d9360a79ab58d4368e",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "brand-logo",
+    "edge": 52,
+    "size": {
+      "width": 52,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-dominant",
+    "runtimeMs": 281.45654099999956,
+    "routedMode": "illustration",
+    "routing": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-dominant",
+    "reason": "explicit-local-override",
+    "colors": 6,
+    "nullCount": 0,
+    "differingCellsVsV25": 1286,
+    "gridSha256": "b505e86207000e59fa76224f653233045b7f3c29c72cc5fd14848cd2f1f041cd",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "brand-logo",
+    "edge": 52,
+    "size": {
+      "width": 52,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-edge",
+    "runtimeMs": 354.3212500000009,
+    "routedMode": "illustration",
+    "routing": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-edge",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 1408,
+    "gridSha256": "ae4e6150320bdb4891469cef6a699850a72eabd0f4f97eb29fc8875cca77dd8e",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "brand-logo",
+    "edge": 52,
+    "size": {
+      "width": 52,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-dpid",
+    "runtimeMs": 354.95141599999624,
+    "routedMode": "illustration",
+    "routing": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-dpid",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 723,
+    "gridSha256": "acddb53d63eb83cd119e2c3692cdbb52b5a541f0fe011d433970def9b87d9f1e",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "brand-logo",
+    "edge": 52,
+    "size": {
+      "width": 52,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-ssim",
+    "runtimeMs": 367.19470799999544,
+    "routedMode": "illustration",
+    "routing": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-ssim",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 1172,
+    "gridSha256": "3e2eb5e18c2076f40b3623b6603b6dbb7e071e87d5c6468cdd0c02f0b4a08c9d",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "brand-logo",
+    "edge": 104,
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "sampler": "v25",
+    "runtimeMs": 815.2323340000003,
+    "routedMode": "illustration",
+    "routing": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "chosenStrategy": "v2-baseline",
+    "reason": "existing-production-runner",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 0,
+    "gridSha256": "c3ec7aa29c85c1f1f974ceb4577a7d019142903225bc5f1fafa9aa79a8a3a3e4",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "brand-logo",
+    "edge": 104,
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "sampler": "auto",
+    "runtimeMs": 863.6257499999992,
+    "routedMode": "illustration",
+    "routing": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "chosenStrategy": "v2-baseline",
+    "reason": "conservative-v2-fallback",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 0,
+    "gridSha256": "c3ec7aa29c85c1f1f974ceb4577a7d019142903225bc5f1fafa9aa79a8a3a3e4",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "brand-logo",
+    "edge": 104,
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-area",
+    "runtimeMs": 696.6127909999996,
+    "routedMode": "illustration",
+    "routing": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-area",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 2525,
+    "gridSha256": "0781648ab34100d759f7b92d023453692de5fc5ba549c2f01675e636eda04416",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "brand-logo",
+    "edge": 104,
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-nearest",
+    "runtimeMs": 777.1525830000028,
+    "routedMode": "illustration",
+    "routing": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-nearest",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 3032,
+    "gridSha256": "14b29b775a05228ea8c6cc976f071cb39db1668e56d43d7cb6d70844ffa41f84",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "brand-logo",
+    "edge": 104,
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-dominant",
+    "runtimeMs": 730.512459000005,
+    "routedMode": "illustration",
+    "routing": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-dominant",
+    "reason": "explicit-local-override",
+    "colors": 11,
+    "nullCount": 0,
+    "differingCellsVsV25": 2305,
+    "gridSha256": "6b4a76876bf3f666f2623cdff6fae8f828a7dafdc0f5302895816814756a295c",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "brand-logo",
+    "edge": 104,
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-edge",
+    "runtimeMs": 789.7477920000019,
+    "routedMode": "illustration",
+    "routing": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-edge",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 2389,
+    "gridSha256": "480cbcaf61bd428f6f2e103ba80a31cc940b5f22e3c06454ca8ef890fe796292",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "brand-logo",
+    "edge": 104,
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-dpid",
+    "runtimeMs": 863.6008329999968,
+    "routedMode": "illustration",
+    "routing": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-dpid",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 2664,
+    "gridSha256": "5b41560878104fe8ac54fe0da30489808de3f35c825692573bcca3117354209e",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "brand-logo",
+    "edge": 104,
+    "size": {
+      "width": 104,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-ssim",
+    "runtimeMs": 818.2351669999989,
+    "routedMode": "illustration",
+    "routing": {
+      "candidate": "illustration",
+      "mode": "illustration",
+      "confidence": 1,
+      "reason": "scored:illustration",
+      "hardRule": null,
+      "evidence": [
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "shadingCoverage",
+        "edgeDensity",
+        "highFrequencyRatio",
+        "localColorVariety",
+        "magnificationTrace",
+        "antiAliasRatio"
+      ],
+      "runnerUp": "anime",
+      "topScores": [
+        {
+          "mode": "illustration",
+          "score": 0.6775
+        },
+        {
+          "mode": "anime",
+          "score": 0.3032
+        },
+        {
+          "mode": "realistic",
+          "score": 0.0647
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-ssim",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 6216,
+    "gridSha256": "4101fac236b4d008ccdf9cdfb3c56e457bc8579238b0e416be36cb4ab1c421e3",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "fantasy-illustration",
+    "edge": 52,
+    "size": {
+      "width": 39,
+      "height": 52
+    },
+    "sampler": "v25",
+    "runtimeMs": 3564.9330830000035,
+    "routedMode": "photo",
+    "routing": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "chosenStrategy": "v2-baseline",
+    "reason": "existing-production-runner",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 0,
+    "gridSha256": "7d59b57e6a399fbf6ea338eaaf8942ec4892f155d0cd878eef2a187c000f29f5",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "fantasy-illustration",
+    "edge": 52,
+    "size": {
+      "width": 39,
+      "height": 52
+    },
+    "sampler": "auto",
+    "runtimeMs": 3715.092457999999,
+    "routedMode": "photo",
+    "routing": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "chosenStrategy": "v2-baseline",
+    "reason": "conservative-v2-fallback",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 0,
+    "gridSha256": "7d59b57e6a399fbf6ea338eaaf8942ec4892f155d0cd878eef2a187c000f29f5",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "fantasy-illustration",
+    "edge": 52,
+    "size": {
+      "width": 39,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-area",
+    "runtimeMs": 4054.3887499999983,
+    "routedMode": "photo",
+    "routing": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-area",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 548,
+    "gridSha256": "ba8144cbdc2c918d5ba761c1283da3f8ea4b007bd1954e72f4ac415a664ea7eb",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "fantasy-illustration",
+    "edge": 52,
+    "size": {
+      "width": 39,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-nearest",
+    "runtimeMs": 3556.8369590000075,
+    "routedMode": "photo",
+    "routing": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-nearest",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 1169,
+    "gridSha256": "db54e55404b5049a5dc2d44f44acbdc8dc099e0885c51e3cf314789f8ab421ff",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "fantasy-illustration",
+    "edge": 52,
+    "size": {
+      "width": 39,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-dominant",
+    "runtimeMs": 4260.87866599999,
+    "routedMode": "photo",
+    "routing": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-dominant",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 1163,
+    "gridSha256": "87819bbe8c7f4601ba2f61139f12b66142e3993380bd630f4d61e35cef057053",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "fantasy-illustration",
+    "edge": 52,
+    "size": {
+      "width": 39,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-edge",
+    "runtimeMs": 3580.058290999994,
+    "routedMode": "photo",
+    "routing": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-edge",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 1167,
+    "gridSha256": "6f889fc5c5c79bda477d8ecc955ce63ad8b5bce7ccd4b3cca74ede5d7c4c2731",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "fantasy-illustration",
+    "edge": 52,
+    "size": {
+      "width": 39,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-dpid",
+    "runtimeMs": 3662.9517919999926,
+    "routedMode": "photo",
+    "routing": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-dpid",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 1101,
+    "gridSha256": "5af8de2e0bbb64465eee529190fd4b89d0b5691b94532b17a3c518d1af82d1db",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "fantasy-illustration",
+    "edge": 52,
+    "size": {
+      "width": 39,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-ssim",
+    "runtimeMs": 4298.587791999991,
+    "routedMode": "photo",
+    "routing": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-ssim",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 1162,
+    "gridSha256": "149528b43b7832d20c85074f203dda918c500d24a3d34e9c2854f295d7644154",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "fantasy-illustration",
+    "edge": 104,
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "sampler": "v25",
+    "runtimeMs": 4884.412375,
+    "routedMode": "photo",
+    "routing": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "chosenStrategy": "v2-baseline",
+    "reason": "existing-production-runner",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 0,
+    "gridSha256": "2bb8f8436ee8662b4c40b540da9b0e95fdf348abe06e73e21493d97e881cda97",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "fantasy-illustration",
+    "edge": 104,
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "sampler": "auto",
+    "runtimeMs": 4662.360333999997,
+    "routedMode": "photo",
+    "routing": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "chosenStrategy": "v2-baseline",
+    "reason": "conservative-v2-fallback",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 0,
+    "gridSha256": "2bb8f8436ee8662b4c40b540da9b0e95fdf348abe06e73e21493d97e881cda97",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "fantasy-illustration",
+    "edge": 104,
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-area",
+    "runtimeMs": 4737.50570899999,
+    "routedMode": "photo",
+    "routing": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-area",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 2167,
+    "gridSha256": "192694c87a1f85327285c45bcaf6accb3c4974b8e85d1fa61ae3625f6957be21",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "fantasy-illustration",
+    "edge": 104,
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-nearest",
+    "runtimeMs": 4610.05479200001,
+    "routedMode": "photo",
+    "routing": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-nearest",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 3396,
+    "gridSha256": "7b5d4d3d7da8ed520b72eb05f232074ad16b19ab78e409ecefb9be70d27ad497",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "fantasy-illustration",
+    "edge": 104,
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-dominant",
+    "runtimeMs": 5222.773125000007,
+    "routedMode": "photo",
+    "routing": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-dominant",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 3557,
+    "gridSha256": "9aa57cfc66b4e1a0c827705e44a41306cfab2da2a00691d86a26354f0f997a80",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "fantasy-illustration",
+    "edge": 104,
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-edge",
+    "runtimeMs": 5105.849042000002,
+    "routedMode": "photo",
+    "routing": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-edge",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 2723,
+    "gridSha256": "334fc7f7df6f591fe5dac8184f3240bc4f6c6f7e6863208c7d596c5d32da83be",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "fantasy-illustration",
+    "edge": 104,
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-dpid",
+    "runtimeMs": 4403.942666000003,
+    "routedMode": "photo",
+    "routing": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-dpid",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 2671,
+    "gridSha256": "1d29f785b46258572c44bc64d4aa262cf5a4dc1dca13d87c40bb5637feee7918",
+    "illegalPaletteCells": 0
+  },
+  {
+    "input": "fantasy-illustration",
+    "edge": 104,
+    "size": {
+      "width": 78,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-ssim",
+    "runtimeMs": 4508.199792000014,
+    "routedMode": "photo",
+    "routing": {
+      "candidate": "realistic",
+      "mode": "photo",
+      "confidence": 0.3814567264873175,
+      "reason": "scored:realistic",
+      "hardRule": null,
+      "evidence": [
+        "localColorVariety",
+        "highFrequencyRatio",
+        "shadingCoverage",
+        "antiAliasRatio",
+        "paletteDiscreteness",
+        "largeFlatBlockRatio",
+        "magnificationTrace",
+        "edgeDirectionRegularity"
+      ],
+      "runnerUp": "illustration",
+      "topScores": [
+        {
+          "mode": "realistic",
+          "score": 0.6354
+        },
+        {
+          "mode": "illustration",
+          "score": 0.5299
+        },
+        {
+          "mode": "anime",
+          "score": 0
+        }
+      ]
+    },
+    "chosenStrategy": "fusion-pindou-ssim",
+    "reason": "explicit-local-override",
+    "colors": 16,
+    "nullCount": 0,
+    "differingCellsVsV25": 2982,
+    "gridSha256": "bd8b2d073e55e329f28e8581dd1adc3555d045fde10a2a9373d866a773aa7f12",
+    "illegalPaletteCells": 0
+  }
+]

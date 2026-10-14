@@ -1,0 +1,542 @@
+[
+  {
+    "input": "new-year-sign",
+    "edge": 52,
+    "size": {
+      "width": 35,
+      "height": 52
+    },
+    "sampler": "v25",
+    "repetitions": 3,
+    "p50Ms": 2557.617167,
+    "p95Ms": 2718.947208,
+    "percentileMethod": "nearest rank; n=3 P95 equals observed maximum",
+    "samples": [
+      {
+        "repetition": 0,
+        "runtimeMs": 2718.947208,
+        "rssBefore": 129286144,
+        "rssAfter": 261373952,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 1,
+        "runtimeMs": 2557.617167,
+        "rssBefore": 261373952,
+        "rssAfter": 301891584,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 2,
+        "runtimeMs": 2205.161333,
+        "rssBefore": 301891584,
+        "rssAfter": 375717888,
+        "chosenStrategy": "v2-baseline"
+      }
+    ]
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 52,
+    "size": {
+      "width": 35,
+      "height": 52
+    },
+    "sampler": "auto",
+    "repetitions": 3,
+    "p50Ms": 2391.1883749999997,
+    "p95Ms": 2398.8935,
+    "percentileMethod": "nearest rank; n=3 P95 equals observed maximum",
+    "samples": [
+      {
+        "repetition": 0,
+        "runtimeMs": 2398.8935,
+        "rssBefore": 375898112,
+        "rssAfter": 409141248,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 1,
+        "runtimeMs": 2303.970541999999,
+        "rssBefore": 409141248,
+        "rssAfter": 435355648,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 2,
+        "runtimeMs": 2391.1883749999997,
+        "rssBefore": 435355648,
+        "rssAfter": 451756032,
+        "chosenStrategy": "v2-baseline"
+      }
+    ]
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 52,
+    "size": {
+      "width": 35,
+      "height": 52
+    },
+    "sampler": "fusion-pindou-dominant",
+    "repetitions": 3,
+    "p50Ms": 2419.378291000001,
+    "p95Ms": 2427.018291999997,
+    "percentileMethod": "nearest rank; n=3 P95 equals observed maximum",
+    "samples": [
+      {
+        "repetition": 0,
+        "runtimeMs": 2304.4384169999994,
+        "rssBefore": 451772416,
+        "rssAfter": 459833344,
+        "chosenStrategy": "fusion-pindou-dominant"
+      },
+      {
+        "repetition": 1,
+        "runtimeMs": 2427.018291999997,
+        "rssBefore": 459833344,
+        "rssAfter": 413663232,
+        "chosenStrategy": "fusion-pindou-dominant"
+      },
+      {
+        "repetition": 2,
+        "runtimeMs": 2419.378291000001,
+        "rssBefore": 413679616,
+        "rssAfter": 406126592,
+        "chosenStrategy": "fusion-pindou-dominant"
+      }
+    ]
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 78,
+    "size": {
+      "width": 52,
+      "height": 78
+    },
+    "sampler": "v25",
+    "repetitions": 3,
+    "p50Ms": 2568.896499999999,
+    "p95Ms": 2808.7603750000017,
+    "percentileMethod": "nearest rank; n=3 P95 equals observed maximum",
+    "samples": [
+      {
+        "repetition": 0,
+        "runtimeMs": 2568.896499999999,
+        "rssBefore": 406208512,
+        "rssAfter": 421314560,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 1,
+        "runtimeMs": 2808.7603750000017,
+        "rssBefore": 421314560,
+        "rssAfter": 419938304,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 2,
+        "runtimeMs": 2554.556292000001,
+        "rssBefore": 419938304,
+        "rssAfter": 391708672,
+        "chosenStrategy": "v2-baseline"
+      }
+    ]
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 78,
+    "size": {
+      "width": 52,
+      "height": 78
+    },
+    "sampler": "auto",
+    "repetitions": 3,
+    "p50Ms": 2803.274749999997,
+    "p95Ms": 2894.609375,
+    "percentileMethod": "nearest rank; n=3 P95 equals observed maximum",
+    "samples": [
+      {
+        "repetition": 0,
+        "runtimeMs": 2803.274749999997,
+        "rssBefore": 391741440,
+        "rssAfter": 414318592,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 1,
+        "runtimeMs": 2694.7309170000008,
+        "rssBefore": 414318592,
+        "rssAfter": 449642496,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 2,
+        "runtimeMs": 2894.609375,
+        "rssBefore": 449642496,
+        "rssAfter": 410976256,
+        "chosenStrategy": "v2-baseline"
+      }
+    ]
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 78,
+    "size": {
+      "width": 52,
+      "height": 78
+    },
+    "sampler": "fusion-pindou-dominant",
+    "repetitions": 3,
+    "p50Ms": 2556.3304590000043,
+    "p95Ms": 3325.583083999998,
+    "percentileMethod": "nearest rank; n=3 P95 equals observed maximum",
+    "samples": [
+      {
+        "repetition": 0,
+        "runtimeMs": 3325.583083999998,
+        "rssBefore": 412614656,
+        "rssAfter": 308035584,
+        "chosenStrategy": "fusion-pindou-dominant"
+      },
+      {
+        "repetition": 1,
+        "runtimeMs": 2517.0797079999975,
+        "rssBefore": 308068352,
+        "rssAfter": 334495744,
+        "chosenStrategy": "fusion-pindou-dominant"
+      },
+      {
+        "repetition": 2,
+        "runtimeMs": 2556.3304590000043,
+        "rssBefore": 334495744,
+        "rssAfter": 303038464,
+        "chosenStrategy": "fusion-pindou-dominant"
+      }
+    ]
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 104,
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "sampler": "v25",
+    "repetitions": 3,
+    "p50Ms": 3080.9134170000034,
+    "p95Ms": 3373.459917,
+    "percentileMethod": "nearest rank; n=3 P95 equals observed maximum",
+    "samples": [
+      {
+        "repetition": 0,
+        "runtimeMs": 3373.459917,
+        "rssBefore": 303218688,
+        "rssAfter": 334233600,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 1,
+        "runtimeMs": 3080.9134170000034,
+        "rssBefore": 334233600,
+        "rssAfter": 359546880,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 2,
+        "runtimeMs": 2774.592166000002,
+        "rssBefore": 359546880,
+        "rssAfter": 354549760,
+        "chosenStrategy": "v2-baseline"
+      }
+    ]
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 104,
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "sampler": "auto",
+    "repetitions": 3,
+    "p50Ms": 2918.2125830000004,
+    "p95Ms": 2928.070375000003,
+    "percentileMethod": "nearest rank; n=3 P95 equals observed maximum",
+    "samples": [
+      {
+        "repetition": 0,
+        "runtimeMs": 2714.8918330000015,
+        "rssBefore": 354795520,
+        "rssAfter": 392413184,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 1,
+        "runtimeMs": 2928.070375000003,
+        "rssBefore": 392413184,
+        "rssAfter": 432553984,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 2,
+        "runtimeMs": 2918.2125830000004,
+        "rssBefore": 432553984,
+        "rssAfter": 454754304,
+        "chosenStrategy": "v2-baseline"
+      }
+    ]
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 104,
+    "size": {
+      "width": 69,
+      "height": 104
+    },
+    "sampler": "fusion-pindou-dominant",
+    "repetitions": 3,
+    "p50Ms": 2707.7725409999985,
+    "p95Ms": 2927.108666999993,
+    "percentileMethod": "nearest rank; n=3 P95 equals observed maximum",
+    "samples": [
+      {
+        "repetition": 0,
+        "runtimeMs": 2927.108666999993,
+        "rssBefore": 455032832,
+        "rssAfter": 453083136,
+        "chosenStrategy": "fusion-pindou-dominant"
+      },
+      {
+        "repetition": 1,
+        "runtimeMs": 2602.4364579999965,
+        "rssBefore": 453083136,
+        "rssAfter": 453918720,
+        "chosenStrategy": "fusion-pindou-dominant"
+      },
+      {
+        "repetition": 2,
+        "runtimeMs": 2707.7725409999985,
+        "rssBefore": 453918720,
+        "rssAfter": 447234048,
+        "chosenStrategy": "fusion-pindou-dominant"
+      }
+    ]
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 250,
+    "size": {
+      "width": 167,
+      "height": 250
+    },
+    "sampler": "v25",
+    "repetitions": 3,
+    "p50Ms": 4375.228541000004,
+    "p95Ms": 4437.893415999992,
+    "percentileMethod": "nearest rank; n=3 P95 equals observed maximum",
+    "samples": [
+      {
+        "repetition": 0,
+        "runtimeMs": 4437.893415999992,
+        "rssBefore": 447922176,
+        "rssAfter": 491798528,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 1,
+        "runtimeMs": 4300.015415999995,
+        "rssBefore": 491798528,
+        "rssAfter": 508067840,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 2,
+        "runtimeMs": 4375.228541000004,
+        "rssBefore": 508067840,
+        "rssAfter": 584237056,
+        "chosenStrategy": "v2-baseline"
+      }
+    ]
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 250,
+    "size": {
+      "width": 167,
+      "height": 250
+    },
+    "sampler": "auto",
+    "repetitions": 3,
+    "p50Ms": 4593.023583000002,
+    "p95Ms": 4654.441375000009,
+    "percentileMethod": "nearest rank; n=3 P95 equals observed maximum",
+    "samples": [
+      {
+        "repetition": 0,
+        "runtimeMs": 4593.023583000002,
+        "rssBefore": 584581120,
+        "rssAfter": 538312704,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 1,
+        "runtimeMs": 4654.441375000009,
+        "rssBefore": 538312704,
+        "rssAfter": 510132224,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 2,
+        "runtimeMs": 4455.340833000009,
+        "rssBefore": 510164992,
+        "rssAfter": 647331840,
+        "chosenStrategy": "v2-baseline"
+      }
+    ]
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 250,
+    "size": {
+      "width": 167,
+      "height": 250
+    },
+    "sampler": "fusion-pindou-dominant",
+    "repetitions": 3,
+    "p50Ms": 4272.176124999998,
+    "p95Ms": 4456.273832999999,
+    "percentileMethod": "nearest rank; n=3 P95 equals observed maximum",
+    "samples": [
+      {
+        "repetition": 0,
+        "runtimeMs": 4456.273832999999,
+        "rssBefore": 648642560,
+        "rssAfter": 674136064,
+        "chosenStrategy": "fusion-pindou-dominant"
+      },
+      {
+        "repetition": 1,
+        "runtimeMs": 4272.176124999998,
+        "rssBefore": 674152448,
+        "rssAfter": 560906240,
+        "chosenStrategy": "fusion-pindou-dominant"
+      },
+      {
+        "repetition": 2,
+        "runtimeMs": 4088.7450830000016,
+        "rssBefore": 560922624,
+        "rssAfter": 697335808,
+        "chosenStrategy": "fusion-pindou-dominant"
+      }
+    ]
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 500,
+    "size": {
+      "width": 333,
+      "height": 500
+    },
+    "sampler": "v25",
+    "repetitions": 3,
+    "p50Ms": 10499.50491599999,
+    "p95Ms": 11188.86050000001,
+    "percentileMethod": "nearest rank; n=3 P95 equals observed maximum",
+    "samples": [
+      {
+        "repetition": 0,
+        "runtimeMs": 10499.50491599999,
+        "rssBefore": 698793984,
+        "rssAfter": 465010688,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 1,
+        "runtimeMs": 10413.764750000002,
+        "rssBefore": 465010688,
+        "rssAfter": 576618496,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 2,
+        "runtimeMs": 11188.86050000001,
+        "rssBefore": 576618496,
+        "rssAfter": 366477312,
+        "chosenStrategy": "v2-baseline"
+      }
+    ]
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 500,
+    "size": {
+      "width": 333,
+      "height": 500
+    },
+    "sampler": "auto",
+    "repetitions": 3,
+    "p50Ms": 11824.068625000014,
+    "p95Ms": 12219.552375,
+    "percentileMethod": "nearest rank; n=3 P95 equals observed maximum",
+    "samples": [
+      {
+        "repetition": 0,
+        "runtimeMs": 12219.552375,
+        "rssBefore": 365838336,
+        "rssAfter": 354549760,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 1,
+        "runtimeMs": 11824.068625000014,
+        "rssBefore": 354615296,
+        "rssAfter": 581058560,
+        "chosenStrategy": "v2-baseline"
+      },
+      {
+        "repetition": 2,
+        "runtimeMs": 10699.048250000022,
+        "rssBefore": 581107712,
+        "rssAfter": 359170048,
+        "chosenStrategy": "v2-baseline"
+      }
+    ]
+  },
+  {
+    "input": "new-year-sign",
+    "edge": 500,
+    "size": {
+      "width": 333,
+      "height": 500
+    },
+    "sampler": "fusion-pindou-dominant",
+    "repetitions": 3,
+    "p50Ms": 9441.165875000006,
+    "p95Ms": 9705.16187499999,
+    "percentileMethod": "nearest rank; n=3 P95 equals observed maximum",
+    "samples": [
+      {
+        "repetition": 0,
+        "runtimeMs": 9441.165875000006,
+        "rssBefore": 361463808,
+        "rssAfter": 620773376,
+        "chosenStrategy": "fusion-pindou-dominant"
+      },
+      {
+        "repetition": 1,
+        "runtimeMs": 9281.565082999994,
+        "rssBefore": 620773376,
+        "rssAfter": 559890432,
+        "chosenStrategy": "fusion-pindou-dominant"
+      },
+      {
+        "repetition": 2,
+        "runtimeMs": 9705.16187499999,
+        "rssBefore": 559890432,
+        "rssAfter": 640040960,
+        "chosenStrategy": "fusion-pindou-dominant"
+      }
+    ]
+  }
+]

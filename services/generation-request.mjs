@@ -82,7 +82,7 @@ export function createGenerationRequest(input = {}) {
     palette: Object.freeze((palette || []).map((color) => Object.freeze({
       code: String(color?.code ?? ""),
       // Disabled production requests retain the pre-integration cell shape.
-      ...(overrides?.smartColorTolerance?.enabled !== true || color?.paletteId == null ? {} : { paletteId: String(color.paletteId) }),
+      ...((overrides?.smartColorTolerance?.enabled !== true && overrides?.localFusionEnabled !== true) || color?.paletteId == null ? {} : { paletteId: String(color.paletteId) }),
       rgb: Array.isArray(color?.rgb)
         ? [Number(color.rgb[0]), Number(color.rgb[1]), Number(color.rgb[2])]
         : [Number(color?.rgb?.[0]), Number(color?.rgb?.[1]), Number(color?.rgb?.[2])],

@@ -1,0 +1,19 @@
+{
+  "type": "result",
+  "ok": true,
+  "width": 333,
+  "height": 500,
+  "wallMs": 9798.699999988079,
+  "longTasks": [],
+  "timing": {
+    "subjectCrop": 0,
+    "sampling": 1289,
+    "paletteMatching": 143,
+    "protection": 3019,
+    "cleanup": 176,
+    "paletteBudget": 4934
+  },
+  "paletteColors": 16,
+  "message": null,
+  "scope": "worker-compute-and-compact-response-only"
+}

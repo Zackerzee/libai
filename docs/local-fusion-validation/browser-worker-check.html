@@ -1,0 +1,33 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>本地融合 Worker 验证</title>
+<h1>本地融合 Worker 验证</h1><p>仅检查后台计算与回包，不包含正式工作台重绘、编辑或导出。</p>
+<input id="file" type="file" accept="image/*" aria-label="选择验证图片"><button id="run" disabled>运行 500 格后台验证</button><pre id="result">请选择本地图片</pre>
+<script type="module">
+import { createGenerationRequest } from '../../services/generation-request.mjs';
+import { MARD_FULL_COLORS } from '../../smart-preprocessing/palette-data.mjs';
+let image;
+const result=document.querySelector('#result'),run=document.querySelector('#run');
+document.querySelector('#file').addEventListener('change',async e=>{
+  const bitmap=await createImageBitmap(e.target.files[0]);
+  const canvas=document.createElement('canvas');canvas.width=bitmap.width;canvas.height=bitmap.height;
+  const ctx=canvas.getContext('2d');ctx.drawImage(bitmap,0,0);bitmap.close();
+  image=ctx.getImageData(0,0,canvas.width,canvas.height);run.disabled=false;result.textContent='图片准备完成';
+});
+run.addEventListener('click',()=>{
+  run.disabled=true;const longTasks=[],start=performance.now();
+  const observer=new PerformanceObserver(list=>longTasks.push(...list.getEntries().map(e=>({startTime:e.startTime,duration:e.duration}))));
+  observer.observe({type:'longtask',buffered:false});
+  const worker=new Worker(new URL('../../services/generation.worker.mjs',import.meta.url),{type:'module'});
+  const edge=Math.max(image.width,image.height),width=Math.round(image.width*500/edge),height=Math.round(image.height*500/edge);
+  const request=createGenerationRequest({requestId:1,image:{width:image.width,height:image.height,data:image.data.slice()},size:{width,height},mode:'auto',palette:MARD_FULL_COLORS,maxColors:16,overrides:{localFusionSampler:'fusion-pindou-dominant',sampling:'auto',subjectCrop:false,autoBackground:false}});
+  worker.onmessage=async({data})=>{
+    if(data.type==='progress'){result.textContent='正在后台计算：'+data.phase;return;}
+    const wallMs=performance.now()-start;
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    observer.disconnect();worker.terminate();
+    result.textContent=JSON.stringify({type:data.type,ok:data.envelope?.ok,width,height,wallMs,longTasks,timing:data.envelope?.diagnostics?.timing,paletteColors:data.envelope?.palette?.length,message:data.message||data.envelope?.message||null,scope:'worker-compute-and-compact-response-only'},null,2);
+    run.disabled=false;
+  };
+  worker.onerror=e=>{observer.disconnect();worker.terminate();result.textContent='ERROR: '+e.message;run.disabled=false;};
+  worker.postMessage({type:'generate',request},[request.image.data.buffer]);
+});
+</script></html>

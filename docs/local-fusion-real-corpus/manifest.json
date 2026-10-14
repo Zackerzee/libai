@@ -1,0 +1,901 @@
+{
+  "inputs": [
+    {
+      "id": "brand-logo",
+      "file": "/Users/gongzhenyan/Documents/libms-studio/assets/brand/shiliber-mark-256.png",
+      "provenance": "existing brand raster logo",
+      "fileSha256": "c7d52ab15bdf5c02fb4cb1e3a2c8cfe2f1c20fafdaaf2f5bcae2acb4b873223c",
+      "dimensions": {
+        "width": 256,
+        "height": 256
+      },
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "evidence": {
+        "edgeDensity": 0.0758261516523033,
+        "flatRegionRatio": 0.9051398102796205,
+        "textureScore": 0.08675492106609581,
+        "colorComplexity": 0.1875,
+        "pixelLikeness": 0.5867550297600596,
+        "routing": {
+          "candidate": "illustration",
+          "mode": "illustration",
+          "confidence": 1,
+          "reason": "scored:illustration",
+          "hardRule": null,
+          "evidence": [
+            "paletteDiscreteness",
+            "largeFlatBlockRatio",
+            "shadingCoverage",
+            "edgeDensity",
+            "highFrequencyRatio",
+            "localColorVariety",
+            "magnificationTrace",
+            "antiAliasRatio"
+          ],
+          "runnerUp": "anime",
+          "topScores": [
+            {
+              "mode": "illustration",
+              "score": 0.6775
+            },
+            {
+              "mode": "anime",
+              "score": 0.3032
+            },
+            {
+              "mode": "realistic",
+              "score": 0.0647
+            }
+          ]
+        },
+        "fusionSignals": {
+          "paletteDiscreteness": 0.6044805759138864,
+          "paletteSize95": 8,
+          "localColorVariety": 0.09370930989583333,
+          "edgeDirectionRegularity": 0.010965319112977157,
+          "magnificationTrace": 0,
+          "traceBlockSize": 0,
+          "largeFlatBlockRatio": 0.7754944570420761,
+          "colorCount": 0.624533928671039,
+          "distinctColorCount": 277,
+          "highFrequencyRatio": 0.018152573529411766,
+          "antiAliasRatio": 0.5716491661519456,
+          "shadingCoverage": 0.5724363819601915,
+          "structureThickness": 0.9478719190811321,
+          "skinRatio": 0.0040435791015625,
+          "nearWhiteRatio": 0.494720458984375,
+          "neutralRatio": 0.4943084716796875,
+          "flatRegionRatio": 0.952749693627451,
+          "edgeDensity": 0.029097732843137256
+        }
+      },
+      "policy": {
+        "category": "clean-flat-structure",
+        "eligible": true,
+        "score": 1,
+        "scoreKind": "experimental-structural-check-fraction-not-probability",
+        "checks": {
+          "fewCoverageColors": true,
+          "largeConstantRegions": true,
+          "lowLocalVariety": true,
+          "lowTexture": true,
+          "thickStructure": true,
+          "limitedShading": true,
+          "notMagnified": true,
+          "visibleStructure": true
+        }
+      }
+    },
+    {
+      "id": "new-year-sign",
+      "file": "/Users/gongzhenyan/Downloads/羊年福到金红贺岁牌.png",
+      "provenance": "user supplied festive sign; no OCR performed",
+      "fileSha256": "adb885507c7163e67db8fafd1e837a5aaeb00bb87cafe8a0317c2094a9e5dd37",
+      "dimensions": {
+        "width": 1024,
+        "height": 1536
+      },
+      "size": {
+        "width": 69,
+        "height": 104
+      },
+      "evidence": {
+        "edgeDensity": 0.23338748356153788,
+        "flatRegionRatio": 0.6116655063046337,
+        "textureScore": 0.26724799402413507,
+        "colorComplexity": 0.37890625,
+        "pixelLikeness": 0.42243226084455016,
+        "routing": {
+          "candidate": null,
+          "mode": "auto",
+          "confidence": 0.05366604269131777,
+          "reason": "low-confidence:0.054<0.35",
+          "hardRule": null,
+          "evidence": [
+            "skinRatio",
+            "shadingCoverage",
+            "antiAliasRatio",
+            "localColorVariety",
+            "highFrequencyRatio",
+            "magnificationTrace",
+            "paletteDiscreteness",
+            "largeFlatBlockRatio"
+          ],
+          "runnerUp": "illustration",
+          "topScores": [
+            {
+              "mode": "portrait",
+              "score": 0.5611
+            },
+            {
+              "mode": "illustration",
+              "score": 0.5468
+            },
+            {
+              "mode": "realistic",
+              "score": 0.4721
+            }
+          ]
+        },
+        "fusionSignals": {
+          "paletteDiscreteness": 0.32926987565638755,
+          "paletteSize95": 34,
+          "localColorVariety": 0.21580335828993055,
+          "edgeDirectionRegularity": 0.04025124704374372,
+          "magnificationTrace": 0,
+          "traceBlockSize": 0,
+          "largeFlatBlockRatio": 0.3388097426470588,
+          "colorCount": 0.7593773259737836,
+          "distinctColorCount": 936,
+          "highFrequencyRatio": 0.1234777618364419,
+          "antiAliasRatio": 0.2912102591504141,
+          "shadingCoverage": 0.677297794117647,
+          "structureThickness": 0.9913430480105712,
+          "skinRatio": 0.17304002192982457,
+          "nearWhiteRatio": 0.002444261695906433,
+          "neutralRatio": 0.31060398391812866,
+          "flatRegionRatio": 0.7632022955523673,
+          "edgeDensity": 0.11331994261119081
+        }
+      },
+      "policy": {
+        "category": "unconfirmed-structure",
+        "eligible": false,
+        "score": 0.375,
+        "scoreKind": "experimental-structural-check-fraction-not-probability",
+        "checks": {
+          "fewCoverageColors": false,
+          "largeConstantRegions": false,
+          "lowLocalVariety": false,
+          "lowTexture": false,
+          "thickStructure": true,
+          "limitedShading": false,
+          "notMagnified": true,
+          "visibleStructure": true
+        }
+      }
+    },
+    {
+      "id": "fantasy-illustration",
+      "file": "/Users/gongzhenyan/Documents/libms-studio/tests/fixtures/v3/baseline-v3-before-fix/original.jpg",
+      "provenance": "existing fantasy illustration, not a verified photograph",
+      "fileSha256": "0a4d2573dfe20fc6f7e62c9a9d97239d9bfb9492f923cc7464215bb75bd644a9",
+      "dimensions": {
+        "width": 1076,
+        "height": 1432
+      },
+      "size": {
+        "width": 78,
+        "height": 104
+      },
+      "evidence": {
+        "edgeDensity": 0.34702616970658207,
+        "flatRegionRatio": 0.27494052339413166,
+        "textureScore": 0.4120576799167337,
+        "colorComplexity": 0.357421875,
+        "pixelLikeness": 0.2465572183534893,
+        "routing": {
+          "candidate": "realistic",
+          "mode": "photo",
+          "confidence": 0.3814567264873175,
+          "reason": "scored:realistic",
+          "hardRule": null,
+          "evidence": [
+            "localColorVariety",
+            "highFrequencyRatio",
+            "shadingCoverage",
+            "antiAliasRatio",
+            "paletteDiscreteness",
+            "largeFlatBlockRatio",
+            "magnificationTrace",
+            "edgeDirectionRegularity"
+          ],
+          "runnerUp": "illustration",
+          "topScores": [
+            {
+              "mode": "realistic",
+              "score": 0.6354
+            },
+            {
+              "mode": "illustration",
+              "score": 0.5299
+            },
+            {
+              "mode": "anime",
+              "score": 0
+            }
+          ]
+        },
+        "fusionSignals": {
+          "paletteDiscreteness": 0.13993484405008305,
+          "paletteSize95": 92,
+          "localColorVariety": 0.31376462658773174,
+          "edgeDirectionRegularity": 0.006120223641043698,
+          "magnificationTrace": 0,
+          "traceBlockSize": 0,
+          "largeFlatBlockRatio": 0.1504154734519506,
+          "colorCount": 0.7527899713575743,
+          "distinctColorCount": 882,
+          "highFrequencyRatio": 0.2962590953154016,
+          "antiAliasRatio": 0.5184817886765236,
+          "shadingCoverage": 0.9567693744164333,
+          "structureThickness": 0.9901003723550253,
+          "skinRatio": 0.001510925151092515,
+          "nearWhiteRatio": 0.04816364481636448,
+          "neutralRatio": 0.41573686657368664,
+          "flatRegionRatio": 0.5344716833487112,
+          "edgeDensity": 0.16926922133588723
+        }
+      },
+      "policy": {
+        "category": "unconfirmed-structure",
+        "eligible": false,
+        "score": 0.375,
+        "scoreKind": "experimental-structural-check-fraction-not-probability",
+        "checks": {
+          "fewCoverageColors": false,
+          "largeConstantRegions": false,
+          "lowLocalVariety": false,
+          "lowTexture": false,
+          "thickStructure": true,
+          "limitedShading": false,
+          "notMagnified": true,
+          "visibleStructure": true
+        }
+      }
+    },
+    {
+      "id": "text-handwritten-letter",
+      "file": "/Users/gongzhenyan/Downloads/0001.JPEG",
+      "provenance": "real handwritten Chinese letter photograph (user disk candidate, approved 2026-10-14); thin-stroke handwriting with seal; real-world text sample, not a designed text graphic",
+      "fileSha256": "e116574062411a93cce2ffe8b712a9d6b52142a3ef6553f067c5ae90e7c50bb0",
+      "dimensions": {
+        "width": 1080,
+        "height": 1334
+      },
+      "size": {
+        "width": 84,
+        "height": 104
+      },
+      "evidence": {
+        "edgeDensity": 0.17644578736561028,
+        "flatRegionRatio": 0.7214531656243413,
+        "textureScore": 0.2010925773838845,
+        "colorComplexity": 0.19921875,
+        "pixelLikeness": 0.5008177707337854,
+        "routing": {
+          "candidate": "illustration",
+          "mode": "illustration",
+          "confidence": 1,
+          "reason": "scored:illustration",
+          "hardRule": null,
+          "evidence": [
+            "paletteDiscreteness",
+            "largeFlatBlockRatio",
+            "shadingCoverage",
+            "edgeDensity",
+            "highFrequencyRatio",
+            "localColorVariety",
+            "magnificationTrace",
+            "antiAliasRatio"
+          ],
+          "runnerUp": "realistic",
+          "topScores": [
+            {
+              "mode": "illustration",
+              "score": 0.5982
+            },
+            {
+              "mode": "realistic",
+              "score": 0.1688
+            },
+            {
+              "mode": "anime",
+              "score": 0
+            }
+          ]
+        },
+        "fusionSignals": {
+          "paletteDiscreteness": 0.4399540521077455,
+          "paletteSize95": 19,
+          "localColorVariety": 0.1528298378699985,
+          "edgeDirectionRegularity": 0.04004571511234112,
+          "magnificationTrace": 0,
+          "traceBlockSize": 0,
+          "largeFlatBlockRatio": 0.6578078078078078,
+          "colorCount": 0.6689975020180221,
+          "distinctColorCount": 414,
+          "highFrequencyRatio": 0.08327803998647922,
+          "antiAliasRatio": 0.3096761683149118,
+          "shadingCoverage": 0.5335335335335335,
+          "structureThickness": 0.3874884079823872,
+          "skinRatio": 0,
+          "nearWhiteRatio": 0.000024912805181863476,
+          "neutralRatio": 0.01706527154957648,
+          "flatRegionRatio": 0.8033351277589293,
+          "edgeDensity": 0.11338683225459144
+        }
+      },
+      "policy": {
+        "category": "unconfirmed-structure",
+        "eligible": false,
+        "score": 0.375,
+        "scoreKind": "experimental-structural-check-fraction-not-probability",
+        "checks": {
+          "fewCoverageColors": false,
+          "largeConstantRegions": false,
+          "lowLocalVariety": false,
+          "lowTexture": false,
+          "thickStructure": false,
+          "limitedShading": true,
+          "notMagnified": true,
+          "visibleStructure": true
+        }
+      }
+    },
+    {
+      "id": "text-handwritten-pledge",
+      "file": "/Users/gongzhenyan/Downloads/2902.JPG",
+      "provenance": "real handwritten compliance pledge photograph (user disk candidate, approved 2026-10-14); thin handwriting plus red seal on paper; real-world text sample",
+      "fileSha256": "d49cfb1da88e7f039486ab31c1dc3184f22ddd3bff9d44ac77993ad7fcc9df05",
+      "dimensions": {
+        "width": 1080,
+        "height": 1334
+      },
+      "size": {
+        "width": 84,
+        "height": 104
+      },
+      "evidence": {
+        "edgeDensity": 0.19584006745836555,
+        "flatRegionRatio": 0.6570866418382405,
+        "textureScore": 0.24370037703780484,
+        "colorComplexity": 0.27734375,
+        "pixelLikeness": 0.4540487783052843,
+        "routing": {
+          "candidate": "illustration",
+          "mode": "illustration",
+          "confidence": 0.39488009126765256,
+          "reason": "scored:illustration",
+          "hardRule": null,
+          "evidence": [
+            "paletteDiscreteness",
+            "largeFlatBlockRatio",
+            "shadingCoverage",
+            "edgeDensity",
+            "highFrequencyRatio",
+            "localColorVariety",
+            "magnificationTrace",
+            "antiAliasRatio"
+          ],
+          "runnerUp": "realistic",
+          "topScores": [
+            {
+              "mode": "illustration",
+              "score": 0.5984
+            },
+            {
+              "mode": "realistic",
+              "score": 0.5007
+            },
+            {
+              "mode": "portrait",
+              "score": 0.1987
+            }
+          ]
+        },
+        "fusionSignals": {
+          "paletteDiscreteness": 0.28907790615100937,
+          "paletteSize95": 42,
+          "localColorVariety": 0.1951788636025584,
+          "edgeDirectionRegularity": 0.03847873879507624,
+          "magnificationTrace": 0,
+          "traceBlockSize": 0,
+          "largeFlatBlockRatio": 0.4078078078078078,
+          "colorCount": 0.7080439341730157,
+          "distinctColorCount": 589,
+          "highFrequencyRatio": 0.10820386344003906,
+          "antiAliasRatio": 0.36062557497700093,
+          "shadingCoverage": 0.9022022022022022,
+          "structureThickness": 0.784128452968776,
+          "skinRatio": 0.02112605879422023,
+          "nearWhiteRatio": 0.0006975585450921774,
+          "neutralRatio": 0.16482311908320876,
+          "flatRegionRatio": 0.7864717002391176,
+          "edgeDensity": 0.10532443632084329
+        }
+      },
+      "policy": {
+        "category": "unconfirmed-structure",
+        "eligible": false,
+        "score": 0.25,
+        "scoreKind": "experimental-structural-check-fraction-not-probability",
+        "checks": {
+          "fewCoverageColors": false,
+          "largeConstantRegions": false,
+          "lowLocalVariety": false,
+          "lowTexture": false,
+          "thickStructure": false,
+          "limitedShading": false,
+          "notMagnified": true,
+          "visibleStructure": true
+        }
+      }
+    },
+    {
+      "id": "document-license-scan",
+      "file": "/Users/gongzhenyan/Downloads/Adobe Express - file.jpg",
+      "provenance": "business license scan (user disk candidate, approved 2026-10-14); document layout, mostly white; classifier mode label unreliable on documents, decisions are what matter",
+      "fileSha256": "b8e006bf02beb01015346df5e518151daaf23ba7fffffc9602cc1f78b5f790e4",
+      "dimensions": {
+        "width": 5712,
+        "height": 4284
+      },
+      "size": {
+        "width": 104,
+        "height": 78
+      },
+      "evidence": {
+        "edgeDensity": 0.00885547201336675,
+        "flatRegionRatio": 0.9862155388471178,
+        "textureScore": 0.009842872807017542,
+        "colorComplexity": 0.095703125,
+        "pixelLikeness": 0.6297840467053049,
+        "routing": {
+          "candidate": "anime",
+          "mode": "anime",
+          "confidence": 1,
+          "reason": "scored:anime",
+          "hardRule": null,
+          "evidence": [
+            "paletteDiscreteness",
+            "largeFlatBlockRatio",
+            "edgeDirectionRegularity",
+            "edgeDensity",
+            "highFrequencyRatio",
+            "localColorVariety",
+            "shadingCoverage",
+            "magnificationTrace"
+          ],
+          "runnerUp": "illustration",
+          "topScores": [
+            {
+              "mode": "anime",
+              "score": 0.7624
+            },
+            {
+              "mode": "illustration",
+              "score": 0
+            },
+            {
+              "mode": "logo",
+              "score": 0
+            }
+          ]
+        },
+        "fusionSignals": {
+          "paletteDiscreteness": 0.8681601919712955,
+          "paletteSize95": 1,
+          "localColorVariety": 0.04487432044468878,
+          "edgeDirectionRegularity": 0.2611675786691583,
+          "magnificationTrace": 0.019896705084859797,
+          "traceBlockSize": 16,
+          "largeFlatBlockRatio": 0.9868550772264213,
+          "colorCount": 0.5545733358176116,
+          "distinctColorCount": 147,
+          "highFrequencyRatio": 0.003137273402762216,
+          "antiAliasRatio": 0.27979274611398963,
+          "shadingCoverage": 0.015312791783380018,
+          "structureThickness": 0.9893162634606041,
+          "skinRatio": 0.00004694615276278109,
+          "nearWhiteRatio": 0.9853293272616309,
+          "neutralRatio": 0.9978874231256748,
+          "flatRegionRatio": 0.9925814098859495,
+          "edgeDensity": 0.004281316711288287
+        }
+      },
+      "policy": {
+        "category": "unconfirmed-structure",
+        "eligible": false,
+        "score": 0.625,
+        "scoreKind": "experimental-structural-check-fraction-not-probability",
+        "checks": {
+          "fewCoverageColors": false,
+          "largeConstantRegions": true,
+          "lowLocalVariety": true,
+          "lowTexture": true,
+          "thickStructure": true,
+          "limitedShading": true,
+          "notMagnified": false,
+          "visibleStructure": false
+        }
+      }
+    },
+    {
+      "id": "illustration-2903",
+      "file": "/Users/gongzhenyan/Downloads/2903.JPG",
+      "provenance": "illustration candidate from user disk (approved 2026-10-14); content not semantically verified",
+      "fileSha256": "79ebecf81cf20ecbf0b7cd370b00b336c91260e60a61b0577528f1254a306b07",
+      "dimensions": {
+        "width": 1080,
+        "height": 1397
+      },
+      "size": {
+        "width": 80,
+        "height": 104
+      },
+      "evidence": {
+        "edgeDensity": 0.19484936831875607,
+        "flatRegionRatio": 0.6761418853255587,
+        "textureScore": 0.23850412010042035,
+        "colorComplexity": 0.267578125,
+        "pixelLikeness": 0.4675527856231778,
+        "routing": {
+          "candidate": "illustration",
+          "mode": "illustration",
+          "confidence": 0.9527664020304694,
+          "reason": "scored:illustration",
+          "hardRule": null,
+          "evidence": [
+            "paletteDiscreteness",
+            "largeFlatBlockRatio",
+            "shadingCoverage",
+            "edgeDensity",
+            "highFrequencyRatio",
+            "localColorVariety",
+            "magnificationTrace",
+            "antiAliasRatio"
+          ],
+          "runnerUp": "realistic",
+          "topScores": [
+            {
+              "mode": "illustration",
+              "score": 0.6078
+            },
+            {
+              "mode": "realistic",
+              "score": 0.3869
+            },
+            {
+              "mode": "portrait",
+              "score": 0.1577
+            }
+          ]
+        },
+        "fusionSignals": {
+          "paletteDiscreteness": 0.3031735861107121,
+          "paletteSize95": 39,
+          "localColorVariety": 0.17972186746133104,
+          "edgeDirectionRegularity": 0.045221699995393716,
+          "magnificationTrace": 0,
+          "traceBlockSize": 0,
+          "largeFlatBlockRatio": 0.4930615164520744,
+          "colorCount": 0.7055713468188832,
+          "distinctColorCount": 576,
+          "highFrequencyRatio": 0.09503156936274217,
+          "antiAliasRatio": 0.3561549100968188,
+          "shadingCoverage": 0.8582146248812915,
+          "structureThickness": 0.7779308564517985,
+          "skinRatio": 0.01826418693371483,
+          "nearWhiteRatio": 0.00016690510252742014,
+          "neutralRatio": 0.17985216976633286,
+          "flatRegionRatio": 0.7986389830711539,
+          "edgeDensity": 0.10632944756610396
+        }
+      },
+      "policy": {
+        "category": "unconfirmed-structure",
+        "eligible": false,
+        "score": 0.25,
+        "scoreKind": "experimental-structural-check-fraction-not-probability",
+        "checks": {
+          "fewCoverageColors": false,
+          "largeConstantRegions": false,
+          "lowLocalVariety": false,
+          "lowTexture": false,
+          "thickStructure": false,
+          "limitedShading": false,
+          "notMagnified": true,
+          "visibleStructure": true
+        }
+      }
+    },
+    {
+      "id": "illustration-pixler-screenshot",
+      "file": "/Users/gongzhenyan/Downloads/163-Pixler-20261007-2225.png",
+      "provenance": "app screenshot containing artwork (user disk candidate, approved 2026-10-14); UI chrome mixed with artwork; not a clean illustration sample",
+      "fileSha256": "58677ab25896308ae652868590b1739bd8d77735ea72e6e75c325abbe230b1a7",
+      "dimensions": {
+        "width": 2766,
+        "height": 3956
+      },
+      "size": {
+        "width": 73,
+        "height": 104
+      },
+      "evidence": {
+        "edgeDensity": 0.4423332227016263,
+        "flatRegionRatio": 0.3899767673415201,
+        "textureScore": 0.45044229795883495,
+        "colorComplexity": 0.08984375,
+        "pixelLikeness": 0.39482496421755725,
+        "routing": {
+          "candidate": "illustration",
+          "mode": "illustration",
+          "confidence": 0.8515523610872222,
+          "reason": "scored:illustration",
+          "hardRule": null,
+          "evidence": [
+            "paletteDiscreteness",
+            "largeFlatBlockRatio",
+            "shadingCoverage",
+            "edgeDensity",
+            "highFrequencyRatio",
+            "localColorVariety",
+            "magnificationTrace",
+            "antiAliasRatio"
+          ],
+          "runnerUp": "realistic",
+          "topScores": [
+            {
+              "mode": "illustration",
+              "score": 0.5165
+            },
+            {
+              "mode": "realistic",
+              "score": 0.3393
+            },
+            {
+              "mode": "anime",
+              "score": 0
+            }
+          ]
+        },
+        "fusionSignals": {
+          "paletteDiscreteness": 0.32926987565638755,
+          "paletteSize95": 34,
+          "localColorVariety": 0.11410085274501751,
+          "edgeDirectionRegularity": 0.2323121646470394,
+          "magnificationTrace": 0,
+          "traceBlockSize": 0,
+          "largeFlatBlockRatio": 0.43942336945075006,
+          "colorCount": 0.6179556155028808,
+          "distinctColorCount": 261,
+          "highFrequencyRatio": 0.11331935774766651,
+          "antiAliasRatio": 0.09288835317161367,
+          "shadingCoverage": 0.48563218390804597,
+          "structureThickness": 0.9107622211121048,
+          "skinRatio": 0.0003962334514264404,
+          "nearWhiteRatio": 0.21739231773261233,
+          "neutralRatio": 0.6817313071042327,
+          "flatRegionRatio": 0.6063686509656037,
+          "edgeDensity": 0.28031199128672984
+        }
+      },
+      "policy": {
+        "category": "unconfirmed-structure",
+        "eligible": false,
+        "score": 0.625,
+        "scoreKind": "experimental-structural-check-fraction-not-probability",
+        "checks": {
+          "fewCoverageColors": false,
+          "largeConstantRegions": false,
+          "lowLocalVariety": true,
+          "lowTexture": false,
+          "thickStructure": true,
+          "limitedShading": true,
+          "notMagnified": true,
+          "visibleStructure": true
+        }
+      }
+    },
+    {
+      "id": "illustration-ai-generated",
+      "file": "/Users/gongzhenyan/Downloads/ChatGPT 图像 2026年10月1日 09_29_48.png",
+      "provenance": "AI-generated image (user disk candidate, approved 2026-10-14 with limitation label); must NOT be counted as a real photograph or real anime",
+      "fileSha256": "b7b1ac73bd8470ede4688e82ce576948609587b2228e0b5118c81cb63ba38d1c",
+      "dimensions": {
+        "width": 1087,
+        "height": 1447
+      },
+      "size": {
+        "width": 78,
+        "height": 104
+      },
+      "evidence": {
+        "edgeDensity": 0.4350366100638729,
+        "flatRegionRatio": 0.4480448668016825,
+        "textureScore": 0.45018410066794257,
+        "colorComplexity": 0.359375,
+        "pixelLikeness": 0.3895857269434491,
+        "routing": {
+          "candidate": "illustration",
+          "mode": "illustration",
+          "confidence": 0.5813521747018477,
+          "reason": "scored:illustration",
+          "hardRule": null,
+          "evidence": [
+            "paletteDiscreteness",
+            "largeFlatBlockRatio",
+            "shadingCoverage",
+            "edgeDensity",
+            "highFrequencyRatio",
+            "localColorVariety",
+            "magnificationTrace",
+            "antiAliasRatio"
+          ],
+          "runnerUp": "realistic",
+          "topScores": [
+            {
+              "mode": "illustration",
+              "score": 0.5953
+            },
+            {
+              "mode": "realistic",
+              "score": 0.45
+            },
+            {
+              "mode": "anime",
+              "score": 0
+            }
+          ]
+        },
+        "fusionSignals": {
+          "paletteDiscreteness": 0.3237563117210811,
+          "paletteSize95": 35,
+          "localColorVariety": 0.19180898491083676,
+          "edgeDirectionRegularity": 0.306087448902695,
+          "magnificationTrace": 0,
+          "traceBlockSize": 0,
+          "largeFlatBlockRatio": 0.41342472662249835,
+          "colorCount": 0.757586380033026,
+          "distinctColorCount": 921,
+          "highFrequencyRatio": 0.1061553203139259,
+          "antiAliasRatio": 0.2225905361730339,
+          "shadingCoverage": 0.8690400508582327,
+          "structureThickness": 0.9558655691883516,
+          "skinRatio": 0.00029515938606847696,
+          "nearWhiteRatio": 0,
+          "neutralRatio": 0,
+          "flatRegionRatio": 0.7252806169008943,
+          "edgeDensity": 0.16856406278517977
+        }
+      },
+      "policy": {
+        "category": "unconfirmed-structure",
+        "eligible": false,
+        "score": 0.375,
+        "scoreKind": "experimental-structural-check-fraction-not-probability",
+        "checks": {
+          "fewCoverageColors": false,
+          "largeConstantRegions": false,
+          "lowLocalVariety": false,
+          "lowTexture": false,
+          "thickStructure": true,
+          "limitedShading": false,
+          "notMagnified": true,
+          "visibleStructure": true
+        }
+      }
+    },
+    {
+      "id": "pixel-guoqingsi-preview",
+      "file": "/Users/gongzhenyan/Downloads/02_国清寺_46x46_10x预览.png",
+      "provenance": "generated pattern preview with pixel structure (user disk candidate, approved 2026-10-14); pixel-structured raster, one real sample only",
+      "fileSha256": "ef4ce9ce2e00877f7220e721bacb9b078f173c007464c728c2df0d809274be35",
+      "dimensions": {
+        "width": 460,
+        "height": 460
+      },
+      "size": {
+        "width": 104,
+        "height": 104
+      },
+      "evidence": {
+        "edgeDensity": 0.2203755001538935,
+        "flatRegionRatio": 0.5480147737765466,
+        "textureScore": 0.25186225449176397,
+        "colorComplexity": 0.08984375,
+        "pixelLikeness": 0.419864465508618,
+        "routing": {
+          "candidate": "pixel",
+          "mode": "pixel",
+          "confidence": 0.9688357621396799,
+          "reason": "scored:pixel",
+          "hardRule": null,
+          "evidence": [
+            "magnificationTrace",
+            "paletteDiscreteness",
+            "largeFlatBlockRatio",
+            "edgeDirectionRegularity",
+            "localColorVariety",
+            "highFrequencyRatio",
+            "antiAliasRatio",
+            "shadingCoverage"
+          ],
+          "runnerUp": "portrait",
+          "topScores": [
+            {
+              "mode": "pixel",
+              "score": 0.7328
+            },
+            {
+              "mode": "portrait",
+              "score": 0.4559
+            },
+            {
+              "mode": "illustration",
+              "score": 0.4201
+            }
+          ]
+        },
+        "fusionSignals": {
+          "paletteDiscreteness": 0.3031735861107121,
+          "paletteSize95": 39,
+          "localColorVariety": 0.08397455627372524,
+          "edgeDirectionRegularity": 0.4429974672484116,
+          "magnificationTrace": 1,
+          "traceBlockSize": 10,
+          "largeFlatBlockRatio": 0.501192674669129,
+          "colorCount": 0.4319007572396314,
+          "distinctColorCount": 48,
+          "highFrequencyRatio": 0.07081830263907347,
+          "antiAliasRatio": 0,
+          "shadingCoverage": 0.497383810403201,
+          "structureThickness": 0.9727024128686327,
+          "skinRatio": 0.14366729678638943,
+          "nearWhiteRatio": 0,
+          "neutralRatio": 0.17107750472589792,
+          "flatRegionRatio": 0.8700873362445415,
+          "edgeDensity": 0.05909436111638504
+        }
+      },
+      "policy": {
+        "category": "unconfirmed-structure",
+        "eligible": false,
+        "score": 0.5,
+        "scoreKind": "experimental-structural-check-fraction-not-probability",
+        "checks": {
+          "fewCoverageColors": false,
+          "largeConstantRegions": false,
+          "lowLocalVariety": true,
+          "lowTexture": false,
+          "thickStructure": true,
+          "limitedShading": true,
+          "notMagnified": false,
+          "visibleStructure": true
+        }
+      }
+    }
+  ],
+  "paletteCount": 291,
+  "paletteSha256": "9bc770e6685dd3c0a3b036e54238fa51bf66008531a967907b38ec8d5e2af574",
+  "maxColors": 16,
+  "edge": 104,
+  "noCrop": true,
+  "noBackgroundRemoval": true,
+  "scoreKind": "structural fraction, not probability"
+}
