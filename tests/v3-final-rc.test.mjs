@@ -43,7 +43,13 @@ test("full real palette remains separate from current usage and synchronizes sel
 });
 
 test("release UI exposes eight scene modes while sampling remains an internal strategy",()=>{
-  for(const mode of ["小白一键","智能","人像","动漫","插画","像素","Logo","写实"])assert.match(generationPanel,new RegExp(`"${mode}"`));
+  // 阶段 2：面板不再内嵌模式标签字面量，改为 import mode-profile.mjs 的 MODE_LABELS
+  //（「界面文案。放在这里是为了让『模式清单』只有一份来源」）。断言改为：8 个公开
+  // 模式键在面板里都以 MODE_LABELS.<key> 形式出现，且 import 自注册表。
+  for(const mode of ["beginner","auto","portrait","anime","illustration","pixel","logo","photo"]){
+    assert.match(generationPanel,new RegExp(`MODE_LABELS\\.${mode}\\b`),`界面缺少模式 ${mode}`);
+  }
+  assert.match(generationPanel,/import \{ MODE_LABELS \} from "\.\.\/services\/mode-profile\.mjs"/);
   assert.doesNotMatch(generationPanel,/data-sampling=/);
   assert.doesNotMatch(generationPanel,/samplingButton\(/);
   // Stage B5 §20：这几条原本断言的是 `generation-panel.js` 里那张**已经失效的**

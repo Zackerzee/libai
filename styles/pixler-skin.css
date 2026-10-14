@@ -1,185 +1,17 @@
-/* =============================================================
- * pixler-skin.css — 站点整体视觉语言（最后加载，覆盖层）
- *
- * 参照：https://pixler.starrylight.art 编辑器界面
- *   · 字体 Fusion Pixel 12px Monospaced（TakWolf/fusion-pixel-font，OFL-1.1，已随仓库分发）
- *   · 亮色 #EAE7EC 底 / #FFFFFF 面 / #211F26 字 / #DF3478 强调
- *   · 施工模式为暗色 #1C191F 底 / #F4F1F5 字
- *   · 全直角、1px 细边、零渐变零阴影
- *
- * 组件视觉规则。权威令牌已迁到 tokens.css；本文件不再维护第二套
- * 无作用域 :root 配色。
- *
- * ⚠️ 令牌权威性：styles.css 末尾存在无条件的 Pixel(:2058) / Apple(:2632) 主题
- *    :root 块，源码顺序靠后、会静默覆盖靠前的同名令牌。故本文件用**同样的
- *    :root 选择器 + 最后加载**，才能成为事实唯一来源。改主题一律写这里。
- * ⚠️ 像素字体只在 12px 整数倍下锐利。字号一律取 12 / 24 的倍数，勿写 13/15px。
- * ============================================================= */
-
-/* ---------- 1. 底 + 字体 ---------- */
-html,
-body {
-  background: var(--page) !important;
-  color: var(--body);
-}
-
-body,
-.app-shell,
-button,
-input,
-select,
-textarea,
-output,
-.panel,
-.modal,
-dialog,
-h1, h2, h3, h4, h5, h6,
-.start-title, .start-meta, .section-kicker,
-.smart-tool-card strong, .smart-tool-card small,
-.muted-label, .status-pill, .field-hint,
-.result-metrics, .stats-summary, .stats-list,
-.tool-button, .editor-tool-grid, .chip, .text-link-button,
-.scheme-name-field, .option-line, .gallery-search, .invite-status {
-  font-family: var(--px-font) !important;
-  font-variant-ligatures: none;
-}
-
-/* 像素字体在 macOS 上关掉平滑才锐利；非 macOS 忽略此条 */
-body {
-  -webkit-font-smoothing: none;
-  font-size: 12px;
-}
-
-h1, h2, h3, h4, h5, h6,
-.panel-head h1, .panel-head h2, .invite-panel h2,
-.start-title, .section-kicker, .result-metrics,
-.stats-summary, .chip, .text-link-button, .soft-button {
-  color: var(--ink);
-}
-.muted-label, .status-pill, .field-hint, .stats-list,
-.smart-tool-card small, .disclaimer {
-  color: var(--muted);
-}
-
-/* ---------- 2. 全直角 ---------- */
-.primary-action, .outline-button, .quick-button, .soft-button,
-.text-link-button, .mode-tabs button, .chip, .manual-row button,
-.icon-button, .close-button, .tab, .card, .pill, .badge,
-.ws-button, .ws-rail-button, .ws-export-choice, .export-tab,
-.export-settings-close, .ws-bead-picker button, .ws-palette-categories button,
-.ws-recent-colors button, .ws-selection-actions button, .ws-outline-options button,
-.ws-source-buttons button, .ws-view-modes button, .ws-project-gallery button {
-  border-radius: 0 !important;
-}
-
-input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
-select,
-textarea {
-  border-radius: 0 !important;
-}
-
-/* 所有阴影清零（像素风是扁平的） */
-.panel, .panel:hover, .modal, .card, .export-settings-card,
-.ws-export-drawer, .ws-confirm-dialog, .ws-canvas-well,
-.preview-window-bar, .export-preview-stage, #export-preview-canvas,
-.topbar, .ws-topbar, .ws-viewbar, .ws-dock {
-  box-shadow: none !important;
-}
-
-/* ---------- 3. 控件 ---------- */
-.primary-action, #download-button-top, .quick-button,
-.ws-button-primary, #ws-generate {
-  background: var(--primary) !important;
-  color: #ffffff !important;
-  border: 1px solid var(--primary) !important;
-  font-weight: 400 !important;
-}
-.primary-action:hover:not(:disabled), .quick-button:hover:not(:disabled),
-#download-button-top:hover:not(:disabled), .ws-button-primary:hover:not(:disabled),
-#ws-generate:hover:not(:disabled) {
-  background: var(--primary-hover) !important;
-  border-color: var(--primary-hover) !important;
-  transform: none !important;
-}
-.primary-action:active:not(:disabled), .quick-button:active:not(:disabled) {
-  background: var(--primary-pressed) !important;
-  transform: none !important;
-}
-
-.outline-button, .soft-button, .text-link-button {
-  background: var(--surface) !important;
-  color: var(--ink) !important;
-  border: 1px solid var(--line) !important;
-  font-weight: 400 !important;
-}
-.outline-button:hover:not(:disabled), .soft-button:hover:not(:disabled),
-.text-link-button:hover:not(:disabled) {
-  background: var(--surface-soft) !important;
-  border-color: var(--line) !important;
-  color: var(--ink) !important;
-}
-
-.chip.active {
-  background: var(--primary) !important;
-  border-color: var(--primary) !important;
-  color: #ffffff !important;
-}
-
-.btn-donate {
-  background: var(--primary) !important;
-  color: #ffffff !important;
-  box-shadow: none !important;
-  transform: none !important;
-}
-
-.panel {
-  border: 1px solid var(--line) !important;
-  background: var(--surface) !important;
-}
-.panel:hover { transform: none !important; }
-
-/* 焦点环：品红实线，不要发光 */
-input:focus-visible, select:focus-visible, textarea:focus-visible,
-button:focus-visible, .primary-action:focus-visible,
-.outline-button:focus-visible, .quick-button:focus-visible,
-.soft-button:focus-visible {
-  outline: 1px solid var(--primary) !important;
-  outline-offset: 1px !important;
-  box-shadow: none !important;
-}
-
-.icon-button:hover:not(:disabled) {
-  background: var(--primary-bg) !important;
-  color: var(--primary) !important;
-  border-color: var(--primary) !important;
-}
-.close-button, .close-button:hover { color: var(--primary) !important; }
-
-/* 开关：直角滑块 */
-.ai-switch { border-radius: 0 !important; }
-.ai-switch::after { border-radius: 0 !important; }
-.ai-switch:checked { background: var(--primary); }
-
-/* 画布台：直角 + 细边，无阴影
-   ⚠️ 只能改 margin，不能改 padding —— viewport-service 惰性读 well.clientWidth，
-      padding 含在 clientWidth 内会让图像溢出到内边距被裁掉。 */
-.ws-canvas-well {
-  margin: 0;
-  border: 1px solid var(--line);
-  border-radius: 0;
-  background-color: var(--surface);
-  background-image: none;
-}
+/* Compatibility filename: functional workspace/export layout only.
+ * LIBMS visual identity lives in tokens.css; obsolete Pixler pixel/dark skin removed.
+ * Canvas chart typography is controlled by renderers, not this UI stylesheet. */
+html, body { background: var(--ds-color-app); color: var(--ds-color-text); }
+body { font-family: var(--ds-font-ui); font-size: 14px; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea, output, dialog { font-family: var(--ds-font-ui); }
+button, input, select, textarea { accent-color: var(--ds-color-accent); }
+:where(button, input, select, textarea):focus-visible { outline: 2px solid var(--ds-color-focus); outline-offset: 2px; }
+.primary-action, .quick-button, .ws-button-primary, #ws-generate { background: var(--primary); color: var(--ds-color-on-accent); border-color: var(--primary); }
+.primary-action:hover:not(:disabled), .quick-button:hover:not(:disabled), .ws-button-primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+/* Do not add padding to the well: viewport conversion uses clientWidth. */
+.ws-canvas-well { margin: 0; border: 0; border-radius: var(--ds-radius-sm); background-color: var(--ws-canvas); background-image: none; }
 .ws-center { background: var(--page); }
-.ws-canvas-hint { background: transparent; }
-.ws-rail-button { border-radius: 0 !important; }
-.ws-viewbar button { border-radius: 0 !important; }
-
-/* 预览弹窗内 canvas 同样直角 */
-#export-preview-canvas { border-radius: 0; box-shadow: none; }
-.preview-window-bar span { border-radius: 0; }
-
-/* ---------- 5. 高级导出设置弹窗（沿用像素语言） ---------- */
+.ws-canvas-hint { background: var(--surface); }
 .export-settings-modal::backdrop {
   background: rgba(28, 25, 31, 0.55);
   backdrop-filter: none;
@@ -193,93 +25,69 @@ button:focus-visible, .primary-action:focus-visible,
 .export-settings-card {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 0;
+  border-radius: var(--ds-radius-sm);
   box-shadow: none;
 }
 .export-settings-body { display: flex; flex-direction: row; flex: 1 1 auto; min-height: 0; overflow: hidden; }
 .export-settings-close {
-  border-radius: 0;
+  border-radius: var(--ds-radius-sm);
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--muted);
 }
 .export-preview-pane { background: var(--surface-soft); }
-.export-preview-stage { background: var(--surface); border: 1px solid var(--line); border-radius: 0; }
-.export-settings-header h2 { font-size: 24px; font-weight: 400; color: var(--ink); }
-.export-settings-header p { font-size: 12px; color: var(--muted); }
-.export-tab { border: 1px solid var(--line); border-radius: 0; background: var(--surface); color: var(--body); font-weight: 400; font-size: 12px; }
+.export-preview-stage { background: var(--surface); border: 1px solid var(--line); border-radius: var(--ds-radius-sm); }
+.export-settings-header h2 { font-size: 24px; font-weight: 600; color: var(--ink); }
+.export-settings-header p { font-size: 13px; color: var(--muted); }
+.export-tab { border: 1px solid var(--line); border-radius: var(--ds-radius-sm); background: var(--surface); color: var(--body); font-weight: 600; font-size: 13px; }
 .export-tab:hover { border-color: var(--primary); color: var(--primary); }
 .export-tab.active { background: var(--surface); color: var(--primary); border-color: var(--primary); box-shadow: none; }
-.export-section-title { font-size: 12px; font-weight: 400; color: var(--ink); border-bottom: 1px solid var(--line-soft); }
-.export-field input { border: 1px solid var(--line); border-radius: 0; background: var(--surface); color: var(--ink); font-size: 12px; }
+.export-section-title { font-size: 13px; font-weight: 600; color: var(--ink); border-bottom: 1px solid var(--line-soft); }
+.export-field input { border: 1px solid var(--line); border-radius: var(--ds-radius-sm); background: var(--surface); color: var(--ink); font-size: 13px; }
 .export-field input:focus { border-color: var(--primary); box-shadow: none; }
-.export-specs-card { background: var(--primary-bg); border: 1px solid var(--line); border-radius: 0; }
-.export-spec b { font-size: 12px; font-weight: 400; color: var(--ink); }
+.export-specs-card { background: var(--primary-bg); border: 1px solid var(--line); border-radius: var(--ds-radius-sm); }
+.export-spec b { font-size: 13px; font-weight: 600; color: var(--ink); }
 
 /* ---------- 6. 第三方品牌 chip ---------- */
-.external-brand-chip { font-size: 12px; padding: 4px 9px; border-style: dashed; }
+.external-brand-chip { font-size: 13px; padding: 4px 9px; border-style: dashed; }
 .external-brand-chip[aria-pressed="true"] { border-style: solid; }
-
-/* ---------- 7. 施工模式（暗色） ---------- */
-body.ws-mode-build {
-  --page: #1c191f;
-  --surface: #262229;
-  --surface-strong: #262229;
-  --surface-card: #262229;
-  --surface-soft: #201d24;
-  --secondary-bg: #201d24;
-  --secondary-pressed: #2f2a33;
-  --ink: #f4f1f5;
-  --body: #d8d3de;
-  --charcoal: #c9c4d0;
-  --muted: #9a94a4;
-  --muted-soft: #7d7887;
-  --line: rgba(244, 241, 245, 0.16);
-  --line-soft: rgba(244, 241, 245, 0.09);
-  --primary-bg: #3a1d2b;
-}
-body.ws-mode-build { background: var(--page) !important; color: var(--body); }
-
-/* =============================================================
- * 8. 双模式工作台组件（编辑 / 施工）
- * ============================================================= */
 
 /* ---- 8.1 顶栏：一条紧凑工具带 ---- */
 .ws-topbar { gap: 8px; padding: 0 10px; }
 .ws-topbar-spacer { flex: 1 1 auto; min-width: 8px; }
-.ws-name { height: 24px; padding: 0 6px; font-size: 12px; font-weight: 400; }
-.ws-status { margin-left: 0; font-size: 12px; }
-.ws-engine-label { font-size: 12px; gap: 4px; }
-.ws-engine-label select { height: 24px; padding: 0 4px; font-size: 12px; border-radius: 0; }
-.ws-topbar .ws-button { min-height: 24px; height: 24px; padding: 0 8px; font-size: 12px; }
+.ws-name { height: 24px; padding: 0 6px; font-size: 13px; font-weight: 600; }
+.ws-status { margin-left: 0; font-size: 13px; }
+.ws-engine-label { font-size: 13px; gap: 4px; }
+.ws-engine-label select { height: 24px; padding: 0 4px; font-size: 13px; border-radius: var(--ds-radius-sm); }
+.ws-topbar .ws-button { min-height: 24px; height: 24px; padding: 0 8px; font-size: 13px; }
 
 /* ---- 8.2 左轨：品牌 + 两个模式入口 ---- */
 .ws-rail { padding: 7px 0; gap: 4px; align-items: center; }
-.ws-rail-brand { display: grid; place-items: center; width: 26px; height: 26px; margin-bottom: 6px; border: 1px solid var(--primary); color: var(--primary); font-size: 12px; }
+.ws-rail-brand { display: grid; place-items: center; width: 26px; height: 26px; margin-bottom: 6px; border: 1px solid var(--primary); color: var(--primary); font-size: 13px; }
 .ws-rail-mode { display: grid; place-items: center; gap: 2px; width: 44px; min-height: 46px; padding: 4px 0; border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; }
-.ws-rail-mode small { font-size: 12px; }
+.ws-rail-mode small { font-size: 13px; }
 .ws-rail-icon { display: grid; place-items: center; }
 .ws-rail-mode:hover { background: var(--surface-soft); color: var(--ink); }
-.ws-rail-mode.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.ws-rail-mode.active { background: var(--primary); border-color: var(--primary); color: var(--ds-color-on-accent); }
 
 /* ---- 8.3 右栏：tab 分组 ---- */
 .ws-inspector { grid-template-rows: auto auto minmax(0, 1fr); }
 .ws-side-tabs { display: flex; gap: 0; padding: 0 6px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
 .ws-side-tabs::-webkit-scrollbar { display: none; }
-.ws-side-tabs button { flex: 1 0 auto; min-width: 34px; padding: 7px 5px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; }
+.ws-side-tabs button { flex: 1 0 auto; min-width: 34px; padding: 7px 5px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: 13px; cursor: pointer; }
 .ws-side-tabs button:hover:not(:disabled) { color: var(--ink); }
 .ws-side-tabs button.active { color: var(--primary); border-bottom-color: var(--primary); }
 .ws-side-tabs button:disabled { opacity: .35; cursor: default; }
 .ws-inspector-head { padding: 8px 10px 7px; }
-.ws-inspector-head strong { font-size: 12px; font-weight: 400; }
-.ws-inspector-head small { font-size: 12px; }
+.ws-inspector-head strong { font-size: 13px; font-weight: 600; }
+.ws-inspector-head small { font-size: 13px; }
 .ws-inspector-scroll { padding: 8px 10px 20px; }
-.ws-section-title { margin: 8px 0 6px; padding-top: 8px; font-size: 12px; font-weight: 400; color: var(--muted); border-top: 1px solid var(--line-soft); }
+.ws-section-title { margin: 8px 0 6px; padding-top: 8px; font-size: 13px; font-weight: 600; color: var(--muted); border-top: 1px solid var(--line-soft); }
 .ws-panel { padding: 0; }
-.ws-note { font-size: 12px; line-height: 1.6; color: var(--muted); }
-.ws-field { font-size: 12px; gap: 4px; }
-.ws-field input, .ws-field select { height: 26px; font-size: 12px; }
-.ws-readout { font-size: 12px; padding: 6px 8px; background: var(--surface-soft); }
+.ws-note { font-size: 13px; line-height: 1.6; color: var(--muted); }
+.ws-field { font-size: 13px; gap: 4px; }
+.ws-field input, .ws-field select { height: 26px; font-size: 13px; }
+.ws-readout { font-size: 13px; padding: 6px 8px; background: var(--surface-soft); }
 .ws-wide { width: 100%; }
 
 /* ---- 8.4 底部工具坞 ---- */
@@ -287,19 +95,19 @@ body.ws-mode-build { background: var(--page) !important; color: var(--body); }
 .ws-dock-tools { display: flex; align-items: center; min-width: 0; }
 .ws-dock-view { display: flex; align-items: center; gap: 8px; min-width: 0; margin-left: auto; }
 .ws-dock-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
-.ws-dock .ws-button { min-height: 28px; height: 28px; padding: 0 10px; font-size: 12px; }
+.ws-dock .ws-button { min-height: 28px; height: 28px; padding: 0 10px; font-size: 13px; }
 
 /* 工具条从「浮在画布上方」改为「常驻工具坞」 */
 .ws-grid-toolbar-host { position: static; top: auto; left: auto; transform: none; width: auto; z-index: 1; }
-.phase2-workspace .sl-grid-toolbar { min-height: 0; height: 100%; padding: 0; gap: 4px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-.phase2-workspace .sl-tool-button { flex: 0 0 auto; width: auto; min-width: 36px; height: 38px; padding: 1px 5px; gap: 1px; border-radius: 0; color: var(--muted); }
+.phase2-workspace .sl-grid-toolbar { min-height: 0; height: 100%; padding: 0; gap: 4px; border: 0; border-radius: var(--ds-radius-sm); background: transparent; box-shadow: none; }
+.phase2-workspace .sl-tool-button { flex: 0 0 auto; width: auto; min-width: 36px; height: 38px; padding: 1px 5px; gap: 1px; border-radius: var(--ds-radius-sm); color: var(--muted); }
 .phase2-workspace .sl-tool-button:hover:not(:disabled) { background: var(--surface-soft); }
-.phase2-workspace .sl-tool-button.is-active { background: var(--primary); color: #fff; }
+.phase2-workspace .sl-tool-button.is-active { background: var(--primary); color: var(--ds-color-on-accent); }
 .phase2-workspace .sl-tool-icon { width: 18px; height: 18px; font-size: 16px; }
 .phase2-workspace .sl-tool-icon svg { width: 16px; height: 16px; }
-.phase2-workspace .sl-tool-label { font-size: 12px; font-weight: 400; line-height: 1.1; }
+.phase2-workspace .sl-tool-label { font-size: 13px; font-weight: 600; line-height: 1.1; }
 .phase2-workspace .sl-toolbar-history { padding-left: 4px; border-left: 1px solid var(--line); gap: 2px; }
-.phase2-workspace .sl-history-button { width: 30px; height: 30px; border-radius: 0; color: var(--muted); }
+.phase2-workspace .sl-history-button { width: 30px; height: 30px; border-radius: var(--ds-radius-sm); color: var(--muted); }
 .phase2-workspace .sl-history-button:hover:not(:disabled) { background: var(--surface-soft); color: var(--primary); }
 .phase2-workspace .sl-history-button svg { width: 16px; height: 16px; }
 .phase2-workspace .sl-tool-more { position: relative; }
@@ -307,39 +115,39 @@ body.ws-mode-build { background: var(--page) !important; color: var(--body); }
 /* 工具坞里的缩放 / 视图 / 勾选 */
 .ws-dock-view .ws-view-modes button,
 .ws-dock-view .ws-view-toggles label,
-.ws-dock-view #zoomControls { font-size: 12px; }
+.ws-dock-view #zoomControls { font-size: 13px; }
 .ws-dock-view .ws-view-modes button { height: 26px; min-width: 30px; padding: 0 7px; border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; }
 .ws-dock-view .ws-view-modes button:hover:not(:disabled) { background: var(--surface-soft); color: var(--ink); }
-.ws-dock-view .ws-view-modes button.active { background: var(--primary); color: #fff; }
+.ws-dock-view .ws-view-modes button.active { background: var(--primary); color: var(--ds-color-on-accent); }
 .ws-dock-view .ws-view-modes button:disabled { opacity: .35; cursor: default; }
 .ws-dock-view .ws-view-toggles { gap: 8px; }
 .ws-dock-view .ws-view-toggles label { color: var(--muted); }
 
 /* ---- 8.5 施工面板控件 ---- */
 .ws-stepper { display: flex; align-items: center; gap: 4px; }
-.ws-stepper button { width: 28px; height: 28px; flex: 0 0 auto; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 12px; cursor: pointer; }
+.ws-stepper button { width: 28px; height: 28px; flex: 0 0 auto; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; cursor: pointer; }
 .ws-stepper button:hover { border-color: var(--primary); color: var(--primary); }
-.ws-stepper output { flex: 0 0 52px; text-align: center; padding: 5px 0; border: 1px solid var(--line); font-size: 12px; }
+.ws-stepper output { flex: 0 0 52px; text-align: center; padding: 5px 0; border: 1px solid var(--line); font-size: 13px; }
 .ws-block-map { display: grid; grid-template-columns: repeat(var(--ws-block-cols, 1), minmax(0, 1fr)); gap: 2px; }
-.ws-block-map button { padding: 8px 0; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 12px; cursor: pointer; }
+.ws-block-map button { padding: 8px 0; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; cursor: pointer; }
 .ws-block-map button:hover { border-color: var(--primary); color: var(--primary); }
-.ws-block-map button.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.ws-block-map button.active { background: var(--primary); border-color: var(--primary); color: var(--ds-color-on-accent); }
 .ws-block-arrows { display: flex; gap: 2px; margin-top: 4px; }
-.ws-block-arrows button { flex: 1; padding: 4px 0; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 12px; cursor: pointer; }
+.ws-block-arrows button { flex: 1; padding: 4px 0; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; cursor: pointer; }
 .ws-block-arrows button:hover { border-color: var(--primary); color: var(--primary); }
 .ws-block-colors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; max-height: 220px; overflow-y: auto; }
 .ws-block-colors button { display: grid; place-items: center; gap: 1px; padding: 3px 0; border: 1px solid var(--line); background: var(--surface); cursor: pointer; }
 .ws-block-colors button span { width: 22px; height: 22px; border: 1px solid var(--line); }
-.ws-block-colors button small { font-size: 12px; color: var(--muted); }
+.ws-block-colors button small { font-size: 13px; color: var(--muted); }
 .ws-block-colors button.active { border-color: var(--primary); background: var(--primary-bg); }
 .ws-block-colors button.active small { color: var(--primary); }
 
 /* ---- 8.6 画布叠加层：区块高亮 + 四边标尺 ---- */
 .ws-canvas-well { position: relative; }
 .ws-build-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
-.ws-build-spot { position: absolute; box-shadow: 0 0 0 9999px rgba(20, 17, 23, 0.62); border: 1px solid var(--primary); }
+.ws-build-spot { position: absolute; box-shadow: 0 0 0 9999px rgba(250, 249, 246, 0.48); border: 1px solid var(--primary); }
 .ws-rulers { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
-.ws-ruler { position: absolute; color: var(--muted); font-size: 12px; }
+.ws-ruler { position: absolute; color: var(--muted); font-size: 13px; }
 .ws-ruler-top { top: 0; left: 0; right: 0; height: 14px; }
 .ws-ruler-bottom { bottom: 0; left: 0; right: 0; height: 14px; }
 .ws-ruler-left { top: 0; bottom: 0; left: 0; width: 22px; }
@@ -353,25 +161,36 @@ body.ws-mode-build { background: var(--page) !important; color: var(--body); }
 /* 生成方式 7 张卡：原先 1 列 × 62px = 476px，占满 244px 侧栏的首屏。
    压成 2 列 × 30px，说明文字收起（名称已自解释），首屏让给真正要调的参数。 */
 .phase2-workspace .sl-preset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
-.phase2-workspace .sl-preset-card { grid-template-columns: 18px minmax(0, 1fr); gap: 5px; min-height: 30px; padding: 4px 6px; border-radius: 0; }
+.phase2-workspace .sl-preset-card { grid-template-columns: 18px minmax(0, 1fr); gap: 5px; min-height: 30px; padding: 4px 6px; border-radius: var(--ds-radius-sm); }
 .phase2-workspace .sl-preset-card.is-active { box-shadow: none; border-color: var(--primary); background: var(--primary-bg); }
 .phase2-workspace .sl-preset-card:hover { border-color: var(--primary); }
-.phase2-workspace .sl-preset-icon { width: 18px; height: 18px; font-size: 12px; background: transparent; }
+.phase2-workspace .sl-preset-icon { width: 18px; height: 18px; font-size: 13px; background: transparent; }
 .phase2-workspace .sl-preset-icon svg { width: 16px; height: 16px; }
-.phase2-workspace .sl-preset-copy strong { font-size: 12px; font-weight: 400; }
+.phase2-workspace .sl-preset-copy strong { font-size: 13px; font-weight: 600; }
 .phase2-workspace .sl-preset-copy small { display: none; }
-.phase2-workspace .sl-preset-check { font-size: 12px; }
+.phase2-workspace .sl-preset-check { font-size: 13px; }
+
+/* ---- 阶段 2：生成目标策略卡放行 ----
+   上面把 7 张预设卡压成 2 列 × 30px、说明文字 display:none，是为了给真正要调的
+   参数腾首屏。但「生成目标」3 张卡的说明文字（平衡/最接近/最少用色的适用场景）
+   是选择依据，藏掉就等于把三个选项退化成三个词。策略卡单列、恢复说明文字，
+   高度由内容决定 —— 它就是这个面板的第一决策区，值得占首屏。 */
+.phase2-workspace .sl-strategy-grid { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+.phase2-workspace .sl-strategy-card { grid-template-columns: minmax(0, 1fr); gap: 4px; min-height: 0; padding: 7px 9px; }
+.phase2-workspace .sl-strategy-card .sl-preset-copy { gap: 1px; }
+.phase2-workspace .sl-strategy-card .sl-preset-copy small { display: block; font-size: 11px; line-height: 1.35; white-space: normal; }
+.phase2-workspace .sl-strategy-hint { margin: 6px 0 0; font-size: 11px; line-height: 1.5; color: var(--ws-text-tertiary); }
 
 /* 尺寸快捷值、采样方式等按钮组同样收紧 */
 .phase2-workspace .sl-size-presets { gap: 3px; }
-.phase2-workspace .sl-size-presets button { min-height: 24px; padding: 0 6px; font-size: 12px; border-radius: 0; }
+.phase2-workspace .sl-size-presets button { min-height: 24px; padding: 0 6px; font-size: 13px; border-radius: var(--ds-radius-sm); }
 /* 格子采样：5 个选项原为 5 列 × 58px 高，压成 3 列 × 30px 的方块组 */
 .phase2-workspace .sl-sampling-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; padding: 0; background: transparent; }
-.phase2-workspace .sl-sampling-card { min-height: 30px; gap: 1px; border: 1px solid var(--line); border-radius: 0; background: var(--surface); color: var(--muted); }
-.phase2-workspace .sl-sampling-card strong { font-size: 12px; font-weight: 400; }
-.phase2-workspace .sl-sampling-card span { font-size: 12px; }
-.phase2-workspace .sl-sampling-card.is-active { background: var(--primary); border-color: var(--primary); color: #fff; box-shadow: none; }
-.phase2-workspace .sl-sampling-description { min-height: 0; margin-top: 4px; font-size: 12px; }
+.phase2-workspace .sl-sampling-card { min-height: 30px; gap: 1px; border: 1px solid var(--line); border-radius: var(--ds-radius-sm); background: var(--surface); color: var(--muted); }
+.phase2-workspace .sl-sampling-card strong { font-size: 13px; font-weight: 600; }
+.phase2-workspace .sl-sampling-card span { font-size: 13px; }
+.phase2-workspace .sl-sampling-card.is-active { background: var(--primary); border-color: var(--primary); color: var(--ds-color-on-accent); box-shadow: none; }
+.phase2-workspace .sl-sampling-description { min-height: 0; margin-top: 4px; font-size: 13px; }
 /* 左轨模式图标：16px 在 44px 宽的按钮里太小，放大到 20px 并拉开与文字的间距 */
 .ws-rail-mode { min-height: 50px; gap: 3px; }
 .ws-rail-icon svg { width: 20px; height: 20px; }

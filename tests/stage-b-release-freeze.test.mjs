@@ -34,7 +34,7 @@ import {
   AUTO_TUNE_PRODUCTION_MODES,
   isAutoTuneEnabledFor,
 } from "../services/auto-tune.mjs";
-import { GENERATION_MODES, MODE_PROFILES } from "../services/mode-profile.mjs";
+import { GENERATION_MODES, MODE_LABELS, MODE_PROFILES } from "../services/mode-profile.mjs";
 
 const root = new URL("../", import.meta.url);
 const read = (relative) => readFileSync(new URL(relative, root), "utf8");
@@ -283,11 +283,30 @@ test("§19 工作台源码里没有 debug 面板 / 指标 dump 入口", () => {
 });
 
 test("§19 生成模式入口恰好是 8 个，文案来自 MODE_LABELS", () => {
+  // 阶段 2：面板不再内嵌标签字面量，改为 import 注册表的 MODE_LABELS
+  //（mode-profile.mjs 原话：「界面文案。放在这里是为了让『模式清单』只有一份来源」）。
+  // 断言随之改写：8 个模式键在面板里都以 MODE_LABELS.<key> 形式引用，
+  // 标签字面量只许存在于注册表 —— 面板里再出现 quoted label 就是第二张表。
+  const keys = [...GENERATION_MODES];
+  assert.equal(keys.length, 8, "公开模式必须恰好 8 个");
+  for (const key of keys) {
+    assert.ok(GENERATION_PANEL.includes(`MODE_LABELS.${key}`),
+      `生成模式「${key}」的按钮没有引用 MODE_LABELS.${key}`);
+  }
+  assert.match(GENERATION_PANEL,
+    /import \{ MODE_LABELS \} from "\.\.\/services\/mode-profile\.mjs"/,
+    "面板没有从 mode-profile.mjs 导入 MODE_LABELS");
   const labels = ["小白一键", "智能", "人像", "动漫", "插画", "像素", "Logo", "写实"];
   for (const label of labels) {
-    assert.ok(GENERATION_PANEL.includes(`"${label}"`) || INDEX.includes(`>${label}<`),
-      `界面里找不到模式「${label}」`);
+    assert.ok(!GENERATION_PANEL.includes(`"${label}"`),
+      `面板里又内嵌了模式标签「${label}」—— 文案只许有一份（mode-profile.mjs 的 MODE_LABELS）`);
   }
+  // 真源没被搬走：注册表仍然持这 8 条文案。
+  assert.deepEqual(
+    GENERATION_MODES.map((key) => MODE_LABELS[key]),
+    labels,
+    "注册表 MODE_LABELS 的 8 条文案发生变化 —— 改文案请改注册表并同步此断言"
+  );
   // 采样策略是内部实现，不能变成用户选项。
   assert.ok(!/data-sampling=/.test(PANEL_CODE), "采样策略出现在界面上了");
 });

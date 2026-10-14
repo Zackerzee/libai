@@ -170,6 +170,17 @@ button, input, select, textarea { accent-color: var(--ds-color-accent); }
 .phase2-workspace .sl-preset-copy small { display: none; }
 .phase2-workspace .sl-preset-check { font-size: 13px; }
 
+/* ---- 阶段 2：生成目标策略卡放行 ----
+   上面把 7 张预设卡压成 2 列 × 30px、说明文字 display:none，是为了给真正要调的
+   参数腾首屏。但「生成目标」3 张卡的说明文字（平衡/最接近/最少用色的适用场景）
+   是选择依据，藏掉就等于把三个选项退化成三个词。策略卡单列、恢复说明文字，
+   高度由内容决定 —— 它就是这个面板的第一决策区，值得占首屏。 */
+.phase2-workspace .sl-strategy-grid { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+.phase2-workspace .sl-strategy-card { grid-template-columns: minmax(0, 1fr); gap: 4px; min-height: 0; padding: 7px 9px; }
+.phase2-workspace .sl-strategy-card .sl-preset-copy { gap: 1px; }
+.phase2-workspace .sl-strategy-card .sl-preset-copy small { display: block; font-size: 11px; line-height: 1.35; white-space: normal; }
+.phase2-workspace .sl-strategy-hint { margin: 6px 0 0; font-size: 11px; line-height: 1.5; color: var(--ws-text-tertiary); }
+
 /* 尺寸快捷值、采样方式等按钮组同样收紧 */
 .phase2-workspace .sl-size-presets { gap: 3px; }
 .phase2-workspace .sl-size-presets button { min-height: 24px; padding: 0 6px; font-size: 13px; border-radius: var(--ds-radius-sm); }

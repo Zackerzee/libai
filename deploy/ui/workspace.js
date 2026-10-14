@@ -24,7 +24,7 @@ import { lassoSelection } from "../services/lasso-selection.mjs?v=20261007-paint
 import { magicWandSelection, fitSelectionBox, invertSelection as invertSelectionMask, selectAll as selectAllCells, translateSelection } from "../services/shapes-service.js?v=20260918-usage2";
 import { renderSourceTransform, defaultSourceTransform, cropFromDrag, sourceOutputGeometry } from "../services/source-editor-service.js?v=20261014-transparent-1";
 import { attachSourceAdjustmentControls } from './source-adjustment-controller.mjs';
-import { GenerationPanel } from "./generation-panel.js?v=20261009-compact-r28";
+import { GenerationPanel } from "./generation-panel.js?v=20261015-stage2-1";
 import { GridEditorToolbar, SHAPE_TOOLS } from "./grid-editor-toolbar.js?v=20261013-v3-layout-p8";
 import { detectPixelMultiple, loadImageData } from "./pixel-multiple.js?v=20260923-pixelmultiple";
 import { recommendAutomaticSize, isCurrentSizeSource } from "../services/automatic-generation-size.mjs?v=20261014-fusion97-1";

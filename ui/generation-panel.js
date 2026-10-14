@@ -1,4 +1,8 @@
 import { GENERATION_MODE_PRESETS } from "../services/generation-pipeline.mjs";
+// 阶段 2：模式界面文案。**必须**引注册表那份（mode-profile.mjs 的 MODE_LABELS，
+// 注释原话「界面文案。放在这里是为了让『模式清单』只有一份来源」）——
+// 面板内不许再造第二张标签表，否则「按钮改名了、提示行还叫旧名字」必然发生。
+import { MODE_LABELS } from "../services/mode-profile.mjs";
 
 /**
  * Shiliba Studio
@@ -15,6 +19,7 @@ import { GENERATION_MODE_PRESETS } from "../services/generation-pipeline.mjs";
 export class GenerationPanel {
   constructor({
     root,
+    backgroundRoot = null,
     initialState = {},
     onChange = () => {},
     onGenerate = () => {}
@@ -29,10 +34,19 @@ export class GenerationPanel {
     }
 
     this.onChange = onChange;
+    this.backgroundRoot = typeof backgroundRoot === "string" ? document.querySelector(backgroundRoot) : backgroundRoot;
     this.onGenerate = onGenerate;
 
     this.state = {
       preset: "auto",
+
+      // 阶段 2：生成目标策略（balanced / closest / fewest）。null = 自定义
+      // （未选策略，或用户手动改过模式/颜色数量）。策略只是既有字段的预设值，
+      // 不持有任何生成参数真源 —— 见 GenerationPanel.STRATEGIES 注释。
+      // 初值故意是 null：面板恢复时 preset 恒为 "auto"、maxColors 来自 store，
+      // 与任何一份策略映射都不重合，默认「自定义」是唯一诚实的显示；
+      // 且**不能**在构造时套用策略 —— 那会改变每个人的既有生成行为。
+      strategy: null,
 
       // 注意：**尺寸不在这里**，但它现在住在同一个「生成」Tab 里。
       // 生成尺寸的唯一自由度是「长边格数」，由 workspace.js 的「生成尺寸」一节
@@ -79,7 +93,7 @@ export class GenerationPanel {
       contrast: 0,
       saturation: 0,
 
-      advancedOpen: true,
+      advancedOpen: false,
 
       ...initialState
     };
@@ -115,14 +129,21 @@ export class GenerationPanel {
   }
 
   render() {
+    const paletteSelector = this.root.querySelector("#ws-brand-selector");
     this.root.innerHTML = `
       <section class="sl-generation-panel">
+
+        <div class="sl-panel-section" id="ws-generation-background-controls">
+          ${this.switchRow(
+            "backgroundRemoval",
+            "透明背景",
+            "生成时识别并去除可安全分离的纯色背景；复杂背景不强行删除"
+          )}
+        </div>
 
         ${this.renderActionSection()}
 
         ${this.renderGenMethodSection()}
-
-        ${this.renderProtectionSection()}
 
         ${this.renderColorSection()}
 
@@ -133,6 +154,10 @@ export class GenerationPanel {
       </section>
     `;
 
+    if (paletteSelector) this.root.querySelector("#ws-generation-palette-slot").append(paletteSelector);
+    // Re-render replaces the same single switch; the external host keeps its
+    // delegated listener and never holds a second settings/state copy.
+    if (this.backgroundRoot) this.backgroundRoot.replaceChildren(this.root.querySelector("#ws-generation-background-controls"));
     this.syncUI();
   }
 
@@ -159,9 +184,113 @@ export class GenerationPanel {
   // 普通界面只暴露场景模式；底层 sampling 由各模式内部映射，避免同一能力重复出现。
   // 生成尺寸也不在这里 —— 它和本面板同在「生成」Tab，但由 workspace.js 的
   // 「生成尺寸」一节独立持有（草稿 +「应用尺寸」显式提交，B0 §7 / Stage C0 §7）。
+  //
+  // ── 阶段 2：三个「生成目标」策略卡 ──────────────────────────────────
+  // 策略是**用户目标入口**，不是第二套生成真源：选策略 = 给既有领域
+  // （preset 模式 + maxColors 颜色数量）赋一次值，全部走现有 setState。
+  // 反向：用户手动切模式 / 改颜色数量 → 策略标记解除（回到「自定义」），
+  // 不静默覆盖用户明确设置。策略映射表只有下面这一份。
+  static STRATEGIES = Object.freeze([
+    {
+      id: "balanced",
+      title: "平衡推荐",
+      description: "相似度、用色与制作难度之间取均衡，适合大多数图",
+      mapping: { preset: "beginner" },
+    },
+    {
+      id: "closest",
+      title: "最接近原图",
+      description: "智能分析 + 不限制颜色，全力保住眼睛、高光、细线与渐变",
+      mapping: { preset: "auto", maxColors: 0 },
+    },
+    {
+      id: "fewest",
+      title: "最少颜色拼豆",
+      description: "控制用色种类，买豆与核对更省心，适合色块简单的图案",
+      mapping: { preset: "beginner", maxColors: 16 },
+    },
+  ]);
+
+  strategyCards() {
+    return GenerationPanel.STRATEGIES.map((strategy) => `
+      <button
+        type="button"
+        class="sl-preset-card sl-strategy-card"
+        data-strategy="${strategy.id}"
+      >
+        <span class="sl-preset-copy">
+          <strong>${strategy.title}</strong>
+          <small>${strategy.description}</small>
+        </span>
+        <span class="sl-preset-check">✓</span>
+      </button>
+    `).join("");
+  }
+
+  /**
+   * 阶段 2：生成目标状态行。
+   *
+   * 三种形态：
+   *   1. 未选策略           → 「自定义：<模式> · <色数>」
+   *   2. 策略生效且未被动过 → 「<策略名>：<映射模式> · <映射色数>」
+   *   3. 策略标记仍在、数值已偏 → 在 2 之后附「（…已手动调整）」——只可能来自
+   *      恢复的 initialState 或未来新增的写值路径；现有写值路径
+   *      （模式按钮 / 色数档位 / 步进 / 手输）都会先把 strategy 置 null。
+   *
+   * 注意色数档位的内部哨兵：0 = 不限制，说人话写「不限制颜色」。
+   */
+  strategyHint() {
+    const preset = this.state.preset;
+    const cap = Number(this.state.maxColors) || 0;
+    const capText = cap === 0 ? "不限制颜色" : `最多 ${cap} 色`;
+
+    const active = GenerationPanel.STRATEGIES.find((strategy) => strategy.id === this.state.strategy);
+
+    if (!active) {
+      return `自定义：${MODE_LABELS[preset] || preset} · ${capText}`;
+    }
+
+    const expectedPreset = active.mapping.preset;
+    // 策略没约束色数时（balanced），期望值取当前值 —— 该策略对色数没有发言权，
+    // 任何色数都算「符合策略」，同时避免把哨兵 0 显示成「最多 0 色」。
+    const expectedCap = "maxColors" in active.mapping ? active.mapping.maxColors : cap;
+    const base = `${active.title}：${
+      MODE_LABELS[expectedPreset] || expectedPreset
+    } · ${expectedCap === 0 ? "不限制颜色" : `最多 ${expectedCap} 色`}`;
+
+    const drift = [];
+    if (preset !== expectedPreset) drift.push(`当前模式：${MODE_LABELS[preset] || preset}`);
+    if (expectedCap !== undefined && cap !== expectedCap) drift.push(`${capText}，已手动调整`);
+
+    return drift.length ? `${base}（${drift.join(" · ")}）` : base;
+  }
+
+  applyStrategy(strategyId) {
+    const strategy = GenerationPanel.STRATEGIES.find((item) => item.id === strategyId);
+    if (!strategy) return;
+    // 先落策略映射到的模式（applyPreset 会拉模式注册表的完整参数，防两份配置漂移），
+    // 再叠加 maxColors —— 两步都只写既有字段。
+    this.applyPreset(strategy.mapping.preset);
+    const patch = {};
+    if ("maxColors" in strategy.mapping) patch.maxColors = strategy.mapping.maxColors;
+    this.setState({ strategy: strategyId, ...patch });
+  }
+
   renderGenMethodSection() {
     return `
       <div class="sl-panel-section">
+        <div class="sl-section-heading">
+          <div>
+            <h3>生成目标</h3>
+            <p>先选目标；下面的模式与参数会自动帮你配好</p>
+          </div>
+        </div>
+
+        <div class="sl-preset-grid sl-strategy-grid" role="group" aria-label="生成目标">
+          ${this.strategyCards()}
+        </div>
+        <p class="sl-strategy-hint" id="sl-strategy-hint" role="status"></p>
+
         <div class="sl-section-heading">
           <div>
             <h3>生成模式</h3>
@@ -173,56 +302,56 @@ export class GenerationPanel {
 
           ${this.presetButton(
             "beginner",
-            "小白一键",
+            MODE_LABELS.beginner,
             "全自动：裁主体 / 去背景 / 护描边",
             "★"
           )}
 
           ${this.presetButton(
             "auto",
-            "智能",
+            MODE_LABELS.auto,
             "自动分析图片",
             "✦"
           )}
 
           ${this.presetButton(
             "portrait",
-            "人像",
+            MODE_LABELS.portrait,
             "面部与眼睛细节优先",
             "◉"
           )}
 
           ${this.presetButton(
             "anime",
-            "动漫",
+            MODE_LABELS.anime,
             "轮廓与高光保护",
             "◇"
           )}
 
           ${this.presetButton(
             "illustration",
-            "插画",
+            MODE_LABELS.illustration,
             "稳定色块与边缘",
             "▰"
           )}
 
           ${this.presetButton(
             "pixel",
-            "像素",
+            MODE_LABELS.pixel,
             "保持原始像素结构",
             "▦"
           )}
 
           ${this.presetButton(
             "logo",
-            "Logo",
+            MODE_LABELS.logo,
             "减少杂色与渐变",
             "⬡"
           )}
 
           ${this.presetButton(
             "photo",
-            "写实",
+            MODE_LABELS.photo,
             "保留照片的自然明暗",
             "◐"
           )}
@@ -316,6 +445,8 @@ export class GenerationPanel {
           </div>
         </div>
 
+        <div id="ws-generation-palette-slot"></div>
+
         <!-- Stage C0 §6：0 这个内部哨兵值不再直接甩给用户看。
              以前这一节只有一个数字框，标题是个内部字段名、提示要求用户先把 0
              理解成「自动」，等于把实现细节当成产品语言。
@@ -385,44 +516,16 @@ export class GenerationPanel {
         <div class="sl-section-heading">
           <div>
             <h3>更多设置</h3>
-            <p>亮度、对比度、饱和度与智能辅助开关</p>
+            <p>主体裁剪与结构保护；色调请在「图片调整」中处理</p>
           </div>
         </div>
 
+        <button type="button" data-action="toggle-advanced" aria-expanded="false"><span data-role="advanced-label">展开</span>高级设置</button>
         <div
           class="sl-advanced-content"
           data-role="advanced-content"
         >
-
-          ${this.rangeControl(
-            "brightness",
-            "亮度",
-            "",
-            -100,
-            100
-          )}
-
-          ${this.rangeControl(
-            "contrast",
-            "对比度",
-            "",
-            -100,
-            100
-          )}
-
-          ${this.rangeControl(
-            "saturation",
-            "饱和度",
-            "",
-            -100,
-            100
-          )}
-
-          ${this.switchRow(
-            "backgroundRemoval",
-            "去除纯色背景",
-            "先检测能否安全分离，再决定是否移除"
-          )}
+          ${this.renderProtectionSection()}
 
           <p class="sl-section-hint">
             智能辅助（可单独开关；「小白一键」会一次全开）
@@ -525,10 +628,23 @@ export class GenerationPanel {
 
   bindEvents() {
     this.root.addEventListener("click", event => {
+      if(event.target.closest('[data-action="toggle-advanced"]')){this.setState({advancedOpen:!this.state.advancedOpen});return;}
+
+      // 阶段 2：生成目标卡片。策略 = 给既有字段（preset + maxColors）赋一次值，
+      // 走 applyPreset 拉模式注册表完整参数，不新建任何旁路状态。
+      const strategyButton = event.target.closest("[data-strategy]");
+
+      if (strategyButton) {
+        this.applyStrategy(strategyButton.dataset.strategy);
+        return;
+      }
+
       const preset = event.target.closest("[data-preset]");
 
       if (preset) {
-        this.applyPreset(preset.dataset.preset);
+        // 手动切模式 = 用户接管 → 解除策略标记（strategyHint() 转「自定义」态）。
+        // 只解除标记、不改动其它数值 —— 不静默覆盖用户明确设置。
+        this.applyPreset(preset.dataset.preset, { strategy: null });
         return;
       }
 
@@ -537,12 +653,15 @@ export class GenerationPanel {
       if (stepper) {
         const field = stepper.dataset.stepField;
         const step = Number(stepper.dataset.step);
+        // 手动调颜色数量同样解除策略标记；其它步进字段与策略无关，保持原样。
+        const strategyPatch = field === "maxColors" ? { strategy: null } : {};
 
         this.setState({
           [field]: Math.max(
             0,
             Number(this.state[field]) + step
-          )
+          ),
+          ...strategyPatch
         });
 
         return;
@@ -553,7 +672,7 @@ export class GenerationPanel {
       const colorCap = event.target.closest("[data-color-cap]");
 
       if (colorCap) {
-        this.setState({ maxColors: Number(colorCap.dataset.colorCap) || 0 });
+        this.setState({ maxColors: Number(colorCap.dataset.colorCap) || 0, strategy: null });
         return;
       }
 
@@ -601,10 +720,14 @@ export class GenerationPanel {
       }
     });
 
-    this.root.addEventListener("input", event => {
+    const onInput = event => {
       const field = event.target.dataset.field;
 
       if (!field) return;
+
+      // 阶段 2：手动填写颜色数量 = 用户接管 → 解除策略标记。
+      // 先改 state.strategy 再 syncUI，状态行同一帧回到「自定义」。
+      if (field === "maxColors") this.state.strategy = null;
 
       let value;
 
@@ -619,10 +742,18 @@ export class GenerationPanel {
       this.syncUI();
 
       this.onChange(this.emitSettings());
-    });
+    };
+    this.root.addEventListener("input", onInput);
+    this.backgroundRoot?.addEventListener("input", onInput);
   }
 
-  applyPreset(preset) {
+  /**
+   * @param {string} preset 模式 id（services/mode-profile.mjs 注册表）
+   * @param {object} [extra] 附加到本次 setState 的补丁。阶段 2 的用途：
+   *   手动切模式时传 { strategy: null } 解除策略标记；applyStrategy 不传
+   *   （策略自己就是要设上标记，不能被这里清掉）。
+   */
+  applyPreset(preset, extra = {}) {
     // Stage B5 §20：这里原来内联着一整张旧 presets 表（8 个模式 × 完整生成配置），
     // 以及一个 `const presets = null` 的死变量。两者都没有任何读者 ——
     // 真正生效的是下面那行 `GENERATION_MODE_PRESETS[preset]`。
@@ -638,12 +769,11 @@ export class GenerationPanel {
     if (centralized && "autoBackground" in centralized) {
       patch.backgroundRemoval = Boolean(centralized.autoBackground);
     }
-    this.setState({ preset, ...patch });
+    this.setState({ preset, ...patch, ...extra });
   }
 
   syncUI() {
-    this.root
-      .querySelectorAll("[data-field]")
+    [...this.root.querySelectorAll("[data-field]"), ...(this.backgroundRoot?.querySelectorAll("[data-field]") || [])]
       .forEach(input => {
         const field = input.dataset.field;
 
@@ -676,6 +806,21 @@ export class GenerationPanel {
           button.dataset.preset === this.state.preset
         );
       });
+
+    // 阶段 2：生成目标卡片高亮 + 状态行。初渲染（render 时 hint 还是空元素）
+    // 也靠这次 syncUI 落下第一行文字 —— strategyHint() 是唯一文案来源。
+    this.root
+      .querySelectorAll("[data-strategy]")
+      .forEach(card => {
+        card.classList.toggle(
+          "is-active",
+          card.dataset.strategy === this.state.strategy
+        );
+      });
+
+    const strategyHint = this.root.querySelector("#sl-strategy-hint");
+
+    if (strategyHint) strategyHint.textContent = this.strategyHint();
 
     // Stage C0 §6：把 maxColors 的内部哨兵值 0 翻译成人话，并高亮当前档位。
     // 数字框仍然显示原始数字（0..221），读数与档位负责解释它。
@@ -711,6 +856,8 @@ export class GenerationPanel {
       "is-open",
       this.state.advancedOpen
     );
+    if(advanced)advanced.hidden=!this.state.advancedOpen;
+    this.root.querySelector('[data-action="toggle-advanced"]')?.setAttribute('aria-expanded',String(this.state.advancedOpen));
 
     if (advancedLabel) {
       advancedLabel.textContent =

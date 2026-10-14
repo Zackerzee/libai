@@ -29,7 +29,9 @@ test("§6 「不限制」是一个真实档位，值就是内部哨兵 0", () =>
 
 test("§6 档位按钮走同一条 setState，不新增旁路状态", () => {
   assert.match(panel, /const colorCap = event\.target\.closest\("\[data-color-cap\]"\)/);
-  assert.match(panel, /this\.setState\(\{ maxColors: Number\(colorCap\.dataset\.colorCap\) \|\| 0 \}\)/);
+  // 阶段 2：档位是「用户接管」的一种 —— 同一次 setState 里把 strategy 置 null
+  //（回「自定义」态），仍然只写既有字段，没有新增旁路状态。
+  assert.match(panel, /this\.setState\(\{ maxColors: Number\(colorCap\.dataset\.colorCap\) \|\| 0, strategy: null \}\)/);
   // 档位不许自己写 state 字段
   assert.doesNotMatch(panel, /this\.state\.colorCap/, "档位不该有自己的 state 字段");
   assert.doesNotMatch(panel, /data-color-cap[\s\S]{0,200}this\.onChange\(/, "档位不许绕过 setState 直接 emit");
