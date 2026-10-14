@@ -43,7 +43,33 @@
 
 | 文件 | 持有者 | 开始时间 | 状态 |
 |---|---|---|---|
-| （空——谁开跑谁登记） | | | |
+| `ui/workspace.js`（左栏 rail 区域 `#gridEditorToolbar`） | UI 重构线 | 2026-10-14 22:27 观测到最后写入 | **持有中——未标收工**；本会话已登记「等待执行左栏迁移施工单」，UI 线标收工后本会话立即按下方施工单执行 |
+| `app.js`（融合启用行 `localFusionEnabled`，约 L2614） | 本会话（关注） | 2026-10-14 23:50 | **工作区保持启用、未提交**——混在 UI 线 661 行 diff 中，待 UI 线收工后由管家随 UI 线版本一并提交；同时提交 `tests/fusion-app-migration.test.mjs`、`tests/unified-fusion-entry.test.mjs` |
+
+---
+
+## §左栏迁移施工单（用户 2026-10-14 23:40 批准启动，本会话执行，UI 线标收工后动手）
+
+前置条件已全部满足（路由校准✓ 真实素材✓ 画板编辑/保存/导出一致性✓，见 docs/local-fusion-phase4-closeout.md §5）。本施工单只做「迁移 + 折叠」，**不删除左栏**。
+
+### 现状（代码实测，ui/workspace.js）
+- L150-154：注释「左轨只保留绘图工具；施工预览统一从保存与导出进入」；rail 内容已收敛为 `ws-rail-collapse`（折叠按钮）+ `#gridEditorToolbar`（绘图工具宿主）——UI 线 stage-c 已完成前半。
+- 参考图节已整体搬去右栏（L847），左栏无残留。
+
+### 剩余工作（承接区未完工，挂在测试上）
+1. **contextual tool options 承接**（tests 挂：#970 `contextual tool options reuse actual controls rather than duplicate IDs`）：rail 内工具动作改由上下文工具区承接，**复用同一控件 ID，禁止 duplicate IDs**。
+2. **rail 单槽位收敛**（tests 挂：#1938 `desktop rail is one vertical slot per primary tool without horizontal overflow`）：desktop 下 rail 每主工具一个竖向槽位、无横向溢出。
+3. **折叠态保留**：`ws-rail-collapse` 与 54px 折叠宽度保留不动（可及性兜底，不删左栏）。
+
+### 验收标准
+- [ ] #970、#1938 两条测试转绿
+- [ ] `node --test $(find smart-preprocessing tests src -name '*.test.mjs' | sort)` 不引入新红（迁移前基线：21 个 stage-c 红 + 0 deploy-sync 红——deploy-sync 已于 23:52 随同步转绿）
+- [ ] `tests/workbench-consistency-chain.test.mjs` 2/2 保持绿（编辑→保存→导出链路不受搬家影响）
+- [ ] 浏览器实机走查一遍工具切换 + 折叠/展开（参照 docs/local-fusion-browser-acceptance/ 方法）
+- [ ] 改完告知提交管家同步 deploy（sync-deploy.mjs，ui/ 在清单内）
+
+### 执行时序
+UI 线在 `ui/workspace.js` 标「已收工」前不得动手；动手期间在热文件登记表更新状态。若 UI 线收工时间晚于上线窗口，本施工单自动让位，迁入上线后的下一迭代。
 
 ## 上线闸门（顺序不能乱）
 
@@ -51,6 +77,12 @@
 2. 提交管家：全量测试 → commit（信息注明包含哪几条线）→ `sync-deploy.mjs --check` 复验
 3. 用户授权（生产操作）
 4. 部署 → 管家复核线上资源 200
+
+## 当前进度（2026-10-14 23:55 实测）
+
+- **本线已收工并提交**：commit `586f86e`（277 文件：融合引擎 V1 + paletteId 身份修复 + 路由校准 + 全部证据）。deploy 已同步并 `--check` 零漂移（411 文件，`services/local-fusion-routing.mjs` 补齐、`.vercel/` 两文件已清），deploy-sync 测试 4/4 绿。
+- **管家待办**（UI 线收工后）：① 提交 UI 线文件（app.js/index.html/ui/、styles/、state/）；② 一并提交 `app.js` 的 `localFusionEnabled` 启用行 + `tests/fusion-app-migration.test.mjs` + `tests/unified-fusion-entry.test.mjs`（三者必须同一个提交，否则 git 版本跑这两个测试会红）；③ 提交 deploy/ 同步结果；④ 全量回归（当前基线：21 个 stage-c 红，须降为 0 或 UI 线说明理由）。
+- **左栏迁移**：施工单见下方「§左栏迁移施工单」，待 UI 线标收工后由本会话执行。
 
 ## 已知雷区（踩过的坑，别再踩）
 
@@ -64,7 +96,7 @@ IMPLEMENTATION / REAL-VALIDATION 两份文档里「未切换生产默认」的�
 
 - `app.js:2614` `resolved.localFusionEnabled = true;`（未提交的新增行）已把生产入口切到 `runLocalFusionEngine`，auto 路由 = 分类器硬门（pixel/logo 且 conf≥0.75）+ 结构包络 eligible → dominant，否则保守 V2.5。
 - 该行为已经本会话校准验证：12 个真实输入 × 4 变体 48 case 全过（非法色 0、paletteId 身份错配 0、尺寸精确、源图不可变），唯一策略翻转是真 Logo 走 dominant（预期目标）。证据：`docs/local-fusion-real-corpus-phase2/`。
-- **管家同步 deploy 时的硬阻断**：必须带上 `services/local-fusion-routing.mjs`——新版 `local-fusion-engine.mjs` import 它，缺文件则线上 Worker 链 404。另建议清理 deploy 里多出的 `.vercel/` 两个链接文件。
+- **管家同步 deploy 时的硬阻断**：必须带上 `services/local-fusion-routing.mjs`——新版 `local-fusion-engine.mjs` import 它，缺文件则线上 Worker 链 404。另建议清理 deploy 里多出的 `.vercel/` 两个链接文件。**（已于 2026-10-14 23:52 执行：sync --prune 补齐 routing、清理 .vercel，--check 零漂移）**
 - deploy 当前是旧行为（app.js 无该启用行、缺 routing 模块），所以**现在上线不会 404、行为不变**；同步之后线上才变成融合行为，变化范围仅少色平坦结构输入。
 
 ---
