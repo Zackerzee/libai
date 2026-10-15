@@ -1,0 +1,117 @@
+{
+  "pass": 22,
+  "total": 22,
+  "failed": 0,
+  "results": [
+    {
+      "ok": true,
+      "label": "① 预览页进入工作台",
+      "extra": ""
+    },
+    {
+      "ok": true,
+      "label": "② 图纸就绪",
+      "extra": ""
+    },
+    {
+      "ok": true,
+      "label": "③ 已造出作品（空白图纸会让后面三条断言无法成立）",
+      "extra": "9 颗"
+    },
+    {
+      "ok": true,
+      "label": "A1 bridge.openMaking 仍是可调用的函数（能力本体没被删）",
+      "extra": "typeof = function"
+    },
+    {
+      "ok": true,
+      "label": "A2 拼装播放器能真的打开（dialog.open + 有实际 box）",
+      "extra": "open=true box=1406×678"
+    },
+    {
+      "ok": true,
+      "label": "A3 弹窗三件套都在且有 box（进度读数 / 逐色清单 / 交互棋盘）",
+      "extra": "#assembly-progress-label=67×20 · #assembly-color-list=251×56 · #pixel-board-container=1174×1174"
+    },
+    {
+      "ok": true,
+      "label": "A4 逐色清单已渲染出可点的色号",
+      "extra": "1 个色号（图纸用色 1）"
+    },
+    {
+      "ok": true,
+      "label": "A5 交互棋盘已渲染出非空格子（可逐格打点）",
+      "extra": "9 格"
+    },
+    {
+      "ok": true,
+      "label": "A6 逐格打点生效：进度读数从 0 变 1",
+      "extra": "「0 / 9 · 0%」→「1 / 9 · 11%」"
+    },
+    {
+      "ok": true,
+      "label": "A7 进度已落 localStorage（进度持久化能力存在）",
+      "extra": "[\"libai-maker-assembly-6D178B28\"]"
+    },
+    {
+      "ok": true,
+      "label": "A8 弹窗可正常关闭（不留遮罩）",
+      "extra": ""
+    },
+    {
+      "ok": true,
+      "label": "B1 拼装播放器的全部已知入口在 v3 工作台里都不可达（量 box，不是看存在性）",
+      "extra": "#ws-making:0×0/hidden/display:none · #assembly-mode-button:0×0 · #start-assembly-button:不存在 · #start-assembly-panel-button:不存在 · #mobile-start-assembly-button:0×0"
+    },
+    {
+      "ok": true,
+      "label": "B2 没有其它可见控件指向拼装播放器（全量扫描可见按钮文案）",
+      "extra": "[]"
+    },
+    {
+      "ok": true,
+      "label": "B3 #assembly-modal 被登记为 legacy compat（data-legacy-ui）",
+      "extra": "data-legacy-ui=compat"
+    },
+    {
+      "ok": true,
+      "label": "B4a 台面上的导出入口 `#ws-export-now`（「导出作品」）可见",
+      "extra": ""
+    },
+    {
+      "ok": true,
+      "label": "B4b 开抽屉并切到「打印与分板」后「施工图预览」（→ build 模式）可达（对比 B1：另一套入口全不可达）",
+      "extra": "drawer.open=true 分栏=[\"pattern\",\"project\",\"print\",\"poster\"] 打印面板可见=true preview可见=true"
+    },
+    {
+      "ok": true,
+      "label": "C1 已进入台面上的拼制模式（body.ws-output-preview）",
+      "extra": ""
+    },
+    {
+      "ok": true,
+      "label": "C2 台面上的拼制模式没有进度读数（对比 A6/A7：被隐藏的那套有）",
+      "extra": "focus=「第 1 / 1 块 · 行 1–52 列 1–52 · 1 色」· 进度节点=false"
+    },
+    {
+      "ok": true,
+      "label": "C3 两套分块口径各自独立存在；且 104×104 作品在 104 板下算 1 块、在 52 板下算 4 块（G1-b 的算术证据）",
+      "extra": "屏幕建议 4 · 104板=1 · 78板=4 · 52板=4"
+    },
+    {
+      "ok": true,
+      "label": "C4a 退出再进入：分区数保留（闭包存活），当前块被强制回第 1 块（无进度持久化）",
+      "extra": "count 3→3 · 当前块「第 1 / 4 块」"
+    },
+    {
+      "ok": true,
+      "label": "C4b 整页刷新后分区数丢失（回落默认 1）—— G2「build 状态不持久化」的直接证据",
+      "extra": "刷新前 3 → 刷新后 1"
+    },
+    {
+      "ok": true,
+      "label": "D1 运行期无 console 错误 / 未捕获异常",
+      "extra": ""
+    }
+  ]
+}
