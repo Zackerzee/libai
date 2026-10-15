@@ -121,9 +121,14 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     },
     findSimilarPaletteColors(paletteId, options) { return findSimilarPaletteColors(bridge.getPaletteColors(), paletteId, options); },
     detectRarePaletteColors(options) { return detectRarePaletteColors(currentPaletteIndex(), options); },
-    planOutline({ sourceMode="component", selectedCell=null, selectedPaletteId=null, selection=null, thickness=1, connectivity=4, includeHoles=false }={}) {
+    // 默认来源 = 整个作品（外轮廓自动描边）。另外三种都是「先指定范围再描」，
+    // 只有它不需要用户先点选色块或拉选区 —— 这正是营销页承诺的「自动描边」。
+    planOutline({ sourceMode="artwork", selectedCell=null, selectedPaletteId=null, selection=null, thickness=1, connectivity=4, includeHoles=false }={}) {
       const grid=result().grid; let sourceCells=[];
-      if(sourceMode==="selection") sourceCells=selectedCells(selection).filter(({x,y})=>grid[y]?.[x]);
+      // artwork：所有非空格子一起构成剪影。computeOuterOutline 在 includeHoles=false 时
+      // 本就会用「全部非空」重算剪影，所以传全量即等价于「整图外轮廓」，内部孔洞默认不计。
+      if(sourceMode==="artwork") grid.forEach((row,y)=>row.forEach((color,x)=>{if(color!=null)sourceCells.push({x,y});}));
+      else if(sourceMode==="selection") sourceCells=selectedCells(selection).filter(({x,y})=>grid[y]?.[x]);
       else if(sourceMode==="palette") grid.forEach((row,y)=>row.forEach((color,x)=>{if(paletteIdOf(color)===selectedPaletteId)sourceCells.push({x,y});}));
       else if(selectedCell){const index=buildColorComponents(grid,{connectivity:4});const id=index.cellToComponent.get(`${selectedCell.x},${selectedCell.y}`);sourceCells=index.components[id]?.cells.map(c=>({...c}))||[];}
       return computeOuterOutline(sourceCells,grid,{thickness,connectivity,includeHoles});

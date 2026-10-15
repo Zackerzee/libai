@@ -13,7 +13,7 @@ import { createPaletteService } from "../services/palette-service.js";
 import { attachPaletteBrandCards, paletteKitLabel } from './palette-brand-cards.mjs?v=20261009-compact-r28';
 import { previewEditorColorReduction } from '../services/editor-color-reduction.mjs?v=20261008-selection-popover-r24';
 import { createExportService } from "../services/export-service.js?v=20261010-editor-r45";
-import { createEditorService } from "../services/editor-service.js?v=20261013-v3-layout-p8";
+import { createEditorService } from "../services/editor-service.js?v=20261015-outline-1";
 import { initTooltip } from './tooltip.mjs';
 initTooltip();
 import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20261014-zoom-floor20-2";
@@ -326,7 +326,7 @@ export function mountWorkspace(bridge) {
         <p class="ws-note" id="ws-replace-impact">选择来源色后显示影响颗数。</p>
         <button type="button" class="ws-button ws-wide" id="ws-replace-confirm">确认替换</button>
       </section>
-      <section class="ws-panel" data-ws-inspector="edit"><div class="ws-editor-group"><div class="ws-section-title">工具属性</div><div id="ws-tool-details" class="ws-cell-details">选择工具 · 点击查看单豆</div><label class="ws-source-slider">笔宽<span id="ws-brush-size-value">1</span><input type="range" id="ws-brush-size" min="1" max="9" step="2" value="1" aria-label="画笔大小（格）"></label><label class="ws-switch-row"><input type="checkbox" id="ws-shape-filled"> 形状实心（矩形 / 圆形）</label><label class="ws-source-slider">魔棒容差<span id="ws-wand-tolerance-value">12</span><input type="range" id="ws-wand-tolerance" min="0" max="100" value="12"></label></div><div class="ws-editor-group"><div class="ws-section-title">选中对象</div><div id="ws-cell-details" class="ws-cell-details">点击画布或对象列表进行选择。</div><div id="ws-text-objects" class="ws-text-objects"></div><div id="textPanel" class="ws-text-panel"></div><div id="qrPanel" class="ws-qr-panel"></div></div><div class="ws-editor-group"><div class="ws-section-title">选区动作</div><div class="ws-selection-actions"><button type="button" id="ws-erase-selection">擦除选区</button><button type="button" id="ws-clear-selection">清除选择</button></div><div class="ws-selection-actions"><button type="button" id="ws-copy-selection">复制</button><button type="button" id="ws-cut-selection">剪切</button><button type="button" id="ws-paste-selection">粘贴</button></div><div class="ws-selection-actions"><button type="button" id="ws-invert-selection">反选</button><button type="button" id="ws-select-all">全选</button></div><div class="ws-outline-options"><label><input id="ws-outline-diagonal" type="checkbox">描边包含对角</label><button type="button" id="ws-apply-outline">外描边</button></div><div id="ws-history-label" class="ws-note"></div></div><div class="ws-editor-group"><div class="ws-section-title">对称绘制</div><label class="ws-field">模式<select id="ws-symmetry-mode"><option value="none">关闭</option><option value="vertical">左右对称</option><option value="horizontal">上下对称</option><option value="both">双向对称</option></select></label><div class="ws-selection-actions"><label>左右轴<input id="ws-symmetry-axis-x" type="number" step="0.5"></label><label>上下轴<input id="ws-symmetry-axis-y" type="number" step="0.5"></label></div></div><div class="ws-editor-group"><div class="ws-section-title">参考底图</div><p class="ws-note">独立参考对象，不写入图纸与导出。</p><div class="ws-source-buttons"><button type="button" id="ws-ref-pick">添加 / 替换</button><button type="button" id="ws-ref-clear">删除</button></div><input type="file" id="ws-ref-file" accept="image/*" hidden><label class="ws-switch-row"><input type="checkbox" id="ws-ref-visible" checked> 显示参考图</label><label class="ws-source-slider">透明度<span id="ws-ref-opacity-value">40%</span><input type="range" id="ws-ref-opacity" min="0" max="100" value="40"></label><label class="ws-field">显示<select id="ws-ref-display"><option value="normal">正常</option><option value="reference-only">只看原图</option><option value="grid-only">只看图纸</option></select></label><label class="ws-field">适配<select id="ws-ref-fit"><option value="contain">完整适应</option><option value="cover">铺满裁切</option></select></label><label class="ws-field">质量<select id="ws-ref-smoothing"><option value="smooth">平滑</option><option value="pixelated">像素</option></select></label><label class="ws-source-slider">参考图缩放<span id="ws-ref-scale-value">100%</span><input type="range" id="ws-ref-scale" min="25" max="200" value="100"></label><div class="ws-selection-actions"><button type="button" id="ws-ref-adjust">调整位置</button><button type="button" id="ws-ref-reset">重新适配</button></div></div><button type="button" class="ws-button ws-wide" id="ws-open-editor" disabled hidden>打开原画板</button></section>
+      <section class="ws-panel" data-ws-inspector="edit"><div class="ws-editor-group"><div class="ws-section-title">工具属性</div><div id="ws-tool-details" class="ws-cell-details">选择工具 · 点击查看单豆</div><label class="ws-source-slider">笔宽<span id="ws-brush-size-value">1</span><input type="range" id="ws-brush-size" min="1" max="9" step="2" value="1" aria-label="画笔大小（格）"></label><label class="ws-switch-row"><input type="checkbox" id="ws-shape-filled"> 形状实心（矩形 / 圆形）</label><label class="ws-source-slider">魔棒容差<span id="ws-wand-tolerance-value">12</span><input type="range" id="ws-wand-tolerance" min="0" max="100" value="12"></label></div><div class="ws-editor-group"><div class="ws-section-title">选中对象</div><div id="ws-cell-details" class="ws-cell-details">点击画布或对象列表进行选择。</div><div id="ws-text-objects" class="ws-text-objects"></div><div id="textPanel" class="ws-text-panel"></div><div id="qrPanel" class="ws-qr-panel"></div></div><div class="ws-editor-group"><div class="ws-section-title">选区动作</div><div class="ws-selection-actions"><button type="button" id="ws-erase-selection">擦除选区</button><button type="button" id="ws-clear-selection">清除选择</button></div><div class="ws-selection-actions"><button type="button" id="ws-copy-selection">复制</button><button type="button" id="ws-cut-selection">剪切</button><button type="button" id="ws-paste-selection">粘贴</button></div><div class="ws-selection-actions"><button type="button" id="ws-invert-selection">反选</button><button type="button" id="ws-select-all">全选</button></div><div id="ws-history-label" class="ws-note"></div></div><div class="ws-editor-group"><div class="ws-section-title">对称绘制</div><label class="ws-field">模式<select id="ws-symmetry-mode"><option value="none">关闭</option><option value="vertical">左右对称</option><option value="horizontal">上下对称</option><option value="both">双向对称</option></select></label><div class="ws-selection-actions"><label>左右轴<input id="ws-symmetry-axis-x" type="number" step="0.5"></label><label>上下轴<input id="ws-symmetry-axis-y" type="number" step="0.5"></label></div></div><div class="ws-editor-group"><div class="ws-section-title">参考底图</div><p class="ws-note">独立参考对象，不写入图纸与导出。</p><div class="ws-source-buttons"><button type="button" id="ws-ref-pick">添加 / 替换</button><button type="button" id="ws-ref-clear">删除</button></div><input type="file" id="ws-ref-file" accept="image/*" hidden><label class="ws-switch-row"><input type="checkbox" id="ws-ref-visible" checked> 显示参考图</label><label class="ws-source-slider">透明度<span id="ws-ref-opacity-value">40%</span><input type="range" id="ws-ref-opacity" min="0" max="100" value="40"></label><label class="ws-field">显示<select id="ws-ref-display"><option value="normal">正常</option><option value="reference-only">只看原图</option><option value="grid-only">只看图纸</option></select></label><label class="ws-field">适配<select id="ws-ref-fit"><option value="contain">完整适应</option><option value="cover">铺满裁切</option></select></label><label class="ws-field">质量<select id="ws-ref-smoothing"><option value="smooth">平滑</option><option value="pixelated">像素</option></select></label><label class="ws-source-slider">参考图缩放<span id="ws-ref-scale-value">100%</span><input type="range" id="ws-ref-scale" min="25" max="200" value="100"></label><div class="ws-selection-actions"><button type="button" id="ws-ref-adjust">调整位置</button><button type="button" id="ws-ref-reset">重新适配</button></div></div><button type="button" class="ws-button ws-wide" id="ws-open-editor" disabled hidden>打开原画板</button></section>
       <section class="ws-panel" data-ws-inspector="check"><div class="ws-section-title">真实检查结果</div><div id="ws-check-results" class="ws-check-results">生成后显示可验证的尺寸、色数与结构报告。</div></section>
       <section class="ws-panel" data-ws-inspector="material">
         <div class="ws-section-title">本作品用豆</div>
@@ -350,11 +350,11 @@ export function mountWorkspace(bridge) {
   symmetryControls?.insertAdjacentHTML("beforeend", `<label class="ws-switch-row"><input id="ws-symmetry-guides" type="checkbox" checked> 显示对称轴</label><p class="ws-note">对称绘制只影响新的画笔与橡皮笔画；镜像仅在导出中设置，不改变当前图纸。</p>`);
   const outlineControls=document.createElement("div");outlineControls.className="ws-outline-controls";
   outlineControls.innerHTML=`<div class="ws-section-title">结构描边</div>
-    <label class="ws-field">来源<select id="ws-outline-source"><option value="component">当前连通区域</option><option value="palette">全图当前颜色</option><option value="selection">选区内容</option></select></label>
+    <label class="ws-field">来源<select id="ws-outline-source"><option value="artwork">整个作品（自动）</option><option value="component">当前连通区域</option><option value="palette">全图当前颜色</option><option value="selection">选区内容</option></select></label>
     <label class="ws-field">描边颜色<input id="ws-outline-target" list="ws-palette-datalist" placeholder="输入色号"></label>
     <div class="ws-selection-actions"><label>厚度 <select id="ws-outline-thickness"><option>1</option><option>2</option><option>3</option></select></label><label>邻域 <select id="ws-outline-connectivity"><option value="4">4 邻域</option><option value="8">8 邻域</option></select></label></div>
     <label class="ws-switch-row"><input id="ws-outline-holes" type="checkbox"> 包含内部孔洞</label>
-    <button type="button" class="ws-button ws-wide" id="ws-outline-preview">预览描边</button><p class="ws-note" id="ws-outline-summary">选择来源和真实色号后预览。</p>
+    <button type="button" class="ws-button ws-wide" id="ws-outline-preview">预览描边</button><p class="ws-note" id="ws-outline-summary">选好描边色号后点「预览描边」，默认给整个作品描外轮廓。</p>
     <div class="ws-selection-actions"><button type="button" id="ws-outline-apply" disabled>应用</button><button type="button" id="ws-outline-cancel" disabled>取消</button></div>`;
   symmetryControls?.before(outlineControls);
   const colorInspector = document.createElement("div");
@@ -2157,7 +2157,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     const outlineTarget=$("#ws-outline-target"),outlineSelected=state.editor.outlineTargetPaletteId||state.editor.selectedPaletteId||"";
     if (document.activeElement !== outlineTarget) outlineTarget.value = editorService.resolveColor(outlineSelected)?.code || "";
     const outlinePreview=state.editor.outlinePreview;
-    $("#ws-outline-summary").textContent=outlinePreview?`候选 ${outlinePreview.candidateCount} · 新增 ${outlinePreview.cells.length} 颗 · 阻挡 ${outlinePreview.blockedCount} 颗`:"选择来源和真实色号后预览。";
+    $("#ws-outline-summary").textContent=outlinePreview?`候选 ${outlinePreview.candidateCount} · 新增 ${outlinePreview.cells.length} 颗 · 阻挡 ${outlinePreview.blockedCount} 颗`:"选好描边色号后点「预览描边」，默认给整个作品描外轮廓。";
     $("#ws-outline-apply").disabled=!outlinePreview?.cells?.length;$("#ws-outline-cancel").disabled=!outlinePreview;
     $("#ws-symmetry-mode").value = state.editor.symmetryMode || "none";
     $("#ws-symmetry-mode").disabled = !hasPattern;
@@ -2178,8 +2178,10 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     $("#ws-invert-selection").disabled = !hasPattern;
     $("#ws-paste-selection").disabled = !editorService.hasClipboard() || !hasPattern;
     $("#ws-select-all").disabled = !hasPattern;
+    // 描边预览入口：没有图纸就没有可描的东西。这条判定原来挂在已被删除的
+    // #ws-apply-outline 上，迁到唯一入口 #ws-outline-preview，语义不变。
+    $("#ws-outline-preview").disabled = !hasPattern;
     const selectedPaletteId = readCurrentPaletteId(state.editor);
-    $("#ws-apply-outline").disabled = !hasPattern || !hasSelection || !selectedPaletteId;
     const selected = state.editor.selectedCell;
     const selectedColor = selected ? editorService.getCell(selected.x, selected.y) : null;
     const replacementSourceId = selected ? paletteIdOf(selectedColor) : selectedPaletteId;
@@ -2844,12 +2846,6 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
   $("#ws-poster-preview").after(exteriorHint, exteriorButton);
   exteriorButton.addEventListener("click", removeExteriorBackground);
   $("#ws-clear-selection").addEventListener("click", () => store.setState({ editor: { selectedCell: null, ...buildClearPalettePatch(), selection: null, shapePreview: null } }));
-  $("#ws-apply-outline").addEventListener("click", () => {
-    const target=$("#ws-outline-target").value.trim()||currentPaletteId();
-    const color=editorService.resolveColor(target);
-    if(!color){notify("请选择有效的描边色号。");return;}
-    editorService.outline(get().editor.selection,paletteIdOf(color),$("#ws-outline-diagonal").checked,{includeHoles:$("#ws-outline-holes").checked});
-  });
   $("#ws-undo").addEventListener("click", undoEditor); $("#ws-redo").addEventListener("click", redoEditor);
   const resizeValue=(name)=>resizeDialog.querySelector(`[name="${name}"]:checked`)?.value;
   const syncResizeSummary=()=>{
@@ -3968,7 +3964,6 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
   };
   store.subscribe(syncSymmetryToolbar); syncSymmetryToolbar();
   const inlineOutline = document.createElement('div'); inlineOutline.className = 'ws-inline-outline'; inlineOutline.hidden = true; inlineOutline.append(outlineControls); toolOptions.append(inlineOutline);
-  $('#ws-outline-diagonal').closest('.ws-outline-options').hidden = true;
   const outlineToolbarButton = document.createElement('button'); outlineToolbarButton.type = 'button'; outlineToolbarButton.id = 'ws-toolbar-outline'; outlineToolbarButton.className = 'sl-tool-button'; outlineToolbarButton.title = '描边设置'; outlineToolbarButton.setAttribute('aria-label', '描边');
   outlineToolbarButton.innerHTML = '<span class="sl-tool-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="8" y="8" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 2"/></svg></span><span class="sl-tool-label">描边</span>';
   symmetryBar.before(outlineToolbarButton);

@@ -1,4 +1,4 @@
-import { selectionContains, selectionCells, outerOutline } from "./selection-service.js";
+import { selectionContains, selectionCells } from "./selection-service.js";
 import { shapeCells, expandBrush, lineCells } from "./shapes-service.js";
 import { cleanPixelPerfectPath } from "./pixel-perfect-stroke.js";
 import { createCellCommand, createStructureCommand, isEditorCommand } from "./editor-command.js";
@@ -7,7 +7,7 @@ import { paletteIdOf } from "./palette-identity.js";
 import { getPaletteIndex, inspectPaletteCell } from "./palette-usage.js";
 import { findSimilarPaletteColors, detectRarePaletteColors } from "./palette-diagnostics.js";
 import { buildColorComponents } from "./structural-diagnostics.js";
-import { computeOuterOutline } from "./outline-service.js";
+import { computeExternalEmpty, computeOuterOutline } from "./outline-service.js";
 import { stepDarker, stepLighter } from "./color-ramp-service.js";
 
 const cloneGrid = (grid) => grid.map((row) => row.map((color) => (color ? { ...color, rgb: Array.isArray(color.rgb) ? [...color.rgb] : color.rgb } : null)));
@@ -26,7 +26,7 @@ export function rotateGrid(grid, turns) {
   return Array.from({ length: width }, (_, y) => Array.from({ length: height }, (_, x) => clone(grid[x][width - 1 - y])));
 }
 
-export function createEditorService(bridge, { limit = 100, onHistoryChange = () => {} } = {}) {
+export function createEditorService(bridge, { limit = 100, onHistoryChange = () => {}, clipboardLimit = 8, setSelection = null } = {}) {
   const undoStack = [], redoStack = [];
   const clone = (color) => color ? { ...color, rgb: Array.isArray(color.rgb) ? [...color.rgb] : color.rgb } : null;
   const same = (a, b) => paletteIdOf(a) === paletteIdOf(b);
@@ -41,6 +41,9 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
   // 剪贴板存「相对选区左上角的偏移」，粘贴时把选区左上角对齐到目标格。
   // 空豆也一并入板（矩形选区＝真正的图章），因此粘贴会覆盖目标区域的空白格。
   let clipboard = null;
+  const clipboardHistory = [];
+  const cloneClipboard = (value) => ({ ...value, entries: value.entries.map((entry) => ({ ...entry, color: clone(entry.color) })) });
+  const cloneSelection = (value) => value ? { ...value, ...(value.mask ? { mask: new Set(value.mask) } : {}) } : null;
   // 豆格类历史只在画布宽高不变时有效；结构类历史自带整幅快照，永远有效。
   // 宽高一旦改变，按旧宽高记录的豆格动作坐标已不可信，必须剔除而不是硬套。
   const pruneFor = (width, height) => {
@@ -97,6 +100,9 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     getCell: (x, y) => bridge.getCell(x, y),
     getPaletteColors: () => bridge.getPaletteColors(),
     getPaletteUsageCounts: currentUsageCounts,
+    getUsedPaletteColor(identity) {
+      return currentPaletteIndex().get(String(identity || ""))?.color || colorFor(identity);
+    },
     getColorUsage(identity) {
       const key = paletteIdOf(colorFor(identity)) || String(identity || "");
       return currentPaletteIndex().get(key)?.count || 0;
@@ -115,9 +121,14 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     },
     findSimilarPaletteColors(paletteId, options) { return findSimilarPaletteColors(bridge.getPaletteColors(), paletteId, options); },
     detectRarePaletteColors(options) { return detectRarePaletteColors(currentPaletteIndex(), options); },
-    planOutline({ sourceMode="component", selectedCell=null, selectedPaletteId=null, selection=null, thickness=1, connectivity=4, includeHoles=false }={}) {
+    // 默认来源 = 整个作品（外轮廓自动描边）。另外三种都是「先指定范围再描」，
+    // 只有它不需要用户先点选色块或拉选区 —— 这正是营销页承诺的「自动描边」。
+    planOutline({ sourceMode="artwork", selectedCell=null, selectedPaletteId=null, selection=null, thickness=1, connectivity=4, includeHoles=false }={}) {
       const grid=result().grid; let sourceCells=[];
-      if(sourceMode==="selection") sourceCells=selectedCells(selection).filter(({x,y})=>grid[y]?.[x]);
+      // artwork：所有非空格子一起构成剪影。computeOuterOutline 在 includeHoles=false 时
+      // 本就会用「全部非空」重算剪影，所以传全量即等价于「整图外轮廓」，内部孔洞默认不计。
+      if(sourceMode==="artwork") grid.forEach((row,y)=>row.forEach((color,x)=>{if(color!=null)sourceCells.push({x,y});}));
+      else if(sourceMode==="selection") sourceCells=selectedCells(selection).filter(({x,y})=>grid[y]?.[x]);
       else if(sourceMode==="palette") grid.forEach((row,y)=>row.forEach((color,x)=>{if(paletteIdOf(color)===selectedPaletteId)sourceCells.push({x,y});}));
       else if(selectedCell){const index=buildColorComponents(grid,{connectivity:4});const id=index.cellToComponent.get(`${selectedCell.x},${selectedCell.y}`);sourceCells=index.components[id]?.cells.map(c=>({...c}))||[];}
       return computeOuterOutline(sourceCells,grid,{thickness,connectivity,includeHoles});
@@ -146,6 +157,12 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
       return commit(selection ? "REGION_CHANGE" : "COLOR_REPLACE", `替换：${colorFor(fromPaletteId)?.code || fromPaletteId} → ${after.code}`, changes);
     },
     replaceColorInSelection(fromCode, toCode, selection) { return this.replaceColor(fromCode, toCode, selection); },
+    recolorSelection(selection, toPaletteId) {
+      const after = colorFor(toPaletteId);
+      if (!selection || !after) return false;
+      const cells = selectedCells(selection).filter(({ x, y }) => bridge.getCell(x, y) != null);
+      return commit("REGION_CHANGE", `选区全部换色 → ${after.code}`, changesFor(cells, after));
+    },
     mergePaletteColors(sourcePaletteIds, targetPaletteId) {
       const after=colorFor(targetPaletteId), targetId=paletteIdOf(after);
       const sources=new Set((sourcePaletteIds||[]).map((id)=>paletteIdOf(colorFor(id))||String(id)).filter((id)=>id&&id!==targetId));
@@ -237,20 +254,29 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     copySelection(selection) {
       const cells = selectedCells(selection);
       if (!cells.length) return false;
-      const minX = Math.min(...cells.map((cell) => cell.x));
-      const minY = Math.min(...cells.map((cell) => cell.y));
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const { x, y } of cells) { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); }
       const entries = cells.map(({ x, y }) => ({ dx: x - minX, dy: y - minY, color: clone(bridge.getCell(x, y)) }));
       clipboard = {
         entries,
-        width: Math.max(...entries.map((entry) => entry.dx)) + 1,
-        height: Math.max(...entries.map((entry) => entry.dy)) + 1,
+        width: maxX - minX + 1,
+        height: maxY - minY + 1,
         beads: entries.filter((entry) => entry.color).length,
       };
+      clipboardHistory.unshift(cloneClipboard(clipboard));
+      clipboardHistory.length = Math.min(clipboardHistory.length, Math.max(1, Math.floor(clipboardLimit) || 8));
       return true;
     },
     cutSelection(selection) { return this.copySelection(selection) ? this.eraseSelection(selection) : false; },
     hasClipboard: () => Boolean(clipboard && clipboard.entries.length),
     getClipboard() { return clipboard ? { width: clipboard.width, height: clipboard.height, beads: clipboard.beads } : null; },
+    getClipboardHistory() { return clipboardHistory.map(cloneClipboard); },
+    selectClipboardHistory(index) {
+      if (!Number.isInteger(index) || index < 0 || !clipboardHistory[index]) return false;
+      clipboard = cloneClipboard(clipboardHistory[index]);
+      return true;
+    },
+    clearClipboardHistory() { clipboardHistory.length = 0; clipboard = null; },
     pasteClipboard(x, y) {
       if (!clipboard) return false;
       const map = new Map();
@@ -272,6 +298,49 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
       }
       return commit("MOVE_SELECTION", `移动选区：${dx >= 0 ? "+" : ""}${dx}, ${dy >= 0 ? "+" : ""}${dy}`, changesFromMap(map));
     },
+    planSelectionTransform(selection, kind, { dx = 0, dy = 0 } = {}) {
+      const cells = selectedCells(selection);
+      if (!cells.length || !["move", "rotate", "flipX", "flipY"].includes(kind) || (kind === "move" && (!Number.isFinite(dx) || !Number.isFinite(dy)))) return null;
+      const { width, height } = result();
+      let x0 = width, y0 = height, x1 = -1, y1 = -1;
+      for (const { x, y } of cells) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+      const w = x1 - x0 + 1, h = y1 - y0 + 1;
+      const map = new Map(cells.map(({ x, y }) => [`${x},${y}`, null]));
+      const mask = new Set();
+      for (const { x, y } of cells) {
+        const rx = x - x0, ry = y - y0;
+        const nx = x0 + (kind === "rotate" ? h - 1 - ry : kind === "flipX" ? w - 1 - rx : rx) + (kind === "move" ? Math.round(dx) : 0);
+        const ny = y0 + (kind === "rotate" ? rx : kind === "flipY" ? h - 1 - ry : ry) + (kind === "move" ? Math.round(dy) : 0);
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        map.set(`${nx},${ny}`, clone(bridge.getCell(x, y)));
+        mask.add(`${nx},${ny}`);
+      }
+      const nextSelection = mask.size ? { kind: selection.kind, x0: width, y0: height, x1: -1, y1: -1, mask } : null;
+      for (const id of mask) {
+        const [x, y] = id.split(",").map(Number);
+        nextSelection.x0 = Math.min(nextSelection.x0, x); nextSelection.y0 = Math.min(nextSelection.y0, y);
+        nextSelection.x1 = Math.max(nextSelection.x1, x); nextSelection.y1 = Math.max(nextSelection.y1, y);
+      }
+      const beforeCells = [...map.keys()].map((id) => {
+        const [x, y] = id.split(",").map(Number);
+        return { x, y, color: clone(bridge.getCell(x, y)) };
+      });
+      return { kind, width, height, beforeCells, changes: changesFromMap(map), beforeSelection: cloneSelection(selection), nextSelection };
+    },
+    applySelectionTransform(plan) {
+      if (!plan || plan.width !== result().width || plan.height !== result().height || !plan.changes.length) return false;
+      if (plan.beforeCells.some(({ x, y, color }) => !same(bridge.getCell(x, y), color))) return false;
+      const labels = { move: "移动选区", rotate: "选区顺时针旋转 90°", flipX: "选区水平翻转", flipY: "选区垂直翻转" };
+      const command = cellCommand("SELECTION_TRANSFORM", labels[plan.kind], plan.changes);
+      const before = cloneSelection(plan.beforeSelection), after = cloneSelection(plan.nextSelection);
+      const apply = (method, selection) => {
+        if (!command[method]()) return false;
+        if (setSelection) setSelection(cloneSelection(selection));
+        return true;
+      };
+      return run({ ...command, execute: () => apply("execute", after), undo: () => apply("undo", before), redo: () => apply("redo", after) });
+    },
+    transformSelection(selection, kind, options) { return this.applySelectionTransform(this.planSelectionTransform(selection, kind, options)); },
     fillAt(x, y, code) {
       const grid = result().grid, from = paletteIdOf(grid[y]?.[x]), after = colorFor(code);
       if (!grid[y] || !after || from === paletteIdOf(after)) return false;
@@ -287,11 +356,16 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
       }
       return commit("FLOOD_FILL", `填充：${from || "空白"} → ${after.code}`, changesFor(cells, after));
     },
-    outline(selection, code, diagonal = false) {
+    outline(selection, code, diagonal = false, { includeHoles = false } = {}) {
       if (!selection) return false;
-      const { width, height } = result(), after = colorFor(code);
+      const after = colorFor(code);
       if (!after) return false;
-      return commit("OUTLINE", `描边：${after.code}`, changesFor(outerOutline(selection, width, height, diagonal), after));
+      const plan = computeOuterOutline(selectedCells(selection), result().grid, { connectivity: diagonal ? 8 : 4, includeHoles });
+      // Keep the existing selection-border operation's occupied-cell behavior,
+      // but only on its exterior boundary when holes are disabled.
+      const external = includeHoles ? null : computeExternalEmpty(plan.sourceCells, result().width, result().height);
+      const boundary = [...plan.outlineCells, ...plan.blockedCells.filter(({x,y}) => includeHoles || external.has(`${x},${y}`))];
+      return commit("OUTLINE", `描边：${after.code}`, changesFor(boundary, after));
     },
     flip(axis) {
       const grid = result().grid, { width, height } = result();
