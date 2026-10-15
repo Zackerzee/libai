@@ -50,7 +50,7 @@ test("§16：可靠性模块与预览服务都不碰 DOM / window / 应用 state
 
 test("§16：没有第二套 Worker 协议 —— 复用 B0 的 request / job / codec", () => {
   const worker = read("services/generation.worker.mjs");
-  assert.match(worker, /import \{ executeGenerationJob \} from "\.\/generation-job\.mjs"/);
+  assert.match(worker, /import \{ executeGenerationJob \} from "\.\/generation-job\.mjs(?:\?v=[^"\s]+)?"/);
   assert.match(worker, /import \{ encodeGenerationResult \} from "\.\/generation-result-codec\.mjs"/);
   const code = codeOnly(worker);
   for (const banned of ["GenerationRequestV2", "WorkerRequest2", "parallelJobState", "GenerationProtocol2"]) {
@@ -160,26 +160,32 @@ test("§16：算法模块不反向依赖服务层（预览逻辑不许塞进算�
  * §17 §18 界面纪律
  * ======================================================= */
 
-test("§17：工作台上只有一个去背景开关 —— backgroundRemoval", () => {
+test("§17：工作台上只有一个背景入口 —— 三选一卡片（阶段 3）", () => {
   const panel = read("ui/generation-panel.js");
-  assert.equal((panel.match(/switchRow\(\s*"backgroundRemoval"/g) || []).length, 1, "去背景开关必须恰好一个");
-  assert.equal((panel.match(/switchRow\(\s*"autoBackground"/g) || []).length, 0,
-    "「自动留空背景」是重复开关，必须删掉");
-  // switchRow 内部用 `data-field="${field}"` 渲染，所以字面量不会出现在源码里 ——
-  // 这条守卫改扫「传给 switchRow 的字段名集合」。
+  // 卡片渲染只有一处（BACKGROUND_MODE_LIST.map）——「两个入口、各写一份判断」
+  // 是 B2 §17 清过的形状，不许以三选一的形式复活。
+  assert.equal((panel.match(/BACKGROUND_MODE_LIST\.map/g) || []).length, 1, "背景卡片渲染只许有一处");
+  // 点击绑定只有一处；syncUI 的双根查询是另一处（ layout 需要，见面板注释）
+  assert.equal((panel.match(/event\.target\.closest\("\[data-bg-mode\]"\)/g) || []).length, 1,
+    "背景模式点击绑定必须恰好一个");
+  // 卡片文案来自共享契约，面板不内嵌第二份
+  assert.match(panel, /from "\.\.\/services\/background-mode\.mjs/);
+  // switchRow 的字段集合里不许再出现背景相关字段（三选一之后没有布尔开关）
   const fields = [...panel.matchAll(/switchRow\(\s*"([A-Za-z]+)"/g)].map((m) => m[1]);
   assert.equal(new Set(fields).size, fields.length, `switchRow 字段名重复：${fields.join(", ")}`);
-  assert.ok(fields.includes("backgroundRemoval"));
-  assert.ok(!fields.includes("autoBackground"));
+  assert.ok(!fields.includes("backgroundRemoval") && !fields.includes("autoBackground"),
+    "背景不该再有布尔开关 —— 它已经并进三选一卡片");
 });
 
-test("§18：面板把 backgroundRemoval 镜像成 autoBackground（同一个值发给引擎）", () => {
+test("§18：面板把背景模式镜像成 autoBackground（同一个值发给引擎）", () => {
   const panel = read("ui/generation-panel.js");
   assert.match(panel, /emitSettings\(\)/);
   assert.match(panel, /return \{ \.\.\.this\.state, backgroundRemoval, autoBackground: backgroundRemoval \};/);
   assert.match(panel, /this\.onChange\(this\.emitSettings\(\)\)/);
-  // 「小白一键」把 autoBackground 打开时，可见开关必须跟着打开
-  assert.match(panel, /patch\.backgroundRemoval = Boolean\(centralized\.autoBackground\)/);
+  // 阶段 3：镜像的「因」从布尔开关换成三选一模式 —— 派生规则只有这一行
+  assert.match(panel, /const backgroundRemoval = this\.state\.backgroundMode === "auto";/);
+  // 「小白一键」把 autoBackground 打开时，卡片必须跟着落到「自动移除」那一项
+  assert.match(panel, /patch\.backgroundMode = centralized\.autoBackground \? "auto" : "transparent";/);
 });
 
 test("§17：工作台没有新增背景算法参数（阈值 / ΔE / 连通 / Seed Mode）", () => {
@@ -193,26 +199,30 @@ test("§17：工作台没有新增背景算法参数（阈值 / ΔE / 连通 / S
   assert.equal(buttons.length, 3, `预检条应该只有 3 个按钮，实得 ${buttons.length}`);
 });
 
-test("§6：开启去背景后先预览再生成，不静默应用", () => {
+test("§6：背景模式变化先预览再生成，不静默应用", () => {
   const workspace = read("ui/workspace.js");
   assert.match(workspace, /id="ws-bg-preview"/);
   assert.match(workspace, /id="ws-bg-preview-apply"/);
   assert.match(workspace, /id="ws-bg-preview-keep"/);
   assert.match(workspace, /id="ws-bg-preview-dismiss"/);
-  // 从关到开的那一刻必须走预检分支并且**提前 return**，不能顺手排一次生成
-  assert.match(workspace, /if \(backgroundRemoval && !backgroundRemovalWasOn\) \{\s*requestBackgroundPreview\(\);\s*return;\s*\}/);
+  // 阶段 3：模式变化那一刻必须走预检分支并且**提前 return**，不能顺手排一次生成
+  assert.match(workspace, /if \(backgroundMode !== backgroundModeWas\) \{\s*requestBackgroundPreview\(backgroundMode\);\s*return;\s*\}/);
+  // 老路径兜底：面板模式没变、而 store 的 autoBackground 被别处打开时同样先问
+  assert.match(workspace, /if \(backgroundRemoval && !backgroundRemovalWasOn\) \{\s*requestBackgroundPreview\("auto"\);\s*return;\s*\}/);
 });
 
-test("§18：选「保留背景」会把开关真的关掉（面板 + state 一起）", () => {
+test("§18：选「保留背景」会把模式真的切过去（面板 + state 一起）", () => {
   const workspace = read("ui/workspace.js");
   assert.match(workspace, /function keepBackgroundAndGenerate\(\)/);
-  assert.match(workspace, /generationPanel\.setState\(\{ backgroundRemoval: false \}, false\)/);
-  assert.match(workspace, /store\.setState\(\{ generation: \{ backgroundRemoval: false, autoBackground: false \} \}\)/);
+  // 按钮文案与卡片标题同名 —— 落地模式必须就是「保留背景」
+  assert.match(workspace, /generationPanel\.setState\(\{ backgroundMode: "keep" \}, false\)/);
+  assert.match(workspace, /store\.setState\(\{ generation: \{ backgroundMode: "keep", backgroundRemoval: false, autoBackground: false \} \}\)/);
 });
 
 test("§6：预检失败不挡生成（异常路径静默退回正常生成）", () => {
   const workspace = read("ui/workspace.js");
-  const fn = workspace.slice(workspace.indexOf("async function requestBackgroundPreview()"));
+  // 阶段 3：签名多了 mode 参数（决定预检问哪个问题）
+  const fn = workspace.slice(workspace.indexOf("async function requestBackgroundPreview(mode"));
   const body = fn.slice(0, fn.indexOf("\n  }"));
   assert.match(body, /catch \{/, "预检必须有 catch —— 否则一次探测失败会让用户点不动生成");
   assert.match(body, /hideBackgroundPreview\(\)/, "异常时应收起预检条");
@@ -230,7 +240,8 @@ test("§6：预检失败不挡生成（异常路径静默退回正常生成）",
 
 test("§6：桥接层暴露 previewBackgroundRemoval，且不写任何 state", () => {
   const app = read("app.js");
-  assert.match(app, /async previewBackgroundRemoval\(\{ width, height \} = \{\}\) \{/);
+  // 阶段 3：签名多了 mode = "auto"（缺省值保证旧调用方逐位兼容）
+  assert.match(app, /async previewBackgroundRemoval\(\{ width, height, mode = "auto" \} = \{\}\) \{/);
   const at = app.indexOf("async previewBackgroundRemoval(");
   const body = app.slice(at, at + 1600);
   assert.ok(!/state\.grid =/.test(body), "预检不得改画布");

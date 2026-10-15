@@ -23,7 +23,7 @@
  * 字段映射依据：PROJECT-STORE-AUDIT.md §4（归属设计）与 §5（语义冲突）。
  * 凡"同名不同义"的字段一律【不合流】，用独立字段承接（canvasState / wsTool / wsSelection）。
  */
-import "./store.js"; // 副作用导入：确保 globalThis.libmsStoreApi 就绪。
+import "./store.js?v=20261007-layout-consolidation"; // 副作用导入：确保 globalThis.libmsStoreApi 就绪。
 // 浏览器里 store.js 已由 <script defer> 以 classic 方式加载过；
 // store.js 内部有幂等守卫，此处再次执行不会创建第二个 store 实例。
 
@@ -111,6 +111,7 @@ function snapshot(store) {
     },
     generation: {
       engine: s.processingState.generationEngine,
+      ...(s.processingState.pindouOptions ? { pindouOptions: structuredClone(s.processingState.pindouOptions) } : {}),
       algorithm: s.processingState.algorithmEngine,
       preset: s.processingState.generationPreset,
       sampling: s.processingState.generationSampling,
@@ -121,6 +122,11 @@ function snapshot(store) {
       preserveEyes: s.processingState.preserveEyes,
       preserveMicroDetails: s.processingState.preserveMicroDetails,
       backgroundRemoval: s.processingState.backgroundRemoval,
+      // 阶段 3：背景处理三模式真源字段（services/background-mode.mjs）。
+      // 老存档 / 旧 processingState 没有它 → 按 autoBackground 兼容回退，
+      // 语义与改造前的单一开关一致。
+      backgroundMode: s.processingState.backgroundMode
+        ?? (s.processingState.autoBackground ? "auto" : "transparent"),
       // 4 个保护开关：由 processingState 提供默认 false，快照里【始终存在】。
       // 早先是「写入后才出现的运行时动态字段」，现已进入默认值面。
       subjectCrop: s.processingState.subjectCrop,

@@ -10,7 +10,13 @@ const panelSource=readFileSync(new URL('../ui/generation-panel.js',import.meta.u
 // 阶段 2：面板从 1 条 import 变成 2 条（多了 mode-profile 的 MODE_LABELS），
 // 且两条之间隔着注释 —— /^(import…\n)+/ 的连续匹配会被注释行截断，
 // 漏网的 import 进 vm 直接 SyntaxError。这里按行全局剥离，并在 context 补 MODE_LABELS。
-const context={GENERATION_MODE_PRESETS:{},MODE_LABELS:{}};
+// 阶段 3：再加 background-mode.mjs 的四个导出（三模式常量表 / 提示 / 默认值 /
+// 归一化函数）。这也是面板里那条 import 必须保持单行的原因 —— 见面板注释。
+const context={GENERATION_MODE_PRESETS:{},MODE_LABELS:{},
+  BACKGROUND_MODE_LIST:[{id:'keep'},{id:'transparent'},{id:'auto'}],
+  BACKGROUND_MODE_HINTS:{keep:'填充',transparent:'留空',auto:'自动移除'},
+  DEFAULT_BACKGROUND_MODE:'transparent',
+  normalizeBackgroundMode:value=>['keep','transparent','auto'].includes(value)?value:'transparent'};
 vm.createContext(context);
 vm.runInContext(panelSource.replace(/^import[^\n]+\n/gm,'').replace('export class GenerationPanel','class GenerationPanel')+'\nglobalThis.Panel=GenerationPanel;',context);
 
@@ -29,22 +35,32 @@ test('size controls move as original nodes and visibility follows existing worka
   assert.match(panelSource,/backgroundRoot\.replaceChildren\(this\.root\.querySelector\("#ws-generation-background-controls"\)\)/);
 });
 
-test('external background switch preserves delegated input, mirror and state repaint',()=>{
-  const listeners=new Map(), checkbox={dataset:{field:'backgroundRemoval'},type:'checkbox',checked:false};
+test('external background mode cards keep one delegated click, mirror and repaint',()=>{
+  // 阶段 3：单开关 → 三选一卡片。卡片所在的那一节在 render() 里被
+  // replaceChildren 搬进 backgroundRoot（工作台步进卡）—— 点击事件冒泡到
+  // backgroundRoot 的祖先，**到不了 this.root**。bindEvents 因此把同一个
+  // onClick 绑在两个根上；这条 mock 就是钉这个事实的。
+  const listeners=new Map();
+  const autoCard={dataset:{bgMode:'auto'},classList:{toggle(){}},setAttribute(){}};
+  let cardNode=autoCard;
+  autoCard.closest=selector=>selector==='[data-bg-mode]'?cardNode:null;
+  const keepCard={dataset:{bgMode:'keep'},classList:{toggle(){}},setAttribute(){}};
+  keepCard.closest=selector=>selector==='[data-bg-mode]'?cardNode:null;
   const panel=Object.create(context.Panel.prototype);
   panel.root={addEventListener(){},querySelector(){return null;},querySelectorAll(){return [];}};
-  panel.backgroundRoot={addEventListener(kind,handler){listeners.set(kind,handler);},querySelectorAll(){return [checkbox];}};
-  panel.state={backgroundRemoval:false};
+  panel.backgroundRoot={addEventListener(kind,handler){listeners.set(kind,handler);},querySelectorAll(){return [keepCard,autoCard];},querySelector(){return null;}};
+  panel.state={backgroundMode:'transparent'};
   let emitted;
   panel.onChange=settings=>{emitted=settings;};
   panel.bindEvents();
-  checkbox.checked=true;
-  listeners.get('input')({target:checkbox});
-  assert.equal(panel.state.backgroundRemoval,true);
+  cardNode=autoCard;
+  listeners.get('click')({target:autoCard});
+  assert.equal(panel.state.backgroundMode,'auto');
   assert.equal(emitted.backgroundRemoval,true);
   assert.equal(emitted.autoBackground,true);
-  panel.setState({backgroundRemoval:false},false);
-  assert.equal(checkbox.checked,false);
+  // setState → syncUI：双根查卡片高亮 + 状态行（mock 只验证不炸且 state 落地）
+  panel.setState({backgroundMode:'keep'},false);
+  assert.equal(panel.state.backgroundMode,'keep');
 });
 
 test('three-panel layout repositions real inspector and shares palette identity actions',()=>{

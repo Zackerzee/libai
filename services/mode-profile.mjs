@@ -318,6 +318,10 @@ export const ENGINE_PASSTHROUGH_KEYS = Object.freeze([
   "strokeProtectionGain",
   "subjectCropConfig",
   "backgroundConfig",
+  // 阶段 3「保留背景」：透明像素的填充色。它和 backgroundConfig 是同一族
+  // （都由宿主按用户选择算出，经 overrides 透传给引擎），漏掉它 = 用户选了
+  // 「保留背景」但透明区域照样留空，属于静默失效。
+  "transparentFill",
   "strokeConfig",
   "accentConfig",
   "smartColorTolerance",

@@ -53,6 +53,10 @@ test("snapshot: palette / generation 默认值", () => {
     detailProtection: 70, edgeProtection: 70, cleanupStrength: 50,
     preserveHighlights: true, preserveEyes: true, preserveMicroDetails: true,
     backgroundRemoval: false,
+    // 阶段 3：背景处理三模式真源字段（keep / transparent / auto，
+    // 见 services/background-mode.mjs）。默认 transparent = 改造前的
+    // 既成行为（透明格走采样引擎的跳过逻辑 → 空豆）。
+    backgroundMode: "transparent",
     // 这 4 个保护开关由 processingState 提供默认 false，快照里【始终存在】。
     // 它们是「算法与生成方式」合并后的产物，早先作为运行时动态字段写入，
     // 现在 adapter 无条件读出，所以必须出现在默认值快照里。
@@ -74,10 +78,12 @@ test("snapshot: generation 里【没有】maxColors —— 最大色数不在 ge
 test("snapshot: view / reference 默认值", () => {
   const s = createProjectStore().getState();
   assert.deepEqual(s.view, {
-    mode: "blocks", zoom: 1, panX: 0, panY: 0,
-    showGrid: false, showCodes: false, codeVisibilityThreshold: 16,
+    // 底栏的「成像」(blocks) / 「拼豆」(beads) 视图按钮已移除，只剩「施工图」(pattern)。
+    // 默认值随之改为 pattern —— 否则新图纸停在 blocks 且没有切回的按钮，用户会被卡死。
+    mode: "pattern", zoom: 1, panX: 0, panY: 0,
+    showGrid: false, showCodes: true, codeVisibilityThreshold: 16,
   });
-  assert.deepEqual(s.reference, { url:"",opacity:40,fit:"contain",visible:true,useSource:true,offsetX:0,offsetY:0,scale:1,smoothing:"smooth",displayMode:"normal",adjusting:false });
+  assert.deepEqual(s.reference, { url:"",opacity:40,fit:"contain",visible:false,useSource:false,offsetX:0,offsetY:0,scale:1,smoothing:"smooth",displayMode:"normal",adjusting:false });
 });
 
 test("snapshot: editor 默认值（workspace.js 最常写的一块）", () => {

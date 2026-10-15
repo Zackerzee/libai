@@ -122,6 +122,11 @@ function snapshot(store) {
       preserveEyes: s.processingState.preserveEyes,
       preserveMicroDetails: s.processingState.preserveMicroDetails,
       backgroundRemoval: s.processingState.backgroundRemoval,
+      // 阶段 3：背景处理三模式真源字段（services/background-mode.mjs）。
+      // 老存档 / 旧 processingState 没有它 → 按 autoBackground 兼容回退，
+      // 语义与改造前的单一开关一致。
+      backgroundMode: s.processingState.backgroundMode
+        ?? (s.processingState.autoBackground ? "auto" : "transparent"),
       // 4 个保护开关：由 processingState 提供默认 false，快照里【始终存在】。
       // 早先是「写入后才出现的运行时动态字段」，现已进入默认值面。
       subjectCrop: s.processingState.subjectCrop,

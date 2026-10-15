@@ -3,6 +3,13 @@ import { GENERATION_MODE_PRESETS } from "../services/generation-pipeline.mjs";
 // 注释原话「界面文案。放在这里是为了让『模式清单』只有一份来源」）——
 // 面板内不许再造第二张标签表，否则「按钮改名了、提示行还叫旧名字」必然发生。
 import { MODE_LABELS } from "../services/mode-profile.mjs";
+// 阶段 3：背景处理三模式。卡片文案与「模式 → 引擎选项」的翻译都以
+// services/background-mode.mjs 为唯一来源 —— 面板只负责展示与选择，
+// 不在这两层之间再插一份自己的解释。
+// ⚠️ 这条 import 保持**单行**：tests/fixed-height-context-controls.test.mjs
+// 的 vm 脚手架按 `/^import[^\n]+\n/gm` 逐行剥离 import，多行 import 的续行
+// 会漏进 vm 变成 SyntaxError（整个测试文件加载失败）。
+import { BACKGROUND_MODE_LIST, BACKGROUND_MODE_HINTS, DEFAULT_BACKGROUND_MODE, normalizeBackgroundMode } from "../services/background-mode.mjs?v=20261015-stage3";
 
 /**
  * Shiliba Studio
@@ -69,20 +76,22 @@ export class GenerationPanel {
 
       maxColors: 38,
 
-      // ── 去背景：**界面上只有一个开关**（Stage B2 §17 §18）──────────────
-      // 以前这里是两个字段两个开关：「去除纯色背景」(backgroundRemoval，写了没人读，
-      // 是个死开关) 和「自动留空背景」(autoBackground，真正接进生成引擎的那个)。
-      // 用户看到两个意思相近的开关、只有一个有效 —— 这是明确的产品缺陷。
-      // 现在 `backgroundRemoval` 是**唯一可见**的开关，`autoBackground` 降级为
-      // 它发往引擎的镜像（见 emitSettings()）。引擎协议不变。
+      // ── 背景处理：三选一卡片（阶段 3）────────────────────────────
+      // 改造前这里是「去除纯色背景」单开关（backgroundRemoval）。现在用户面对
+      // 三个互不相同的行为：保留背景 / 保留原图透明区域 / 自动移除纯色背景
+      // （语义见 services/background-mode.mjs 文件头）。
       //
-      // ⚠️ 面板 state 里**故意不声明** `autoBackground`（Stage B5 §20 删掉的）。
-      // 它曾经在这里有一个 `false` 初值，但从来没有 `[data-field="autoBackground"]`
-      // 去绑它、也没有任何逻辑读它 —— `emitSettings()` 是用**局部变量**
-      // `backgroundRemoval` 现算镜像值的。那个初值是个写不到也读不回的字段，
-      // 留着只会让人以为面板有两份背景状态。
-      // 真正活的那个 `autoBackground` 在 `state/store.js` 的 `generation` 槽里。
-      backgroundRemoval: false,
+      // `backgroundMode` 是面板侧真源；`backgroundRemoval` / `autoBackground`
+      // 是它发往引擎的镜像（= mode === "auto"），见 emitSettings()。
+      //
+      // ⚠️ state 里仍然**故意不声明** `backgroundRemoval` / `autoBackground`：
+      // 它们由 emitSettings() 用局部变量现算，没有输入框直接绑它们。面板只
+      // 持有「用户选了哪个模式」这一个事实。
+      //
+      // 初值 transparent = 改造前的既成行为（采样引擎跳过透明像素 → 空豆）。
+      // 构造时套「保留背景」会让每个上传透明 PNG 的老用户一夜之间看到
+      // 透明区被填成白豆 —— 那是改变行为，不是默认值。
+      backgroundMode: DEFAULT_BACKGROUND_MODE,
 
       // V2.5 智能辅助开关（默认全关，保持既有默认链路不变）
       subjectCrop: false,
@@ -105,13 +114,14 @@ export class GenerationPanel {
   /**
    * 面板发往工作台的设置快照。
    *
-   * Stage B2 §17 §18：`autoBackground` 是 `backgroundRemoval` 的**镜像** ——
-   * 生成引擎读的是 `autoBackground`，界面读的是 `backgroundRemoval`。
-   * 两者必须在同一个函数里一起翻转，否则会出现「开关显示关着、引擎却真的去抠背景」
-   * 这种最难查的状态分叉。
+   * Stage B2 §17 §18 的镜像纪律在阶段 3 继续有效：生成引擎读的是
+   * `autoBackground`，界面读的是 `backgroundMode`。两者必须在同一个函数里
+   * 一起算出，否则会出现「界面显示保留背景、引擎却真的去抠背景」这种最难查的
+   * 状态分叉。`transparentFill` 不在这里出 —— 它需要源图变换的背景色，
+   * 由 app.js 在 buildV25Options 边界补上（宿主才知道 sourceTransform）。
    */
   emitSettings() {
-    const backgroundRemoval = Boolean(this.state.backgroundRemoval);
+    const backgroundRemoval = this.state.backgroundMode === "auto";
     return { ...this.state, backgroundRemoval, autoBackground: backgroundRemoval };
   }
 
@@ -134,11 +144,7 @@ export class GenerationPanel {
       <section class="sl-generation-panel">
 
         <div class="sl-panel-section" id="ws-generation-background-controls">
-          ${this.switchRow(
-            "backgroundRemoval",
-            "透明背景",
-            "生成时识别并去除可安全分离的纯色背景；复杂背景不强行删除"
-          )}
+          ${this.backgroundModeCards()}
         </div>
 
         ${this.renderActionSection()}
@@ -225,6 +231,42 @@ export class GenerationPanel {
         <span class="sl-preset-check">✓</span>
       </button>
     `).join("");
+  }
+
+  /**
+   * 阶段 3：背景处理三卡片。与生成目标卡片同构（同样的 sl-preset-card 样式），
+   * 因为它们在产品层级上是同一类东西：「先选行为，细节自动配好」。
+   *
+   * 文案全部来自 BACKGROUND_MODE_LIST —— 面板不内嵌任何模式说明，
+   * 预检条与文档读的是同一份。
+   */
+  backgroundModeCards() {
+    return `
+      <div class="sl-section-heading">
+        <div>
+          <h3>背景处理</h3>
+          <p>原图有背景或透明区域时，选一种处理方式</p>
+        </div>
+      </div>
+      <div class="sl-preset-grid sl-bg-grid" role="radiogroup" aria-label="背景处理方式">
+        ${BACKGROUND_MODE_LIST.map((mode) => `
+          <button
+            type="button"
+            class="sl-preset-card sl-bg-card"
+            data-bg-mode="${mode.id}"
+            role="radio"
+            aria-checked="false"
+          >
+            <span class="sl-preset-copy">
+              <strong>${mode.title}</strong>
+              <small>${mode.description}</small>
+            </span>
+            <span class="sl-preset-check">✓</span>
+          </button>
+        `).join("")}
+      </div>
+      <p class="sl-bg-hint" id="sl-bg-mode-hint" role="status"></p>
+    `;
   }
 
   /**
@@ -627,8 +669,22 @@ export class GenerationPanel {
   }
 
   bindEvents() {
-    this.root.addEventListener("click", event => {
+    // 点击委派绑在**两个根**上：背景卡所在的那一节会在 render() 里被
+    // replaceChildren 搬进 backgroundRoot（工作台的步进卡）—— 搬过去的节点
+    // 事件冒泡到 backgroundRoot 的祖先，**到不了 this.root**。只绑 this.root
+    // 的结果是「卡片看得见、点不动」：阶段 3 实测踩过，别改回去。
+    // 处理器只依赖 event.target.closest()，两个根共用同一个函数是安全的。
+    const onClick = event => {
       if(event.target.closest('[data-action="toggle-advanced"]')){this.setState({advancedOpen:!this.state.advancedOpen});return;}
+
+      // 阶段 3：背景处理三卡片。和策略卡一样是「一次显式赋值」——
+      // 走同一条 setState，不新增旁路状态。
+      const backgroundModeButton = event.target.closest("[data-bg-mode]");
+
+      if (backgroundModeButton) {
+        this.setState({ backgroundMode: normalizeBackgroundMode(backgroundModeButton.dataset.bgMode) });
+        return;
+      }
 
       // 阶段 2：生成目标卡片。策略 = 给既有字段（preset + maxColors）赋一次值，
       // 走 applyPreset 拉模式注册表完整参数，不新建任何旁路状态。
@@ -718,7 +774,10 @@ export class GenerationPanel {
           });
           break;
       }
-    });
+    };
+    this.root.addEventListener("click", onClick);
+    // 同上：背景卡被搬进 backgroundRoot，它那一支的点击只有这里收得到。
+    this.backgroundRoot?.addEventListener("click", onClick);
 
     const onInput = event => {
       const field = event.target.dataset.field;
@@ -765,9 +824,12 @@ export class GenerationPanel {
       ? { ...centralized, sampling: ({ "edge-aware":"edge", "linear-mean":"mean" })[centralized.sampling] || centralized.sampling }
       : {};
     // 「小白一键」会把四个智能辅助一次全开 —— 其中「去背景」必须落到
-    // **唯一可见**的那个开关上，否则预设开了、界面却显示关着。
+    // **当前选中的背景模式**上，否则预设开了、界面却显示另一个模式。
+    // 模式档案的 autoBackground 是布尔 → 界面落三选一里的对应项：
+    // true = 自动移除纯色背景；false = 保留原图透明区域（面板默认态，
+    // 与三选一之前的「开关关着」逐位等价）。
     if (centralized && "autoBackground" in centralized) {
-      patch.backgroundRemoval = Boolean(centralized.autoBackground);
+      patch.backgroundMode = centralized.autoBackground ? "auto" : "transparent";
     }
     this.setState({ preset, ...patch, ...extra });
   }
@@ -821,6 +883,30 @@ export class GenerationPanel {
     const strategyHint = this.root.querySelector("#sl-strategy-hint");
 
     if (strategyHint) strategyHint.textContent = this.strategyHint();
+
+    // 阶段 3：背景处理卡片高亮 + 提示行。与策略卡同一套同步模式 ——
+    // 高亮只认 state.backgroundMode，提示行从 BACKGROUND_MODE_HINTS 取，
+    // 两边都不会各自漂移。
+    // ⚠️ 查询必须覆盖 backgroundRoot：这一节在 render() 里被 replaceChildren
+    // 搬进了工作台的步进卡，只查 this.root 会一张卡都找不到（节点已不在树上
+    // 那个位置了）。syncUI 对 [data-field] 一向是双根查询，这里是同一纪律。
+    const backgroundHosts = [this.root, this.backgroundRoot].filter(Boolean);
+
+    backgroundHosts
+      .flatMap(host => [...host.querySelectorAll("[data-bg-mode]")])
+      .forEach(card => {
+        const active = card.dataset.bgMode === this.state.backgroundMode;
+        card.classList.toggle("is-active", active);
+        card.setAttribute("aria-checked", active ? "true" : "false");
+      });
+
+    const backgroundHint = backgroundHosts
+      .map(host => host.querySelector("#sl-bg-mode-hint"))
+      .find(Boolean);
+
+    if (backgroundHint) {
+      backgroundHint.textContent = BACKGROUND_MODE_HINTS[this.state.backgroundMode] || "";
+    }
 
     // Stage C0 §6：把 maxColors 的内部哨兵值 0 翻译成人话，并高亮当前档位。
     // 数字框仍然显示原始数字（0..221），读数与档位负责解释它。

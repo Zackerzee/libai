@@ -104,6 +104,12 @@ function resolveOptions(options = {}) {
     // 各辅助模块的细项配置（透传，null 时用模块默认）
     subjectCropConfig: options.subjectCropConfig || null,
     backgroundConfig: options.backgroundConfig || null,
+    // 阶段 3「保留背景」：透明像素的填充色（"#rrggbb"）。null = 不合成 ——
+    // 透明格继续走采样引擎的「跳过透明像素」老路（= 保留原图透明区域模式）。
+    // 默认 null 保证所有既有调用方（引擎测试 / 跑分器 / 工具）逐位不变。
+    transparentFill: typeof options.transparentFill === "string" && /^#?[0-9a-f]{6}$/i.test(options.transparentFill.trim())
+      ? options.transparentFill.trim()
+      : null,
     strokeConfig: options.strokeConfig || null,
     accentConfig: options.accentConfig || null,
   };
@@ -155,6 +161,63 @@ export function buildAlphaGrid(source, width, height, alphaThreshold = 8) {
     }
   }
   return grid;
+}
+
+/**
+ * 阶段 3「保留背景」模式：把半透明/全透明像素**先合成**到填充色上，
+ * 再进采样。返回新的 ImageData 结构（不改入参）。
+ *
+ * 为什么放在采样之前：采样引擎对透明像素是直接跳过的（alphaThreshold=8），
+ * 于是透明格在 `sampled.colors` 里是 `null` → 最终变成**空豆**。
+ * 「保留背景」要的恰恰相反 —— 那些位置必须有豆（背景色的豆）。
+ * 合成让采样看到的是「不透明的背景色像素」，与 JPEG 照片走进同一条路径，
+ * 不新增任何旁路处理。
+ *
+ * 为什么不动 alpha 为 255 的像素：只有需要合成的像素才会被写，
+ * 不透明区域**逐位不变**（半透明像素按 alpha 线性混合，与浏览器
+ * 「白底下显示半透明像素」的观感一致）。
+ *
+ * 纯计算、无 DOM；Worker 安全（Uint8ClampedArray 自动截断，同输入同输出）。
+ *
+ * @param {{data:Uint8ClampedArray,width:number,height:number}} source
+ * @param {string} fillColor "#rrggbb"
+ * @returns {{data:Uint8ClampedArray,width:number,height:number,filledPixels:number}}
+ */
+export function compositeTransparentBackground(source, fillColor) {
+  const hex = typeof fillColor === "string" ? fillColor.trim() : "";
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!match || !source?.data) {
+    return { data: source?.data, width: source?.width || 0, height: source?.height || 0, filledPixels: 0 };
+  }
+  const fr = parseInt(match[1].slice(0, 2), 16);
+  const fg = parseInt(match[1].slice(2, 4), 16);
+  const fb = parseInt(match[1].slice(4, 6), 16);
+  const data = source.data;
+  // 先扫一遍「有没有要合成的像素」：全不透明图（绝大多数照片）零分配、零拷贝。
+  let needsFill = false;
+  for (let i = 3; i < data.length; i += 4) {
+    if (data[i] < 255) { needsFill = true; break; }
+  }
+  if (!needsFill) {
+    return { data, width: source.width, height: source.height, filledPixels: 0 };
+  }
+  const out = new Uint8ClampedArray(data);
+  let filledPixels = 0;
+  for (let i = 0; i < out.length; i += 4) {
+    const a = out[i + 3];
+    if (a >= 255) continue;
+    filledPixels += 1;
+    if (a <= 0) {
+      out[i] = fr; out[i + 1] = fg; out[i + 2] = fb; out[i + 3] = 255;
+      continue;
+    }
+    const k = a / 255;
+    out[i] = out[i] * k + fr * (1 - k);
+    out[i + 1] = out[i + 1] * k + fg * (1 - k);
+    out[i + 2] = out[i + 2] * k + fb * (1 - k);
+    out[i + 3] = 255;
+  }
+  return { data: out, width: source.width, height: source.height, filledPixels };
 }
 
 /**
@@ -234,6 +297,24 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
     };
   }
   timing.subjectCrop = Math.round(performance.now() - tCrop);
+  // 0.5 阶段 3「保留背景」：把透明像素合成到填充色，再进采样。
+  //     放在裁剪**之后**：subjectCrop 的取景只看 RGB（不读 alpha），先裁剪
+  //     再填充 = 填充范围不超过取景结果。反过来先填充再裁剪，填充色本身
+  //     会被当成「画面内容」参与取景判定，可能把用户的主角裁小。
+  //     transparentFill 为 null（transparent / auto 模式）时这里什么都不做。
+  let transparentFillDiag = null;
+  if (cfg.transparentFill) {
+    const composed = compositeTransparentBackground(samplingSource, cfg.transparentFill);
+    if (composed.filledPixels > 0) {
+      samplingSource = { data: composed.data, width: composed.width, height: composed.height };
+    }
+    transparentFillDiag = {
+      color: cfg.transparentFill,
+      filledPixels: composed.filledPixels,
+      // 诊断要能自证「这一格豆是哪来的」：填充过的像素数 / 源图像素数。
+      fillRatio: Math.round((composed.filledPixels / (composed.width * composed.height || 1)) * 10000) / 10000,
+    };
+  }
   // Opt-in laboratory snapshots: never rematch colors or alter the production cache.
   const inspector = options.inspector === true ? {
     executionOrder: ["S1", "S2", "S3", "S5", "S4", "S6"],
@@ -600,6 +681,8 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
       accentProtection: cfg.accentProtection,
     },
     subjectCrop: subjectCropDiag,
+    // 阶段 3：透明像素填充诊断（未启用 = 没有透明可填 / 没传填充色时为 null）。
+    transparentFill: transparentFillDiag,
     autoBackground: backgroundDiag,
     strokeProtection: strokeDiag,
     accentProtection: accentDiag,
@@ -625,6 +708,9 @@ export function generateV2({ source, width, height, palette, options = {}, lab =
       autoBackground: cfg.autoBackground,
       strokeProtection: cfg.strokeProtection,
       accentProtection: cfg.accentProtection,
+      // 阶段 3：透明像素填充色（null = 不合成）。和 autoBackground 并列，
+      // 因为「同一个模式、不同填充色」跑出来的图是不一样的。
+      transparentFill: cfg.transparentFill,
     },
     edgeMap: protection.edgeMap,
     protectionMap: protection.protectionMap,

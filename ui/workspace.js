@@ -24,7 +24,7 @@ import { lassoSelection } from "../services/lasso-selection.mjs?v=20261007-paint
 import { magicWandSelection, fitSelectionBox, invertSelection as invertSelectionMask, selectAll as selectAllCells, translateSelection } from "../services/shapes-service.js?v=20260918-usage2";
 import { renderSourceTransform, defaultSourceTransform, cropFromDrag, sourceOutputGeometry } from "../services/source-editor-service.js?v=20261014-transparent-1";
 import { attachSourceAdjustmentControls } from './source-adjustment-controller.mjs';
-import { GenerationPanel } from "./generation-panel.js?v=20261015-stage2-1";
+import { GenerationPanel } from "./generation-panel.js?v=20261015-stage3-1";
 import { GridEditorToolbar, SHAPE_TOOLS } from "./grid-editor-toolbar.js?v=20261013-v3-layout-p8";
 import { detectPixelMultiple, loadImageData } from "./pixel-multiple.js?v=20260923-pixelmultiple";
 import { recommendAutomaticSize, isCurrentSizeSource } from "../services/automatic-generation-size.mjs?v=20261014-fusion97-1";
@@ -816,19 +816,32 @@ export function mountWorkspace(bridge) {
     onChange: (settings) => {
       if (get().generation.engine === 'pindou') return;
       if (Number(settings.maxColors) !== get().palette.maxColors) palettes.setMaxColors(Number(settings.maxColors) || 0);
-      // Stage B2 §17 §18：界面只有一个「去除纯色背景」开关（backgroundRemoval）。
-      // 引擎读的是 autoBackground，所以这里把同一个值同时写给两者 ——
-      // 面板的 emitSettings() 已经把镜像做好了，这里再兜一次，保证从任何路径进来都一致。
-      const backgroundRemoval = Boolean(settings.backgroundRemoval);
+      // Stage B2 §17 §18 / 阶段 3：背景处理三模式。界面（面板）的
+      // backgroundMode 是真源；引擎读的 autoBackground 与兼容字段
+      // backgroundRemoval 都是它的镜像（= 模式为 auto），三者在同一个
+      // setState 里一起落库，防止「界面显示保留背景、引擎却真的去抠背景」。
+      // transparentFill 不在这里出 —— 它需要源图变换的背景色，
+      // 由 app.js 在 buildV25Options 边界补（宿主才知道 sourceTransform）。
+      const backgroundMode = settings.backgroundMode;
+      const backgroundRemoval = backgroundMode === "auto";
+      const backgroundModeWas = get().generation.backgroundMode;
       const backgroundRemovalWasOn = Boolean(get().generation.backgroundRemoval);
       store.setState({
-        generation: { engine: get().generation.engine, algorithm: get().generation.algorithm || "current", preset: settings.preset, sampling: ({ edge: "edge-aware", mean: "linear-mean" })[settings.sampling] || settings.sampling, detailProtection: settings.detailProtection, edgeProtection: settings.edgeProtection, cleanupStrength: settings.cleanupStrength, preserveHighlights: settings.preserveHighlights, preserveEyes: settings.preserveEyes, preserveMicroDetails: settings.preserveMicroDetails, backgroundRemoval, autoBackground: backgroundRemoval, subjectCrop: Boolean(settings.subjectCrop), strokeProtection: Boolean(settings.strokeProtection), accentProtection: Boolean(settings.accentProtection), brightness: settings.brightness, contrast: settings.contrast, saturation: settings.saturation },
+        generation: { engine: get().generation.engine, algorithm: get().generation.algorithm || "current", preset: settings.preset, sampling: ({ edge: "edge-aware", mean: "linear-mean" })[settings.sampling] || settings.sampling, detailProtection: settings.detailProtection, edgeProtection: settings.edgeProtection, cleanupStrength: settings.cleanupStrength, preserveHighlights: settings.preserveHighlights, preserveEyes: settings.preserveEyes, preserveMicroDetails: settings.preserveMicroDetails, backgroundMode, backgroundRemoval, autoBackground: backgroundRemoval, subjectCrop: Boolean(settings.subjectCrop), strokeProtection: Boolean(settings.strokeProtection), accentProtection: Boolean(settings.accentProtection), brightness: settings.brightness, contrast: settings.contrast, saturation: settings.saturation },
         status: { dirty: true },
       });
-      // 刚把「去除纯色背景」从关打到开 → **不立刻生成**，先跑预检让用户确认（§6）。
-      // 其他参数变化照旧直接重算。
+      // 背景模式**变化**时先跑预检，把「这一模式会动什么」摆给用户（阶段 3 §6）。
+      //   · auto：预检给 [应用]/[保留背景] 二选一，等用户拍板再生成（B2 §6 原逻辑）；
+      //   · keep / transparent：模式本身是用户的显式选择、结果确定，
+      //     预检条只是告知（透明格数估算），随后照常生成，不阻塞。
+      if (backgroundMode !== backgroundModeWas) {
+        requestBackgroundPreview(backgroundMode);
+        return;
+      }
+      // 刚把「去除纯色背景」从关打到开（老路径：store 的 autoBackground 被别处
+      // 改写而面板模式没变）→ 同样先问用户。保留它是为了不回归 B2 §6 的行为。
       if (backgroundRemoval && !backgroundRemovalWasOn) {
-        requestBackgroundPreview();
+        requestBackgroundPreview("auto");
         return;
       }
       // 任何其他参数变化都直接重算 —— 顺手收起预检条：
@@ -985,19 +998,34 @@ const steps=new Map(stepSpecs.map(([number,label],index)=>{const section=documen
     scheduleAutoGenerate(0);
   }
 
-  function showBackgroundPreview(result) {
+  /**
+   * 阶段 3：预检条按模式分流。
+   *   · auto + reliable → [应用] / [保留背景]：移除与否由用户拍板（B2 §6）；
+   *   · auto + 不可靠    → [知道了]：文案说明为什么不动原图；
+   *   · keep / transparent → [知道了]：模式是用户显式选的，结果确定，
+   *     预检条只负责告知（透明格数估算），不提供「反悔」按钮 ——
+   *     反悔的入口是上面的三张卡片本身。
+   */
+  function showBackgroundPreview(result, mode = "auto") {
     const strip = $("#ws-bg-preview");
     const text = $("#ws-bg-preview-text");
     const apply = $("#ws-bg-preview-apply");
     const keep = $("#ws-bg-preview-keep");
     const dismiss = $("#ws-bg-preview-dismiss");
     if (!strip || !text) return;
-    const reliable = Boolean(result?.reliable);
     text.textContent = result?.message || "已保持原图。";
-    strip.dataset.status = reliable ? "reliable" : "keep";
-    if (apply) apply.hidden = !reliable;
-    if (keep) keep.hidden = !reliable;
-    if (dismiss) dismiss.hidden = reliable;
+    if (mode === "auto") {
+      const reliable = Boolean(result?.reliable);
+      strip.dataset.status = reliable ? "reliable" : "keep";
+      if (apply) apply.hidden = !reliable;
+      if (keep) keep.hidden = !reliable;
+      if (dismiss) dismiss.hidden = reliable;
+    } else {
+      strip.dataset.status = "info";
+      if (apply) apply.hidden = true;
+      if (keep) keep.hidden = true;
+      if (dismiss) dismiss.hidden = false;
+    }
     strip.hidden = false;
   }
 
@@ -1005,8 +1033,12 @@ const steps=new Map(stepSpecs.map(([number,label],index)=>{const section=documen
    * 跑一次背景预检。
    * 源图解码 / 裁剪变换由 app.js 侧完成（bridge.previewBackgroundRemoval），
    * 工作台只管「什么时候问、怎么显示」。
+   *
+   * 阶段 3：`mode` 决定预检问哪个问题（见 services/background-mode.mjs）。
+   * 非 auto 模式预检结束后**照常生成** —— 模式选择本身就是确认，
+   * 预检条只是告知；只有 auto 模式等用户点 [应用] / [保留 background]。
    */
-  async function requestBackgroundPreview() {
+  async function requestBackgroundPreview(mode = "auto") {
     if (backgroundPreviewRunning) return;
     const strip = $("#ws-bg-preview");
     const text = $("#ws-bg-preview-text");
@@ -1019,7 +1051,7 @@ const steps=new Map(stepSpecs.map(([number,label],index)=>{const section=documen
       return;
     }
     backgroundPreviewRunning = true;
-    text.textContent = "正在检测背景…";
+    text.textContent = mode === "auto" ? "正在检测背景…" : "正在检查透明区域…";
     strip.dataset.status = "probing";
     const apply = $("#ws-bg-preview-apply");
     const keep = $("#ws-bg-preview-keep");
@@ -1029,9 +1061,11 @@ const steps=new Map(stepSpecs.map(([number,label],index)=>{const section=documen
     if (dismiss) dismiss.hidden = true;
     strip.hidden = false;
     try {
-      const result = await bridge.previewBackgroundRemoval({ width: size.width, height: size.height });
+      const result = await bridge.previewBackgroundRemoval({ width: size.width, height: size.height, mode });
       if (!result) { fallbackToDirectGeneration(); return; }
-      showBackgroundPreview(result);
+      showBackgroundPreview(result, mode);
+      // 非 auto 模式：告知之后照常生成（不等用户点按钮）。
+      if (mode !== "auto") scheduleAutoGenerate(0);
     } catch {
       // 预检失败不该挡住生成：静默退回「直接生成」，由引擎侧的可靠性门兜底。
       fallbackToDirectGeneration();
@@ -1040,11 +1074,15 @@ const steps=new Map(stepSpecs.map(([number,label],index)=>{const section=documen
     }
   }
 
-  /** 用户选择「保留背景」：把开关真的关掉（面板 + state 一起），再生成。 */
+  /**
+   * 用户选择「保留背景」：把模式切到**保留背景**卡片（面板 + state 一起），
+   * 再生成。按钮文案与卡片标题同名 —— 用户在哪看到的字样，点的就是哪个模式，
+   * 不搞「按钮叫保留、落地却是另一个模式」的翻译差。
+   */
   function keepBackgroundAndGenerate() {
     hideBackgroundPreview();
-    generationPanel.setState({ backgroundRemoval: false }, false);
-    store.setState({ generation: { backgroundRemoval: false, autoBackground: false } });
+    generationPanel.setState({ backgroundMode: "keep" }, false);
+    store.setState({ generation: { backgroundMode: "keep", backgroundRemoval: false, autoBackground: false } });
     scheduleAutoGenerate(0);
   }
 

@@ -18,6 +18,7 @@
 
 import { sampleGrid, sampleGridAdaptive, SamplingMode } from "../smart-preprocessing/sampling-engine-v2.mjs";
 import { SAMPLING_CONFIG_V2, buildAlphaGrid } from "../smart-preprocessing/generation-engine-v2.mjs";
+import { BACKGROUND_MODES } from "./background-mode.mjs";
 import {
   resolveBackgroundDecision,
   BACKGROUND_STATUS,
@@ -44,6 +45,13 @@ export function resolveProbeSize(width, height, cap = PREVIEW_LONG_EDGE) {
 /**
  * 跑一次背景预检。
  *
+ * 阶段 3：`mode` 决定预检问哪个问题 ——
+ *   · auto        既有路径：采样 + 可靠性门，回答「能不能安全移除纯色背景」；
+ *   · keep        回答「有多少透明区域会被填充成背景色的豆」；
+ *   · transparent 回答「有多少透明区域会留空」。
+ * 后两个模式**不跑**采样与五指标判定：它们压根不移除背景，跑一遍纯属白开销，
+ * 而且会给用户一个与当前模式无关的「建议」——那正是要避免的误导。
+ *
  * @param {object} input
  * @param {{data:Uint8ClampedArray,width:number,height:number}} input.image 源图 ImageData
  * @param {{width:number,height:number}} input.finalSize 这一版图纸的真实格数（用于折算格数）
@@ -52,10 +60,14 @@ export function resolveProbeSize(width, height, cap = PREVIEW_LONG_EDGE) {
  *   **必须与 generateV2 的 `options.preset` 同源** —— 生产链路从不传它，
  *   所以这里保持默认值，两边都走 "photo" / `autoProfile: false`。
  *   （B4 §2 之前宿主把生成模式传进来，导致预检与真实生成用的采样不一致。）
+ * @param {string} [input.mode] 阶段 3 背景处理模式（keep / transparent / auto）。
+ *   缺省 "auto" = 与阶段 3 之前的行为逐位一致（既有调用方不传它）。
+ * @param {string} [input.fillColor] keep 模式的填充色（"#rrggbb"），只影响文案。
  * @param {object} [input.options] 背景阈值 + 可靠性阈值覆盖
  * @returns {{
  *   status:string, reliable:boolean, removedCount:number, removedRatio:number,
  *   estimatedRemoved:number, message:string, reason:string,
+ *   mode:string, transparentCells:number, estimatedTransparent:number,
  *   metrics:object, detail:object, probeSize:{width:number,height:number}
  * }}
  */
@@ -64,15 +76,63 @@ export function previewBackgroundRemoval({
   finalSize = null,
   sampling = "auto",
   preset = "photo",
+  mode = BACKGROUND_MODES.AUTO,
+  fillColor = null,
   options = {},
 } = {}) {
   const sourceWidth = Number(image?.width) || 0;
   const sourceHeight = Number(image?.height) || 0;
   if (!image?.data || !sourceWidth || !sourceHeight) {
-    return emptyPreview({ width: 0, height: 0 }, "没有可预检的源图。");
+    return emptyPreview({ width: 0, height: 0 }, "没有可预检的源图。", mode);
   }
 
   const probeSize = resolveProbeSize(sourceWidth, sourceHeight);
+  const finalCells = finalSize
+    ? Math.max(1, (Number(finalSize.width) || 0) * (Number(finalSize.height) || 0))
+    : probeSize.width * probeSize.height;
+  const probeCells = probeSize.width * probeSize.height;
+  const scale = finalCells / Math.max(1, probeCells);
+
+  // 透明格估算：三个模式都用同一份 alpha 网格（口径与生成时的 buildAlphaGrid 一致）。
+  const alphaGrid = buildAlphaGrid(image, probeSize.width, probeSize.height);
+  let transparentCells = 0;
+  for (let i = 0; i < alphaGrid.length; i += 1) {
+    if (alphaGrid[i] === 0) transparentCells += 1;
+  }
+  const estimatedTransparent = Math.max(0, Math.round(transparentCells * scale));
+
+  // ── keep / transparent：只回答「透明区域会怎样」，不碰移除判定 ──────────
+  if (mode === BACKGROUND_MODES.KEEP || mode === BACKGROUND_MODES.TRANSPARENT) {
+    const base = {
+      mode,
+      transparentCells,
+      estimatedTransparent,
+      probeSize,
+      status: BACKGROUND_STATUS.NONE,
+      reliable: false,
+      removedCount: 0,
+      removedRatio: 0,
+      estimatedRemoved: 0,
+      metrics: null,
+      detail: null,
+      reason: "",
+    };
+    if (transparentCells === 0) {
+      return {
+        ...base,
+        message: mode === BACKGROUND_MODES.KEEP
+          ? "未检测到透明区域；整幅图像都会生成豆。"
+          : "未检测到透明区域；没有区域会留空。",
+      };
+    }
+    return {
+      ...base,
+      message: mode === BACKGROUND_MODES.KEEP
+        ? `预计 ${estimatedTransparent} 格透明区域将填充为背景色 ${fillColor || "#ffffff"}`
+        : `预计 ${estimatedTransparent} 格透明区域将留空、不填豆`,
+    };
+  }
+
   const sampled = sampling === SamplingMode.AUTO
     ? sampleGridAdaptive(image, probeSize.width, probeSize.height, {
       preset, autoProfile: preset === "auto", ...SAMPLING_CONFIG_V2,
@@ -89,7 +149,6 @@ export function previewBackgroundRemoval({
     markerGrid.push(row);
   }
 
-  const alphaGrid = buildAlphaGrid(image, probeSize.width, probeSize.height);
   const decision = resolveBackgroundDecision({
     rgbGrid: sampled.colors,
     alphaGrid,
@@ -100,20 +159,19 @@ export function previewBackgroundRemoval({
   });
 
   const reliable = decision.status === BACKGROUND_STATUS.RELIABLE;
-  const finalCells = finalSize
-    ? Math.max(1, (Number(finalSize.width) || 0) * (Number(finalSize.height) || 0))
-    : probeSize.width * probeSize.height;
-  const probeCells = probeSize.width * probeSize.height;
   const estimatedRemoved = reliable
-    ? Math.max(0, Math.round(decision.removedCount * (finalCells / Math.max(1, probeCells))))
+    ? Math.max(0, Math.round(decision.removedCount * scale))
     : 0;
 
   return {
+    mode: BACKGROUND_MODES.AUTO,
     status: decision.status,
     reliable,
     removedCount: decision.removedCount,
     removedRatio: decision.removedRatio,
     estimatedRemoved,
+    transparentCells,
+    estimatedTransparent,
     message: reliable
       ? formatBackgroundRemovalMessage(estimatedRemoved, decision.removedRatio)
       : BACKGROUND_KEEP_MESSAGE,
@@ -124,13 +182,16 @@ export function previewBackgroundRemoval({
   };
 }
 
-function emptyPreview(probeSize, reason) {
+function emptyPreview(probeSize, reason, mode = BACKGROUND_MODES.AUTO) {
   return {
+    mode,
     status: BACKGROUND_STATUS.NONE,
     reliable: false,
     removedCount: 0,
     removedRatio: 0,
     estimatedRemoved: 0,
+    transparentCells: 0,
+    estimatedTransparent: 0,
     message: BACKGROUND_KEEP_MESSAGE,
     reason,
     metrics: null,

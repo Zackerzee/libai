@@ -964,7 +964,11 @@ body.phase2-workspace #ws-generation-top-controls .ws-size-slider input[type="ra
 body.phase2-workspace #ws-generation-top-controls .ws-size-slider input[type="number"]{width:60px;min-height:30px;box-sizing:border-box;border:1px solid var(--ws-border);border-radius:6px;padding:3px 6px;background:var(--ws-surface);color:var(--ws-text)}
 body.phase2-workspace #ws-generation-background-host{flex:0 0 auto}
 body.phase2-workspace #ws-generation-background-controls{margin:0;padding:0;border:0}
-body.phase2-workspace #ws-generation-background-controls small{display:none}
+/* 阶段 3：背景卡已整体搬进右栏步进卡（step 4），卡片说明文字必须可见。
+   原规则按 ID 隐藏 small，权重压过一切类名放行规则（实测三卡说明全被藏）。
+   收窄为「仅在紧凑顶栏内」生效 —— moveToStep 用 append 移动语义，搬走后
+   容器祖先链里没有 #ws-generation-top-controls，规则自然失效。 */
+body.phase2-workspace #ws-generation-top-controls #ws-generation-background-controls small{display:none}
 body.phase2-workspace #ws-generation-top-controls :is(.ws-size-authority,.ws-size-tier){max-width:200px;white-space:normal;font-size:11px}
 @media(max-width:760px){
   body.phase2-workspace .ws-top-controls{height:72px;min-height:72px;max-height:72px;padding:5px 8px;gap:8px}

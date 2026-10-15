@@ -127,6 +127,11 @@
       preserveEyes: true,             // projectStore.generation.preserveEyes
       preserveMicroDetails: true,     // projectStore.generation.preserveMicroDetails
       backgroundRemoval: false,       // projectStore.generation.backgroundRemoval
+      // 阶段 3：背景处理三模式的**真源字段**（keep / transparent / auto，
+      // 见 services/background-mode.mjs）。backgroundRemoval / autoBackground
+      // 是它的兼容镜像（= mode === "auto"），保留是为了不让既有读者断链。
+      // 默认 transparent = 改造前的既成行为（透明格走采样引擎的跳过逻辑）。
+      backgroundMode: "transparent",  // projectStore.generation.backgroundMode
       // 以下 4 个是 projectStore 里【运行时动态新增】的字段（不在其 defaults），必须收录否则丢
       subjectCrop: false,             // projectStore.generation.subjectCrop
       autoBackground: false,          // projectStore.generation.autoBackground

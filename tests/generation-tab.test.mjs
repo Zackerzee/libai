@@ -36,9 +36,16 @@ test("§4.2 生成模式 + 颜色数量 + 背景都在「生成」面板内", ()
   // 颜色数量（§6 的显示层）
   assert.match(panel, /data-field="maxColors"/);
   assert.match(panel, /data-color-cap=/);
-  // 背景：界面上只有一个「去除纯色背景」开关（B2 §17），且它在这个面板里
-  assert.match(panel, /switchRow\(\s*"backgroundRemoval",\s*"去除纯色背景"/);
-  assert.doesNotMatch(panel, /"autoBackground",\s*\n?\s*"/, "不该有第二个背景开关");
+  // 阶段 3：背景处理是「三选一卡片」而不是开关。卡片文案必须来自
+  // services/background-mode.mjs 的 BACKGROUND_MODE_LIST（单一来源），
+  // 面板不许内嵌第二份模式说明。
+  assert.match(panel, /data-bg-mode="\$\{mode\.id\}"/);
+  assert.match(panel, /BACKGROUND_MODE_LIST\.map/);
+  assert.match(panel, /id="sl-bg-mode-hint"/, "背景模式必须带状态行");
+  assert.match(panel, /from "\.\.\/services\/background-mode\.mjs/);
+  // 没有第二个背景开关 / 第二张背景参数表
+  assert.doesNotMatch(panel, /switchRow\(\s*"background/, "背景不该再有 switchRow 开关");
+  assert.doesNotMatch(panel, /backgroundRemoval:\s*(true|false)/, "面板 state 不该自己持有布尔背景态");
 });
 
 test("§4.3 生成状态：文案只从 state.status.generationPhase 取，不在这里重写一份", () => {

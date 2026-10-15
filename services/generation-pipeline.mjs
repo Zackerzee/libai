@@ -20,6 +20,7 @@ import { generateV2 } from "../smart-preprocessing/generation-engine-v2.mjs";
 import { resolveLabCandidate } from "../smart-preprocessing/lab/index.mjs";
 import { classifySource } from "./source-classifier.mjs";
 import { isLocalFusionSampler } from "../smart-preprocessing/local-fusion-sampler.mjs";
+import { backgroundModeOf, resolveBackgroundModeOptions } from "./background-mode.mjs";
 import {
   GENERATION_MODES,
   MODE_PROFILES,
@@ -118,6 +119,22 @@ export function runGenerationPipeline({ image, mode = "auto", size, palette, max
   // 声明过的字段，理论上会丢掉它；但「理论上会丢掉」正是那种会在某次重构后
   // 变成「悄悄漏进引擎选项」的东西 —— 显式摘掉，让它是**结构上不可能**。
   const { labCandidate, localFusionSampler, ...engineOverrides } = (overrides && typeof overrides === "object") ? overrides : {};
+  // 阶段 3：背景处理三模式 → 引擎选项。**翻译必须发生在 profile 合并之前**：
+  // 模式档案里 beginner 的 autoBackground 是 true，而用户的背景模式选择
+  // （如 transparent）必须能盖过它 —— normalizeModeOverrides 正是靠
+  // overrides.autoBackground 覆盖档案值的，翻译晚了就盖不回来了。
+  //
+  // 只在调用方**表态过**背景时才翻译（三个信号任一存在）：
+  //   · 带 backgroundMode（新 UI 路径，store 的 generation 槽）；
+  //   · 或只带 autoBackground（B2 单一开关时代的调用方）→ 翻译是恒等映射；
+  //   · 两者都不带（跑分器 / 工具直调）→ 不碰，模式档案的 autoBackground 照说。
+  // 少了这条守卫，benchmark 里 beginner 的自动去背景会被静默关掉。
+  if ("backgroundMode" in engineOverrides || "autoBackground" in engineOverrides || "transparentFill" in engineOverrides) {
+    const bgMode = backgroundModeOf(engineOverrides);
+    const mapped = resolveBackgroundModeOptions(bgMode, { fillColor: engineOverrides.backgroundFillColor });
+    engineOverrides.autoBackground = mapped.autoBackground;
+    engineOverrides.transparentFill = mapped.transparentFill;
+  }
   const selectedSampler = experimentalSampler ?? localFusionSampler;
   if (localFusionSampler != null && !isLocalFusionSampler(localFusionSampler)) {
     throw new RangeError('未知的本地融合采样策略：' + String(localFusionSampler));

@@ -181,6 +181,15 @@ button, input, select, textarea { accent-color: var(--ds-color-accent); }
 .phase2-workspace .sl-strategy-card .sl-preset-copy small { display: block; font-size: 11px; line-height: 1.35; white-space: normal; }
 .phase2-workspace .sl-strategy-hint { margin: 6px 0 0; font-size: 11px; line-height: 1.5; color: var(--ws-text-tertiary); }
 
+/* ---- 阶段 3：背景处理三卡放行 ----
+   同一理由：三个模式的区别全在说明文字里（透明区域填充 / 留空 / 自动移除），
+   藏掉 small 就分不清「保留背景」和「保留原图透明区域」了。 */
+.phase2-workspace .sl-bg-grid { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+.phase2-workspace .sl-bg-card { grid-template-columns: minmax(0, 1fr); gap: 4px; min-height: 0; padding: 7px 9px; }
+.phase2-workspace .sl-bg-card .sl-preset-copy { gap: 1px; }
+.phase2-workspace .sl-bg-card .sl-preset-copy small { display: block; font-size: 11px; line-height: 1.35; white-space: normal; }
+.phase2-workspace .sl-bg-hint { margin: 6px 0 0; font-size: 11px; line-height: 1.5; color: var(--ws-text-tertiary); }
+
 /* 尺寸快捷值、采样方式等按钮组同样收紧 */
 .phase2-workspace .sl-size-presets { gap: 3px; }
 .phase2-workspace .sl-size-presets button { min-height: 24px; padding: 0 6px; font-size: 13px; border-radius: var(--ds-radius-sm); }

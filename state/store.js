@@ -127,6 +127,11 @@
       preserveEyes: true,             // projectStore.generation.preserveEyes
       preserveMicroDetails: true,     // projectStore.generation.preserveMicroDetails
       backgroundRemoval: false,       // projectStore.generation.backgroundRemoval
+      // 阶段 3：背景处理三模式的**真源字段**（keep / transparent / auto，
+      // 见 services/background-mode.mjs）。backgroundRemoval / autoBackground
+      // 是它的兼容镜像（= mode === "auto"），保留是为了不让既有读者断链。
+      // 默认 transparent = 改造前的既成行为（透明格走采样引擎的跳过逻辑）。
+      backgroundMode: "transparent",  // projectStore.generation.backgroundMode
       // 以下 4 个是 projectStore 里【运行时动态新增】的字段（不在其 defaults），必须收录否则丢
       subjectCrop: false,             // projectStore.generation.subjectCrop
       autoBackground: false,          // projectStore.generation.autoBackground
@@ -150,15 +155,19 @@
       currentSelectedColor: null, // state.currentSelectedColor
       label: "",               // state.paletteLabel
       engine: null,            // state.paletteEngine
+      availableColorsByPalette: {}, // 本机生成色卡偏好，不改变完整真实色库
     },
 
     rendererState: {
       // —— Phase 3B：承接 projectStore.view 的"渲染模式与显示开关" ——
       // 注意：这里的 showGrid/showCodes 与下面的 prefs.showGrid/showCodes 是【两套不同】的开关
       // （前者来自 projectStore.view，后者来自 app.js 的 state.editorPrefs），不可混用。
-      mode: "blocks",                   // projectStore.view.mode（blocks / pattern …）
+      // 「成像」(blocks) / 「拼豆」(beads) 两个视图按钮已从底栏移除，只剩「施工图」。
+      // 默认值必须跟着改成 pattern：否则新图纸一打开就停在 blocks，而切回来的按钮已经没了，
+      // 用户会被永久卡在一个没有出口的视图里。
+      mode: "pattern",                  // projectStore.view.mode（pattern / blocks / beads / original）
       showGrid: false,                  // projectStore.view.showGrid
-      showCodes: false,                 // projectStore.view.showCodes
+      showCodes: true,                  // projectStore.view.showCodes（底栏「色号」默认勾选）
       codeVisibilityThreshold: 16,      // projectStore.view.codeVisibilityThreshold
       previewRenderCell: 8,            // state.previewRenderCell
       previewDetailCodesVisible: false, // state.previewDetailCodesVisible
@@ -289,7 +298,7 @@
 
     /** 参考图叠加层：projectStore.reference */
     referenceState: {
-      url: "", opacity: 40, fit: "contain", visible: true, useSource: true,
+      url: "", opacity: 40, fit: "contain", visible: false, useSource: false,
       offsetX: 0, offsetY: 0, scale: 1, smoothing: "smooth", displayMode: "normal", adjusting: false,
     },
 
@@ -372,6 +381,8 @@
 
     generationEngine: ["processingState", "generationEngine"],
     generationEngineLast: ["processingState", "generationEngineLast"],
+    pindouOptions: ["processingState", "pindouOptions"],
+    pindouReport: ["processingState", "pindouReport"],
     generationPreset: ["processingState", "generationPreset"],
     generationSampling: ["processingState", "generationSampling"],
     algorithmEngine: ["processingState", "algorithmEngine"],

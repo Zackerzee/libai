@@ -41,6 +41,20 @@ function fnBody(source, signature) {
 
 const SIZE_SECTION = slice(WORKSPACE, "// ── 生成尺寸（Generation Size）", "// 选区相关的动作统一走这里");
 
+test("size presets bind and repaint within the actual generation panel container",()=>{
+  assert.equal((SIZE_SECTION.match(/\$\("#ws-size-chips"\)\.querySelectorAll\("\[data-size\]"\)/g)||[]).length,2);
+  assert.doesNotMatch(SIZE_SECTION,/topControls\.querySelectorAll\("\[data-size\]"\)/);
+});
+
+test("背景处理三卡片在生成模式之前，且共用同一份面板 state",()=>{
+  assert.ok(PANEL.indexOf('id="ws-generation-background-controls"')<PANEL.indexOf('${this.renderGenMethodSection()}'));
+  // 阶段 3：单开关 → 三选一卡片。文案来自共享契约（BACKGROUND_MODE_LIST），
+  // 面板只渲染卡片 + 一条状态行。
+  assert.match(PANEL,/data-bg-mode=/);
+  assert.match(PANEL,/id="sl-bg-mode-hint"/);
+  assert.doesNotMatch(PANEL,/switchRow\(\s*"background/);
+});
+
 test("尺寸：滑杆 / 数字框 / 滚轮 / 方向键都只改草稿，不触发生成（§7 生成次数必须为 0）", () => {
   const draftOnly = ["setLongEdgeDraft", "stepLongEdgeDraft", "pushDraftToBridge", "syncSizeUi"];
   for (const name of draftOnly) {
@@ -186,10 +200,10 @@ test("尺寸：导入首帧生成等倍数识别落地，只跑一次（§4 触�
 
 test("尺寸：像素倍数识别被保留，且识别失败也走一次 applyLogicalSize（§2 / §3）", () => {
   assert.match(WORKSPACE, /detectPixelMultiple/, "detectPixelMultiple 是「自动」档的唯一依据，不能删");
-  assert.match(WORKSPACE, /logicalSize/, "logicalSize 是「自动」档的唯一依据，不能删");
+  assert.match(WORKSPACE, /recommendAutomaticSize/, "自动尺寸必须经过推荐服务");
   const detection = fnBody(WORKSPACE, "function ensureMultipleDetection(");
-  assert.match(detection, /\.catch\(\(\) => \{ detectedMultiple = 1; \}\)/, "识别失败退化为 1×");
-  assert.match(detection, /\.then\(\(\) => \{ applyLogicalSize\(\); return detectedMultiple; \}\)/, "成功与失败都必须走 applyLogicalSize");
+  assert.match(detection, /\.catch\(\(\) => \{ if \(currentSource\(\)\) \{ detectedMultiple = 1;/, "识别失败退化为 1×，旧图结果不得污染新图");
+  assert.match(detection, /\.then\(\(\) => \{ if \(currentSource\(\)\) applyLogicalSize\(\); return detectedMultiple; \}\)/, "当前图成功与失败都必须走 applyLogicalSize");
   // 旧倍数 UI 的死代码必须清干净
   for (const dead of ["manualMultiple", "syncMultipleReadout", "effectiveMultiple", "data-multiple-step", "ws-multiple-value"]) {
     assert.ok(!WORKSPACE.includes(dead), `旧倍数死代码残留：${dead}`);

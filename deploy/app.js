@@ -2254,6 +2254,14 @@ function buildV25Options(options = {}, maxColors = 0) {
     preserveMicroDetails: options.preserveMicroDetails !== false,
     subjectCrop: options.subjectCrop === true,
     autoBackground: options.autoBackground === true,
+    // 阶段 3：背景处理三模式（store.generation.backgroundMode）。
+    // **缺省不表态（null）** —— 让模式档案自己说话：跑分器 / 工具直调都不带
+    // 这个字段，beginner 档案的 autoBackground:true 不能被默认值盖掉。
+    // 翻译发生在 services/generation-pipeline.mjs（profile 合并之前），
+    // 那里同步产出 autoBackground 与 transparentFill。
+    backgroundMode: options.backgroundMode ?? null,
+    // keep 模式的透明填充色紧随模式：宿主（也只有宿主）知道源图变换的背景色。
+    backgroundFillColor: state.sourceTransform?.background || null,
     strokeProtection: options.strokeProtection === true,
     accentProtection: options.accentProtection === true,
     smartColorTolerance: { enabled: false, strength: 0, policy: "quality-first", ...options.smartColorTolerance },
@@ -2263,7 +2271,7 @@ function buildV25Options(options = {}, maxColors = 0) {
 
 /** 实验室直调 generateV2 用：把模式档案换算成引擎口径。换算逻辑只有一份。 */
 async function v25EngineOptions(options = {}, maxColors = 0) {
-  const { resolveGenerationPipeline, toEngineOptions } = await import("./services/mode-profile.mjs?v=20261003-stage-b4");
+  const { resolveGenerationPipeline, toEngineOptions } = await import("./services/mode-profile.mjs?v=20261015-stage3");
   const profile = buildV25Options(options, maxColors);
   return toEngineOptions(resolveGenerationPipeline(profile.mode, null, profile), { maxColors });
 }
@@ -2530,6 +2538,7 @@ function smartToleranceContext(width, height, maxColors, paletteContext = smartT
   const panelSettings = Object.fromEntries([
     "maxColors", "detailProtection", "edgeProtection", "cleanupStrength",
     "preserveHighlights", "preserveEyes", "preserveMicroDetails", "backgroundRemoval",
+    "backgroundMode",
     "subjectCrop", "autoBackground", "strokeProtection", "accentProtection", "colorTuning",
     "generationPreset", "generationSampling",
   ].map(key => [key, processing[key]]));
@@ -4025,7 +4034,7 @@ async function runGenerationJob({ image, mode, size, palette, maxColors, overrid
       const { runLocalFusionEngine } = await import("./services/local-fusion-engine.mjs");
       return runLocalFusionEngine({ image, mode, size, palette, maxColors, overrides });
     }
-    const { runGenerationPipeline } = await import("./services/generation-pipeline.mjs?v=20260930-pipeline");
+    const { runGenerationPipeline } = await import("./services/generation-pipeline.mjs?v=20261015-stage3");
     return runGenerationPipeline({ image, mode, size, palette, maxColors, overrides });
   }
   const request = contract.createGenerationRequest({
@@ -8207,9 +8216,9 @@ window.LibmsWorkspaceBridge = {
    * 返回 null 表示「没有可预检的源图」—— 调用方应直接走正常生成。
    * 预检本身**不写任何 state**，也不改 `state.grid`：它是一次只读探测。
    */
-  async previewBackgroundRemoval({ width, height } = {}) {
+  async previewBackgroundRemoval({ width, height, mode = "auto" } = {}) {
     if (!state.sourceDataUrl) return null;
-    const previewModule = await import("./services/background-preview-service.mjs?v=20261003-stage-b2");
+    const previewModule = await import("./services/background-preview-service.mjs?v=20261015-stage3");
     const original = await loadImage(state.sourceDataUrl);
     const sourceEditor = await loadSourceEditor();
     const processed = sourceEditor.hasSourceTransform(state.sourceTransform)
@@ -8236,6 +8245,9 @@ window.LibmsWorkspaceBridge = {
       // 从不传这个提示，`autoProfile` 恒为 false。结果是**预检与真实生成
       // 用的不是同一套采样**，正是 B2 要避免的那类偏差。
       // 现在两边都不传，服务默认值与引擎兜底值一致。
+      // 阶段 3：mode / fillColor 决定预检问哪个问题（见 background-mode.mjs）。
+      mode,
+      fillColor: state.sourceTransform?.background || null,
     });
   },
   /**

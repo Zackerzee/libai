@@ -144,6 +144,30 @@
   color: var(--ds-color-text-secondary);
 }
 
+/* 阶段 3：背景处理三卡片。与生成目标卡片同构（单列 + 说明文字可见），
+   理由同阶段 2：三个选项带真实信息量，压成图标列会丢掉选择依据。
+   pixler-skin.css 同样需要放行规则（见该文件末尾的阶段 3 区段）。 */
+.sl-bg-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.sl-bg-card {
+  min-height: 0;
+  padding: 10px 12px;
+}
+
+.sl-bg-card .sl-preset-copy small {
+  line-height: 1.5;
+}
+
+.sl-bg-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ds-color-text-secondary);
+}
+
 .sl-size-presets {
   display: flex;
   flex-wrap: wrap;
@@ -581,6 +605,9 @@ input:checked + .sl-switch-ui::after {
    不用 preset 卡的 62px 等高。pixler-skin.css 里有最终生效的压缩版。 */
 .phase2-workspace .sl-strategy-grid { gap: 7px; }
 .phase2-workspace .sl-strategy-card { grid-template-columns: minmax(0, 1fr); min-height: 0; padding: 9px 12px; }
+/* 阶段 3：背景卡与策略卡同一形态（无图标列、说明文字可见）。 */
+.phase2-workspace .sl-bg-grid { gap: 7px; }
+.phase2-workspace .sl-bg-card { grid-template-columns: minmax(0, 1fr); min-height: 0; padding: 9px 12px; }
 .phase2-workspace .sl-preset-card { display: grid; grid-template-columns: 36px minmax(0,1fr); align-items: center; gap: 11px; min-height: 62px; padding: 9px 12px; border-color: var(--ws-border); border-radius: 10px; }
 .phase2-workspace .sl-preset-card:hover { border-color: var(--ds-color-accent); }
 .phase2-workspace .sl-preset-card.is-active { border-color: var(--ws-accent); background: var(--ws-accent-soft); box-shadow: inset 0 0 0 1px var(--ws-accent); }
