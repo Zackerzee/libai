@@ -4307,8 +4307,27 @@ const features=[['生成尺寸','generation','ws-size-controls'],['生成去纯�
     resizeDialog.querySelector(`[name="ws-resize-anchor"][value="${event.target.value}"]`).checked = true;
     syncResizeSummary();
   });
+  // ── 行内「尺寸设置」滑杆：位置 ↔ 长边值 映射 ──────────────────────────
+  // 原生 range 把 1–1000 线性铺在 90px 轨道上：每拖 1px 跳约 11 格，从轨道中段
+  // 抓起的一瞬间能从 104 直接蹦到 500 —— 用户原话「轻微一点数据变化超级多」。
+  // 90px 的轨道物理上装不下 1000 个「一格一位」，所以常用区一格一位、大尺寸区
+  // 十格一位（精确到格由两侧 ±1 按钮 / 方向键 / 滚轮负责）：
+  //   · 位置 0–149  ↔ 值 1–150    常用区间距 1px/格，慢拖就是一格一格
+  //   · 位置 150–234 ↔ 值 160–1000 每位置 10 格，大尺寸区快速跨域
+  // 往返必须精确（valueToPosition(positionToValue(p))===p），否则 UI 同步会把
+  // 用户的值改掉。
+  const LIVE_SIZE_FINE_MAX=150,LIVE_SIZE_COARSE_BASE=160,LIVE_SIZE_COARSE_STEP=10,LIVE_SIZE_MAX_POSITION=LIVE_SIZE_FINE_MAX+(1000-LIVE_SIZE_COARSE_BASE)/LIVE_SIZE_COARSE_STEP;
+  const liveSizeValueToPosition=value=>{const v=Math.round(Number(value));if(!Number.isFinite(v))return 0;return v<=LIVE_SIZE_FINE_MAX?Math.max(0,v-1):Math.min(LIVE_SIZE_MAX_POSITION,LIVE_SIZE_FINE_MAX+Math.round((v-LIVE_SIZE_COARSE_BASE)/LIVE_SIZE_COARSE_STEP));};
+  const liveSizePositionToValue=position=>{const p=Math.round(Number(position));if(!Number.isFinite(p))return 1;return p<LIVE_SIZE_FINE_MAX?Math.max(1,p+1):Math.min(1000,LIVE_SIZE_COARSE_BASE+(p-LIVE_SIZE_FINE_MAX)*LIVE_SIZE_COARSE_STEP);};
+  /** 当前可用的长边值域：未编辑的源图走生成尺寸（10–500），手工图案走结构缩放（1–1000）。 */
+  const liveSizeBounds=()=>{const result=bridge.getResult();return result.sourceUrl&&!result.manualEdited?{min:10,max:500}:{min:1,max:1000};};
+  // liveSizeEdge = 当前长边（值空间）。拖拽映射 / 步进 / 预设 / UI 同步都写它，
+  // 让步进永远从「上次生效的格数」继续——「＋29 扩张后再点 ＋1」也回得上。
+  // liveSizeSyntheticInput 标记「这次 input 带确切格数」：粗区只有 10 的倍数
+  // 能靠拖拽到达，其余整数（如 311）要一格不差就得走这个通道。
+  let liveSizeEdge=null,liveSizeSyntheticInput=false;
   const liveSize = document.createElement('label'); liveSize.className='ws-live-size';
-  liveSize.innerHTML='<output id="ws-live-size-value"></output><input id="ws-live-size-range" type="range" min="1" max="1000" step="1" aria-label="图纸尺寸（按当前宽高比例）">';
+  liveSize.innerHTML='<output id="ws-live-size-value" aria-live="polite"></output><button type="button" class="ws-size-step" data-live-size-step="-1" aria-label="长边减一格" title="长边减一格（按住 Shift 减十格）">−</button><input id="ws-live-size-range" type="range" min="0" max="'+LIVE_SIZE_MAX_POSITION+'" step="1" aria-label="图纸长边（格）：拖动逐格调整，也可用两侧按钮或方向键"><button type="button" class="ws-size-step" data-live-size-step="1" aria-label="长边加一格" title="长边加一格（按住 Shift 加十格）">+</button>';
   const sizeNumbers=$('#ws-resize-width').closest('.ws-selection-actions');sizeNumbers.hidden=true;sizeNumbers.before(liveSize);
   $('#ws-resize-apply').hidden=true;$('#ws-resize-apply').style.display='none';
   let liveSizeBaseline=null, liveSizeCommand=null;
@@ -4319,7 +4338,7 @@ const features=[['生成尺寸','generation','ws-size-controls'],['生成去纯�
   resizeDialog.querySelector('.ws-resize-modes').hidden=true;
   resizeDialog.querySelector('.ws-resize-modes').style.display='none';
   $('#ws-resize-anchor-wrap').hidden=true;
-  const updateLiveSizeUi=()=>{const result=bridge.getResult();const slider=$('#ws-live-size-range');const sourceGeneration=Boolean(result.sourceUrl&&!result.manualEdited);slider.min=sourceGeneration?'10':'1';slider.max=sourceGeneration?'500':'1000';$('#ws-live-size-value').textContent=`${result.width} × ${result.height}`;if(!liveSizeBaseline)slider.value=String(Math.max(result.width,result.height));};
+  const updateLiveSizeUi=()=>{const result=bridge.getResult();const slider=$('#ws-live-size-range');$('#ws-live-size-value').textContent=`${result.width} × ${result.height}`;if(!liveSizeBaseline){const bounds=liveSizeBounds();const edge=clamp(Math.max(result.width,result.height),bounds.min,bounds.max);liveSizeEdge=edge;slider.value=String(liveSizeValueToPosition(edge));}};
   function finishLiveSize() {
     if(liveSizeCommand){editorService.executeCommand(liveSizeCommand);liveSizeAppliedGrid=bridge.getResult().grid;liveSizeAppliedRevision=gridRevision;}
     liveSizeBaseline=null;liveSizeCommand=null;updateLiveSizeUi();
@@ -4327,7 +4346,13 @@ const features=[['生成尺寸','generation','ws-size-controls'],['生成去纯�
   const syncLiveResize = () => {const result=bridge.getResult();store.setState({canvas:{width:result.width,height:result.height},editor:{selection:null,selectedCell:null},status:{dirty:true,hasPattern:true}});viewport.fitToViewport();syncResizeInputs();updateLiveSizeUi();};
   $('#ws-live-size-range').addEventListener('input',event=>{
     if(lockedAuthority())return;
-    sizeOrigin='manual';setLongEdgeDraft(event.target.value);
+    // 滑杆的 value 是「位置」不是格数：换算回长边。步进按钮 / 预设有精确值通道。
+    const exact=liveSizeSyntheticInput?liveSizeEdge:null;
+    liveSizeSyntheticInput=false;
+    const bounds=liveSizeBounds();
+    const edge=clamp(exact!==null?exact:liveSizePositionToValue(Number(event.target.value)),bounds.min,bounds.max);
+    liveSizeEdge=edge; // 记住刚生效的格数：下一步步进从它继续，不从轨道位置反推
+    sizeOrigin='manual';setLongEdgeDraft(edge);
     setLongEdgeAuthority(LONG_EDGE_EVENT.USER_APPLIED);pushDraftToBridge();
     // Unedited source images must regenerate at the requested resolution;
     // structural resize would mark them manually edited and block generation.
@@ -4335,14 +4360,24 @@ const features=[['生成尺寸','generation','ws-size-controls'],['生成去纯�
     if(!liveSizeBaseline){const result=bridge.getResult();if(!result.grid?.length)return;
       if(!liveSizeSource||result.grid!==liveSizeAppliedGrid||gridRevision!==liveSizeAppliedRevision)liveSizeSource={grid:structuredClone(result.grid),width:result.width,height:result.height};
       liveSizeBaseline={grid:structuredClone(result.grid),width:result.width,height:result.height};}
-    const edge=Number(event.target.value),longEdge=Math.max(liveSizeSource.width,liveSizeSource.height);
+    const longEdge=Math.max(liveSizeSource.width,liveSizeSource.height);
     const targetWidth=Math.max(1,Math.round(liveSizeSource.width*edge/longEdge)),targetHeight=Math.max(1,Math.round(liveSizeSource.height*edge/longEdge));
     liveSizeCommand=createGridResizeCommand(bridge,{...liveSizeBaseline,patternSource:liveSizeSource,targetWidth,targetHeight,mode:'pattern'});
     liveSizeCommand.execute();liveSizeAppliedGrid=bridge.getResult().grid;liveSizeAppliedRevision=gridRevision;syncLiveResize();
   });
   $('#ws-live-size-range').addEventListener('change',finishLiveSize);
   $('#ws-live-size-range').addEventListener('blur',finishLiveSize);
-  resizeDialog.querySelectorAll('[data-resize-preset]').forEach(button=>button.addEventListener('click',()=>{const slider=$('#ws-live-size-range');slider.value=button.dataset.resizePreset;slider.dispatchEvent(new Event('input',{bubbles:true}));finishLiveSize();}));
+  resizeDialog.querySelectorAll('[data-resize-preset]').forEach(button=>button.addEventListener('click',()=>{const slider=$('#ws-live-size-range');const value=Number(button.dataset.resizePreset);liveSizeEdge=value;liveSizeSyntheticInput=true;slider.value=String(liveSizeValueToPosition(value));slider.dispatchEvent(new Event('input',{bubbles:true}));finishLiveSize();}));
+  /** 步进：按钮 / 方向键统一按「值 ±1（Shift ±10）」走，再换算成滑杆位置——一格不差。 */
+  const liveSizeStep=(delta)=>{if(!delta)return;const slider=$('#ws-live-size-range');const bounds=liveSizeBounds();const current=clamp(liveSizeEdge!==null?liveSizeEdge:liveSizePositionToValue(Number(slider.value)),bounds.min,bounds.max);const next=clamp(current+delta,bounds.min,bounds.max);liveSizeEdge=next;liveSizeSyntheticInput=true;slider.value=String(liveSizeValueToPosition(next));slider.dispatchEvent(new Event('input',{bubbles:true}));if(liveSizeCommand)finishLiveSize();};
+  liveSize.addEventListener('click',event=>{const button=event.target.closest('[data-live-size-step]');if(!button)return;liveSizeStep(Number(button.dataset.liveSizeStep)*(event.shiftKey?10:1));});
+  $('#ws-live-size-range').addEventListener('keydown',event=>{
+    if(event.key!=='ArrowLeft'&&event.key!=='ArrowRight'&&event.key!=='ArrowUp'&&event.key!=='ArrowDown')return;
+    event.preventDefault(); // 原生方向键按 position 步进（粗区一步 10 格）；这里按值步进
+    liveSizeStep((event.key==='ArrowRight'||event.key==='ArrowDown'?1:-1)*(event.shiftKey?10:1));
+  });
+  // 滚轮与方向键同语义：±1，Shift ±10（和「生成尺寸」的滚轮一致）。
+  $('#ws-live-size-range').addEventListener('wheel',event=>{event.preventDefault();if(lockedAuthority())return;liveSizeStep((event.deltaY<0?1:-1)*(event.shiftKey?10:1));},{passive:false});
   store.subscribe((state,patch={})=>{if(patch.canvas&&!liveSizeBaseline)updateLiveSizeUi();});
   const expansionButtons=document.createElement('div'); expansionButtons.className='ws-inline-expand';
   expansionButtons.innerHTML=[['left','左'],['right','右'],['top','上'],['bottom','下']].map(([direction,label])=>`<button type="button" data-expand-direction="${direction}">${label}＋29</button>`).join('');

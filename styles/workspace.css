@@ -1601,6 +1601,13 @@ body.phase2-workspace .ws-project-information-body .ws-panel{display:block!impor
 body.phase2-workspace .ws-inline-size .ws-selection-actions[hidden]{display:none!important}
 body.phase2-workspace .ws-live-size{display:flex;align-items:center;gap:9px;white-space:nowrap}
 body.phase2-workspace .ws-live-size input{width:150px;min-width:80px}
+/* 「尺寸设置」滑杆逐格化：细区 1 格/位置需要约 150px 轨道（原生 90px 每拖 1px 跳 11 格）。
+   150px 是本样式的原始设计宽度，此前被 .ws-inline-size 的 90px 规则压掉。
+   特异性必须压过 #ws-tool-options input[type=range]{width:70px} 与 .ws-inline-size 的 90px。 */
+body.phase2-workspace #ws-tool-options .ws-live-size input[type="range"]{flex:0 1 150px;width:150px;min-width:120px;max-width:none}
+body.phase2-workspace .ws-live-size .ws-size-step{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;min-width:24px;padding:0;border:1px solid var(--ws-border);border-radius:6px;background:var(--ws-surface);color:var(--ws-text);font-size:15px;line-height:1;cursor:pointer}
+body.phase2-workspace .ws-live-size .ws-size-step:hover{border-color:var(--ws-accent);color:var(--ws-accent)}
+@media(pointer:coarse){body.phase2-workspace .ws-live-size .ws-size-step{width:30px;height:30px;min-width:30px;font-size:17px}}
 body.phase2-workspace .ws-inline-expand{display:flex;gap:5px;flex:0 0 auto;align-items:center}
 body.phase2-workspace .ws-inline-expand button{white-space:nowrap}
 body.phase2-workspace .ws-inline-size #ws-size-number{display:none}
