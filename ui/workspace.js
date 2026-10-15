@@ -22,7 +22,8 @@ import { rectangularSelection, sameColorSelection, connectedSelection, selection
 import { combineSelections } from "../services/selection-combine.mjs?v=20261007-layout";
 import { lassoSelection } from "../services/lasso-selection.mjs?v=20261007-paint-r14";
 import { magicWandSelection, fitSelectionBox, invertSelection as invertSelectionMask, selectAll as selectAllCells, translateSelection } from "../services/shapes-service.js?v=20260918-usage2";
-import { renderSourceTransform, defaultSourceTransform, cropFromDrag, sourceOutputGeometry } from "../services/source-editor-service.js?v=20261014-transparent-1";
+import { renderSourceTransform, defaultSourceTransform, sourceOutputGeometry, canonicalizeSourceTransform, transformSourceOrientation, renderSourceOrientation } from "../services/source-editor-service.js?v=20261015-source-preprocess-1";
+import { createSourceCropController, cropHandlePoints } from './source-crop-controller.mjs';
 import { attachSourceAdjustmentControls } from './source-adjustment-controller.mjs';
 import { GenerationPanel } from "./generation-panel.js?v=20261015-stage3-1";
 import { GridEditorToolbar, SHAPE_TOOLS } from "./grid-editor-toolbar.js?v=20261015-qr-1";
@@ -148,7 +149,7 @@ export function mountWorkspace(bridge) {
     <button type="button" class="ws-button ws-button-primary" id="ws-export" disabled>导出</button>
     <select id="ws-engine" hidden aria-label="生成引擎"><option value="v2.5">融合引擎</option></select>
     <span class="ws-membership-status" id="ws-membership-status" hidden>全部功能免费开放</span>
-    <button type="button" id="ws-source-open" hidden>图片调整</button>
+    <button type="button" class="ws-button" id="ws-source-open" hidden>图片预处理</button>
     <button type="button" class="ws-button ws-button-primary" id="ws-generate" hidden>重新生成</button>
     <button type="button" class="ws-button ws-button-danger" id="ws-cancel-generate" hidden>取消生成</button>
     <button type="button" class="ws-button" id="ws-legacy-retry" hidden>Legacy 重试</button>`;
@@ -593,7 +594,12 @@ export function mountWorkspace(bridge) {
     if (!result) return;
     store.setState({
       project: { name: result.sourceName?.replace(/\.[^.]+$/, "") || get().project.name },
-      source: { image: result.sourceUrl || null, width: result.sourceWidth || 0, height: result.sourceHeight || 0 },
+      // 投影必须始终是**原图**：sourceUrl 可能是「旋转/翻转/裁切后烘烤过」的图，
+      // 把它写回 sourceState.dataUrl 就会顶掉 app 侧的原图指针（loadOriginalSourceImage /
+      // bridge.getResult().sourceOriginalUrl 都读这一格）——「完成并生成」一次之后，
+      // 再进图片调整看到的就不是原图，取消/重置也回不去了（与面板承诺「原始图片始终保留」相反）。
+      // 上传路径（libms:source-loaded, 665 行）写的同样是原图，这里保持一致。
+      source: { image: result.sourceOriginalUrl || result.sourceUrl || null, width: result.sourceWidth || 0, height: result.sourceHeight || 0 },
       // 画布宽高**只从 state 取**，不读任何 DOM。
       // 这里以前是 `result.width || Number(#granularity-input.value || 50)`：
       // 一旦去读那个 input，它就又成了尺寸真源（B0.1 §8 要拆的正是这条）。
@@ -883,6 +889,12 @@ const steps=new Map(stepSpecs.map(([number,label],index)=>{const section=documen
     sourceLegacyControls.append(sourcePanel.firstElementChild);
   }
   sourcePanel.prepend(sourceLegacyControls);
+  sourceLegacyControls.hidden=false;
+  sourceLegacyControls.className='ws-source-preprocess-controls';
+  sourceLegacyControls.querySelector('.ws-note').textContent='旋转、翻转后拖动裁切框；框内移动，边角调整。完成后才重新生成，原始图片始终保留。';
+  const cropActions=document.createElement('div');cropActions.className='ws-source-buttons';
+  cropActions.innerHTML='<button type="button" id="ws-source-full">恢复完整图片</button><button type="button" id="ws-source-cancel">取消预处理</button><button type="button" class="ws-button-primary" id="ws-source-finish">完成并生成</button>';
+  sourceLegacyControls.append(cropActions);
   const expandHeading = [...sourcePanel.querySelectorAll('.ws-section-title')].find(node => node.textContent.startsWith('扩容画布'));
   if (expandHeading) {
     let node = expandHeading;
@@ -1143,7 +1155,7 @@ const steps=new Map(stepSpecs.map(([number,label],index)=>{const section=documen
     if (bridge.getResult().manualEdited && !window.confirm("换图会移除当前手动修改。继续吗？")) return;
     bridge.importImage({ overwriteApproved: true });
   });
-  $("#ws-source-open").addEventListener("click", () => store.setState({ ui: { activePanel: "source" } }));
+  $("#ws-source-open").addEventListener("click", () => openSourcePreprocessing());
   $("#ws-new-blank").addEventListener("click", () => document.querySelector("#blank-board-modal")?.showModal());
   $("#ws-import-pattern").addEventListener("click", () => document.querySelector("#direct-pattern-file-input")?.click());
   $("#ws-save-project").addEventListener("click", () => { if (get().status.hasPattern) bridge.downloadProjectJson(get().project.name); });
@@ -1235,14 +1247,18 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
   $('#ws-export-mirror').addEventListener('change',syncMirrorHeading);
   requestColorPreviewDraw=()=>renderer.requestDraw();
   const sourceCanvas = $("#ws-source-canvas"), sourcePreview = $("#ws-source-preview");
-  let sourceImage = null, sourceImageUrl = "", sourceLayout = null, sourceDrawPending = false, sourceDrag = null;
+  const cropHandles=document.createElement('div');cropHandles.className='ws-source-crop-handles';cropHandles.hidden=true;cropHandles.setAttribute('aria-hidden','true');
+  for(const handle of ['nw','n','ne','e','se','s','sw','w']){const mark=document.createElement('span');mark.dataset.sourceCropHandle=handle;cropHandles.append(mark);}well.append(cropHandles);
+  let sourceImage = null, sourceImageUrl = "", sourceLayout = null, sourceDrawPending = false, sourceEditSnapshot=null;
+  let orientedSourceCache=null;
   let referenceSampleImage = null, referenceSampleUrl = "", referenceSamplePromise = null;
   const requestSourceDraw = () => { if (!sourceDrawPending) { sourceDrawPending = true; requestAnimationFrame(drawSourceEditor); } };
   const loadSourceEditorImage = () => {
     const url = bridge.getResult().sourceOriginalUrl;
     if (!url || url === sourceImageUrl) return;
     sourceImageUrl = url; sourceImage = null;
-    const image = new Image(); image.onload = () => { if (sourceImageUrl === url) { sourceImage = image; requestSourceDraw(); } }; image.src = url;
+    const load=bridge.loadSourceImage?bridge.loadSourceImage():new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=reject;image.src=url;});
+    load.then(image=>{if(sourceImageUrl===url){sourceImage=image;orientedSourceCache=null;requestSourceDraw();}}).catch(()=>notify('原图加载失败，请重新导入图片。'));
   };
   const drawSourceEditor = () => {
     sourceDrawPending = false;
@@ -1258,21 +1274,29 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     sourceCanvas.width=Math.round(w*dpr); sourceCanvas.height=Math.round(h*dpr);
     sourceCanvas.style.width=`${w}px`; sourceCanvas.style.height=`${h}px`;
     const context=sourceCanvas.getContext("2d"); context.setTransform(dpr,0,0,dpr,0,0); context.clearRect(0,0,w,h);
-    const scale=Math.min(Math.max(1,w-100)/sourceImage.naturalWidth,Math.max(1,h-100)/sourceImage.naturalHeight,1);
-    sourceLayout={x:(w-sourceImage.naturalWidth*scale)/2,y:(h-sourceImage.naturalHeight*scale)/2,width:sourceImage.naturalWidth*scale,height:sourceImage.naturalHeight*scale};
-    context.drawImage(sourceImage,sourceLayout.x,sourceLayout.y,sourceLayout.width,sourceLayout.height);
-    const crop=transform.crop;
-    if (crop) { const x=sourceLayout.x+crop.x*scale,y=sourceLayout.y+crop.y*scale,cw=crop.width*scale,ch=crop.height*scale;
+    const canonical=canonicalizeSourceTransform(transform,sourceImage.naturalWidth,sourceImage.naturalHeight);
+    const orientationKey=JSON.stringify([sourceImageUrl,canonical.rotation,canonical.flipX,canonical.flipY,w,h]);
+    if(orientedSourceCache?.key!==orientationKey)orientedSourceCache={key:orientationKey,canvas:renderSourceOrientation(sourceImage,canonical,Math.max(w,h,1))};
+    const oriented=orientedSourceCache.canvas,scale=Math.min(Math.max(1,w-48)/oriented.width,Math.max(1,h-48)/oriented.height,1);
+    sourceLayout={x:(w-oriented.width*scale)/2,y:(h-oriented.height*scale)/2,width:oriented.width*scale,height:oriented.height*scale};
+    context.drawImage(oriented,sourceLayout.x,sourceLayout.y,sourceLayout.width,sourceLayout.height);
+    const crop=canonical.crop||{x:0,y:0,width:1,height:1};
+    if (crop) { const x=sourceLayout.x+crop.x*sourceLayout.width,y=sourceLayout.y+crop.y*sourceLayout.height,cw=crop.width*sourceLayout.width,ch=crop.height*sourceLayout.height;
       context.fillStyle="rgba(14,25,34,.45)"; context.fillRect(sourceLayout.x,sourceLayout.y,sourceLayout.width,Math.max(0,y-sourceLayout.y));
       context.fillRect(sourceLayout.x,y,Math.max(0,x-sourceLayout.x),ch); context.fillRect(x+cw,y,Math.max(0,sourceLayout.x+sourceLayout.width-x-cw),ch);
       context.fillRect(sourceLayout.x,y+ch,sourceLayout.width,Math.max(0,sourceLayout.y+sourceLayout.height-y-ch));
-      context.strokeStyle="#ffffff";context.lineWidth=2;context.strokeRect(x,y,cw,ch); }
+      context.strokeStyle="#ffffff";context.lineWidth=2;context.strokeRect(x,y,cw,ch);
+      context.strokeStyle='#222';context.lineWidth=1;
+      for(const [hx,hy] of Object.values(cropHandlePoints(crop))){const px=sourceLayout.x+hx*sourceLayout.width,py=sourceLayout.y+hy*sourceLayout.height;context.fillStyle='#fff';context.fillRect(px-4,py-4,8,8);context.strokeRect(px-4,py-4,8,8);}
+      for(const [handle,[hx,hy]] of Object.entries(cropHandlePoints(crop))){const mark=cropHandles.querySelector(`[data-source-crop-handle="${handle}"]`);mark.style.left=`${sourceLayout.x+hx*sourceLayout.width}px`;mark.style.top=`${sourceLayout.y+hy*sourceLayout.height}px`;}
+    }
   };
   const sourceNorm = (event) => { if (!sourceLayout) return null; const p=point(event);
     return {x:clamp((p.x-sourceLayout.x)/sourceLayout.width,0,1),y:clamp((p.y-sourceLayout.y)/sourceLayout.height,0,1)}; };
   const sampleOriginalSource = (norm, image = sourceImage) => {
     if (!image || !norm) return;
-    const x=Math.min(image.naturalWidth-1,Math.floor(norm.x*image.naturalWidth)),y=Math.min(image.naturalHeight-1,Math.floor(norm.y*image.naturalHeight));
+    const width=image.naturalWidth||image.width,height=image.naturalHeight||image.height;
+    const x=Math.min(width-1,Math.floor(norm.x*width)),y=Math.min(height-1,Math.floor(norm.y*height));
     const sample=document.createElement("canvas");sample.width=1;sample.height=1;
     const ctx=sample.getContext("2d",{willReadFrequently:true});ctx.drawImage(image,x,y,1,1,0,0,1,1);
     const rgba=[...ctx.getImageData(0,0,1,1).data];
@@ -1319,10 +1343,23 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     else referenceSamplePromise?.then(sample).catch(error => notify(error.message));
   };
   const setSourcePatch = (patch) => { bridge.setSourceTransform(patch); requestSourceDraw(); };
+  const canonicalSource=()=>canonicalizeSourceTransform(bridge.getSourceTransform(),sourceImage?.naturalWidth||1,sourceImage?.naturalHeight||1);
+  const openSourcePreprocessing=()=>{
+    sourceEditSnapshot={url:bridge.getResult().sourceOriginalUrl,transform:JSON.parse(JSON.stringify(bridge.getSourceTransform())),dirty:get().status.dirty};
+    if(sourceImage)setSourcePatch(canonicalSource());
+    store.setState({ui:{activePanel:'source'},editor:{tool:'select'}});
+    sourceLegacyControls.hidden=false;sourceLegacyControls.scrollIntoView({block:'nearest'});requestSourceDraw();
+  };
+  const cropController=createSourceCropController({getCrop:()=>canonicalSource().crop,getLayout:()=>sourceLayout,getDimensions:()=>{const t=canonicalSource(),swap=t.rotation%180!==0;return{width:swap?sourceImage.naturalHeight:sourceImage.naturalWidth,height:swap?sourceImage.naturalWidth:sourceImage.naturalHeight};},getRatio:()=>$('#ws-source-ratio').value,setCrop:crop=>setSourcePatch({...canonicalSource(),crop})});
   $("#ws-source-ratio").addEventListener("change", (event) => setSourcePatch({cropRatio:event.target.value}));
-  right.querySelectorAll("[data-ws-source-rotate]").forEach((button) => button.addEventListener("click", () => setSourcePatch({rotation:(bridge.getSourceTransform().rotation+Number(button.dataset.wsSourceRotate)+360)%360})));
-  right.querySelectorAll("[data-ws-source-flip]").forEach((button) => button.addEventListener("click", () => { const key=button.dataset.wsSourceFlip; setSourcePatch({[key]:!bridge.getSourceTransform()[key]}); }));
-  const sourceAdjustments = attachSourceAdjustmentControls({ root:wrap,getTransform:()=>bridge.getSourceTransform(),setTransform:patch=>bridge.setSourceTransform(patch),requestPreview:requestSourceDraw,scheduleGenerate:scheduleAutoGenerate,hasSource:()=>get().status.hasSource });
+  const orientSource=action=>{if(!sourceImage)return;cropController.end(true);setSourcePatch(transformSourceOrientation(bridge.getSourceTransform(),action,sourceImage.naturalWidth,sourceImage.naturalHeight));};
+  right.querySelectorAll("[data-ws-source-rotate]").forEach((button) => button.addEventListener("click", () => orientSource(Number(button.dataset.wsSourceRotate)<0?'rotate-left':'rotate-right')));
+  right.querySelectorAll("[data-ws-source-flip]").forEach((button) => button.addEventListener("click", () => orientSource(button.dataset.wsSourceFlip==='flipX'?'flip-horizontal':'flip-vertical')));
+  $('#ws-source-full').addEventListener('click',()=>{cropController.end(true);setSourcePatch({...canonicalSource(),crop:null});});
+  $('#ws-source-cancel').addEventListener('click',()=>{cropController.end(true);const snapshot=sourceEditSnapshot;if(snapshot?.url===bridge.getResult().sourceOriginalUrl)setSourcePatch(snapshot.transform);sourceEditSnapshot=null;store.setState({ui:{activePanel:'project'},...(snapshot?.url===bridge.getResult().sourceOriginalUrl?{status:{dirty:snapshot.dirty}}:{})});});
+  $('#ws-source-finish').addEventListener('click',async()=>{if(bridge.getResult().manualEdited&&!await askConfirmation('应用图片预处理会重新生成并覆盖手动编辑，继续吗？'))return;cropController.end(false);try{await generation.generate({overwriteApproved:true});sourceEditSnapshot=null;store.setState({ui:{activePanel:'project'}});}catch(error){$('#ws-source-size').textContent=error.message;}});
+  $('#ws-source-reset').textContent='恢复画面调整';
+  const sourceAdjustments = attachSourceAdjustmentControls({ root:wrap,getTransform:()=>bridge.getSourceTransform(),setTransform:patch=>bridge.setSourceTransform(patch),requestPreview:requestSourceDraw,scheduleGenerate:delay=>{if(get().ui.activePanel!=='source')scheduleAutoGenerate(delay);},hasSource:()=>get().status.hasSource });
   right.querySelectorAll("[data-ws-source-expand]").forEach((input) => input.addEventListener("input", () => { if (input.value === "" || Number(input.value) < 0) return; setSourcePatch({expand:{[input.dataset.wsSourceExpand]:clamp(Number(input.value),0,500)}}); }));
   $("#ws-source-background").addEventListener("input", (event) => setSourcePatch({background:event.target.value}));
   $("#ws-source-pick-mode").addEventListener("click", () => store.setState({editor:{tool:"source-eyedropper"},ui:{activePanel:"source"}}));
@@ -1541,8 +1578,8 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     cellColorPopover.close();
     if(buildActive()){if(event.button===0||event.button===1){captureCanvasPointer(event.pointerId);drag={type:"pan",x:event.clientX,y:event.clientY,panX:get().view.panX,panY:get().view.panY};}return;}
     if (get().ui.activePanel === "source") { const norm=sourceNorm(event); if (!norm || !sourceImage || !sourceLayout || event.button !== 0) return;
-      if (get().editor.tool === "source-eyedropper") { sampleOriginalSource(norm); return; }
-      captureCanvasPointer(event.pointerId); sourceDrag={ start:norm, previous:bridge.getSourceTransform().crop, moved:false }; return; }
+      if (get().editor.tool === "source-eyedropper") { const t=canonicalSource();let {x,y}=norm;if(t.flipX)x=1-x;if(t.flipY)y=1-y;const original=t.rotation===90?{x:y,y:1-x}:t.rotation===180?{x:1-x,y:1-y}:t.rotation===270?{x:1-y,y:x}:{x,y};sampleOriginalSource(original);return; }
+      event.preventDefault();if(cropController.begin(norm,event.pointerId))captureCanvasPointer(event.pointerId);return; }
     if (!get().status.hasPattern) return;
     if(get().reference.adjusting&&effectiveReference().url&&event.button===0){captureCanvasPointer(event.pointerId);drag={type:"reference",x:event.clientX,y:event.clientY,reference:{...get().reference}};return;}
     const selectedTool = get().editor.tool, tool = event.altKey && selectedTool !== "wand" ? "eyedropper" : selectedTool, p = point(event), cell = viewport.screenToGrid(p.x, p.y);
@@ -1722,9 +1759,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     dwellRaf = requestAnimationFrame(tick);
   };
   const onCanvasMove = (event) => {
-    if (sourceDrag) { const norm=sourceNorm(event); if (!norm || !sourceImage) return;
-      if (Math.abs(norm.x-sourceDrag.start.x)*sourceLayout.width+Math.abs(norm.y-sourceDrag.start.y)*sourceLayout.height < 5) return;
-      sourceDrag.moved=true; setSourcePatch({crop:cropFromDrag(sourceDrag.start.x,sourceDrag.start.y,norm.x,norm.y,sourceImage.naturalWidth,sourceImage.naturalHeight,$("#ws-source-ratio").value)}); return; }
+    if (cropController.active) { const norm=sourceNorm(event);if(norm&&sourceImage){event.preventDefault();cropController.move(norm,event.pointerId);}return; }
     if (!get().status.hasPattern) return;
     const p = point(event), cell = viewport.screenToGrid(p.x, p.y);
     if (drag?.type === "pan") {
@@ -1801,7 +1836,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     store.setState({editor:{selectedCell:cell,...buildActivateColorPatch(paletteIdOf(color),paletteColors(),{highlight:false})},ui:{activePanel:'edit'}});
     cellColorPopover.open();
   };
-  const endDrag = (cancel = false) => { if (sourceDrag) { if (cancel && sourceDrag.moved) setSourcePatch({crop:sourceDrag.previous}); sourceDrag=null; requestSourceDraw(); }
+  const endDrag = (cancel = false) => { if(cropController.active){cropController.end(cancel);requestSourceDraw();}
     if (drag?.type === 'lasso') {
       if(cancel)store.setState({editor:{selection:drag.previousSelection,...drag.previousFocus}});
       else openSelectionColorPopover();
@@ -1892,6 +1927,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
   touchBar.querySelector("button").addEventListener("pointerup",()=>endTouchAction());
   touchBar.querySelector("button").addEventListener("pointercancel",()=>endTouchAction(true));
   well.addEventListener("pointerdown",event=>{
+    if(get().ui.activePanel==='source'){onCanvasDown(event);return;}
     if(previewMirror()!=='none'&&event.button!==1){$('#ws-export-message').textContent='镜像预览中；关闭输出面板或取消镜像后可编辑原图纸。';return;}
     if(event.pointerType!=="touch"){onCanvasDown(event);return;}
     event.preventDefault();captureCanvasPointer(event.pointerId);touchPoints.set(event.pointerId,{x:event.clientX,y:event.clientY});
@@ -1899,13 +1935,15 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     if(touchEnabled)moveTouchCursor(event);else onCanvasDown({...cursorEvent(event),clientX:event.clientX,clientY:event.clientY,button:1});
   });
   well.addEventListener("pointermove",event=>{
+    if(get().ui.activePanel==='source'){onCanvasMove(event);return;}
     if(event.pointerType!=="touch"){onCanvasMove(event);return;}
     if(!touchPoints.has(event.pointerId))return;event.preventDefault();touchPoints.set(event.pointerId,{x:event.clientX,y:event.clientY});
     if(touchPoints.size>1){const next=touchPair(touchPoints.values());if(gesturePair){const anchor=point({clientX:gesturePair.x,clientY:gesturePair.y});viewport.setZoom(get().view.zoom*next.distance/gesturePair.distance,anchor);viewport.panBy(next.x-gesturePair.x,next.y-gesturePair.y);}gesturePair=next;return;}
     if(touchEnabled)moveTouchCursor(event);else if(!gesturePair)onCanvasMove(event);
   });
-  const endCanvasPointer=(event,cancel=false)=>{if(event.pointerType!=="touch"){if(!cancel&&['lasso','closed-lasso','selection-move'].includes(drag?.type))onCanvasMove(event);endDrag(cancel);return;}touchPoints.delete(event.pointerId);if(cancel){endTouchAction(true);endDrag(true);touchPoints.clear();gesturePair=null;cursorMarker.hidden=true;return;}if(!touchPoints.size){gesturePair=null;if(!touchAction)endDrag(false);} };
+  const endCanvasPointer=(event,cancel=false)=>{if(get().ui.activePanel==='source'){if(!cancel&&cropController.active)onCanvasMove(event);cropController.end(cancel,event.pointerId);return;}if(event.pointerType!=="touch"){if(!cancel&&['lasso','closed-lasso','selection-move'].includes(drag?.type))onCanvasMove(event);endDrag(cancel);return;}touchPoints.delete(event.pointerId);if(cancel){endTouchAction(true);endDrag(true);touchPoints.clear();gesturePair=null;cursorMarker.hidden=true;return;}if(!touchPoints.size){gesturePair=null;if(!touchAction)endDrag(false);} };
   well.addEventListener("pointerup",event=>endCanvasPointer(event));well.addEventListener("pointercancel",event=>endCanvasPointer(event,true));
+  well.addEventListener('lostpointercapture',event=>{if(get().ui.activePanel==='source')cropController.end(true,event.pointerId);});
   well.addEventListener('dblclick',event=>{
     if(previewMirror()!=='none'||event.button!==0||event.target.closest('button,input,select,.ws-cell-color-popover')||buildActive()||get().ui.activePanel==='source'||get().reference.adjusting||spaceDown||event.altKey||!get().status.hasPattern||!['select','region'].includes(get().editor.tool))return;
     const p=point(event),cell=viewport.screenToGrid(p.x,p.y);if(!cell)return;
@@ -2073,6 +2111,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     left.querySelectorAll("[data-ws-mode]").forEach((button) => button.classList.toggle("active", button.dataset.wsMode === (buildMode ? "build" : "edit")));
     const sourceActive=state.ui.activePanel === "source" && hasSource;
     sourceCanvas.hidden = !sourceActive; layers.style.visibility = sourceActive ? "hidden" : "visible";
+    cropHandles.hidden=!sourceActive;sourceLegacyControls.hidden=!sourceActive;
     sourceAdjustments.sync();
     if (sourceActive || sourceImageUrl !== bridge.getResult().sourceOriginalUrl) requestSourceDraw();
     $("#ws-bead-size").value = String(state.canvas.beadSize);
@@ -3529,12 +3568,12 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     const withModifier = event.metaKey || event.ctrlKey;
     if (withModifier && key === "z") { event.preventDefault(); event.shiftKey ? redoEditor() : undoEditor(); return; }
     if (withModifier && key === "y") { event.preventDefault(); redoEditor(); return; }
-    if (withModifier && ["a", "i", "c", "x", "v", "d"].includes(key)) {
+    if (withModifier && ["a", "i", "c", "x", "d"].includes(key)) {
       if (!get().status.hasPattern) return;
       // ⌘D / Esc 是取消选择；其余四个交给统一的选区动作。
       event.preventDefault();
       if (key === "d") { store.setState({ editor: { selection: null } }); return; }
-      ({ a: selectionActions.selectAll, i: selectionActions.invert, c: selectionActions.copy, x: selectionActions.cut, v: selectionActions.paste })[key]();
+      ({ a: selectionActions.selectAll, i: selectionActions.invert, c: selectionActions.copy, x: selectionActions.cut })[key]();
       return;
     }
     if (event.key === " " && !event.repeat) { event.preventDefault(); spaceDown = true; return; }
@@ -3572,6 +3611,9 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     if (key === "0") viewport.fitToViewport(); if (key === "1") viewport.resetZoom();
   });
   window.addEventListener("keyup", (event) => { if (event.key === " ") spaceDown = false; });
+  // Image paste is claimed by app.js at document level. Only unhandled plain
+  // paste falls through to the existing grid selection clipboard.
+  window.addEventListener('paste',event=>{const target=event.target;if(event.defaultPrevented||!get().status.hasPattern||target instanceof HTMLElement&&(target.matches('input,textarea,select')||target.isContentEditable))return;event.preventDefault();selectionActions.paste();});
 
   /* ============================ 库存（B 批） ============================ */
 

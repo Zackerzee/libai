@@ -904,7 +904,7 @@ function ensureGenerationRuntime() {
       import("./services/generation-size.mjs?v=20261001-stage-b0").then((mod) => { window.LibmsGenerationSize = mod; }),
       // query 必须与 processImage / processProductionV2 里的动态 import 完全一致，
       // 否则同一个模块会被实例化两份（两份模块级状态），这是很难查的隐性分叉。
-      import("./services/source-editor-service.js?v=20261014-transparent-1").then((mod) => { window.LibmsSourceEditor = mod; }),
+      import("./services/source-editor-service.js?v=20261015-source-preprocess-1").then((mod) => { window.LibmsSourceEditor = mod; }),
       import("./services/generation-request.mjs?v=20261001-stage-b0").then((mod) => { window.LibmsGenerationRequest = mod; }),
       import("./services/generation-job.mjs?v=20261014-fusion-production-1").then((mod) => { window.LibmsGenerationJob = mod; }),
       // Stage B0.1：尺寸权威链。结构化工程 / 人工标定 / 网格识别给出的尺寸是绝对值，
@@ -1002,7 +1002,7 @@ async function loadWorkspaceOnce() {
   if (workspaceMounted) return workspaceController;
   if (!workspaceLoadPromise) {
     setWorkspaceLoading("正在打开工作台…");
-workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261015-outline-1"), ensureGenerationRuntime()])
+workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261015-source-preprocess-1"), ensureGenerationRuntime()])
       .then(([{ bootstrapWorkspace }]) => {
         workspaceLoaded = true;
         initializeWorkspaceRuntime();
@@ -1053,6 +1053,18 @@ function enterWorkspace(reason, payload = {}) {
   workspaceEntryQueue.push({ reason, payload });
   drainWorkspaceEntries();
   return workspaceLoadPromise;
+}
+
+function queueSourceImageImport(file) {
+  if (!file || !isImageFile(file)) return;
+  if (state.manualEdited && !state.importApproved) {
+    if (!window.confirm("导入新图片会替换当前作品，是否继续？")) return;
+    state.importApproved = true;
+  }
+  state.importMode = "photo";
+  state.autoProcessAfterLoad = true;
+  state.restoreAutoSizePending = false;
+  return enterWorkspace("image-upload", { file });
 }
 
 function init() {
@@ -1230,7 +1242,7 @@ function bindLandingCreationEvents() {
   els.fileInput?.addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (file) enterWorkspace("image-upload", { file });
+    if (file) queueSourceImageImport(file);
   });
   els.fileInput?.addEventListener("cancel", () => { state.importApproved = false; });
   els.uploadZone?.addEventListener("click", (event) => {
@@ -1248,9 +1260,28 @@ function bindLandingCreationEvents() {
   els.uploadZone?.addEventListener("drop", (event) => {
     event.preventDefault(); els.uploadZone.classList.remove("drag-over"); state.importMode = "photo";
     state.autoProcessAfterLoad = true; const file = event.dataTransfer?.files?.[0];
-    if (file) enterWorkspace("image-upload", { file });
+    if (file) queueSourceImageImport(file);
   });
   els.blankBoardButton?.addEventListener("click", openBlankBoardDialog);
+  // Same import path for file selection, whole-page drop and image clipboard.
+  // Text editing and already-handled drop zones retain their native behaviour.
+  const isTextTarget = target => Boolean(target?.closest?.('input,textarea,[contenteditable="true"]'));
+  document.addEventListener("dragover", event => {
+    if ([...(event.dataTransfer?.items || [])].some(item => item.kind === "file" && item.type.startsWith("image/"))) event.preventDefault();
+  });
+  document.addEventListener("drop", event => {
+    if (event.defaultPrevented || isTextTarget(event.target)) return;
+    const file = [...(event.dataTransfer?.files || [])].find(isImageFile);
+    if (!file) return;
+    event.preventDefault(); queueSourceImageImport(file);
+  });
+  document.addEventListener("paste", event => {
+    if (event.defaultPrevented || isTextTarget(event.target)) return;
+    const item = [...(event.clipboardData?.items || [])].find(entry => entry.type.startsWith("image/"));
+    const file = item?.getAsFile();
+    if (!file) return;
+    event.preventDefault(); queueSourceImageImport(file);
+  });
   els.blankBoardPresets.forEach((button) => button.addEventListener("click", () => {
     const [width, height] = String(button.dataset.size || "52,52").split(",").map(Number);
     els.blankBoardWidth.value = String(width); els.blankBoardHeight.value = String(height); updateBlankBoardSummary();
@@ -2784,7 +2815,7 @@ async function processProductionV2(options = {}) {
   setStatus("V2.5 正在生成");
   els.processButton.disabled = true;
   try {
-    const original = await loadImage(state.sourceDataUrl);
+    const original = await loadOriginalSourceImage(state.sourceDataUrl);
     const sourceEditor = await loadSourceEditor();
     if (isStaleGenerationRequest(options.requestId)) return false;
     state.processedSourceDataUrl = sourceEditor.hasSourceTransform(state.sourceTransform)
@@ -2859,13 +2890,13 @@ function bgsProtectionOptions() {
 /** 加载「与生产链路完全一致」的源图 imageData：同一份 sourceTransform 结果，两个引擎共用。 */
 async function loadProductionRaster() {
   if (!state.sourceDataUrl) throw new Error("请先上传图片");
-  const original = await loadImage(state.sourceDataUrl);
+  const original = await loadOriginalSourceImage(state.sourceDataUrl);
   const sourceEditor = await loadSourceEditor();
   state.processedSourceDataUrl = sourceEditor.hasSourceTransform(state.sourceTransform)
     ? sourceEditor.renderSourceTransform(original, state.sourceTransform).toDataURL("image/png") : state.sourceDataUrl;
   const image = state.processedSourceDataUrl === state.sourceDataUrl ? original : await loadImage(state.processedSourceDataUrl);
-  state.sourceNaturalWidth = image.naturalWidth;
-  state.sourceNaturalHeight = image.naturalHeight;
+  state.sourceNaturalWidth = original.naturalWidth;
+  state.sourceNaturalHeight = original.naturalHeight;
   return { image, imageData: imageToImageData(image) };
 }
 
@@ -3244,15 +3275,15 @@ async function processImage(options = {}) {
       state.sourceSafetyChecked = true;
     }
     if (isStaleGenerationRequest(options.requestId)) return false;
-    const originalImage = await loadImage(state.sourceDataUrl);
+    const originalImage = await loadOriginalSourceImage(state.sourceDataUrl);
     const sourceEditor = await loadSourceEditor();
     if (isStaleGenerationRequest(options.requestId)) return false;
     state.processedSourceDataUrl = sourceEditor.hasSourceTransform(state.sourceTransform)
       ? sourceEditor.renderSourceTransform(originalImage, state.sourceTransform).toDataURL("image/png") : state.sourceDataUrl;
     const image = state.processedSourceDataUrl === state.sourceDataUrl ? originalImage : await loadImage(state.processedSourceDataUrl);
     if (isStaleGenerationRequest(options.requestId)) return false;
-    state.sourceNaturalWidth = image.naturalWidth;
-    state.sourceNaturalHeight = image.naturalHeight;
+    state.sourceNaturalWidth = originalImage.naturalWidth;
+    state.sourceNaturalHeight = originalImage.naturalHeight;
     // 尺寸恢复**不在这里**做：它属于「载入源图」这一步，与生成引擎无关。
     // 留在这里等于只有选 legacy 引擎时才恢复尺寸（v2.5 默认走 processProductionV2，
     // 根本不经过本函数）—— 这正是 B0.1 之前 restore/OCR 尺寸失效的第二个原因。
@@ -3564,6 +3595,18 @@ function pickLikelyPixelCellSize(runLengths, maxDimension) {
   });
 
   return bestScore >= 80 ? bestCell : null;
+}
+
+let originalSourceImageCache = null;
+function loadOriginalSourceImage(url) {
+  if (originalSourceImageCache?.url === url) return originalSourceImageCache.promise;
+  const entry = { url, promise: null };
+  entry.promise = loadImage(url).catch(error => {
+    if (originalSourceImageCache === entry) originalSourceImageCache = null;
+    throw error;
+  });
+  originalSourceImageCache = entry;
+  return entry.promise;
 }
 
 function loadImage(src) {
@@ -3891,7 +3934,7 @@ function getGenerationLongEdge() {
  */
 async function loadSourceEditor() {
   if (window.LibmsSourceEditor) return window.LibmsSourceEditor;
-  const mod = await import("./services/source-editor-service.js?v=20261014-transparent-1");
+  const mod = await import("./services/source-editor-service.js?v=20261015-source-preprocess-1");
   window.LibmsSourceEditor = mod;
   return mod;
 }
@@ -8219,7 +8262,7 @@ window.LibmsWorkspaceBridge = {
   async previewBackgroundRemoval({ width, height, mode = "auto" } = {}) {
     if (!state.sourceDataUrl) return null;
     const previewModule = await import("./services/background-preview-service.mjs?v=20261015-stage3");
-    const original = await loadImage(state.sourceDataUrl);
+    const original = await loadOriginalSourceImage(state.sourceDataUrl);
     const sourceEditor = await loadSourceEditor();
     const processed = sourceEditor.hasSourceTransform(state.sourceTransform)
       ? sourceEditor.renderSourceTransform(original, state.sourceTransform).toDataURL("image/png")
@@ -8556,6 +8599,7 @@ window.LibmsWorkspaceBridge = {
    */
   getEffectiveSourceRatio: () => resolveEffectiveSourceRatio(),
   getSourceTransform: () => ({ ...state.sourceTransform, crop: state.sourceTransform.crop ? { ...state.sourceTransform.crop } : null, expand: { ...state.sourceTransform.expand } }),
+  loadSourceImage: () => loadOriginalSourceImage(state.sourceDataUrl),
   setSourceTransform(patch) {
     // Cancel old parameter work before writing the newest source transform.
     if (state.isProcessingImage || generationWorkerClient?.busy) cancelGeneration("画面调整参数已更新");

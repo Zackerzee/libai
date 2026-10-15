@@ -80,7 +80,13 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .ws-birth-toggle { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .ws-topbar .ws-birth-toggle { margin-left: auto; font-size: 12px; color: var(--ws-text-secondary); }
 .gallery-card .artwork-birth-motion { border-radius: inherit; }
-.ws-source-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }.ws-source-canvas[hidden] { display: none; }
+.ws-source-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; touch-action: none; }.ws-source-canvas[hidden] { display: none; }
+.ws-source-preprocess-controls { padding-bottom: 8px; border-bottom: 1px solid var(--ws-border); }
+.ws-source-preprocess-controls .ws-source-buttons { gap: 6px; }
+.ws-source-preprocess-controls .ws-source-buttons button { white-space: nowrap; min-height: 34px; }
+.ws-source-crop-handles { position: absolute; inset: 0; pointer-events: none; }
+.ws-source-crop-handles[hidden] { display: none; }
+.ws-source-crop-handles > span { position: absolute; width: 24px; height: 24px; transform: translate(-50%,-50%); }
 .ws-source-preview { display: block; width: 100%; max-height: 160px; object-fit: contain; border: 1px solid var(--ws-border); border-radius: 7px; background: var(--ws-canvas); }
 .ws-source-buttons { display: flex; flex-wrap: wrap; gap: 5px; margin: 9px 0; }.ws-source-buttons button { min-height: 29px; padding: 3px 9px; border: 1px solid var(--ws-border); border-radius: 6px; background: var(--ws-surface); color: var(--ws-text); font-size: 13px; cursor: pointer; }.ws-source-buttons button.ws-button-primary { background: var(--ws-accent); color: var(--ds-color-on-accent); border-color: var(--ws-accent); }
 .ws-source-slider { display: grid; grid-template-columns: 1fr auto; gap: 4px; margin: 7px 0; color: var(--ws-text-secondary); font-size: 13px; }.ws-source-slider input { grid-column: 1/-1; width: 100%; accent-color: var(--ws-accent); }
