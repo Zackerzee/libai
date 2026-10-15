@@ -3,6 +3,8 @@ import { highlightedColorEdges } from './color-highlight.mjs';
 import { textFrameControls } from './editor-interaction.mjs?v=20261010-editor-r31';
 import { guideInterval, guideIndices, rulerEntries, gridGuideInk } from './grid-guides.mjs?v=20261014-rulers20-2';
 import { rasterizeTextCached, cellsBox } from "../services/text-layer-service.js?v=20261013-text-controls-1";
+// query string 与 workspace.js / qr-panel.js 逐字一致，否则会多出一个模块实例、多一份缓存。
+import { rasterizeQrCached } from "../services/qr-layer-service.js?v=20261015-qr-1";
 import { resolveScreenRenderPolicy } from "../smart-preprocessing/render-policy.mjs?v=20260928-v3";
 import { paletteIdOf } from "../services/palette-identity.js";
 import { selectionContains } from '../services/selection-service.js';
@@ -416,6 +418,48 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
           overlay.beginPath(); overlay.arc(frame.move.x, frame.move.y, 10, 0, Math.PI * 2); overlay.fill();
           overlay.fillStyle = '#fff'; overlay.font = '14px system-ui'; overlay.textAlign = 'center'; overlay.textBaseline = 'middle';
           overlay.fillText('✥', frame.move.x, frame.move.y);
+        }
+      }
+    }
+    // 浮动二维码图层。与文字同一条规矩：只画在 overlay 层、不写进 grid，
+    // 所以拖动/调参过程中撤销栈是干净的，锁定后才进导出副本。
+    // 用的是与导出完全相同的栅格化结果（rasterizeQrCached），
+    // 保证「画布上看到的豆格」就是「导出写进去的豆格」。
+    if (editor.qrLayers?.length) {
+      for (const layer of editor.qrLayers) {
+        const { cells, paintLayers, layout } = rasterizeQrCached(layer, gridWidth, gridHeight);
+        if (!cells.length) continue;
+        const isActive = layer.id === editor.activeQrLayerId;
+        for (const paintLayer of paintLayers) {
+          const overlay = ctx[L.overlay];
+          overlay.globalAlpha = isActive ? 0.92 : 0.6;
+          overlay.fillStyle = paintLayer.color || "#1b1b1f";
+          // 浅色模块可能正好等于画布底色（白豆画在白底上），实心填充会「消失」。
+          // 所以浅色层先描一格极淡的轮廓再填 —— 看不见颜色时至少看得见「这里有豆」。
+          if (paintLayer.role === "light") {
+            overlay.strokeStyle = "rgba(120,120,140,.34)";
+            overlay.lineWidth = 1;
+          }
+          for (const { x, y } of paintLayer.cells) {
+            if (x < x0 || x >= x1 || y < y0 || y >= y1) continue;
+            const p = viewport.gridToScreen(x, y);
+            overlay.fillRect(p.x, p.y, cell, cell);
+            if (paintLayer.role === "light") overlay.strokeRect(p.x + .5, p.y + .5, Math.max(0, cell - 1), Math.max(0, cell - 1));
+          }
+        }
+        ctx[L.overlay].globalAlpha = 1;
+        // 选中态：外框（含静默区）用虚线，数据模块区域用细实线。
+        // 静默区是二维码必须留的空白，用户最容易把它当浪费 —— 得让他看得见它占多大。
+        if (isActive && layout && layout.spanCells > 0) {
+          const overlay = ctx[L.overlay];
+          const bead = layout.beadPerModule;
+          const anchor = viewport.gridToScreen(layout.box.x0, layout.box.y0);
+          overlay.strokeStyle = "#e87325"; overlay.lineWidth = 1.5; overlay.setLineDash([4, 3]);
+          overlay.strokeRect(anchor.x, anchor.y, layout.spanCells * cell, layout.spanCells * cell);
+          overlay.setLineDash([]);
+          const dataAnchor = viewport.gridToScreen(layout.box.x0 + layout.quietModules * bead, layout.box.y0 + layout.quietModules * bead);
+          overlay.strokeStyle = "rgba(232,115,37,.42)"; overlay.lineWidth = 1;
+          overlay.strokeRect(dataAnchor.x, dataAnchor.y, layout.moduleCount * bead * cell, layout.moduleCount * bead * cell);
         }
       }
     }

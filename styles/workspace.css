@@ -408,31 +408,50 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 .phase2-workspace .ws-material-row .ws-code-swatch { justify-self:start; max-width:100%; box-sizing:border-box; }
 .phase2-workspace .ws-material-row .ws-swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--ws-border-strong); }
 
-/* ───────── 右栏「编辑」面板：文字素材（浮动图层） ─────────
+/* ───────── 右栏「编辑」面板：素材图层（文字 / 二维码） ─────────
    结构照 Pixler 的「添加文字」：上面是浮动图层列表，下面是当前图层的编辑表单。
-   文字在画布上只画在 overlay 层（拖动/调参全程不写 grid），点「向下合并」才写进图纸。 */
-.phase2-workspace .ws-text-panel { display: grid; gap: 10px; margin: 10px 0 4px; }
+   素材在画布上只画在 overlay 层（拖动/调参全程不写 grid），锁定后才合成进导出副本。
+   二维码面板与文字面板同构，样式并列写在一起 —— 改一处两边同步，不会各自漂移。 */
+.phase2-workspace .ws-text-panel,
+.phase2-workspace .ws-qr-panel { display: grid; gap: 10px; margin: 10px 0 4px; }
+/* 两个面板按当前工具显隐（有图层就常显，没图层只在对应工具下出现）。
+   `[hidden]` 的 UA 样式优先级低于上面的类选择器，必须显式补一条，
+   否则 hidden 属性会被 display:grid 覆盖掉 —— 面板永远关不上。 */
+.phase2-workspace .ws-text-panel[hidden],
+.phase2-workspace .ws-qr-panel[hidden] { display: none; }
 
 /* 浮动图层列表 */
-.phase2-workspace .ws-text-layers { display: grid; gap: 6px; }
-.phase2-workspace .ws-text-layers-head { color: var(--ws-text-tertiary); font-size: 13px; font-weight: 700; letter-spacing: .06em; }
-.phase2-workspace .ws-text-layers-head b { color: var(--ws-text-secondary); }
-.phase2-workspace .ws-text-layer {
+.phase2-workspace .ws-text-layers,
+.phase2-workspace .ws-qr-layers { display: grid; gap: 6px; }
+.phase2-workspace .ws-text-layers-head,
+.phase2-workspace .ws-qr-layers-head { color: var(--ws-text-tertiary); font-size: 13px; font-weight: 700; letter-spacing: .06em; }
+.phase2-workspace .ws-text-layers-head b,
+.phase2-workspace .ws-qr-layers-head b { color: var(--ws-text-secondary); }
+.phase2-workspace .ws-text-layer,
+.phase2-workspace .ws-qr-layer {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 3px 8px; width: 100%;
   padding: 7px 9px; border: 1px solid var(--ws-border); border-radius: 8px;
   background: var(--ws-surface); color: var(--ws-text-secondary);
   font-size: 13px; text-align: left; cursor: pointer;
 }
-.phase2-workspace .ws-text-layer small { grid-column: 1 / -1; color: var(--ws-text-tertiary); line-height: 1.45; }
-.phase2-workspace .ws-text-object-delete { width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--ws-text-tertiary); font-size: 18px; line-height: 1; cursor: pointer; }
-.phase2-workspace .ws-text-object-delete:hover { background: color-mix(in srgb, var(--ws-danger) 10%, transparent); color: var(--ds-color-danger-hover); }
-.phase2-workspace .ws-text-layer:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
-.phase2-workspace .ws-text-layer.is-active { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
-.phase2-workspace .ws-text-layer-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.phase2-workspace .ws-text-layer-badge { grid-column: 1 / -1; justify-self: start; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--ws-accent); color: var(--ws-accent); font-size: 13px; font-weight: 700; }
+.phase2-workspace .ws-text-layer small,
+.phase2-workspace .ws-qr-layer small { grid-column: 1 / -1; color: var(--ws-text-tertiary); line-height: 1.45; }
+.phase2-workspace .ws-text-object-delete,
+.phase2-workspace .ws-qr-object-delete { width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--ws-text-tertiary); font-size: 18px; line-height: 1; cursor: pointer; }
+.phase2-workspace .ws-text-object-delete:hover,
+.phase2-workspace .ws-qr-object-delete:hover { background: color-mix(in srgb, var(--ws-danger) 10%, transparent); color: var(--ds-color-danger-hover); }
+.phase2-workspace .ws-text-layer:hover,
+.phase2-workspace .ws-qr-layer:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
+.phase2-workspace .ws-text-layer.is-active,
+.phase2-workspace .ws-qr-layer.is-active { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
+.phase2-workspace .ws-text-layer-name,
+.phase2-workspace .ws-qr-layer-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phase2-workspace .ws-text-layer-badge,
+.phase2-workspace .ws-qr-layer-badge { grid-column: 1 / -1; justify-self: start; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--ws-accent); color: var(--ws-accent); font-size: 13px; font-weight: 700; }
 
 /* 编辑表单：文字内容 / 字体 / 颜色 / 加粗倾斜 / 字号 / 旋转 */
-.phase2-workspace .ws-text-editor { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--ws-border); border-radius: 10px; background: var(--ws-surface-soft); }
+.phase2-workspace .ws-text-editor,
+.phase2-workspace .ws-qr-editor { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--ws-border); border-radius: 10px; background: var(--ws-surface-soft); }
 .phase2-workspace .ws-text-label { color: var(--ws-text-secondary); font-size: 13px; }
 .phase2-workspace .ws-text-colors { display: flex; flex-wrap: wrap; gap: 6px; }
 .phase2-workspace .ws-text-swatch {
@@ -453,9 +472,26 @@ body.phase2-workspace .workspace-grid[data-workspace-ready="true"] { max-width: 
 }
 .phase2-workspace .ws-text-toggle:hover { border-color: var(--ws-border-strong); color: var(--ws-text); }
 .phase2-workspace .ws-text-toggle.is-on { border-color: var(--ws-accent); background: var(--ws-accent-soft); color: var(--ws-accent); }
-.phase2-workspace .ws-text-actions { display: grid; grid-template-columns: auto 1fr; gap: 8px; }
-.phase2-workspace .ws-text-delete { color: var(--ws-danger); }
-.phase2-workspace .ws-text-delete:hover:not(:disabled) { border-color: var(--ws-danger); background: var(--ws-surface); color: var(--ws-danger); }
+.phase2-workspace .ws-text-actions,
+.phase2-workspace .ws-qr-actions { display: grid; grid-template-columns: auto 1fr; gap: 8px; }
+.phase2-workspace .ws-text-delete,
+.phase2-workspace .ws-qr-delete { color: var(--ws-danger); }
+.phase2-workspace .ws-text-delete:hover:not(:disabled),
+.phase2-workspace .ws-qr-delete:hover:not(:disabled) { border-color: var(--ws-danger); background: var(--ws-surface); color: var(--ws-danger); }
+
+/* 二维码专属：两列成对的字段、可扫性读数与警告。
+   读数区用等宽字体 —— 这里全是「21 × 21」「3:1」这类要对齐比较的数字。 */
+.phase2-workspace .ws-qr-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.phase2-workspace .ws-qr-readout { display: grid; gap: 4px; font-size: 13px; }
+.phase2-workspace .ws-qr-readout > div { display: grid; grid-template-columns: 68px minmax(0, 1fr); gap: 8px; }
+.phase2-workspace .ws-qr-readout dt { color: var(--ws-text-tertiary); }
+.phase2-workspace .ws-qr-readout dd { margin: 0; color: var(--ws-text-secondary); font-variant-numeric: tabular-nums; }
+.phase2-workspace .ws-qr-readout dd b { color: var(--ws-text); }
+/* 「不达标」用红色。用显式类而不是 :only-child —— 落豆数的 <b> 也是 dd 里唯一的
+   元素子节点，:only-child 会把它一起染红，读数就分不清哪一条是警告了。 */
+.phase2-workspace .ws-qr-readout dd b.ws-qr-bad { color: var(--ws-danger); }
+.phase2-workspace .ws-qr-warnings { margin: 0; padding-left: 18px; color: var(--ds-color-warning, #b26a00); font-size: 13px; line-height: 1.5; }
+.phase2-workspace .ws-qr-diagnostic-error { margin: 0; color: var(--ws-danger); font-size: 13px; line-height: 1.5; }
 
 @media (max-width: 760px) {
   /* 小屏：顶栏改为纵向堆叠（Stage C0 之后这里只剩视图缩放，尺寸控件已在右栏「生成」里） */
@@ -842,7 +878,8 @@ body.phase2-workspace #ws-tool-options .ws-context-group[hidden],body.phase2-wor
 body.phase2-workspace .ws-text-font-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px}
 body.phase2-workspace .ws-text-font-load{position:relative;display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:6px 10px;border:1px solid var(--ws-border);border-radius:8px;white-space:nowrap;cursor:pointer}
 body.phase2-workspace .ws-text-font-load input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
-body.phase2-workspace .ws-text-editor textarea{width:100%;min-height:68px;resize:vertical;box-sizing:border-box}
+body.phase2-workspace .ws-text-editor textarea,
+body.phase2-workspace .ws-qr-editor textarea{width:100%;min-height:68px;resize:vertical;box-sizing:border-box}
 body.phase2-workspace .ws-text-style{align-items:center;flex-wrap:wrap}
 body.phase2-workspace .ws-text-style>label{display:inline-flex;align-items:center;gap:5px}
 body.phase2-workspace .ws-text-style input[type=number]{width:76px}

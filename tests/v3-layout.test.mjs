@@ -4,12 +4,23 @@ import { readFileSync } from 'node:fs';
 import { raw, ICON_COUNT, ICON_NAMES } from '../ui/workspace-icons.mjs';
 import { resolveTheme, THEME_MODES } from '../ui/workspace-theme.mjs';
 import { selectionCombineMode } from '../ui/selection-context-controls.mjs';
+/**
+ * 设计稿原稿枚数（拼豆工具-图标总表.html）。它是**来源**，不是上限。
+ * 后续按需新增的图标必须登记在 ADDED_ICONS 里 —— 这样 ICON_COUNT 的断言
+ * 仍然是精确相等，「删掉一枚原稿、再加一枚新的」这种悄无声息的漂移会立刻变红；
+ * 如果只是把 76 改成 77，这个断言就退化成「有人记得改数字」了。
+ */
+const SUPPLIED_ICON_COUNT = 76;
+const ADDED_ICONS = ['qr'];
+
 test('supplied icon library retains all 76 standalone SVGs', () => {
-  assert.equal(ICON_COUNT, 76);
+  assert.equal(ICON_COUNT, SUPPLIED_ICON_COUNT + ADDED_ICONS.length, `原稿 ${SUPPLIED_ICON_COUNT} 枚 + 登记新增 ${ADDED_ICONS.length} 枚`);
   for (const name of ICON_NAMES) assert.match(raw(name), /^<svg viewBox="0 0 24 24">/);
+  for (const name of ADDED_ICONS) assert.ok(ICON_NAMES.includes(name), `新增图标 ${name} 必须真的存在于图标库`);
 });
 test('fill and pick color semantics remain intact', () => {
   assert.match(raw('text'), /fill-rule="evenodd"/);
+  assert.match(raw('qr'), /fill-rule="evenodd"/);
   assert.match(raw('pencil'), /var\(--pick\)/);
   assert.match(raw('dropper'), /var\(--pick-ink\)/);
   assert.equal(raw('unknown'), '');

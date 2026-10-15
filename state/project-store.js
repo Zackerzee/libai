@@ -93,6 +93,10 @@ function snapshot(store) {
   if (s.editorState.textLayers !== undefined) editor.textLayers = s.editorState.textLayers;
   if (s.editorState.activeTextLayerId !== undefined) editor.activeTextLayerId = s.editorState.activeTextLayerId;
   if (s.editorState.textRecentColors !== undefined) editor.textRecentColors = s.editorState.textRecentColors;
+  // 二维码图层同样是运行时动态字段。漏掉这两行，setState 写进去的值在快照里读不回来，
+  // 表现是「面板永远显示还没有二维码」—— 一个完全不报错的失效。
+  if (s.editorState.qrLayers !== undefined) editor.qrLayers = s.editorState.qrLayers;
+  if (s.editorState.activeQrLayerId !== undefined) editor.activeQrLayerId = s.editorState.activeQrLayerId;
   if (s.editorState.outlineTargetPaletteId !== undefined) editor.outlineTargetPaletteId = s.editorState.outlineTargetPaletteId;
   if (s.editorState.outlinePreview !== undefined) editor.outlinePreview = s.editorState.outlinePreview;
 

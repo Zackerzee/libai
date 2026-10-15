@@ -5,7 +5,7 @@ import { attachSelectionContextControls, selectionCombineMode } from './selectio
 import { raw as workspaceIcon } from './workspace-icons.mjs';
 import { closedLassoSelection } from '../services/closed-lasso-selection.mjs';
 import { referencePixelAt, sampleReferencePixel } from '../services/reference-sampling.mjs';
-import { projectStore } from "../state/project-store.js?v=20261014-main-native-1";
+import { projectStore } from "../state/project-store.js?v=20261015-qr-1";
 import { mirroredTitle, mirroredPreviewGrid } from './export-mirror-preview.mjs?v=20261008-selection-popover-r24';
 import { createGenerationService } from "../services/generation-service.js?v=20261013-birth2";
 import { attachArtworkBirthController } from './artwork-motion-controller.mjs?v=20261014-motion-toggle-1';
@@ -17,7 +17,7 @@ import { createEditorService } from "../services/editor-service.js?v=20261013-v3
 import { initTooltip } from './tooltip.mjs';
 initTooltip();
 import { BASE_CELL, createViewportService } from "../services/viewport-service.js?v=20261014-zoom-floor20-2";
-import { createCanvasRenderer, resolveDiagnosticOverlayIssues } from "./canvas-renderer.js?v=20261014-layer-order-1";
+import { createCanvasRenderer, resolveDiagnosticOverlayIssues } from "./canvas-renderer.js?v=20261015-qr-1";
 import { rectangularSelection, sameColorSelection, connectedSelection, selectionContains, selectionCells } from "../services/selection-service.js?v=20261008-qa-fixes-r25";
 import { combineSelections } from "../services/selection-combine.mjs?v=20261007-layout";
 import { lassoSelection } from "../services/lasso-selection.mjs?v=20261007-paint-r14";
@@ -25,13 +25,18 @@ import { magicWandSelection, fitSelectionBox, invertSelection as invertSelection
 import { renderSourceTransform, defaultSourceTransform, cropFromDrag, sourceOutputGeometry } from "../services/source-editor-service.js?v=20261014-transparent-1";
 import { attachSourceAdjustmentControls } from './source-adjustment-controller.mjs';
 import { GenerationPanel } from "./generation-panel.js?v=20261015-stage3-1";
-import { GridEditorToolbar, SHAPE_TOOLS } from "./grid-editor-toolbar.js?v=20261013-v3-layout-p8";
+import { GridEditorToolbar, SHAPE_TOOLS } from "./grid-editor-toolbar.js?v=20261015-qr-1";
 import { detectPixelMultiple, loadImageData } from "./pixel-multiple.js?v=20260923-pixelmultiple";
 import { recommendAutomaticSize, isCurrentSizeSource } from "../services/automatic-generation-size.mjs?v=20261014-fusion97-1";
 import { ZoomControls } from "./zoom-controls.js?v=20261014-zoom-floor20-2";
 import { createInspectionState, currentInspectionIssue, setInspectionIssues, startInspection, stopInspection, nextInspectionIssue, previousInspectionIssue, nextInspectionCell, previousInspectionCell } from "../services/inspection-service.js?v=20260929-editor-phase3";
 import { TextPanel, textPaletteChoices } from "./text-panel.js?v=20261014-text-palette-2";
 import { createTextLayer, rasterizeTextCached, layerContainsCell, cellsBox, composeLockedTextGrid } from "../services/text-layer-service.js?v=20261013-text-controls-1";
+import { QrPanel } from "./qr-panel.js?v=20261015-qr-1";
+// 二维码图层的 query string 必须与 canvas-renderer.js / qr-panel.js 逐字一致：
+// 不一致就是三个模块实例，rasterizeQrCached 的缓存会被拆成三份，
+// createQrLayer 的 seq 也会各自从 0 开始（图层 id 就有了撞车的可能）。
+import { createQrLayer, qrLayerLabel, qrDiagnostics, rasterizeQrCached, composeLockedQrGrid, qrEncoderReady, loadQrEncoder } from "../services/qr-layer-service.js?v=20261015-qr-1";
 import { createInventoryService } from "../services/inventory-service.js?v=20260917-inventory";
 import { moveReference } from "../services/reference-layer-service.js";
 import { buildRamp, createPaletteMetricCache } from "../services/color-ramp-service.js";
@@ -321,7 +326,7 @@ export function mountWorkspace(bridge) {
         <p class="ws-note" id="ws-replace-impact">选择来源色后显示影响颗数。</p>
         <button type="button" class="ws-button ws-wide" id="ws-replace-confirm">确认替换</button>
       </section>
-      <section class="ws-panel" data-ws-inspector="edit"><div class="ws-editor-group"><div class="ws-section-title">工具属性</div><div id="ws-tool-details" class="ws-cell-details">选择工具 · 点击查看单豆</div><label class="ws-source-slider">笔宽<span id="ws-brush-size-value">1</span><input type="range" id="ws-brush-size" min="1" max="9" step="2" value="1" aria-label="画笔大小（格）"></label><label class="ws-switch-row"><input type="checkbox" id="ws-shape-filled"> 形状实心（矩形 / 圆形）</label><label class="ws-source-slider">魔棒容差<span id="ws-wand-tolerance-value">12</span><input type="range" id="ws-wand-tolerance" min="0" max="100" value="12"></label></div><div class="ws-editor-group"><div class="ws-section-title">选中对象</div><div id="ws-cell-details" class="ws-cell-details">点击画布或对象列表进行选择。</div><div id="ws-text-objects" class="ws-text-objects"></div><div id="textPanel" class="ws-text-panel"></div></div><div class="ws-editor-group"><div class="ws-section-title">选区动作</div><div class="ws-selection-actions"><button type="button" id="ws-erase-selection">擦除选区</button><button type="button" id="ws-clear-selection">清除选择</button></div><div class="ws-selection-actions"><button type="button" id="ws-copy-selection">复制</button><button type="button" id="ws-cut-selection">剪切</button><button type="button" id="ws-paste-selection">粘贴</button></div><div class="ws-selection-actions"><button type="button" id="ws-invert-selection">反选</button><button type="button" id="ws-select-all">全选</button></div><div class="ws-outline-options"><label><input id="ws-outline-diagonal" type="checkbox">描边包含对角</label><button type="button" id="ws-apply-outline">外描边</button></div><div id="ws-history-label" class="ws-note"></div></div><div class="ws-editor-group"><div class="ws-section-title">对称绘制</div><label class="ws-field">模式<select id="ws-symmetry-mode"><option value="none">关闭</option><option value="vertical">左右对称</option><option value="horizontal">上下对称</option><option value="both">双向对称</option></select></label><div class="ws-selection-actions"><label>左右轴<input id="ws-symmetry-axis-x" type="number" step="0.5"></label><label>上下轴<input id="ws-symmetry-axis-y" type="number" step="0.5"></label></div></div><div class="ws-editor-group"><div class="ws-section-title">参考底图</div><p class="ws-note">独立参考对象，不写入图纸与导出。</p><div class="ws-source-buttons"><button type="button" id="ws-ref-pick">添加 / 替换</button><button type="button" id="ws-ref-clear">删除</button></div><input type="file" id="ws-ref-file" accept="image/*" hidden><label class="ws-switch-row"><input type="checkbox" id="ws-ref-visible" checked> 显示参考图</label><label class="ws-source-slider">透明度<span id="ws-ref-opacity-value">40%</span><input type="range" id="ws-ref-opacity" min="0" max="100" value="40"></label><label class="ws-field">显示<select id="ws-ref-display"><option value="normal">正常</option><option value="reference-only">只看原图</option><option value="grid-only">只看图纸</option></select></label><label class="ws-field">适配<select id="ws-ref-fit"><option value="contain">完整适应</option><option value="cover">铺满裁切</option></select></label><label class="ws-field">质量<select id="ws-ref-smoothing"><option value="smooth">平滑</option><option value="pixelated">像素</option></select></label><label class="ws-source-slider">参考图缩放<span id="ws-ref-scale-value">100%</span><input type="range" id="ws-ref-scale" min="25" max="200" value="100"></label><div class="ws-selection-actions"><button type="button" id="ws-ref-adjust">调整位置</button><button type="button" id="ws-ref-reset">重新适配</button></div></div><button type="button" class="ws-button ws-wide" id="ws-open-editor" disabled hidden>打开原画板</button></section>
+      <section class="ws-panel" data-ws-inspector="edit"><div class="ws-editor-group"><div class="ws-section-title">工具属性</div><div id="ws-tool-details" class="ws-cell-details">选择工具 · 点击查看单豆</div><label class="ws-source-slider">笔宽<span id="ws-brush-size-value">1</span><input type="range" id="ws-brush-size" min="1" max="9" step="2" value="1" aria-label="画笔大小（格）"></label><label class="ws-switch-row"><input type="checkbox" id="ws-shape-filled"> 形状实心（矩形 / 圆形）</label><label class="ws-source-slider">魔棒容差<span id="ws-wand-tolerance-value">12</span><input type="range" id="ws-wand-tolerance" min="0" max="100" value="12"></label></div><div class="ws-editor-group"><div class="ws-section-title">选中对象</div><div id="ws-cell-details" class="ws-cell-details">点击画布或对象列表进行选择。</div><div id="ws-text-objects" class="ws-text-objects"></div><div id="textPanel" class="ws-text-panel"></div><div id="qrPanel" class="ws-qr-panel"></div></div><div class="ws-editor-group"><div class="ws-section-title">选区动作</div><div class="ws-selection-actions"><button type="button" id="ws-erase-selection">擦除选区</button><button type="button" id="ws-clear-selection">清除选择</button></div><div class="ws-selection-actions"><button type="button" id="ws-copy-selection">复制</button><button type="button" id="ws-cut-selection">剪切</button><button type="button" id="ws-paste-selection">粘贴</button></div><div class="ws-selection-actions"><button type="button" id="ws-invert-selection">反选</button><button type="button" id="ws-select-all">全选</button></div><div class="ws-outline-options"><label><input id="ws-outline-diagonal" type="checkbox">描边包含对角</label><button type="button" id="ws-apply-outline">外描边</button></div><div id="ws-history-label" class="ws-note"></div></div><div class="ws-editor-group"><div class="ws-section-title">对称绘制</div><label class="ws-field">模式<select id="ws-symmetry-mode"><option value="none">关闭</option><option value="vertical">左右对称</option><option value="horizontal">上下对称</option><option value="both">双向对称</option></select></label><div class="ws-selection-actions"><label>左右轴<input id="ws-symmetry-axis-x" type="number" step="0.5"></label><label>上下轴<input id="ws-symmetry-axis-y" type="number" step="0.5"></label></div></div><div class="ws-editor-group"><div class="ws-section-title">参考底图</div><p class="ws-note">独立参考对象，不写入图纸与导出。</p><div class="ws-source-buttons"><button type="button" id="ws-ref-pick">添加 / 替换</button><button type="button" id="ws-ref-clear">删除</button></div><input type="file" id="ws-ref-file" accept="image/*" hidden><label class="ws-switch-row"><input type="checkbox" id="ws-ref-visible" checked> 显示参考图</label><label class="ws-source-slider">透明度<span id="ws-ref-opacity-value">40%</span><input type="range" id="ws-ref-opacity" min="0" max="100" value="40"></label><label class="ws-field">显示<select id="ws-ref-display"><option value="normal">正常</option><option value="reference-only">只看原图</option><option value="grid-only">只看图纸</option></select></label><label class="ws-field">适配<select id="ws-ref-fit"><option value="contain">完整适应</option><option value="cover">铺满裁切</option></select></label><label class="ws-field">质量<select id="ws-ref-smoothing"><option value="smooth">平滑</option><option value="pixelated">像素</option></select></label><label class="ws-source-slider">参考图缩放<span id="ws-ref-scale-value">100%</span><input type="range" id="ws-ref-scale" min="25" max="200" value="100"></label><div class="ws-selection-actions"><button type="button" id="ws-ref-adjust">调整位置</button><button type="button" id="ws-ref-reset">重新适配</button></div></div><button type="button" class="ws-button ws-wide" id="ws-open-editor" disabled hidden>打开原画板</button></section>
       <section class="ws-panel" data-ws-inspector="check"><div class="ws-section-title">真实检查结果</div><div id="ws-check-results" class="ws-check-results">生成后显示可验证的尺寸、色数与结构报告。</div></section>
       <section class="ws-panel" data-ws-inspector="material">
         <div class="ws-section-title">本作品用豆</div>
@@ -420,7 +425,7 @@ export function mountWorkspace(bridge) {
   topControls.className = "ws-top-controls";
   topControls.id = "ws-top-controls";
   topControls.setAttribute("aria-label", "工具参数、生成设置与视图缩放");
-  topControls.innerHTML = `<div id="ws-tool-options"><strong id="ws-context-tool-label">工具</strong><div class="ws-context-group" data-tools="select region same connected wand"><label>选择方式<select id="ws-context-selection-type"><option value="select">单格查看</option><option value="region">矩形选区</option><option value="same">全部同色</option><option value="connected">连续同色</option><option value="wand">相近色区域</option></select></label></div><div class="ws-context-group" id="ws-context-text" data-tools="text"><span id="ws-context-text-summary">文字对象属性</span><button type="button" id="ws-context-text-properties">对象属性</button></div></div><div id="zoomControls" class="ws-top-zoom"></div>`;
+  topControls.innerHTML = `<div id="ws-tool-options"><strong id="ws-context-tool-label">工具</strong><div class="ws-context-group" data-tools="select region same connected wand"><label>选择方式<select id="ws-context-selection-type"><option value="select">单格查看</option><option value="region">矩形选区</option><option value="same">全部同色</option><option value="connected">连续同色</option><option value="wand">相近色区域</option></select></label></div><div class="ws-context-group" id="ws-context-text" data-tools="text"><span id="ws-context-text-summary">文字对象属性</span><button type="button" id="ws-context-text-properties">对象属性</button></div><div class="ws-context-group" id="ws-context-qr" data-tools="qr"><span id="ws-context-qr-summary">二维码对象属性</span></div></div><div id="zoomControls" class="ws-top-zoom"></div>`;
   const textContextControls=document.createElement("div");textContextControls.id="ws-context-text-controls";textContextControls.className="ws-text-context-controls";textContextControls.style.display="contents";topControls.querySelector("#ws-context-text").append(textContextControls);
   const selectionType=topControls.querySelector('#ws-context-selection-type');
   selectionType.options[1].after(new Option('涂选','lasso'));
@@ -533,7 +538,7 @@ export function mountWorkspace(bridge) {
   $("#ws-ref-visible").checked=false;
   viewBar.querySelector('[data-ws-view="original"]')?.remove();
   const exportV2 = createExportV2Service({
-    getGrid: () => composeLockedTextGrid(bridge.getResult().grid || [], currentTextLayers(), paletteColors()),
+    getGrid: () => composeExportGrid(),
     getTitle: () => mirroredTitle(get().project.name, ['pattern','print'].includes(drawer.dataset.outputCurrent) ? $('#ws-export-mirror').value : 'none'),
     getPaletteLabel: () => bridge.getResult().paletteLabel || get().palette.id || "MARD 221",
   });
@@ -1432,6 +1437,72 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     renderer.requestDraw();
     return layer;
   }
+  // ---- 二维码素材：与文字共用「浮动图层 + 锁定导出」模型 ----
+  // 二维码对象始终独立保存在 editor.qrLayers；编辑和锁定都不改底版 grid。
+  // 画布预览与导出复用同一次栅格化结果（rasterizeQrCached），锁定对象只合成到导出副本。
+  // 面板实例在下面（notify 定义之后）才创建，这里先声明，好让画布指针分支在闭包里引用到它。
+  let qrPanel = null;
+  // 编码器加载失败标记：见 paint 里的预加载与 ensureQrEncoder。
+  let qrEncoderLoadFailed = false;
+  function currentQrLayers() { return get().editor.qrLayers || []; }
+  function setQrLayers(layers, activeId = null) { store.setState({ editor: { qrLayers: layers, activeQrLayerId: activeId } }); }
+  function commitQrObjects(type, label, before, after, beforeActive, afterActive) {
+    if (JSON.stringify(before) === JSON.stringify(after)) return false;
+    const previous = structuredClone(before), next = structuredClone(after);
+    const apply = (layers, active) => { setQrLayers(structuredClone(layers), active); store.setState({status:{dirty:true}}); renderer.requestDraw(); return true; };
+    return editorService.executeCommand(createEditorCommand({kind:"object",type,label,
+      execute:()=>apply(next,afterActive),undo:()=>apply(previous,beforeActive),redo:()=>apply(next,afterActive)}));
+  }
+  function patchQrObject(id, patch) {
+    const before = currentQrLayers();
+    if (!before.some(layer=>layer.id===id)) return false;
+    return commitQrObjects("QR_UPDATE", "修改二维码", before, before.map(layer=>layer.id===id?{...layer,...patch}:layer), get().editor.activeQrLayerId, id);
+  }
+  /** 命中判定：某格是否落在某个二维码的矩形范围（含静默区）内。
+   *  用 layout.box 而不是「有没有落豆」—— 二维码的浅色区可能留空（lightMode=empty），
+   *  按落豆判定的话用户点在自己刚摆好的码上会选不中。 */
+  function qrContainsCell(layer, w, h, gx, gy) {
+    const { layout } = rasterizeQrCached(layer, w, h);
+    if (!layout || layout.beadPerModule <= 0 || layout.spanCells <= 0) return false;
+    return gx >= layout.box.x0 && gx <= layout.box.x1 && gy >= layout.box.y0 && gy <= layout.box.y1;
+  }
+  /** 编码器按需加载。返回 false 时调用方必须**放弃这次操作**并提示，
+   *  而不是继续走一遍必然失败的栅格化 —— 那会让面板显示一个「空白二维码」，
+   *  用户看到的是「加了一个没内容的框」，而不是「组件没加载」。 */
+  async function ensureQrEncoder() {
+    if (qrEncoderReady()) return true;
+    // 用户主动操作（点「添加二维码」）时允许重试一次：上一次失败可能只是网络抖动。
+    qrEncoderLoadFailed = false;
+    try { await loadQrEncoder(); } catch { /* 下面统一按未就绪处理 */ }
+    if (qrEncoderReady()) return true;
+    qrEncoderLoadFailed = true;
+    notify("二维码组件加载失败，请检查网络后重试。");
+    return false;
+  }
+  async function addQrLayer() {
+    if (!get().status.hasPattern) { notify("先创建或打开图纸，再添加二维码。"); return null; }
+    if (!(await ensureQrEncoder())) return null;
+    const { w, h } = gridSize();
+    const layer = createQrLayer();
+    // 二维码的 x/y 是**左上角（含静默区）**，不是中心。落点要让整码大致居中：
+    // 先用诊断算出实际跨度（自动每模块豆数要等矩阵出来才知道），再回推左上角。
+    const layout = qrDiagnostics(layer, w, h).layout;
+    const span = layout?.spanCells || 0;
+    const placed = { ...layer, x: Math.max(0, Math.round((w - span) / 2)), y: Math.max(0, Math.round((h - span) / 2)) };
+    commitQrObjects("QR_ADD", "添加二维码", currentQrLayers(), [...currentQrLayers(), placed], get().editor.activeQrLayerId, placed.id);
+    store.setState({ editor: { tool: "qr" }, ui: { activePanel: "edit" }, view: { mode: "pattern" } });
+    renderer.requestDraw();
+    return placed;
+  }
+  /** 导出合成：底版 → 文字 → 二维码。**唯一出口** —— 导出预览与实际导出都走它，
+   *  所以「预览里看到的」和「导出的」必然一致。
+   *  叠加顺序：二维码后合成，即盖住文字。二维码是「必须扫得出来」的，
+   *  被文字压住就废了；反过来文字少几个字，代价小得多。 */
+  function composeExportGrid() {
+    const base = bridge.getResult().grid || [];
+    const withText = composeLockedTextGrid(base, currentTextLayers(), paletteColors());
+    return composeLockedQrGrid(withText, currentQrLayers(), paletteColors());
+  }
   // ---- 形状工具：约束与预览 ----
   // Shift 把终点吸附到 8 个方向（直线）或等比外接框（矩形 / 圆形）。
   // 吸附在「格坐标」上完成，所以预览与最终落笔用的是同一组整数，不会出现半格误差。
@@ -1581,6 +1652,26 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
       renderer.requestDraw();
       return;
     }
+    // 二维码：新增走面板的「添加二维码」按钮，空白点击只取消选中。
+    if (tool === "qr") {
+      const { w, h } = gridSize();
+      const at = viewport.screenToGridFloat(p.x, p.y);
+      const hit = [...currentQrLayers()].reverse()
+        .find((layer) => qrContainsCell(layer, w, h, Math.floor(at.x), Math.floor(at.y)));
+      if (hit) {
+        store.setState({ editor: { activeQrLayerId: hit.id } });
+        if (hit.locked) return;
+        captureCanvasPointer(event.pointerId);
+        // 抓取偏移也用整数格：这样拖动全程 x/y 都是整数，松手不会「跳」一下。
+        drag = { type: "qr-move", id: hit.id, grabX: Math.round(at.x) - hit.x, grabY: Math.round(at.y) - hit.y, before:structuredClone(currentQrLayers()), beforeActive:hit.id };
+        well.style.cursor='grabbing';
+        renderer.requestDraw();
+        return;
+      }
+      store.setState({ editor:{activeQrLayerId:null}, ui: { activePanel: "edit" } });
+      renderer.requestDraw();
+      return;
+    }
     const inspected = cell ? editorService.inspectCell(cell.x, cell.y) : null;
     // §7：paletteId 一律来自 cell.paletteId（inspectCell → paletteIdOf），**绝不按 RGB 反猜**。
     const paletteId = inspected?.paletteId || null;
@@ -1688,6 +1779,14 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
       setTextLayers(currentTextLayers().map((layer) => (layer.id === drag.id ? { ...layer, x: at.x - drag.grabX, y: at.y - drag.grabY } : layer)), drag.id);
       return;
     }
+    if (drag?.type === "qr-move") {
+      // 二维码**必须**整数吸附：模块边界要落在格边界上，半格偏差就会让解码器采错点。
+      // 所以这里与文字不同，拖动时就把 x/y 取整 —— 用户看到的预览位置就是最终位置。
+      const at = viewport.screenToGridFloat(p.x, p.y);
+      const x = Math.round(at.x - drag.grabX), y = Math.round(at.y - drag.grabY);
+      setQrLayers(currentQrLayers().map((layer) => (layer.id === drag.id ? { ...layer, x, y } : layer)), drag.id);
+      return;
+    }
     const old = get().editor.hoveredCell;
     if (old?.x !== cell?.x || old?.y !== cell?.y) { store.setState({ editor: { hoveredCell: cell } }); clearDwell(); }
     updateEyedropperDwell(cell);
@@ -1753,6 +1852,11 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     if (drag?.type === "text-move" || drag?.type === "text-resize") {
       if (cancel) setTextLayers(drag.before,drag.beforeActive);
       else commitTextObjects(drag.type==='text-resize'?"TEXT_UPDATE":"TEXT_MOVE",drag.type==='text-resize'?"缩放文字":"移动文字",drag.before,currentTextLayers(),drag.beforeActive,drag.id);
+      well.style.cursor='';
+    }
+    if (drag?.type === "qr-move") {
+      if (cancel) setQrLayers(drag.before, drag.beforeActive);
+      else commitQrObjects("QR_MOVE", "移动二维码", drag.before, currentQrLayers(), drag.beforeActive, drag.id);
       well.style.cursor='';
     }
     if (drag?.type === "stroke") cancel ? editorService.cancelStroke() : editorService.endStroke();
@@ -1877,6 +1981,11 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     if (patch.editor && Object.keys(patch).length === 1
       && Object.keys(patch.editor).every((key) => key === "textLayers" || key === "activeTextLayerId" || key === "textRecentColors")) {
       renderTextPanel(state); renderer.requestDraw(); return;
+    }
+    // 二维码图层的高频更新（拖动、改内容、调参数）同理。
+    if (patch.editor && Object.keys(patch).length === 1
+      && Object.keys(patch.editor).every((key) => key === "qrLayers" || key === "activeQrLayerId")) {
+      renderQrPanel(state); renderer.requestDraw(); return;
     }
     if (patch.view && Object.keys(patch).length === 1 && Object.keys(patch.view).every((key) => ["zoom","panX","panY"].includes(key))) {
       zoomControls.setZoom(Math.round(state.view.zoom * 100), false);
@@ -2257,6 +2366,17 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     // 文字面板：字体/颜色/加粗倾斜/字号/旋转/落豆数都要每次状态变化回灌一次。
     // 面板内部用「结构签名」自己判断该不该重建 DOM，所以这里无条件调用是安全的。
     renderTextPanel(state);
+    renderQrPanel(state);
+    // 素材面板的显隐跟着工具走：有图层就常显（方便继续编辑），没图层只在对应工具下出现。
+    syncObjectPanelVisibility(state);
+    // 有二维码图层就把编码器拉起来。导出合成是**同步**的，等不到加载完成 ——
+    // 等到导出时才发现没组件，导出的图里会静默地少一个码（看起来只是"二维码没出来"）。
+    // 失败后不再自动重试：同源脚本加载失败通常不会自愈，每次 paint 都重插一个
+    // <script> 只会白白堆积；用户点「添加二维码」时会重置这个标记再试一次。
+    if ((state.editor.qrLayers || []).length && !qrEncoderReady() && !qrEncoderLoadFailed) {
+      qrEncoderLoadFailed = true;
+      void loadQrEncoder().then(() => { qrEncoderLoadFailed = false; renderer.requestDraw(); }, () => {});
+    }
     // 打开状态由按钮直接控制；普通 canvas/state repaint 不应意外把导出中心关掉。
     if (state.ui.exportDrawerOpen) drawer.classList.add("open");
     if (document.activeElement !== $("#ws-export-title")) $("#ws-export-title").value = mirroredTitle(state.project.name,['pattern','print'].includes(drawer.dataset.outputCurrent)?$('#ws-export-mirror').value:'none');
@@ -2874,7 +2994,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
       // 底栏已无「成像」按钮，blocks 是回不去的死状态；而 blocks 分支在画参考图之前就 return，
       // 停在 blocks 会让「上传参考图 → 透明度条 → 按住对照」整条流程看不到任何参考图。
       view: { mode: "pattern" },
-      editor: { tool: "select", selectedCell: null, ...buildClearPalettePatch(), selection: null, hoveredCell: null, textLayers: [], activeTextLayerId: null },
+      editor: { tool: "select", selectedCell: null, ...buildClearPalettePatch(), selection: null, hoveredCell: null, textLayers: [], activeTextLayerId: null, qrLayers: [], activeQrLayerId: null },
       ui: { exportDrawerOpen: false },
     });
     syncResizeInputs();
@@ -2905,7 +3025,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
   const versionDialog=document.createElement("dialog");versionDialog.className="ws-version-dialog ws-help-dialog";
   versionDialog.innerHTML='<div class="ws-help-head"><strong>手动版本记录</strong><button type="button" aria-label="关闭">×</button></div><p class="ws-note">预览不会修改作品。恢复可通过撤销返回。</p><div class="ws-version-list"></div><canvas class="ws-version-preview" hidden style="width:100%;max-height:300px;object-fit:contain;image-rendering:pixelated"></canvas>';
   wrap.append(versionDialog);versionDialog.querySelector("button").addEventListener("click",()=>versionDialog.close());
-  const versionSnapshot=()=>({...draftSnapshot(),palette:paletteColors(),source:{name:bridge.getResult().sourceName||"",url:bridge.getResult().sourceUrl||""},reference:{...get().reference},textObjects:structuredClone(get().editor.textLayers||[])});
+  const versionSnapshot=()=>({...draftSnapshot(),palette:paletteColors(),source:{name:bridge.getResult().sourceName||"",url:bridge.getResult().sourceUrl||""},reference:{...get().reference},textObjects:structuredClone(get().editor.textLayers||[]),qrObjects:structuredClone(get().editor.qrLayers||[])});
   async function renderVersions(){const rows=await versions.list();versionDialog.querySelector(".ws-version-list").innerHTML=rows.map(row=>`<div class="ws-version-card"><strong>${esc(row.label||row.projectTitle)}</strong><small>${esc(new Date(row.savedAt).toLocaleString("zh-CN"))} · ${row.width}×${row.height} · 手动</small><div class="ws-selection-actions"><button type="button" data-version-preview="${esc(row.id)}">预览</button><button type="button" data-version-restore="${esc(row.id)}">恢复</button><button type="button" data-version-remove="${esc(row.id)}">删除</button></div></div>`).join("")||'<p class="ws-note">尚未保存手动版本。</p>';}
   $("#ws-version-save").addEventListener("click",async()=>{if(!get().status.hasPattern){notify("请先创建或打开图纸。");return;}try{await versions.save(versionSnapshot(),{label:get().project.name||"未命名作品"});notify("已保存当前手动版本。");}catch(error){notify(error.message);}});
   $("#ws-version-open").addEventListener("click",async()=>{versionDialog.showModal();try{await renderVersions();}catch(error){notify(error.message);}});
@@ -2919,7 +3039,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
       if(snapshot.paletteId!==currentResult.paletteKey||snapshot.source?.url!==(currentResult.sourceUrl||"")||snapshot.source?.name!==(currentResult.sourceName||"")){notify("该版本属于其他原图或色卡。请先打开对应作品与色卡，再恢复；可先预览。");return;}
       if(!window.confirm("恢复这个版本？当前作品可通过撤销返回。"))return;
       const before=structuredClone(versionSnapshot()),after=structuredClone(snapshot);
-      const snapshotBridge={replaceGridStructure:value=>{const copy=structuredClone(value),ok=bridge.replaceGridStructure(copy);if(ok){store.setState({project:{name:copy.projectTitle},canvas:{width:copy.width,height:copy.height},reference:copy.reference||{},editor:{selection:null,selectedCell:null,textLayers:copy.textObjects||[],activeTextLayerId:null},status:{hasPattern:true,dirty:true}});}return ok;}};
+      const snapshotBridge={replaceGridStructure:value=>{const copy=structuredClone(value),ok=bridge.replaceGridStructure(copy);if(ok){store.setState({project:{name:copy.projectTitle},canvas:{width:copy.width,height:copy.height},reference:copy.reference||{},editor:{selection:null,selectedCell:null,textLayers:copy.textObjects||[],activeTextLayerId:null,qrLayers:copy.qrObjects||[],activeQrLayerId:null},status:{hasPattern:true,dirty:true}});}return ok;}};
       const command=createStructureCommand(snapshotBridge,{type:"RESTORE_VERSION",label:"恢复手动版本",before,after});
       if(editorService.executeCommand(command)){viewport.fitToViewport();versionDialog.close();notify("已恢复手动版本，可撤销。");}
     }catch(error){notify(error.message);}
@@ -3438,6 +3558,11 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
       const id=get().editor.activeTextLayerId,before=currentTextLayers(),rest=before.filter(layer=>layer.id!==id);
       commitTextObjects("TEXT_DELETE","删除文字",before,rest,id,rest.at(-1)?.id||null);return;
     }
+    if ((event.key === "Delete" || event.key === "Backspace") && get().editor.tool === "qr" && get().editor.activeQrLayerId) {
+      event.preventDefault();
+      const id=get().editor.activeQrLayerId,before=currentQrLayers(),rest=before.filter(layer=>layer.id!==id);
+      commitQrObjects("QR_DELETE","删除二维码",before,rest,id,rest.at(-1)?.id||null);return;
+    }
     if ((event.key === "Delete" || event.key === "Backspace") && get().editor.selection && get().status.hasPattern) {
       event.preventDefault(); editorService.eraseSelection(get().editor.selection); return;
     }
@@ -3565,6 +3690,57 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
       store.setState({ editor: { textRecentColors: [code, ...shown.filter((item) => item !== code)].slice(0, 6) } });
     },
   });
+
+  /* ======================== 二维码素材（独立图层） ======================== */
+  // 与文字同一套模型：对象独立保存在 editor.qrLayers，画布预览与导出共用同一次栅格化。
+  // 差别只有一处 —— 二维码不能「向下合并」：烧进底版就再也不能改内容了，
+  // 而二维码的内容恰恰是最需要改的。锁定图层本来就会进导出，效果等同合并。
+  function renderQrPanel(state = get()) {
+    if (!qrPanel) return;
+    const layers = state.editor.qrLayers || [];
+    const active = layers.find((layer) => layer.id === state.editor.activeQrLayerId) || null;
+    const { w, h } = gridSize();
+    qrPanel.render({
+      layers,
+      activeId: active?.id || null,
+      // 二维码给**全色板**，不给「图纸已用色」——它要的是高对比的黑与白，
+      // 图纸已用色里常常没有合适的深色或浅色（文字面板的取色规则在这里不适用）。
+      palette: editorService.getPaletteColors(),
+      // 诊断与画布预览、与导出合成来自同一次栅格化（带缓存），三处必然一致。
+      diagnostics: active ? qrDiagnostics(active, w, h) : null,
+    });
+  }
+  qrPanel = new QrPanel({
+    root: "#qrPanel",
+    onAdd: () => { void addQrLayer(); },
+    onPatch: (id, patch) => {
+      if (!id) return;
+      const target = currentQrLayers().find(layer => layer.id === id);
+      if (target?.locked && !Object.prototype.hasOwnProperty.call(patch, "locked")) return;
+      patchQrObject(id, patch);
+      renderer.requestDraw();
+    },
+    onSelect: (id) => { store.setState({ editor: { activeQrLayerId: id, tool: "qr" } }); renderer.requestDraw(); },
+    onDelete: (id) => {
+      if (!id) return;
+      const before = currentQrLayers().map(layer => ({ ...layer }));
+      const rest = before.filter(layer => layer.id !== id);
+      commitQrObjects("QR_DELETE", `删除二维码：${before.find(layer => layer.id === id)?.text || "二维码"}`, before, rest, get().editor.activeQrLayerId, rest.at(-1)?.id || null);
+    },
+  });
+
+  /** 素材面板显隐：有图层就常显（方便继续编辑），没图层只在对应工具下出现。
+   *  两个面板都在「选中对象」组里，同时常显会让右栏挂着两段空提示。
+   *  注意上下文条是面板的**兄弟节点**（被搬到面板前面了），不会跟着一起隐藏，得单独控制 ——
+   *  漏掉它就会出现「面板没了、上面还挂着一条二维码对象属性」。 */
+  function syncObjectPanelVisibility(state = get()) {
+    const tool = state.editor.tool;
+    const showQr = Boolean((state.editor.qrLayers || []).length || tool === "qr");
+    const textHost = $("#textPanel"), qrHost = $("#qrPanel"), qrContext = $("#ws-context-qr");
+    if (textHost) textHost.hidden = !((state.editor.textLayers || []).length || tool === "text");
+    if (qrHost) qrHost.hidden = !showQr;
+    if (qrContext) qrContext.hidden = !showQr;
+  }
 
   let usageDialog = null;
   const inventoryPanel = new InventoryPanel({
@@ -3814,9 +3990,11 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
   // Text content and object settings live together in the left inspector.
   $("#ws-context-text-properties").remove();
   $("#textPanel").before($("#ws-context-text"));
-  const toolNames={brush:"画笔",eraser:"橡皮擦",fill:"油漆桶",text:"文字",pan:"移动",eyedropper:"吸管",line:"直线",rect:"矩形",ellipse:"椭圆",heart:"心形",diamond:"菱形",star:"五角星",region:"矩形选区",wand:"相近色选择",same:"同色选择",connected:"连续区域",select:"选择",bead:"单豆"};
+  // 二维码的上下文条同样挪到它自己的面板上方，两个素材面板保持同构。
+  $("#qrPanel").before($("#ws-context-qr"));
+  const toolNames={brush:"画笔",eraser:"橡皮擦",fill:"油漆桶",text:"文字",qr:"二维码",pan:"移动",eyedropper:"吸管",line:"直线",rect:"矩形",ellipse:"椭圆",heart:"心形",diamond:"菱形",star:"五角星",region:"矩形选区",wand:"相近色选择",same:"同色选择",connected:"连续区域",select:"选择",bead:"单豆"};
   toolNames.lasso='涂选'; toolNames['closed-lasso']='闭合套索'; toolNames['selection-move']='移动选区'; toolNames['reference-eyedropper']='参考图取色';
-  function syncToolOptions(state){const tool=state.editor.tool;$("#ws-context-tool-label").textContent=toolNames[tool]||"工具";toolOptions.querySelectorAll("[data-tools]").forEach(group=>{const tools=group.dataset.tools.split(" ");group.hidden=group.dataset.menu?openToolMenu?group.dataset.menu!==openToolMenu:!tools.includes(tool):!tools.includes(tool);});toolOptions.querySelectorAll('[data-tool-menu]').forEach(button=>button.setAttribute('aria-expanded',String(button.dataset.toolMenu===openToolMenu)));if(["select","region","lasso","closed-lasso","selection-move","reference-eyedropper","same","connected","wand"].includes(tool))$("#ws-context-selection-type").value=tool;selectionButtons.querySelectorAll('[data-selection-tool]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.selectionTool===tool)));$('#ws-shape-buttons').querySelectorAll('[data-tool]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.tool===tool)));const active=state.editor.textLayers?.find(layer=>layer.id===state.editor.activeTextLayerId);$("#ws-context-text-summary").textContent=active?`${active.text||"空文字"}`:"添加或选择文字对象";}
+  function syncToolOptions(state){const tool=state.editor.tool;$("#ws-context-tool-label").textContent=toolNames[tool]||"工具";toolOptions.querySelectorAll("[data-tools]").forEach(group=>{const tools=group.dataset.tools.split(" ");group.hidden=group.dataset.menu?openToolMenu?group.dataset.menu!==openToolMenu:!tools.includes(tool):!tools.includes(tool);});toolOptions.querySelectorAll('[data-tool-menu]').forEach(button=>button.setAttribute('aria-expanded',String(button.dataset.toolMenu===openToolMenu)));if(["select","region","lasso","closed-lasso","selection-move","reference-eyedropper","same","connected","wand"].includes(tool))$("#ws-context-selection-type").value=tool;selectionButtons.querySelectorAll('[data-selection-tool]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.selectionTool===tool)));$('#ws-shape-buttons').querySelectorAll('[data-tool]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.tool===tool)));const active=state.editor.textLayers?.find(layer=>layer.id===state.editor.activeTextLayerId);$("#ws-context-text-summary").textContent=active?`${active.text||"空文字"}`:"添加或选择文字对象";const activeQr=state.editor.qrLayers?.find(layer=>layer.id===state.editor.activeQrLayerId);$("#ws-context-qr-summary").textContent=activeQr?`${activeQr.text||"空内容"}`:"添加或选择二维码对象";}
   const priorToolGroup=$("#ws-tool-details").closest(".ws-editor-group");priorToolGroup.querySelector(".ws-section-title").textContent="操作设置";$("#ws-tool-details").hidden=true;
 
   // Canonical usage retains one index and one strip; only its DOM location moves.
@@ -4018,24 +4196,24 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
   outputPanels.get('poster').append($('#ws-poster-ratio').closest('.ws-export-options'),drawer.querySelector('[data-export-v2="poster"]'));
   function showOutputTask(id){drawer.dataset.outputCurrent=id;for(const [key,panel]of outputPanels)panel.hidden=key!==id;outputTaskNav.querySelectorAll('button').forEach(button=>{button.classList.toggle('active',button.dataset.outputTask===id);button.setAttribute('aria-pressed',String(button.dataset.outputTask===id));});$('#ws-export-title').value=mirroredTitle(get().project.name,['pattern','print'].includes(id)?$('#ws-export-mirror').value:'none');if(id==='poster')refreshPosterPreview();}
   outputTaskNav.addEventListener('click',event=>{const button=event.target.closest('[data-output-task]');if(button)showOutputTask(button.dataset.outputTask);});showOutputTask('pattern');
-  let exportTextLayers = get().editor.textLayers, exportPalette = get().palette.id, exportObjectRevision = 0;
+  let exportTextLayers = get().editor.textLayers, exportQrLayers = get().editor.qrLayers, exportPalette = get().palette.id, exportObjectRevision = 0;
   const compactExportPanel = attachCompactExportPanel({ drawer,
     refreshPosterPreview,
-    getGrid: () => composeLockedTextGrid(bridge.getResult().grid || [], currentTextLayers(), paletteColors()),
+    getGrid: () => composeExportGrid(),
     getTitle: () => mirroredTitle(get().project.name, ['pattern','print'].includes(drawer.dataset.outputCurrent) ? $('#ws-export-mirror').value : 'none'),
     getPaletteLabel: () => bridge.getResult().paletteLabel || get().palette.id,
     getMajorInterval: () => majorGridInterval,
     getRevision: () => {
       const state = get();
-      if (exportTextLayers !== state.editor.textLayers || exportPalette !== state.palette.id) {
-        exportTextLayers = state.editor.textLayers; exportPalette = state.palette.id; exportObjectRevision++;
+      if (exportTextLayers !== state.editor.textLayers || exportQrLayers !== state.editor.qrLayers || exportPalette !== state.palette.id) {
+        exportTextLayers = state.editor.textLayers; exportQrLayers = state.editor.qrLayers; exportPalette = state.palette.id; exportObjectRevision++;
       }
       return `${gridRevision}:${exportObjectRevision}`;
     },
   });
   store.subscribe((state, patch = {}) => {
     if (patch.palette) exportObjectRevision++;
-    if (patch.canvas || patch.palette || patch.editor?.textLayers || patch.project || patch.status?.hasPattern) compactExportPanel.refresh();
+    if (patch.canvas || patch.palette || patch.editor?.textLayers || patch.editor?.qrLayers || patch.project || patch.status?.hasPattern) compactExportPanel.refresh();
   });
   const saveNow=document.createElement('button');saveNow.id='ws-save-now';saveNow.type='button';saveNow.className='ws-button';saveNow.textContent='保存工程';saveNow.addEventListener('click',()=>$('#ws-save-project').click());outputMenu.before(saveNow);
   saveNow.before(top.querySelector('.ws-project-menu'));

@@ -4,6 +4,7 @@ export const GRID_TOOLS = [
   { id: "select", label: "选择", shortcut: "V" },
   { id: "bead", label: "单豆", shortcut: "N" },
   { id: "text", label: "文字", shortcut: "T" },
+  { id: "qr", label: "二维码", shortcut: "K" },
   { id: "brush", label: "画笔", shortcut: "B" },
   { id: "eraser", label: "擦除", shortcut: "E" },
   { id: "fill", label: "填色", shortcut: "G" },
@@ -32,7 +33,7 @@ export const SHAPE_TOOLS = { line: "line", rect: "rect", ellipse: "ellipse", hea
 // 把取色放在画笔旁边让「取色 → 画」的来回最短。
 export const PRIMARY_ORDER = ["brush", "eyedropper", "eraser", "fill", "line", "rect", "ellipse"];
 // 顶栏「扩展」区：编辑/选择类工具（取色已在主区，不放这里避免重复）。
-export const EXTENDED_TOOL_IDS = ["select", "bead", "text", "region", "lasso", "closed-lasso", "selection-move", "wand", "same", "connected", "pan", "source-eyedropper", "reference-eyedropper"];
+export const EXTENDED_TOOL_IDS = ["select", "bead", "text", "qr", "region", "lasso", "closed-lasso", "selection-move", "wand", "same", "connected", "pan", "source-eyedropper", "reference-eyedropper"];
 // 笔宽固定为奇数格：偶数笔宽没有对称中心，实际落笔位置会偏移半格。
 export const BRUSH_SIZES = [1, 3, 5, 7, 9];
 
@@ -87,8 +88,8 @@ const icons = {
 };
 const primaryIds = PRIMARY_ORDER;
 // Keep each supplied SVG's own fill/stroke semantics; never rewrap as an outline.
-Object.assign(icons, Object.fromEntries(Object.entries({brush:'pencil',eyedropper:'dropper',eraser:'eraser',fill:'fill',line:'line',rect:'rect',ellipse:'ellipse',text:'text',region:'marquee',lasso:'lasso','closed-lasso':'lasso','selection-move':'moveT','reference-eyedropper':'dropper',wand:'wand',pan:'selmove',undo:'undo',redo:'redo',mirror:'mirror',more:'dots'}).map(([tool,name])=>[tool,v3Icon(name)])));
-const smallGlyph = { select: "↖", bead: "□", region: "▧", same: "≋", connected: "⌘", eyedropper: "⌾", "source-eyedropper": "◉", "reference-eyedropper": "⌖", "closed-lasso": "◌", "selection-move": "✥", text: "T" };
+Object.assign(icons, Object.fromEntries(Object.entries({brush:'pencil',eyedropper:'dropper',eraser:'eraser',fill:'fill',line:'line',rect:'rect',ellipse:'ellipse',text:'text',qr:'qr',region:'marquee',lasso:'lasso','closed-lasso':'lasso','selection-move':'moveT','reference-eyedropper':'dropper',wand:'wand',pan:'selmove',undo:'undo',redo:'redo',mirror:'mirror',more:'dots'}).map(([tool,name])=>[tool,v3Icon(name)])));
+const smallGlyph = { select: "↖", bead: "□", region: "▧", same: "≋", connected: "⌘", eyedropper: "⌾", "source-eyedropper": "◉", "reference-eyedropper": "⌖", "closed-lasso": "◌", "selection-move": "✥", text: "T", qr: "▦" };
 
 export class GridEditorToolbar {
   constructor({ root, variant = "primary", activeTool = "select", brushSize = 1, shapeFilled = false, onToolChange = () => {}, onPanelAction = () => {}, onToolMenu = () => {}, onBrushSizeChange = () => {}, onShapeFilledChange = () => {} }) {
@@ -130,7 +131,7 @@ export class GridEditorToolbar {
     this.sync();
   }
   renderRail() {
-    const drawing = ["brush", "eraser", "fill", "eyedropper", "text"];
+    const drawing = ["brush", "eraser", "fill", "eyedropper", "text", "qr"];
     const selection = ["select"];
     const byId = (id) => GRID_TOOLS.find((tool) => tool.id === id);
     // 选择排在最前：查看/圈选是进入编辑的第一动作，画笔次之。
