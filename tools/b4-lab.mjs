@@ -56,6 +56,7 @@ import {
   runBenchCase,
 } from "../tests/b4-bench-runner.mjs";
 import { LAB_MATRIX } from "../smart-preprocessing/lab/index.mjs";
+import { STAGE4_MATRIX } from "../smart-preprocessing/lab/stage4-matrix.mjs";
 import {
   NEUTRAL_CHROMA_THRESHOLD,
   EDGE_LUM_DELTA,
@@ -121,6 +122,18 @@ if (!["bench", "noisy", "all"].includes(FIXTURES)) {
   console.error(`--fixtures 只认 bench / noisy / all，收到 ${FIXTURES}`);
   process.exit(2);
 }
+/**
+ * 候选矩阵：
+ *   b4（默认）  §11 的 11 条记录。**默认必须保持它** —— B4 的裁定记录靠这个矩阵复现。
+ *   stage4      阶段 4 的隔离实验矩阵（自适应采样 / 色差预筛 / 真实色板限色 / 保护性清理）。
+ * 两个矩阵共用同一套夹具、尺子与 contact sheet，所以两轮的列可以直接比。
+ */
+const MATRIX_KIND = value("--matrix", "b4");
+if (!["b4", "stage4"].includes(MATRIX_KIND)) {
+  console.error(`--matrix 只认 b4 / stage4，收到 ${MATRIX_KIND}`);
+  process.exit(2);
+}
+const MATRIX = MATRIX_KIND === "stage4" ? STAGE4_MATRIX : LAB_MATRIX;
 
 // 硬护栏：绝不往基线目录里写。写错一次就毁掉 §4/§5 的冻结基线，
 // 而那份基线是判断所有候选有没有效的**唯一**参照物。
@@ -163,7 +176,7 @@ const allFixtures = [
 ];
 const classes = allFixtures
   .filter(({ cls }) => !onlyClasses.length || onlyClasses.includes(cls.id));
-const candidates = LAB_MATRIX.filter((e) => !onlyCandidates.length || onlyCandidates.includes(e.id));
+const candidates = MATRIX.filter((e) => !onlyCandidates.length || onlyCandidates.includes(e.id));
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
 const sheetDir = path.join(OUT_DIR, "sheet");
@@ -171,7 +184,7 @@ const zoomDir = path.join(OUT_DIR, "zoom");
 const originalDir = path.join(OUT_DIR, "original");
 if (!SKIP_SHEETS) for (const dir of [sheetDir, zoomDir, originalDir]) fs.mkdirSync(dir, { recursive: true });
 
-console.log(`夹具 ${classes.length} 类（${FIXTURES}）· 模式 ${onlyModes.join("/")} · 候选 ${candidates.length} 个`);
+console.log(`夹具 ${classes.length} 类（${FIXTURES}）· 模式 ${onlyModes.join("/")} · 矩阵 ${MATRIX_KIND} · 候选 ${candidates.length} 个`);
 console.log(`色卡 ${PINNED.paletteLabel}（${PALETTE.length} 色，hash ${PALETTE_HASH}）· 格网 ${size.width}×${size.height}`);
 console.log(`§12.4 模式策略：${POLICY}${POLICY_OVERRIDE ? `（强制 ${POLICY_OVERRIDE}）` : ""}`);
 console.log(`输出 → ${OUT_DIR}\n`);

@@ -1,0 +1,15 @@
+contact sheet 列序（从左到右）：
+  0: 原图
+  1: current
+  2: adaptive-v2
+  3: chroma-prescreen
+  4: kit-limit-24
+  5: kit-limit-48
+  6: kit-limit-96
+  7: cleanup
+
+sheet/<类>.png     —— 每类一张，每格 4px
+zoom/<类>-<探针>.png —— 探针框 + 2 格边距，每格 12px，列序同上
+original/<类>.png  —— 原图列单独存一份
+
+模式：auto（beginner 会开 subjectCrop，取景变化，该行不参与汇总）
