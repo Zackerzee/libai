@@ -157,13 +157,76 @@ export function ellipseCells(x0, y0, x1, y1, { filled = false } = {}) {
   return dedupeStable(stroke);
 }
 
-// 形状分发：kind 为 "line" | "rect" | "ellipse"。
+// 多边形形状按豆格中心栅格化。顶点使用 0..1 的外接框相对坐标，
+// 描边取栅格实心区的 4 邻域边界；结果按行优先排列，保证顺序确定且不越出外接框。
+function polygonCells(x0, y0, x1, y1, polygon, { filled = false } = {}) {
+  const ax = Math.min(x0, x1);
+  const bx = Math.max(x0, x1);
+  const ay = Math.min(y0, y1);
+  const by = Math.max(y0, y1);
+  const width = bx - ax + 1;
+  const height = by - ay + 1;
+  const inside = (px, py) => {
+    let hit = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+      const [xi, yi] = polygon[i];
+      const [xj, yj] = polygon[j];
+      if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) hit = !hit;
+    }
+    return hit;
+  };
+  const area = [];
+  for (let y = ay; y <= by; y += 1) {
+    for (let x = ax; x <= bx; x += 1) {
+      const px = (x - ax + 0.5) / width;
+      const py = (y - ay + 0.5) / height;
+      if (inside(px, py)) area.push({ x, y });
+    }
+  }
+  // Tiny / degenerate bounds can contain no sampled polygon interior. Keep drawing useful:
+  // choose the deterministic center-most cell (ties resolve top-to-bottom, then left-to-right).
+  if (!area.length) {
+    const cx = (ax + bx) / 2;
+    const cy = (ay + by) / 2;
+    let nearest = { x: ax, y: ay };
+    let distance = Infinity;
+    for (let y = ay; y <= by; y += 1) for (let x = ax; x <= bx; x += 1) {
+      const d = (x - cx) ** 2 + (y - cy) ** 2;
+      if (d < distance) { distance = d; nearest = { x, y }; }
+    }
+    area.push(nearest);
+  }
+  if (filled || area.length === 1) return area;
+  const areaSet = new Set(area.map(({ x, y }) => key(x, y)));
+  return area.filter(({ x, y }) =>
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) =>
+      x + dx < ax || x + dx > bx || y + dy < ay || y + dy > by || !areaSet.has(key(x + dx, y + dy))));
+}
+
+const DIAMOND = [[0.5, 0], [1, 0.5], [0.5, 1], [0, 0.5]];
+const STAR = Array.from({ length: 10 }, (_, i) => {
+  const angle = -Math.PI / 2 + i * Math.PI / 5;
+  const radius = i % 2 === 0 ? 0.5 : 0.22;
+  return [0.5 + Math.cos(angle) * radius, 0.5 + Math.sin(angle) * radius];
+});
+// Standard parametric heart, sampled at a fixed interval to make rasterization deterministic.
+const HEART = Array.from({ length: 96 }, (_, i) => {
+  const t = (i / 96) * Math.PI * 2;
+  const px = 16 * Math.sin(t) ** 3;
+  const py = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+  return [(px + 16) / 32, (py + 17) / 34];
+});
+
+// 形状分发：kind 为 "line" | "rect" | "ellipse" | "heart" | "diamond" | "star"。
 export function shapeCells(kind, start, end, options = {}) {
   const { x: x0, y: y0 } = start;
   const { x: x1, y: y1 } = end;
   if (kind === "line") return lineCells(x0, y0, x1, y1);
   if (kind === "rect") return rectangleCells(x0, y0, x1, y1, options);
   if (kind === "ellipse") return ellipseCells(x0, y0, x1, y1, options);
+  if (kind === "heart") return polygonCells(x0, y0, x1, y1, HEART, options);
+  if (kind === "diamond") return polygonCells(x0, y0, x1, y1, DIAMOND, options);
+  if (kind === "star") return polygonCells(x0, y0, x1, y1, STAR, options);
   throw new Error(`未知形状: ${kind}`);
 }
 

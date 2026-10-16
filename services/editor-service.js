@@ -31,6 +31,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
   const clone = (color) => color ? { ...color, rgb: Array.isArray(color.rgb) ? [...color.rgb] : color.rgb } : null;
   const same = (a, b) => paletteIdOf(a) === paletteIdOf(b);
   const result = () => bridge.getResult();
+  const locked = (x, y) => Boolean(bridge.isCellLocked?.(x, y));
   const colorFor = (identity) => bridge.getPaletteColors().find((color) => paletteIdOf(color) === String(identity || "") || color.code.toUpperCase() === String(identity || "").trim().toUpperCase()) || null;
   let stroke = null;
   // 网格修改后才失效，普通鼠标移动或 UI 重绘直接复用统计结果。
@@ -52,7 +53,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     for (let index = redoStack.length - 1; index >= 0; index -= 1) if (!valid(redoStack[index])) redoStack.splice(index, 1);
   };
   const record = (command) => {
-    if (!isEditorCommand(command)) return false;
+    if (!isEditorCommand(command) || (command.kind === "cells" && !command.affectedCells)) return false;
     undoStack.push(command);
     if (undoStack.length > limit) undoStack.shift();
     redoStack.length = 0;
@@ -123,7 +124,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     detectRarePaletteColors(options) { return detectRarePaletteColors(currentPaletteIndex(), options); },
     // 默认来源 = 整个作品（外轮廓自动描边）。另外三种都是「先指定范围再描」，
     // 只有它不需要用户先点选色块或拉选区 —— 这正是营销页承诺的「自动描边」。
-    planOutline({ sourceMode="artwork", selectedCell=null, selectedPaletteId=null, selection=null, thickness=1, connectivity=4, includeHoles=false }={}) {
+    planOutline({ sourceMode="artwork", selectedCell=null, selectedPaletteId=null, selection=null, thickness=1, connectivity=4, includeHoles=false, overwrite=false }={}) {
       const grid=result().grid; let sourceCells=[];
       // artwork：所有非空格子一起构成剪影。computeOuterOutline 在 includeHoles=false 时
       // 本就会用「全部非空」重算剪影，所以传全量即等价于「整图外轮廓」，内部孔洞默认不计。
@@ -131,7 +132,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
       else if(sourceMode==="selection") sourceCells=selectedCells(selection).filter(({x,y})=>grid[y]?.[x]);
       else if(sourceMode==="palette") grid.forEach((row,y)=>row.forEach((color,x)=>{if(paletteIdOf(color)===selectedPaletteId)sourceCells.push({x,y});}));
       else if(selectedCell){const index=buildColorComponents(grid,{connectivity:4});const id=index.cellToComponent.get(`${selectedCell.x},${selectedCell.y}`);sourceCells=index.components[id]?.cells.map(c=>({...c}))||[];}
-      return computeOuterOutline(sourceCells,grid,{thickness,connectivity,includeHoles});
+      return computeOuterOutline(sourceCells,grid,{thickness,connectivity,includeHoles,overwrite});
     },
     applyOutlinePlan(plan, code) {
       const after=colorFor(code); if(!after||!plan?.outlineCells?.length)return false;
@@ -209,11 +210,11 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
       const desired = new Set(desiredCells.filter((cell)=>result().grid[cell.y]&&cell.x>=0&&cell.x<result().grid[cell.y].length).map((cell)=>`${cell.x},${cell.y}`));
       let touched = false;
       for (const id of stroke.active) if (!desired.has(id)) {
-        const original=stroke.cells.get(id); if (original) bridge.applyCellChanges([{x:original.x,y:original.y,after:clone(original.before)}],{live:true});
+        const original=stroke.cells.get(id); if (original && !locked(original.x,original.y)) bridge.applyCellChanges([{x:original.x,y:original.y,after:clone(original.before)}],{live:true});
         stroke.active.delete(id); touched=true;
       }
       for (const cell of desiredCells) {
-        const row=result().grid[cell.y]; if(!row||cell.x<0||cell.x>=row.length) continue;
+        const row=result().grid[cell.y]; if(!row||cell.x<0||cell.x>=row.length||locked(cell.x,cell.y)) continue;
         const id=`${cell.x},${cell.y}`;
         if (!stroke.cells.has(id)) {
           const before=clone(bridge.getCell(cell.x,cell.y));
@@ -241,7 +242,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
         changes,
       )) : false;
     },
-    cancelStroke() { if (!stroke) return; bridge.applyCellChanges([...stroke.cells.values()].map(({x,y,before})=>({x,y,after:clone(before)}))); stroke = null; invalidateUsageCounts(); },
+    cancelStroke() { if (!stroke) return; bridge.applyCellChanges([...stroke.cells.values()].filter(({x,y})=>!locked(x,y)).map(({x,y,before})=>({x,y,after:clone(before)}))); stroke = null; invalidateUsageCounts(); },
     // 形状工具：预览与提交共用 shapePlan，杜绝「预览一套、落笔另一套」。
     previewShape(kind, start, end, options = {}) { return shapePlan(kind, start, end, options); },
     applyShape(kind, start, end, code, options = {}) {
@@ -287,6 +288,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
       const cells = selectedCells(selection);
       const width = result().width, height = result().height;
       if (!cells.length || (!dx && !dy)) return false;
+      if (cells.some(({ x, y }) => locked(x, y) || locked(x + dx, y + dy))) return false;
       const map = new Map();
       // 先清空原位置、再写入新位置。两趟都读原始网格，所以「搬走」与「搬到」合并成一步历史，
       // 撤销时整体回退，不会出现中途半截状态。
@@ -301,6 +303,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     planSelectionTransform(selection, kind, { dx = 0, dy = 0 } = {}) {
       const cells = selectedCells(selection);
       if (!cells.length || !["move", "rotate", "flipX", "flipY"].includes(kind) || (kind === "move" && (!Number.isFinite(dx) || !Number.isFinite(dy)))) return null;
+      if (cells.some(({ x, y }) => locked(x, y))) return null;
       const { width, height } = result();
       let x0 = width, y0 = height, x1 = -1, y1 = -1;
       for (const { x, y } of cells) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
@@ -312,6 +315,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
         const nx = x0 + (kind === "rotate" ? h - 1 - ry : kind === "flipX" ? w - 1 - rx : rx) + (kind === "move" ? Math.round(dx) : 0);
         const ny = y0 + (kind === "rotate" ? rx : kind === "flipY" ? h - 1 - ry : ry) + (kind === "move" ? Math.round(dy) : 0);
         if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        if (locked(nx, ny)) return null;
         map.set(`${nx},${ny}`, clone(bridge.getCell(x, y)));
         mask.add(`${nx},${ny}`);
       }
@@ -329,6 +333,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     },
     applySelectionTransform(plan) {
       if (!plan || plan.width !== result().width || plan.height !== result().height || !plan.changes.length) return false;
+      if (plan.beforeCells.some(({ x, y }) => locked(x, y))) return false;
       if (plan.beforeCells.some(({ x, y, color }) => !same(bridge.getCell(x, y), color))) return false;
       const labels = { move: "移动选区", rotate: "选区顺时针旋转 90°", flipX: "选区水平翻转", flipY: "选区垂直翻转" };
       const command = cellCommand("SELECTION_TRANSFORM", labels[plan.kind], plan.changes);
@@ -370,6 +375,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     flip(axis) {
       const grid = result().grid, { width, height } = result();
       if (!grid.length || !["horizontal","vertical"].includes(axis)) return false;
+      if (grid.some((row,y) => row.some((_,x) => locked(x,y)))) return false;
       const changes = [];
       grid.forEach((row,y) => row.forEach((before,x) => {
         const after = axis === "horizontal" ? grid[y][width-1-x] : grid[height-1-y][x];
@@ -380,6 +386,7 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     rotate(quarter = 1) {
       const { grid, width, height } = result();
       if (!grid.length || !width || !height) return false;
+      if (grid.some((row,y) => row.some((_,x) => locked(x,y)))) return false;
       if (typeof bridge.replaceGridStructure !== "function") return false;
       const turns = ((Math.round(quarter) % 4) + 4) % 4;
       if (!turns) return false;
@@ -402,7 +409,9 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     getHistory() { return undoStack.map(({ type, label, affectedCells }) => ({ type, label, count: affectedCells })); },
     undo() {
       const command = undoStack.pop(); if (!command) return false;
-      if (!command.undo()) { undoStack.push(command); return false; }
+      let applied;
+      try { applied = command.undo(); } catch (error) { undoStack.push(command); throw error; }
+      if (!applied) { undoStack.push(command); return false; }
       invalidateUsageCounts();
       const { width, height } = result();
       pruneFor(width, height);
@@ -410,7 +419,9 @@ export function createEditorService(bridge, { limit = 100, onHistoryChange = () 
     },
     redo() {
       const command = redoStack.pop(); if (!command) return false;
-      if (!command.redo()) { redoStack.push(command); return false; }
+      let applied;
+      try { applied = command.redo(); } catch (error) { redoStack.push(command); throw error; }
+      if (!applied) { redoStack.push(command); return false; }
       invalidateUsageCounts();
       const { width, height } = result();
       pruneFor(width, height);

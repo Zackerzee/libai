@@ -42,11 +42,17 @@ test("需要颜色的绘图工具会自动获得可用颜色，描边会校验�
 });
 
 test("顶部不重复暴露编辑动作，镜像仅从导出参数选择两个方向", () => {
-  const extendedStart = toolbar.indexOf("  renderExtended() {");
-  const extended = toolbar.slice(extendedStart, toolbar.indexOf("  bindEvents() {", extendedStart));
-  for (const duplicate of ["换色", "描边", "逆时针 90°", "顺时针 90°", "上下镜像", "辅助线", "原图对比"]) {
-    assert.doesNotMatch(extended, new RegExp(duplicate));
-  }
+  // 原先这里靠 renderExtended() 的源码切片做断言。整个「更多工具」区删掉后切片会变空、
+  // 断言静默通过 —— 那是假绿灯。改成对「这一区确实不存在」的直接断言：
+  // extended 变体、它的工具清单、它的 DOM 宿主、它的样式，一个都不许回流。
+  assert.doesNotMatch(toolbar, /renderExtended\s*\(/);
+  assert.doesNotMatch(toolbar, /EXTENDED_TOOL_IDS/);
+  assert.doesNotMatch(toolbar, /sl-grid-toolbar-extended/);
+  assert.doesNotMatch(toolbar, /sl-toolbar-help/);
+  assert.doesNotMatch(workspace, /ws-more-tools/);
+  assert.doesNotMatch(workspace, /ws-more-panel-links/);
+  assert.doesNotMatch(workspace, /variant:\s*['"]extended['"]/);
+  assert.doesNotMatch(workspace, /对称绘制'\]|'外轮廓描边'/);
   assert.doesNotMatch(toolbar, /data-panel="mirror-(?:horizontal|vertical)"/);
   assert.match(workspace, /id="ws-export-mirror"[\s\S]+value="horizontal"[\s\S]+value="vertical"/);
   assert.match(workspace, /mirror:\$\("#ws-export-mirror"\)\.value/);

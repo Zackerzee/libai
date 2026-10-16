@@ -104,6 +104,7 @@
     <div class="field"><span>Micro Detail <b id="pv-micro">100</b>%</span><input type="range" id="microDetailProtection" min="0" max="100" value="100" /></div>
     <button class="primary" id="selfTest">Renderer Self-Test</button>
     <button class="primary" id="run">一键 Generate Comparison</button>
+    <button class="primary" id="pipeline-run">Pipeline Inspector · 正式链路</button>
     <span id="status"></span>
   </div>
 
@@ -130,6 +131,13 @@
   </div>
 
   <div class="grid" id="results"></div>
+  <section id="pipeline-inspector" hidden>
+    <div class="note"><b>S0–S7 Pipeline Inspector</b> · 正式管线的受控单次执行，不运行 Auto Tune，也不采用五种采样对比结果。真实执行顺序：S1 → S2 → S3 → S5（保护／Cleanup）→ S4（Budget）→ S6。S1 是算法实际输入，无额外预缩放。高光／眼睛／微细节滑杆在此按“是否开启”映射正式 preset 开关。</div>
+    <div class="toolbar"><label><input id="pipeline-v3-sampler" type="checkbox">实验性 V3 采样（未通过完整验收，非生产默认）</label><label>诊断叠层 <select id="pipeline-overlay"><option value="">无</option><option value="edgeMap">Edge</option><option value="highlightMap">Highlight</option><option value="specularMask">V3 specular（实验）</option><option value="shadowAnchorMask">V3 dominant shadow（不是全图分位数锚点）</option><option value="darkDetailMap">Dark detail（不是分位数 Shadow anchor）</option><option value="protectionMap">Protected score</option><option value="cleanupMap">Cleanup changed</option><option value="budget">Budget reassigned</option></select></label><span>Thin Feature／Specular Thin／分位数 Shadow anchor：当前尚未实现。叠层独立于 S6 纯色图。</span></div>
+    <div class="grid" id="pipeline-results"></div>
+    <pre class="note" id="pipeline-cell-detail">点击 S6 或 S7 的格子查看实际阶段数值。</pre>
+    <pre class="note" id="pipeline-cleanup-audit">Cleanup Audit：仅现有已接受记录，当前未记录被拒绝的 proposal。</pre>
+  </section>
   <div id="inspector"></div>
 
   <div class="note">
@@ -139,6 +147,10 @@
   <script type="module">
     import { generateV2, compareGrids } from "./smart-preprocessing/generation-engine-v2.mjs?v=20260916";
     import { getMardPalette } from "./smart-preprocessing/palette-data.mjs?v=20260916";
+    import { runGenerationPipeline } from "./services/generation-pipeline.mjs?v=20261007-v3-inspector";
+    import { getSrgbContext, readSrgbImageData } from "./services/srgb-canvas.mjs?v=20261007-v3-srgb";
+    import { renderInspectorGrid, sampledGrid, inspectorCellDetail } from "./services/v3-inspector-renderer.mjs?v=20261007-v3-inspector";
+    import { measureV3Grid } from "./services/v3-quality-metrics.mjs?v=20261007-v3-inspector";
 
     // 全局错误捕获，暴露任何 import/运行时错误
     window.addEventListener("error", (e) => { console.error("[Lab error]", e.message, e.filename, e.lineno); document.getElementById("status").textContent = "页面错误: " + e.message; });
@@ -155,6 +167,7 @@
     let currentSource = null;
     let zoom = "fit";
     let results = [];
+    let pipelineResult = null;
 
     const legacyIframe = document.createElement("iframe");
     legacyIframe.style.cssText = "position:absolute;width:800px;height:600px;left:-9999px;top:0;border:0;";
@@ -175,13 +188,16 @@
     // ---- 上传 ----
     function loadFile(file) {
       currentFile = file;
+      pipelineResult = null;
+      document.getElementById("pipeline-inspector").hidden = true;
       return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
           const c = document.createElement("canvas");
           c.width = img.naturalWidth; c.height = img.naturalHeight;
-          const ctx = c.getContext("2d"); ctx.drawImage(img, 0, 0);
-          currentSource = ctx.getImageData(0, 0, c.width, c.height);
+          const boundary = getSrgbContext(c,{willReadFrequently:true}),ctx=boundary.context; ctx.drawImage(img, 0, 0);
+          const read=readSrgbImageData(ctx,0,0,c.width,c.height);currentSource=read.imageData;
+          console.debug('[V3 color space]',{inputColorSpace:'browser-decoded; ICC handled by browser',paletteColorSpace:'srgb',...boundary.diagnostics,...read.diagnostics});
           // Source 诊断
           const data = currentSource.data;
           let nonTransparent = 0, rSum = 0, gSum = 0, bSum = 0;
@@ -449,6 +465,37 @@
 
     function runV2(mode, cfg) {
       return generateV2({ source: currentSource, width: cfg.width, height: cfg.height, palette: PALETTE, options: { ...cfg, sampling: mode } });
+    }
+
+    document.getElementById("pipeline-run").addEventListener("click", async () => {
+      if(!currentSource){statusEl.textContent="请先上传图片";return;}
+      const button=document.getElementById("pipeline-run"),cfg=readConfig();button.disabled=true;statusEl.textContent="采集正式链路阶段快照…";
+      await new Promise(resolve=>requestAnimationFrame(resolve));
+      try{
+        pipelineResult=runGenerationPipeline({image:currentSource,mode:cfg.preset,size:{width:cfg.width,height:cfg.height},palette:PALETTE,maxColors:cfg.maxColors,overrides:{sampling:"auto",detailProtection:cfg.detailProtection*100,edgeProtection:cfg.edgeProtection*100,preserveHighlights:cfg.highlightProtection>0,preserveEyes:cfg.eyeProtection>0,preserveMicroDetails:cfg.microDetailProtection>0,subjectCrop:false,autoBackground:false},inspect:true,experimentalSampler:document.getElementById('pipeline-v3-sampler').checked?'perceptual-v3':null});
+        const snapshots=pipelineResult.diagnostics?.inspector;if(!snapshots?.stages)throw Error("正式管线未提供 Inspector 快照；请刷新到当前版本。");
+        document.getElementById("pipeline-inspector").hidden=false;
+        drawPipelineInspector();statusEl.textContent=`Inspector 完成 · 路由 ${pipelineResult.pipeline.routedMode} · Cleanup 在 Budget 之前`;
+      }catch(error){statusEl.textContent="Inspector 失败："+error.message;}finally{button.disabled=false;}
+    });
+    document.getElementById("pipeline-overlay").addEventListener("change",()=>{if(pipelineResult)drawPipelineInspector();});
+    function drawPipelineInspector(){
+      const host=document.getElementById("pipeline-results");host.replaceChildren();
+      const d=pipelineResult.diagnostics,stages=d.inspector.stages;
+      const entries=[['S0','Original',null,currentSource],['S1','Actual input（无预缩放）',null,stages.S1.source],['S2','Sampled RGB',sampledGrid(stages.S2.colors)],['S3','Full palette match',stages.S3.grid],['S5','Protected + Cleanup（先）',stages.S5.grid],['S4','Budget（后）',stages.S4.grid],['S6','Final Plain Preview',stages.S6.grid],['S7','Construction Preview',stages.S6.grid]];
+      for(const [id,label,grid,source] of entries){
+        const card=document.createElement('article');card.className='card';const head=document.createElement('div');head.className='card-head';head.textContent=`${id} · ${label}`;card.append(head);
+        const canvas=document.createElement('canvas');canvas.dataset.stage=id;card.append(canvas);
+        if(source){canvas.width=source.width;canvas.height=source.height;canvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(source.data),source.width,source.height),0,0);canvas.style.imageRendering='auto';}
+        else{
+          const cellSize= id==='S7'?24:8,geometry=renderInspectorGrid(canvas,grid,{cellSize,construction:id==='S7'}),m=measureV3Grid(grid),meta=document.createElement('div');meta.className='meta';meta.textContent=`${m.width}×${m.height} · ${m.usedColors}色 · L* P05 ${m.L.P05?.toFixed(2)} / P95 ${m.L.P95?.toFixed(2)} · DR ${m.dynamicRange?.toFixed(2)} · 蓝 ${(m.blueRatio*100).toFixed(2)}% · 中性 ${(m.neutralRatio*100).toFixed(2)}%`;card.append(meta);
+          if(id==='S6'||id==='S7')canvas.addEventListener('click',event=>{const rect=canvas.getBoundingClientRect(),x=Math.floor(((event.clientX-rect.left)*canvas.width/rect.width-geometry.margin)/cellSize),y=Math.floor(((event.clientY-rect.top)*canvas.height/rect.height-geometry.margin)/cellSize);if(x<0||y<0||y>=grid.length||x>=grid[0].length)return;document.getElementById('pipeline-cell-detail').textContent=JSON.stringify(inspectorCellDetail(currentSource,stages,d,x,y),null,2);});
+        }
+        host.append(card);
+      }
+      const key=document.getElementById('pipeline-overlay').value;
+      if(key){const grid=stages.S6.grid,w=grid[0].length,h=grid.length,map=key==='budget'?grid.flat().map((c,i)=>c?.code!==stages.S5.grid[Math.floor(i/w)][i%w]?.code?1:0):d[key];const card=document.createElement('article');card.className='card';const label=document.createElement('div');label.className='card-head';label.textContent=`独立诊断层 · ${key}${map?'':'（未提供）'}`;card.append(label);if(map){const canvas=document.createElement('canvas');renderInspectorGrid(canvas,grid);const ctx=canvas.getContext('2d');for(let i=0;i<w*h;i++)if(map[i]>0){ctx.fillStyle=`rgba(255,60,100,${Math.min(.75,Math.max(.12,map[i]*.7))})`;ctx.fillRect((i%w)*8,Math.floor(i/w)*8,8,8);}card.append(canvas);}host.append(card);}
+      document.getElementById('pipeline-cleanup-audit').textContent=`Cleanup Audit：${d.cleanupRecords?.length||0} 条已接受记录；显示前 30 条（不是全部 proposal）。\n`+JSON.stringify(d.cleanupRecords?.slice(0,30)||[],null,2);
     }
 
     async function runLegacy(file, cfg) {

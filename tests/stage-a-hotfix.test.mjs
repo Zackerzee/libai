@@ -7,7 +7,15 @@ const toolbar=readFileSync(new URL("../ui/grid-editor-toolbar.js",import.meta.ur
 const css=readFileSync(new URL("../styles/workspace.css",import.meta.url),"utf8");
 
 test("desktop rail is one vertical slot per primary tool without horizontal overflow",()=>{
-  assert.match(toolbar,/direct\.slice\(0,4\)[\s\S]+menu\("形状"[\s\S]+menu\("选择"[\s\S]+direct\.slice\(4\)[\s\S]+sl-mirror-menu/);
+  const rail=toolbar.slice(toolbar.indexOf("  renderRail()"),toolbar.indexOf("  renderExtended()"));
+  assert.match(rail,/toolButton\(GRID_TOOLS\.find\(tool=>tool\.id==='select'\)\)[\s\S]+direct\.slice\(0,4\)[\s\S]+data-tool="rect"[\s\S]+direct\.slice\(4\)/);
+  assert.doesNotMatch(rail,/menu\("形状"/,'形状子工具统一在顶部属性栏，不保留第二套左侧菜单');
+  assert.doesNotMatch(rail,/menu\("选择"/,'主选择工具直接点击而非子菜单');
+  assert.doesNotMatch(rail,/sl-mirror-menu/);
+  assert.match(workspace,/editActions\.id="ws-edit-actions"/);
+  assert.doesNotMatch(workspace,/data-ws-edit-flip=/);
+  assert.match(workspace,/id="ws-export-mirror"/);
+  for(const direction of ['horizontal','vertical'])assert.ok(workspace.includes(`value="${direction}"`));
   assert.match(css,/body\.phase2-workspace \.ws-rail \.sl-grid-toolbar-rail[\s\S]+flex-direction: column !important/);
   assert.match(css,/overflow-x: hidden !important/);
   assert.match(css,/\.ws-rail\.is-collapsed[\s\S]+48px !important/);

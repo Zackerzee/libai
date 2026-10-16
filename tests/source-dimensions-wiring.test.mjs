@@ -158,7 +158,7 @@ test("§5 画布宽高只从 state 取，两轴对称", () => {
 /* ──────────────────────────── ui/workspace.js ──────────────────────────── */
 
 test("§6 工作台挂载用 ensureGenerationLongEdge，不再无条件写 104", () => {
-  assert.match(workspace, /bridge\.ensureGenerationLongEdge\(104\)/);
+  assert.match(workspace, /bridge\.ensureGenerationLongEdge\(97\)/);
   assert.doesNotMatch(workspace, /bridge\.setGenerationLongEdge\(104\)/, "无条件写 104 正是 B0.1 要修的头号问题");
 });
 
@@ -188,7 +188,7 @@ test("§5 控件可用性只在 syncSizeUi() 决定（半锁定态回归）", ()
 test("§5 被更强证据否决时不得改草稿", () => {
   const body = fnBody(workspace, "function applyLogicalSize() {");
   assert.match(body, /bridge\.applySourceDimensions\(\{/);
-  assert.match(body, /authority: multiple >= 2 \? "pixel-multiple" : "logical-heuristic"/);
+  assert.match(body, /authority: recommendation\.authority/);
   assert.match(body, /if \(!outcome\?\.applied\) \{/);
   // 否决分支里只允许 syncSizeUi()，不得出现 longEdgeDraft = / pushDraftToBridge()
   const denied = body.slice(body.indexOf("if (!outcome?.applied) {"));

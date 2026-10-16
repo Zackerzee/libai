@@ -65,7 +65,7 @@ test("旧像素倍数 UI 全部清除，但识别算法保留给「自动」档"
   assert.doesNotMatch(css, /\.ws-multiple/);
   // 识别算法本身是「自动」档的唯一依据，必须留着
   assert.match(workspace, /detectPixelMultiple/);
-  assert.match(workspace, /logicalSize/);
+  assert.match(workspace, /recommendAutomaticSize/);
   assert.match(workspace, /function ensureMultipleDetection\(/);
 });
 

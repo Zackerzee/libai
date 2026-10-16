@@ -1,7 +1,14 @@
 export function referenceLayout(imageWidth,imageHeight,box,{fit="contain",offsetX=0,offsetY=0,scale=1}={}){
   if(!imageWidth||!imageHeight||!box.width||!box.height)return null;
+  const k=Math.max(.1,Math.min(4,Number(scale)||1));
+  // stretch（精确对齐）：把参考图直接拉伸成作品矩形的宽高 —— 允许长宽比变形。
+  // 用户要的是「参考图和作品一样大」，逐格对上比保比例更重要（scale 仍可微调大小）。
+  if(fit==="stretch"){
+    const width=box.width*k,height=box.height*k;
+    return {x:box.x+(box.width-width)/2+offsetX*box.cell,y:box.y+(box.height-height)/2+offsetY*box.cell,width,height};
+  }
   const base=fit==="cover"?Math.max(box.width/imageWidth,box.height/imageHeight):Math.min(box.width/imageWidth,box.height/imageHeight);
-  const s=base*Math.max(.1,Math.min(4,Number(scale)||1)),width=imageWidth*s,height=imageHeight*s;
+  const s=base*k,width=imageWidth*s,height=imageHeight*s;
   return {x:box.x+(box.width-width)/2+offsetX*box.cell,y:box.y+(box.height-height)/2+offsetY*box.cell,width,height};
 }
 

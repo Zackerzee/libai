@@ -32,8 +32,13 @@ export const SHAPE_TOOLS = { line: "line", rect: "rect", ellipse: "ellipse", hea
 // 工具条主区顺序。取色紧跟画笔：右键画布取色后，左键即可用当前色画笔，
 // 把取色放在画笔旁边让「取色 → 画」的来回最短。
 export const PRIMARY_ORDER = ["brush", "eyedropper", "eraser", "fill", "line", "rect", "ellipse"];
-// 顶栏「扩展」区：编辑/选择类工具（取色已在主区，不放这里避免重复）。
-export const EXTENDED_TOOL_IDS = ["select", "bead", "text", "qr", "region", "lasso", "closed-lasso", "selection-move", "wand", "same", "connected", "pan", "source-eyedropper", "reference-eyedropper"];
+// 顶栏「更多工具」区已整体移除（用户 2026-10-16 决策）：区里每一项都能在
+// 主工具栏或工具选项行里找到更好的落点 ——
+//   单豆   → 「选择方式」的单格查看 + 工具选项行的「单格落色」
+//   对称绘制 → 工具条里的对称按钮组（ws-toolbar-symmetry）
+//   外轮廓描边 → 工具条的「描边」按钮 + 其工具选项行面板
+//   原图取色 → 取色工具的二级选项（图纸取色 / 原图取色）
+// 同一件事不该有两个入口，因此不再保留任何 extended 变体。
 // 笔宽固定为奇数格：偶数笔宽没有对称中心，实际落笔位置会偏移半格。
 export const BRUSH_SIZES = [1, 3, 5, 7, 9];
 
@@ -104,10 +109,10 @@ export class GridEditorToolbar {
     this.onBrushSizeChange = onBrushSizeChange;
     this.onShapeFilledChange = onShapeFilledChange;
     this.render(); this.bindEvents();
-    // 键盘快捷键只绑定在主区实例：GRID_TOOLS 里所有工具的快捷键（含选择/框选/魔棒/同色/连通/移动）
-    // 都经主区这一处处理，处理后走 store → paint → 两个实例一起同步高亮。扩展区再绑一份只会重复触发。
-    // 帮助对话框同理只在主区实例里建（扩展区没有独立的帮助节点，点帮助走 onPanelAction → 主区 openHelp）。
-    if (this.variant !== "extended") { this.bindShortcuts(); this.bindHelp(); }
+    // 键盘快捷键只绑定一处：GRID_TOOLS 里所有工具的快捷键（含选择/框选/魔棒/同色/连通/移动）
+    // 都经这一处处理，处理后走 store → paint → 工具条同步高亮。绑第二份只会重复触发。
+    // 帮助对话框同理只建一份，点帮助走 onPanelAction → 主区 openHelp。
+    this.bindShortcuts(); this.bindHelp();
     if (this.variant === "rail") this.bindRailPopovers();
   }
   toolButton(tool, secondary = false) {
@@ -118,7 +123,6 @@ export class GridEditorToolbar {
   render() {
     // 底栏主区：画笔类主工具 + 镜像菜单 + 历史。镜像统一收在一个入口，
     // 避免左右、上下两个方向分别占据工具栏位置。
-    if (this.variant === "extended") { this.renderExtended(); return; }
     if (this.variant === "rail") { this.renderRail(); return; }
     const primary = PRIMARY_ORDER.map((id) => GRID_TOOLS.find((tool) => tool.id === id)).filter(Boolean);
     this.root.innerHTML = `<div class="sl-grid-toolbar" role="toolbar" aria-label="画布工具"><div class="sl-toolbar-primary">
@@ -131,27 +135,17 @@ export class GridEditorToolbar {
     this.sync();
   }
   renderRail() {
-    const drawing = ["brush", "eraser", "fill", "eyedropper", "text", "qr"];
-    const selection = ["select"];
+    // 选择紧挨画笔：两者是使用频率最高的两个工具，「选择 → 画笔」的来回最短。
+    // 原先选择单独成组摆在最前，中间隔着「尺寸设置 / 底图素材」两个快捷按钮，
+    // 一次切换要跨过整条工具条（用户 2026-10-16 决策）。
+    const drawing = ["select", "brush", "eraser", "fill", "eyedropper", "text", "qr"];
     const byId = (id) => GRID_TOOLS.find((tool) => tool.id === id);
-    // 选择排在最前：查看/圈选是进入编辑的第一动作，画笔次之。
     this.root.innerHTML = `<div class="sl-grid-toolbar sl-grid-toolbar-rail" role="toolbar" aria-label="专业编辑工具">
-      <div class="sl-toolbar-group sl-toolbar-selection" role="group" aria-label="选区工具">${selection.map((id) => this.toolButton(byId(id))).join("")}</div>
-      <span class="sl-toolbar-divider" role="separator" aria-orientation="vertical"></span>
-      <div class="sl-toolbar-group sl-toolbar-drawing" role="group" aria-label="绘制工具">${drawing.map((id) => this.toolButton(byId(id))).join("")}<button type="button" class="sl-tool-button sl-tool-shape-menu" data-tool-menu="shape" title="形状工具" data-tip="形状工具" aria-label="形状工具" aria-pressed="false"><span class="sl-tool-icon">${icons.shape}</span><span class="sl-tool-label">形状</span></button></div>
+      <div class="sl-toolbar-group sl-toolbar-drawing" role="group" aria-label="绘制与选择工具">${drawing.map((id) => this.toolButton(byId(id))).join("")}<button type="button" class="sl-tool-button sl-tool-shape-menu" data-tool-menu="shape" title="形状工具" data-tip="形状工具" aria-label="形状工具" aria-pressed="false"><span class="sl-tool-icon">${icons.shape}</span><span class="sl-tool-label">形状</span></button></div>
       <span class="sl-toolbar-divider" role="separator" aria-orientation="vertical"></span>
       ${this.toolButton(byId("pan"))}
       <button type="button" class="sl-history-button sl-rail-help" data-panel="help" aria-label="功能说明与快捷键" title="功能说明与快捷键" data-tip="功能说明与快捷键">${icons.help}</button>
     </div>`;
-    this.sync();
-  }
-  // 顶栏扩展区只保留选择类工具与帮助。换色、描边、镜像、辅助线和原图对照
-  // 都由各自唯一的编辑/视图入口负责，不在这里重复暴露状态或动作。
-  renderExtended() {
-    const tools = EXTENDED_TOOL_IDS.map((id) => GRID_TOOLS.find((tool) => tool.id === id)).filter(Boolean);
-    this.root.innerHTML = `<div class="sl-grid-toolbar sl-grid-toolbar-extended" role="toolbar" aria-label="选择工具"><div class="sl-toolbar-primary">
-      ${tools.map((tool) => this.toolButton(tool)).join("")}
-    </div><div class="sl-toolbar-help"><button type="button" class="sl-history-button" data-panel="help" title="功能说明与快捷键" data-tip="功能说明与快捷键" aria-label="功能说明与快捷键">${icons.help}</button></div></div>`;
     this.sync();
   }
   bindEvents() {

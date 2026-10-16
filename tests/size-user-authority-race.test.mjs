@@ -135,7 +135,7 @@ test("applyLogicalSize 的闸在最前面，且早退时绝不碰草稿 / 不提
   const guardAt = body.indexOf("shouldAutoWriteLongEdge(longEdgeAuthority)");
   assert.ok(guardAt !== -1, "applyLogicalSize 必须过闸");
   // 闸必须在「读 result / 算 logicalSize / 写 longEdgeDraft / 提交 applySourceDimensions」之前。
-  for (const later of ["bridge.getResult()", "logicalSize(", "longEdgeDraft =", "bridge.applySourceDimensions("]) {
+  for (const later of ["bridge.getResult()", "recommendAutomaticSize(", "longEdgeDraft =", "bridge.applySourceDimensions("]) {
     const at = body.indexOf(later);
     assert.ok(at !== -1, `函数里应当还有 ${later}`);
     assert.ok(guardAt < at, `闸必须在 ${later} 之前`);

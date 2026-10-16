@@ -3,7 +3,7 @@
  *
  * 背景：改之前右栏是 6 个 tab（作品/图片/色彩/编辑/检查/库存），
  * 但 DOM 里实际有 **7 个** `data-ws-inspector` 段 —— 多出来的 `build`（施工）
- * 不在 tab 数组里，只能由左轨「施工模式」按钮激活。
+ * 不在 tab 数组里；现在由「保存与导出」的施工图预览入口激活。
  * 这种「tab 清单」和「面板清单」各写一份的结构，是「改了 tab 忘了改面板」的温床。
  */
 import test from "node:test";
@@ -20,8 +20,9 @@ const tabListSource = workspace.slice(
 const tabIds = [...tabListSource.matchAll(/\["([a-z-]+)",\s*"/g)].map((m) => m[1]);
 const panelIds = [...workspace.matchAll(/data-ws-inspector="([a-z-]+)"/g)].map((m) => m[1]);
 
-test("§2 右栏 tab 清单：作品 / 图片 / 生成 / 色彩 / 编辑 / 检查 / 材料", () => {
-  assert.deepEqual(tabIds, ["project", "source", "generation", "color", "edit", "check", "material"]);
+test("四工作区真实面板清单包含施工分区，作品信息仍保留", () => {
+  assert.deepEqual(tabIds, ["project", "source", "generation", "color", "edit", "check", "material", "build"]);
+  assert.match(workspace,/WORKAREA_PANELS=Object\.freeze\(\{generate:\['source','generation'\],edit:\['color','edit','check','project'\],construction:\['material','build'\]\}\)/);
 });
 
 test("§3 「生成」是真正可见的 Tab，不再是躲在「色彩」里的一个段", () => {
@@ -54,11 +55,14 @@ test("§14 「库存」→「材料」，但库存面板本身没被删掉", () 
   assert.match(workspace, /root: right\.querySelector\("#inventoryPanel"\)/, "InventoryPanel 的挂载点必须还在");
 });
 
-test("面板清单 = tab 清单 + build（施工面板只经左轨可达，不是 tab）", () => {
+test("面板清单等于分组tab清单，施工与输出预览复用同一入口", () => {
   const uniquePanels = [...new Set(panelIds)];
   const extras = uniquePanels.filter((id) => !tabIds.includes(id));
-  assert.deepEqual(extras, ["build"], `除 build 外不该有不在 tab 清单里的面板，实际多出：${extras.join(",")}`);
-  assert.match(workspace, /store\.setState\(\{ ui: \{ activePanel: "build" \} \}\)/, "build 面板必须由左轨按钮显式激活");
+  assert.deepEqual(extras, [], `不该有无入口的面板，实际多出：${extras.join(",")}`);
+  assert.match(workspace, /id="ws-output-preview"/);
+  assert.match(workspace, /#ws-output-preview"\)\.addEventListener\("click",[\s\S]*?setWorkspaceMode\("build"\)/, "保存与导出必须显式进入施工预览");
+  assert.match(workspace, /store\.setState\(\{ ui: \{ activePanel: "build" \},editor:\{tool:"pan"\},view:\{mode:"pattern"\} \}\)/, "预览使用唯一 activePanel 并切施工图显示高亮");
+  assert.match(workspace,/store\.setState\(previewReturnState\);previewReturnState=null/,'退出完整恢复原view/editor/ui');
 });
 
 test("§11 Tab 切换只有唯一真源 ui.activePanel，没有多套 bool 并存", () => {
@@ -76,7 +80,7 @@ test("§11 Tab 切换只有唯一真源 ui.activePanel，没有多套 bool 并�
   // ③ tab 按钮的写入路径只有一处
   const writes = [...workspace.matchAll(/ui:\s*\{\s*activePanel/g)].length;
   assert.ok(writes >= 1, "至少要有一处写 activePanel");
-  const tabClick = workspace.match(/querySelectorAll\("\[data-ws-panel\]"\)\.forEach\(\(button\) => button\.addEventListener\("click", \(\) => store\.setState\(\{ ui: \{ activePanel: button\.dataset\.wsPanel \} \}\)\)\)/);
+  const tabClick = workspace.match(/querySelectorAll\("\[data-ws-panel\]"\)\.forEach\(\(button\) => button\.addEventListener\("click", \(\) => \{ if\(button\.dataset\.wsPanel==='build'\)\{setWorkspaceMode\('build'\);return;\}if\(buildActive\(\)\)setWorkspaceMode\("edit"\);store\.setState\(\{ ui: \{ activePanel: button\.dataset\.wsPanel \} \}\); \}\)\)/);
   assert.ok(tabClick, "tab 点击必须只写 ui.activePanel 这一个字段");
 });
 
@@ -84,6 +88,6 @@ test("面板标题表覆盖每一个 tab，且没有遗留的 inventory 标题",
   const titlesLine = workspace.match(/const titles = \{[^}]*\}/);
   assert.ok(titlesLine, "找不到 titles 映射");
   for (const id of tabIds) assert.match(titlesLine[0], new RegExp(`${id}:\\s*"`), `titles 缺少 ${id}`);
-  assert.match(titlesLine[0], /build:\s*"施工"/, "build 面板的标题必须保留");
+  assert.match(titlesLine[0], /build:\s*"施工图预览"/, "build 面板必须明确为施工图预览");
   assert.doesNotMatch(titlesLine[0], /inventory:/, "titles 里不该再有 inventory");
 });

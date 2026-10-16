@@ -7,6 +7,7 @@ const bootstrap = readFileSync(new URL('../ui/workspace-bootstrap.js', import.me
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../styles/workspace.css', import.meta.url), 'utf8');
 const panel = readFileSync(new URL('../ui/pattern-import-panel.js', import.meta.url), 'utf8');
+const renderer = readFileSync(new URL('../ui/canvas-renderer.js', import.meta.url), 'utf8');
 const core = readFileSync(new URL('../vendor/bead-pattern/bead-pattern-core.js', import.meta.url), 'utf8');
 
 /* ── 一、接线：入口落在「新建 / 导入」里，且走新实现 ───────────────────── */
@@ -67,12 +68,52 @@ test('替换前会确认覆盖（当前作品有手动编辑时）', () => {
   assert.match(panel, /if \(current\.manualEdited\) \{[\s\S]*?askConfirmation\("导入图纸会替换当前作品/);
 });
 
+/* ── 三·二、手动裁剪：调整态下的交互契约（自动裁剪保留，手动框优先） ── */
+
+test('手动裁剪框优先于自动裁剪（拖过的框就是最终口径，自动结果只当种子）', () => {
+  assert.match(panel, /if \(state\.manual\) \{\s*\n\s*crop = state\.manual;/);
+  assert.match(panel, /\} else if \(fromImage && els\.autocrop\.checked\) \{/);
+});
+
+test('手动调整态：重识别后留在「原图 + 裁剪框」视图，不被切回色号图纸', () => {
+  // 拖一次框 → 防抖重识别。若这里无条件 setView("beads")：裁剪框消失，
+  // 且 pointerdown 的 state.view !== "source" 早退会让后续拖拽全部失效
+  // —— 用户拖一次就再也调不动框（真机复现过）。
+  assert.match(panel, /if \(!state\.cropMode\) setView\("beads"\);\s*\n\s*else draw\(\);/);
+});
+
+test('裁剪框拖拽只在调整态的原图视图里响应', () => {
+  assert.match(panel, /if \(!state\.cropMode \|\| state\.view !== "source" \|\| !state\.manual \|\| event\.button !== 0\) return;/);
+  assert.match(panel, /els\.canvas\.setPointerCapture\(event\.pointerId\)/);
+});
+
+test('进入调整态：框种子取自动裁剪结果或整图，并让自动裁剪勾选让位', () => {
+  assert.match(panel, /state\.manual = state\.crop[\s\S]*?\{ x0: 0, y0: 0, x1: state\.rawW, y1: state\.rawH \}/);
+  assert.match(panel, /els\.autocrop\.disabled = on;/);
+  // 进入调整态强制原图视图（裁剪框画在原图上）。
+  assert.match(panel, /setView\("source"\);\s*\n\s*setStatus\("拖动裁剪框调整范围/);
+});
+
+test('手动框的裁剪读数按 raw 尺寸现算，口径与自动裁剪一致', () => {
+  assert.match(panel, /const r = state\.manual === state\.crop\s*\n\s*\? \{ left: state\.crop\.x0, top: state\.crop\.y0, right: state\.rawW - state\.crop\.x1, bottom: state\.rawH - state\.crop\.y1 \}/);
+  assert.match(panel, /已裁剪 左\$\{r\.left\}\/上\$\{r\.top\}\/右\$\{r\.right\}\/下\$\{r\.bottom\} px/);
+});
+
+test('导入提示如实区分手动框选与自动裁剪', () => {
+  assert.match(panel, /if \(state\.manual\) note\.push\("已按手动框选裁剪"\);/);
+  assert.match(panel, /else if \(state\.crop\) note\.push\("已自动裁剪边框与图例"\);/);
+});
+
 /* ── 四、缓存戳：改到的文件必须同跳版本号 ───────────────────────────── */
 
 test('workspace.js 与 workspace.css 的缓存戳同步到本轮', () => {
-  assert.match(bootstrap, /\.\/workspace\.js\?v=20261016-pattern-import-1/);
-  assert.match(html, /\.\/styles\/workspace\.css\?v=20261016-panel-position-1/);
-  assert.match(workspace, /pattern-import-panel\.js\?v=20261016-pattern-import-1/);
+  assert.match(bootstrap, /\.\/workspace\.js\?v=20261016-crop-ux-align-1/);
+  assert.match(html, /\.\/styles\/workspace\.css\?v=20261016-crop-ref-trim-1/);
+  assert.match(workspace, /pattern-import-panel\.js\?v=20261016-crop-ux-align-1/);
+  // 参考图布局服务这一轮也改了，两个引用方都得带上戳（否则线上吃旧缓存）。
+  assert.match(workspace, /reference-layer-service\.js\?v=20261016-crop-ux-align-1/);
+  assert.match(renderer, /reference-layer-service\.js\?v=20261016-crop-ux-align-1/);
+  assert.match(workspace, /canvas-renderer\.js\?v=20261016-crop-ux-align-1/);
 });
 
 /* ── 五、样式：走设计令牌，不新造颜色 ───────────────────────────────── */
@@ -251,4 +292,72 @@ test('自动裁剪：色号统计表比图纸宽时仍取图纸（最大矩形�
   assert.equal(crop.x1, 200, '右边只留到图纸末尾');
   assert.equal(crop.y1, 180, '下边那条宽表被整块丢掉');
   assert.deepEqual(crop.cells, { cols: 8, rows: 6 }, '取的是面积最大的豆格区');
+});
+
+/* ── 六、裁切手感优化（用户 2026-10-16 实测：「裁切边框选择困难」） ───── */
+
+test('手柄命中半径按屏幕像素恒定 —— 大图上不再「看得见却点不中」', () => {
+  assert.ok(panel.includes('const HANDLE_HIT_CSS = 15;'), '命中半径常量必须以 CSS 像素计');
+  assert.ok(
+    panel.includes('const handleHitRaw = () => HANDLE_HIT_CSS / Math.max(0.02, rawToCssScale());'),
+    '命中半径要按显示比例换算回 raw',
+  );
+  assert.ok(panel.includes('const hit = handleHitRaw();'), 'handleAt 用的是换算后的半径');
+  assert.ok(!panel.includes('const HANDLE_HIT = 14;'), '旧的 raw 恒定命中半径必须删掉');
+  // 显示比例在画调整视图时记录，没有它命中半径无从换算。
+  assert.ok(panel.includes('state.viewScale = scale;'));
+});
+
+test('拖动吸附到格线与图像边缘，按住 Alt 临时关闭', () => {
+  assert.ok(panel.includes('const SNAP_CSS = 8;'));
+  assert.ok(panel.includes('const snapEdge = (v, far) => {'));
+  assert.ok(panel.includes('const g = Math.round(v / cell) * cell;'), '格线吸附目标');
+  assert.ok(panel.includes('if (v <= tol) return 0;'), '贴左边 / 上边');
+  assert.ok(panel.includes('if (far != null && far - v <= tol) return far;'), '贴右边 / 下边');
+  assert.ok(panel.includes('if (handle === "new") return rect;'), '拉新框不吸附');
+  assert.ok(
+    panel.includes('state.manual = event.altKey ? next : snapCropRect(next, cropDrag.handle);'),
+    'Alt 关吸附的逃生口',
+  );
+  // 吸附之后仍要守住最小边长与图像边界
+  assert.ok(panel.includes('if (handle.includes("w")) x0 = cropClamp(snapEdge(x0, null), 0, x1 - min);'));
+  assert.ok(panel.includes('if (handle.includes("e")) x1 = cropClamp(snapEdge(x1, rw), x0 + min, rw);'));
+});
+
+test('框内格线用绝对相位 —— 和吸附目标落在同一批线上', () => {
+  assert.ok(
+    panel.includes('for (let x = Math.ceil(x0 / cell) * cell; x <= x1; x += cell)'),
+    '竖线从图像原点起跳（不是从框原点）',
+  );
+  assert.ok(
+    panel.includes('for (let y = Math.ceil(y0 / cell) * cell; y <= y1; y += cell)'),
+    '横线同上',
+  );
+});
+
+test('悬停按手柄换方向光标，松手 / 退出调整态复原', () => {
+  assert.ok(panel.includes('const CURSOR_BY_HANDLE = {'));
+  assert.ok(panel.includes('nw: "nwse-resize", se: "nwse-resize",'));
+  assert.ok(panel.includes('ne: "nesw-resize", sw: "nesw-resize",'));
+  assert.ok(panel.includes('move: "move", new: "crosshair",'));
+  assert.ok(panel.includes('if (!cropDrag) { syncCropCursor(event); return; }'));
+  assert.ok(panel.includes('els.canvas.style.cursor = "";'), '松手 / 退出时复原');
+});
+
+test('手柄视觉加大到 15px，与命中半径同尺度', () => {
+  assert.ok(panel.includes('const hs = 7.5 / scale;'), '视觉 15px（半边长 7.5，按 scale 换算）');
+  assert.ok(panel.includes('ctx.lineWidth = 2.5 / scale;'), '描边加粗');
+});
+
+/* ── 七、参考图「和作品对齐大小」（用户 2026-10-16 实测第二问） ─────── */
+
+test('适配下拉多了「精确对齐（拉伸）」档，且浮动条有一键「对齐作品」', () => {
+  assert.ok(workspace.includes('<option value="stretch">精确对齐（拉伸）</option>'));
+  assert.ok(workspace.includes("id='ws-ref-align-artwork'"));
+  assert.ok(
+    workspace.includes(
+      "refAlignButton.addEventListener('click',()=>store.setState({reference:{fit:'stretch',offsetX:0,offsetY:0,scale:1}}));",
+    ),
+    '一键对齐 = 拉伸档 + 位置归零 + 缩放 100%',
+  );
 });

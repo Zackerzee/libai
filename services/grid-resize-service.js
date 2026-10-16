@@ -121,13 +121,14 @@ export function createGridResizeCommand(bridge, {
   targetHeight,
   mode = "canvas",
   anchor = "center",
+  patternSource = null,
 } = {}) {
   if (!Array.isArray(grid) || width < 1 || height < 1) throw new TypeError("Resize 需要有效 canonical grid");
   const nextWidth = dimension(targetWidth, "targetWidth"), nextHeight = dimension(targetHeight, "targetHeight");
   if (!['canvas', 'pattern'].includes(mode)) throw new RangeError(`未知 Resize 模式：${mode}`);
   const before = cloneGridSnapshot({ grid, width, height });
   const resized = mode === "pattern"
-    ? scalePatternNearest(before.grid, nextWidth, nextHeight)
+    ? scalePatternNearest(patternSource?.grid ?? before.grid, nextWidth, nextHeight)
     : resizeCanvasGrid(before.grid, nextWidth, nextHeight, { anchor });
   const after = cloneGridSnapshot({ grid: resized, width: nextWidth, height: nextHeight });
   // replaceGridStructure 的具体桥接实现可能直接接管传入矩阵；每次应用都再克隆，
@@ -138,6 +139,70 @@ export function createGridResizeCommand(bridge, {
   return createStructureCommand(snapshotBridge, {
     type: mode === "pattern" ? "RESIZE_PATTERN" : "RESIZE_CANVAS",
     label: `${mode === "pattern" ? "缩放图案" : "调整画板"}：${width}×${height} → ${nextWidth}×${nextHeight}`,
+    before,
+    after,
+  });
+}
+
+/**
+ * 四边「连续整行/整列全空白（canonical null）」的圈数。
+ * 只数**外圈**：内部的空白洞是设计的一部分（镂空图案），绝不碰。
+ * 全空图纸：top 数到 height 即止，其余三边保持 0，不重复计数。
+ */
+export function blankBorderInsets(grid) {
+  if (!Array.isArray(grid) || !grid.length || !grid[0]?.length) return { top: 0, right: 0, bottom: 0, left: 0 };
+  const width = grid[0].length, height = grid.length;
+  const rowBlank = (y) => { for (let x = 0; x < width; x++) if (grid[y][x] != null) return false; return true; };
+  const colBlank = (x) => { for (let y = 0; y < height; y++) if (grid[y][x] != null) return false; return true; };
+  const insets = { top: 0, right: 0, bottom: 0, left: 0 };
+  while (insets.top < height && rowBlank(insets.top)) insets.top++;
+  while (insets.bottom < height - insets.top && rowBlank(height - 1 - insets.bottom)) insets.bottom++;
+  // 左右只数**列**，但全空图纸时 top 已吃掉所有行 —— 再数左右会把同一批空格
+  // 重复归属（四边加起来超过格子总数）。没有剩余行时左右保持 0。
+  const remainingRows = height - insets.top - insets.bottom;
+  if (remainingRows > 0) {
+    while (insets.left < width && colBlank(insets.left)) insets.left++;
+    while (insets.right < width - insets.left && colBlank(width - 1 - insets.right)) insets.right++;
+  }
+  return insets;
+}
+
+/**
+ * 收缩空白边距：把画布裁到「内容框 + margin 格」。内容本身不缩放、不重算颜色。
+ * margin 被各侧已有空白量约束（最多收到内容贴边，不越界、不扩容）。
+ * 没有空白可收（或收了也没变化）时返回 null —— 调用方据此禁用按钮。
+ */
+export function trimBlankBorders(grid, margin = 0) {
+  if (!Array.isArray(grid) || !grid.length || !grid[0]?.length) return null;
+  const width = grid[0].length, height = grid.length;
+  const insets = blankBorderInsets(grid);
+  if (!insets.top && !insets.right && !insets.bottom && !insets.left) return null;
+  const m = Math.max(0, Math.round(Number(margin) || 0));
+  const cx0 = insets.left, cy0 = insets.top, cx1 = width - insets.right, cy1 = height - insets.bottom;
+  // 全空图纸（四边把整个网格吃光）：没有内容可保，绝不产出空网格。
+  if (cx1 <= cx0 || cy1 <= cy0) return null;
+  const x0 = cx0 - Math.min(m, insets.left), y0 = cy0 - Math.min(m, insets.top);
+  const x1 = cx1 + Math.min(m, insets.right), y1 = cy1 + Math.min(m, insets.bottom);
+  const nextWidth = x1 - x0, nextHeight = y1 - y0;
+  if (nextWidth >= width && nextHeight >= height) return null;
+  const next = Array.from({ length: nextHeight }, (_, y) =>
+    Array.from({ length: nextWidth }, (_, x) => cloneCell(grid[y0 + y]?.[x0 + x] ?? null)));
+  return { grid: next, width: nextWidth, height: nextHeight, insets, contentBox: { x0: cx0, y0: cy0, x1: cx1, y1: cy1 } };
+}
+
+/** 收缩空白边距的可撤销结构命令（与 createGridResizeCommand 同一套撤销语义）。 */
+export function createGridTrimCommand(bridge, { grid, width = grid?.[0]?.length || 0, height = grid?.length || 0, margin = 0 } = {}) {
+  if (!Array.isArray(grid) || width < 1 || height < 1) throw new TypeError("Trim 需要有效 canonical grid");
+  const trim = trimBlankBorders(grid, margin);
+  if (!trim) return null;
+  const before = cloneGridSnapshot({ grid, width, height });
+  const after = cloneGridSnapshot({ grid: trim.grid, width: trim.width, height: trim.height });
+  const snapshotBridge = {
+    replaceGridStructure: (snapshot) => bridge.replaceGridStructure(cloneGridSnapshot(snapshot)),
+  };
+  return createStructureCommand(snapshotBridge, {
+    type: "TRIM_BLANKS",
+    label: `收缩空白边距：${width}×${height} → ${trim.width}×${trim.height}`,
     before,
     after,
   });

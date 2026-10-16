@@ -322,10 +322,49 @@ test("选区：fitSelectionBox 空输入返回 null", () => {
   assert.equal(fitSelectionBox(null, "x"), null);
 });
 
-test("选区：shapeCells 分发三种形状", () => {
+test("选区：shapeCells 分发直线、矩形、椭圆和新增多边形", () => {
   assert.deepEqual(shapeCells("line", { x: 0, y: 0 }, { x: 2, y: 0 }), lineCells(0, 0, 2, 0));
   assert.equal(shapeCells("rect", { x: 0, y: 0 }, { x: 2, y: 2 }).length, 8);
   assert.ok(shapeCells("ellipse", { x: 0, y: 0 }, { x: 4, y: 4 }).length > 0);
+  for (const kind of ["heart", "diamond", "star"]) {
+    assert.ok(shapeCells(kind, { x: 0, y: 0 }, { x: 12, y: 12 }).length > 0, `${kind} 应有描边`);
+  }
+});
+
+test("多边形形状：心形、菱形、五角星确定性栅格化且严格位于归一化边界框", () => {
+  for (const kind of ["heart", "diamond", "star"]) {
+    const start = { x: 8, y: 7 }, end = { x: -5, y: -4 };
+    const a = shapeCells(kind, start, end);
+    const b = shapeCells(kind, start, end);
+    assert.deepEqual(a, b, `${kind} 的顺序和结果必须稳定`);
+    assert.ok(hasNoDup(a), `${kind} 描边不应重复`);
+    assert.ok(a.every(({ x, y }) => x >= -5 && x <= 8 && y >= -4 && y <= 7), `${kind} 不得越界`);
+  }
+});
+
+test("多边形形状：实心包含描边，面积非空且小于满框", () => {
+  for (const kind of ["heart", "diamond", "star"]) {
+    const start = { x: 0, y: 0 }, end = { x: 16, y: 16 };
+    const stroke = shapeCells(kind, start, end);
+    const filled = shapeCells(kind, start, end, { filled: true });
+    const filledSet = setOf(filled);
+    assert.ok(stroke.length > 0 && filled.length > stroke.length, `${kind} 应有可辨识的实心区域`);
+    assert.ok(stroke.every(({ x, y }) => filledSet.has(key(x, y))), `${kind} 的实心区域必须包含描边`);
+    assert.ok(filled.length < 17 * 17, `${kind} 不应退化为满框`);
+    assert.ok(filled.every(({ x, y }) => x >= 0 && x <= 16 && y >= 0 && y <= 16), `${kind} 实心区域不得越界`);
+  }
+});
+
+test("多边形形状：退化与微小边界至少落一格，方向反转不改变格集合", () => {
+  for (const kind of ["heart", "diamond", "star"]) {
+    assert.equal(shapeCells(kind, { x: 4, y: 9 }, { x: 4, y: 9 }).length, 1, `${kind} 单点框`);
+    assert.ok(shapeCells(kind, { x: 3, y: 2 }, { x: 3, y: 8 }).length > 0, `${kind} 单列框`);
+    assert.deepEqual(
+      setOf(shapeCells(kind, { x: 1, y: 2 }, { x: 9, y: 11 })),
+      setOf(shapeCells(kind, { x: 9, y: 11 }, { x: 1, y: 2 })),
+      `${kind} 方向反转应保持一致`,
+    );
+  }
 });
 
 // ---------------- 回归：偶数跨度椭圆不得退化成矩形 ----------------

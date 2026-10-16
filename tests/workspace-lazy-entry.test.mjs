@@ -37,7 +37,7 @@ test("brand homepage keeps its three real creation paths and current capabilitie
   for(const text of ["LIBMS Studio","专业拼豆设计与制作工作台","从一张图片","到真正能拼出来的图纸"])assert.match(html,new RegExp(text));
   for(const id of ["upload-zone","blank-board-button","open-project-button"])assert.match(html,new RegExp(`id="${id}"`));
   for(const step of ["01 生成","02 优化","03 精修","04 材料","05 施工","06 输出"])assert.match(html,new RegExp(step.replace(" ","[\\s\\S]*")));
-  assert.match(html,/assets\/brand\/shiliber-mark-256\.png/);
+  assert.match(html,/assets\/libms-logo\.png/);
   assert.doesNotMatch(html,/巨大虚线上传框/);
   assert.match(app,/querySelector\("\[data-focus-blank\]"\)[\s\S]*openBlankBoardDialog\(\)/);
 });

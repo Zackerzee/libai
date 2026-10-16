@@ -56,6 +56,17 @@ function maskComments(css) {
 
 const CSS = maskComments(CSS_RAW);
 
+test("独立菜单浮层单列展示，不被轨道裁切且保留移动端文字", () => {
+  assert.match(CSS, /\.sl-tool-menu\.sl-rail-popover\s*\{[^}]*position:fixed\s*!important/);
+  assert.match(CSS, /\.sl-tool-menu\.sl-rail-popover\s*\{[^}]*grid-template-columns:minmax\(0,1fr\)\s*!important/);
+  assert.match(CSS, /\.sl-rail-popover \.sl-tool-button\s*\{[^}]*flex-direction:row\s*!important/);
+  assert.match(CSS, /\.sl-rail-popover \.sl-tool-label\s*\{[^}]*display:block\s*!important/);
+  const toolbar = readFileSync(new URL("../ui/grid-editor-toolbar.js", import.meta.url), "utf8");
+  assert.match(toolbar, /document\.body\.append\(menu\)/);
+  assert.match(toolbar, /this\.handleToolbarClick\(event\)/);
+  assert.match(toolbar, /current\.owner\.append\(current\.menu\)/);
+});
+
 /**
  * 把 CSS 切成顶层片段。返回 `{ cond, body }[]`：
  * `cond` 是媒体查询条件（全局作用域为 `null`），`body` 是该片段内部文本。
@@ -109,6 +120,7 @@ function importantPositionRules(css) {
       const selector = m[1].trim().replace(/\s+/g, " ");
       const decls = m[2];
       if (!/\.sl-tool-menu\b/.test(selector)) continue;
+      if (selector.includes(".sl-rail-popover")) continue; // 独立浮层不属于轨道内的断点布局。
       const pos = /position:\s*([a-z-]+)\s*!important/.exec(decls);
       if (!pos) continue;
       found.push({ cond: seg.cond, selector, position: pos[1] });

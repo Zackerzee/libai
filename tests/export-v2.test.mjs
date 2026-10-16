@@ -66,7 +66,7 @@ test("poster signature prefix and four typography styles are deterministic",()=>
   assert.equal(signatureDisplayText({signatureText:"时里白",signaturePrefix:"at"}),"@时里白");
   assert.equal(signatureDisplayText({signatureText:"时里白",signaturePrefix:"copyright"}),"© 时里白");
   assert.deepEqual(Object.keys(POSTER_FONT_STYLES),["minimal","artistic","handwritten","modern"]);
-  for(const style of Object.keys(POSTER_FONT_STYLES)){const font=posterFont({signatureStyle:style,signatureSize:"medium"});assert.match(font,/32px/);assert.match(font,/PingFang|Songti|Kaiti|Noto/);}
+  for(const style of Object.keys(POSTER_FONT_STYLES)){const font=posterFont({signatureStyle:style,signatureSize:"medium"});assert.match(font,/48px/);assert.match(font,/PingFang|Songti|Kaiti|Noto/);}
 });
 
 test("PDF rejects Chinese title explicitly instead of corrupting it into question marks",()=>{

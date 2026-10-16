@@ -1,4 +1,4 @@
-import { BASE_CELL } from "../services/viewport-service.js?v=20261014-zoom-floor20-2";
+import { BASE_CELL } from "../services/viewport-service.js?v=20261015-dynamic-zoom-1";
 import { highlightedColorEdges } from './color-highlight.mjs';
 import { textFrameControls } from './editor-interaction.mjs?v=20261010-editor-r31';
 import { guideInterval, guideIndices, rulerEntries, gridGuideInk } from './grid-guides.mjs?v=20261014-rulers20-2';
@@ -13,7 +13,7 @@ export function selectionBoundaryEdges(selection,x,y){
   return [[0,-1,[x,y,x+1,y]],[1,0,[x+1,y,x+1,y+1]],[0,1,[x,y+1,x+1,y+1]],[-1,0,[x,y,x,y+1]]].filter(([dx,dy])=>!selectionContains(selection,x+dx,y+dy)).map(([, ,edge])=>edge);
 }
 import { symmetryBrushCells } from "../services/symmetry-service.js";
-import { referenceLayout } from "../services/reference-layer-service.js";
+import { referenceLayout } from "../services/reference-layer-service.js?v=20261016-crop-ux-align-1";
 import { currentInspectionIssue } from "../services/inspection-service.js";
 
 // Diagnostics are not a selection: ordinary editing must not draw every issue.
@@ -122,7 +122,9 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
     const image = referenceImage(settings.url || "");
     if (!image) return;
     ctx.save();
-    ctx.globalAlpha = Math.min(1, Math.max(0, (Number(settings.opacity) || 0) / 100));
+    // Standalone comparison/picking shows the real image, not the overlay opacity.
+    ctx.globalAlpha = settings.displayMode === 'reference-only' ? 1
+      : Math.min(1, Math.max(0, (Number(settings.opacity) || 0) / 100));
     ctx.imageSmoothingEnabled=settings.smoothing!=="pixelated";
     ctx.beginPath();ctx.rect(box.x,box.y,box.width,box.height);ctx.clip();
     const layout=referenceLayout(image.naturalWidth,image.naturalHeight,box,settings);if(layout)ctx.drawImage(image,layout.x,layout.y,layout.width,layout.height);
@@ -240,7 +242,9 @@ export function createCanvasRenderer(container, viewport, getResult, getView, ge
       overlay.strokeStyle=editor.tool==="eraser"?"rgba(220,68,55,.78)":"rgba(232,115,37,.72)"; overlay.lineWidth=1;
       const axisX=Number.isFinite(editor.symmetryAxisX)?editor.symmetryAxisX:(gridWidth-1)/2;
       const axisY=Number.isFinite(editor.symmetryAxisY)?editor.symmetryAxisY:(gridHeight-1)/2;
-      const previewCells=symmetryBrushCells([editor.hoveredCell],gridWidth,gridHeight,{size:editor.brushSize,shape:editor.brushShape||"square",symmetry:{mode:editor.symmetryMode||"none",axisX,axisY}});
+      // 悬停预览必须与真实落笔同宽：橡皮看 eraserSize，画笔看 brushSize。
+      const hoverSize = editor.tool === "eraser" ? (Number(editor.eraserSize) || 1) : editor.brushSize;
+      const previewCells=symmetryBrushCells([editor.hoveredCell],gridWidth,gridHeight,{size:hoverSize,shape:editor.brushShape||"square",symmetry:{mode:editor.symmetryMode||"none",axisX,axisY}});
       for(const {x,y} of previewCells){
         const p=viewport.gridToScreen(x,y); overlay.fillRect(p.x,p.y,cell,cell); overlay.strokeRect(p.x+.5,p.y+.5,Math.max(0,cell-1),Math.max(0,cell-1));
       }

@@ -37,6 +37,8 @@ export const INCLUDE_FILES = [
   "THIRD_PARTY_NOTICES.md",
   "ALGORITHM_AUDIT.md",
   "index.html",
+  "component-showcase.html",
+  "brand-motion-lab.html",
   "algorithm-lab.html",
   "app.js",
   "styles.css",

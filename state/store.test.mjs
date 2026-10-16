@@ -27,8 +27,8 @@ const { createStore, createCompatState, DEFAULTS, LEGACY_MAP, LEGACY_KEYS } = st
 // 87 = 86 + sourceDimensions（B0.1 新增：尺寸权威链的载体）。
 // 94 = 93 + currentPaletteId（B1 新增：当前颜色的唯一真源）。
 // 若此数变化，说明 app.js 的 state 被改过，必须同步更新本测试与 STATE-MIGRATION.md。
-// 97 = 94 + smartColorTolerance / smartToleranceReport / smartToleranceBaselineRevision.
-const LEGACY_FIELD_COUNT = 97;
+// 99 = 97 + optional native pindouOptions / pindouReport aliases.
+const LEGACY_FIELD_COUNT = 99;
 
 function fresh() {
   const store = createStore();
@@ -304,8 +304,8 @@ test("uiState / referenceState / documentState / statsState：Phase 3B 新增命
     url: "",
     opacity: 40,
     fit: "contain",
-    visible: true,
-    useSource: true,
+    visible: false,
+    useSource: false,
     offsetX: 0,
     offsetY: 0,
     scale: 1,
@@ -332,7 +332,7 @@ test("Phase 3B：projectStore 字段已能在 libmsStore 中找到归属（无�
     rendererState: ["mode", "showGrid", "showCodes", "codeVisibilityThreshold"],
     viewportState: ["zoom"],
     editorState: ["selectedCell", "selectedPaletteId", "hoveredCell", "shapePreview", "highlightedColor", "highlightedPaletteId",
-      "brushSize", "wandTolerance", "shapeFilled", "symmetryHorizontal", "symmetryVertical", "symmetryMode", "symmetryAxisX", "symmetryAxisY", "symmetryGuideVisible", "paletteCategory", "recentColors",
+      "brushSize", "eraserSize", "wandTolerance", "shapeFilled", "symmetryHorizontal", "symmetryVertical", "symmetryMode", "symmetryAxisX", "symmetryAxisY", "symmetryGuideVisible", "paletteCategory", "recentColors",
       "rampBasePaletteId", "rampSize", "rampPaletteIds", "inkMode",
       "clipboard", "history"],
   };

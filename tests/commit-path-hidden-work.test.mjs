@@ -35,7 +35,7 @@ test("① exportV2 的 grid() 是整幅深拷贝 —— 这是两处守卫存在
     "exportV2.grid() 的深拷贝形状变了 —— §16 的守卫理由需要重新评估",
   );
   // estimate 和 split 都必须经过它（否则上面的结论不成立）
-  assert.match(exportV2, /estimate\(quality="ultra"\)\{const g=grid\(\)/);
+  assert.match(exportV2, /estimate\(quality="hd",options=\{\}\)\{return pngPatternPixelSize\(grid\(\)/);
   assert.match(exportV2, /split:\(\)=>splitPatternGrid\(grid\(\),104,104\)/);
 });
 

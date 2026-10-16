@@ -34,7 +34,9 @@ export const TEXT_FONTS = [
   { id: "hand", label: "浪漫手写", stack: '"Xingkai SC", STXingkai, "Yuanti SC", cursive' },
 ];
 
-export const TEXT_SCALE_RANGE = { min: 20, max: 300, step: 5 };
+// The slider remains bounded for convenient scrubbing; the adjacent numeric field
+// supports larger values when the artwork needs oversized lettering.
+export const TEXT_SCALE_RANGE = { min: 10, max: 500, step: 5, inputMax: 2000 };
 export const TEXT_ROTATION_RANGE = { min: -180, max: 180, step: 1 };
 // 短边占比决定默认字号：同一段文字在 52 格和 500 格的图纸上观感一致。
 const BASE_SIZE_RATIO = 0.18;
@@ -53,6 +55,9 @@ export function createTextLayer(overrides = {}) {
     id: `text-${Date.now().toString(36)}-${seq}`,
     text: "新文字素材",
     font: "system",
+    fontFamily: "",
+    fontData: "",
+    locked: false,
     color: "",
     paletteId: "",
     bold: false,
@@ -60,6 +65,20 @@ export function createTextLayer(overrides = {}) {
     scale: 100,
     spacing: 0,
     rotation: 0,
+    textHex: "",
+    shadowEnabled: false,
+    shadowHex: "#f8c2c9",
+    shadowStrength: 1,
+    backplateEnabled: false,
+    backplateHex: "#ffffff",
+    backplateOpacity: 100,
+    borderStyle: "none",
+    borderWidth: 1,
+    borderHex: "#d74723",
+    borderOpacity: 100,
+    glowEnabled: false,
+    glowHex: "#111111",
+    glowStrength: 1,
     x: 0,
     y: 0,
     ...overrides,
@@ -76,9 +95,28 @@ export function baseFontSize(gridWidth, gridHeight) {
 /** 组装 canvas 的 font 简写。加粗是「比字体本身更粗」，不是无脑 700。 */
 export function fontCss(layer, sizePx) {
   const font = fontFor(layer?.font);
+  const customFamily = String(layer?.fontFamily || "").trim();
+  ensureUploadedFont(layer);
+  const stack = customFamily ? `${JSON.stringify(customFamily)}, ${font.stack}` : font.stack;
   const base = font.weight || 400;
   const weight = layer?.bold ? Math.max(700, base) : base;
-  return `${layer?.italic ? "italic " : ""}${weight} ${sizePx}px ${font.stack}`;
+  return `${layer?.italic ? "italic " : ""}${weight} ${sizePx}px ${stack}`;
+}
+
+const registeredFontData = new Map();
+function ensureUploadedFont(layer) {
+  const family = String(layer?.fontFamily || "").trim(), data = String(layer?.fontData || "");
+  if (!family || !data || typeof FontFace === "undefined" || !globalThis.document?.fonts || registeredFontData.get(family) === data) return;
+  if (document.fonts.check(`16px ${JSON.stringify(family)}`)) { registeredFontData.set(family, data); return; }
+  registeredFontData.set(family, data);
+  try {
+    const face = new FontFace(family, `url(${JSON.stringify(data)})`);
+    document.fonts.add(face);
+    face.load().then(() => {
+      cache.clear();
+      window.dispatchEvent(new CustomEvent("libms:text-font-loaded", { detail: { family } }));
+    }).catch(() => registeredFontData.delete(family));
+  } catch { registeredFontData.delete(family); }
 }
 
 let scratch = null;
@@ -139,7 +177,49 @@ export function rasterizeText(layer, gridWidth, gridHeight, options = {}) {
       if (data[(y * width + x) * 4 + 3] >= INK_ALPHA) cells.push({ x, y });
     }
   }
-  return { cells, width: widest, height: lines.length * lineHeight };
+  const textCells = cells;
+  const layers = [];
+  const box = cellsBox(textCells);
+  const addLayer = (role, color, opacity, layerCells) => {
+    if (layerCells.length) layers.push({ role, color, opacity: Math.max(0, Math.min(100, Number(opacity) || 0)) / 100, cells: layerCells });
+  };
+  const textColor = String(layer.textHex || "").trim();
+  if (layer.backplateEnabled && box) {
+    const plate = [];
+    for (let y = Math.max(0, box.y0 - 1); y <= Math.min(height - 1, box.y1 + 1); y++)
+      for (let x = Math.max(0, box.x0 - 1); x <= Math.min(width - 1, box.x1 + 1); x++) plate.push({ x, y });
+    addLayer("backplate", layer.backplateHex, layer.backplateOpacity, plate);
+  }
+  if (layer.glowEnabled && box) {
+    const glow = [];
+    const radius = Math.max(1, Math.min(4, Math.round(Number(layer.glowStrength) || 1)));
+    const occupied = new Set(textCells.map(({ x, y }) => `${x},${y}`));
+    for (const { x, y } of textCells) for (let dy = -radius; dy <= radius; dy++) for (let dx = -radius; dx <= radius; dx++) {
+      const nx = x + dx, ny = y + dy, key = `${nx},${ny}`;
+      if (nx >= 0 && nx < width && ny >= 0 && ny < height && !occupied.has(key)) { occupied.add(key); glow.push({ x: nx, y: ny }); }
+    }
+    addLayer("glow", layer.glowHex, Math.max(15, 75 - radius * 10), glow);
+  }
+  if (layer.shadowEnabled) {
+    const offset = Math.max(1, Math.min(4, Math.round(Number(layer.shadowStrength) || 1)));
+    addLayer("shadow", layer.shadowHex, 80, textCells.map(({ x, y }) => ({ x: x + offset, y: y + offset })).filter(({ x, y }) => x < width && y < height));
+  }
+  if (layer.borderStyle !== "none" && box) {
+    const border = [];
+    const pad = layer.backplateEnabled ? 1 : 0;
+    const x0 = Math.max(0, box.x0 - pad), x1 = Math.min(width - 1, box.x1 + pad), y0 = Math.max(0, box.y0 - pad), y1 = Math.min(height - 1, box.y1 + pad);
+    const thickness = Math.max(1, Math.min(4, Math.round(Number(layer.borderWidth) || 1)));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const edge = x - x0 < thickness || x1 - x < thickness || y - y0 < thickness || y1 - y < thickness;
+      const dashedOut = layer.borderStyle !== "dashed" || (x + y) % 2 === 0;
+      if (edge && dashedOut) border.push({ x, y });
+    }
+    addLayer("border", layer.borderHex, layer.borderOpacity, border);
+  }
+  addLayer("text", textColor, 100, textCells);
+  const merged = new Map();
+  for (const paintLayer of layers) for (const cell of paintLayer.cells) merged.set(`${cell.x},${cell.y}`, cell);
+  return { cells: [...merged.values()], paintLayers: layers, width: widest, height: lines.length * lineHeight };
 }
 
 /**
@@ -152,7 +232,9 @@ export function rasterizeTextCached(layer, gridWidth, gridHeight) {
   if (!layer) return { cells: [], width: 0, height: 0 };
   const key = [
     layer.text, layer.font, layer.bold, layer.italic, layer.scale, layer.spacing, layer.rotation,
-    layer.x, layer.y, gridWidth, gridHeight,
+    layer.x, layer.y, layer.fontFamily, layer.fontData, layer.textHex, layer.shadowEnabled, layer.shadowHex, layer.shadowStrength,
+    layer.backplateEnabled, layer.backplateHex, layer.backplateOpacity, layer.borderStyle, layer.borderWidth, layer.borderHex, layer.borderOpacity,
+    layer.glowEnabled, layer.glowHex, layer.glowStrength, gridWidth, gridHeight,
   ].join("\u0001");
   const hit = cache.get(key);
   if (hit) return hit;
@@ -160,6 +242,42 @@ export function rasterizeTextCached(layer, gridWidth, gridHeight) {
   if (cache.size >= CACHE_LIMIT) cache.clear();
   cache.set(key, value);
   return value;
+}
+
+const parseHex = (value) => {
+  const match = /^#?([0-9a-f]{6})$/i.exec(String(value || ""));
+  return match ? [0, 2, 4].map((index) => parseInt(match[1].slice(index, index + 2), 16)) : null;
+};
+function closestPaletteColor(hex, palette, fallbackId) {
+  const fallback = palette.find((color) => color.paletteId === fallbackId || color.code === fallbackId);
+  const rgb = parseHex(hex);
+  if (!rgb) return fallback || null;
+  return palette.filter((color) => Array.isArray(color.rgb)).reduce((best, color) => {
+    const distance = color.rgb.reduce((sum, value, index) => sum + (value - rgb[index]) ** 2, 0);
+    return !best || distance < best.distance ? { color, distance } : best;
+  }, null)?.color || fallback || null;
+}
+
+/** Add locked text layers to an export-only grid copy; the editor's base grid is untouched. */
+export function composeLockedTextGrid(grid, layers = [], palette = [], { rasterize = rasterizeTextCached } = {}) {
+  if (!Array.isArray(grid) || !grid.length) return grid;
+  const output = grid.map((row) => row.slice());
+  const height = output.length, width = output[0]?.length || 0;
+  for (const layer of layers) {
+    if (!layer?.locked) continue;
+    const { paintLayers, cells } = rasterize(layer, width, height);
+    const groups = paintLayers?.length ? paintLayers : [{ role: "text", color: layer.textHex, cells }];
+    for (const group of groups) {
+      const identity = group.role === 'text' ? layer.paletteId : layer[`${group.role}PaletteId`];
+      const exact = identity && palette.find(color => color.paletteId === identity);
+      const target = exact || (group.role === "text" && !layer.textHex
+        ? palette.find((color) => color.paletteId === layer.paletteId || color.code === layer.color)
+        : closestPaletteColor(group.color || layer.textHex, palette, layer.paletteId || layer.color));
+      if (!target) continue;
+      for (const { x, y } of group.cells) if (x >= 0 && x < width && y >= 0 && y < height) output[y][x] = target;
+    }
+  }
+  return output;
 }
 
 /** 一组豆格的外接框；空集合返回 null。 */

@@ -113,9 +113,14 @@ test("createTextLayer defaults match the reference sheet and overrides win", () 
 });
 
 test("scale and rotation ranges are sane and match the panel sliders", () => {
-  assert.deepEqual(TEXT_SCALE_RANGE, { min: 20, max: 300, step: 5 });
+  assert.deepEqual(TEXT_SCALE_RANGE, { min: 10, max: 500, step: 5, inputMax: 2000 });
   assert.deepEqual(TEXT_ROTATION_RANGE, { min: -180, max: 180, step: 1 });
   assert.equal(TEXT_SCALE_RANGE.min % TEXT_SCALE_RANGE.step, 0);
+});
+
+test("custom font family is incorporated into the rasterizer font stack", () => {
+  assert.match(fontCss({ font: "system", fontFamily: "My Studio Font" }, 18), /"My Studio Font",/);
+  assert.match(fontCss({ font: "pixel", fontFamily: "" }, 18), /Fusion Pixel/);
 });
 
 // ---------------------------------------------------------------------------

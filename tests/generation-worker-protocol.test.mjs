@@ -98,7 +98,7 @@ test("Worker：本体不依赖 DOM / window（结构上保证生成不依赖界�
 
 test("Worker：复用 B0 契约，不另起第二套协议（§25）", async () => {
   const source = await readFile(WORKER_URL, "utf8");
-  assert.match(source, /from "\.\/generation-job\.mjs"/, "必须复用 executeGenerationJob");
+  assert.match(source, /from "\.\/generation-job\.mjs(?:\?[^\"]*)?"/, "必须复用 executeGenerationJob");
   assert.match(source, /from "\.\/generation-result-codec\.mjs"/, "必须走紧凑结果编解码");
   // 只扫代码，不扫注释 —— 注释里正是在说明「没有这些协议」。
   const code = source

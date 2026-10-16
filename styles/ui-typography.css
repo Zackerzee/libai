@@ -1,0 +1,37 @@
+/* Interface only. Canvas text objects and export renderers retain their fonts. */
+/* 全站 UI 字体：vendor/misans 自托管子集（可变 100-900），换字体只改这一行 */
+:root{--ds-font-ui:"MiSans UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+body.phase2-workspace,body:not(.phase2-workspace){font-family:var(--ds-font-ui)!important;-webkit-font-smoothing:antialiased}
+body.phase2-workspace{font-size:14px;font-weight:400;line-height:1.5}
+body.phase2-workspace :is(button,input,select,textarea,output,dialog){font-family:var(--ds-font-ui)!important}
+body.phase2-workspace :is(button,.ws-field,.ws-source-slider,.ws-section-title,.ws-text-label,.ws-engine-label){font-size:13px;font-weight:400;line-height:1.4}
+body.phase2-workspace :is(input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),select,textarea){font-size:14px;font-weight:400}
+body.phase2-workspace :is(.ws-step-card h2,.ws-palette-summary h2,.ws-project-information #ws-project-info,.ws-feature-search strong){font-size:16px;font-weight:600;line-height:1.4}
+body.phase2-workspace :is(.ws-step-card h3,.sl-section-heading h3,.sl-preset-card,.ws-button,.ws-topbar button,.ws-inline-expand button){font-size:13px;font-weight:500}
+body.phase2-workspace :is(.ws-note,.sl-section-hint,.sl-info-box,small,.ws-status,.ws-source-size,.ws-text-layer-metadata){font-size:12px;font-weight:400;line-height:1.5}
+body.phase2-workspace :is(.ws-text-layer-name,.ws-current-color-summary strong){font-weight:500}
+body.phase2-workspace .ws-summary-totals strong{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+body.phase2-workspace .ws-project-information .ws-field{display:flex;flex-direction:column;gap:5px;margin:0 0 10px}
+/* 作品名称 / 创作者：同一套细字重、小字号与框体尺寸（换字体只改 --ds-font-ui） */
+body.phase2-workspace .ws-project-information .ws-field :is(.ws-name,#ws-project-creator){width:100%;max-width:none;box-sizing:border-box;height:34px;min-height:34px;padding:0 10px;border:1px solid var(--ws-border);border-radius:var(--ws-radius-sm);background:var(--ws-surface);color:var(--ws-text);font-family:var(--ds-font-ui);font-size:13px;font-weight:300;line-height:32px;-webkit-font-smoothing:antialiased}
+body.phase2-workspace .ws-project-information .ws-field :is(.ws-name,#ws-project-creator)::placeholder{color:var(--ws-text-tertiary);font-weight:300}
+body.phase2-workspace .ws-project-information .ws-field :is(.ws-name,#ws-project-creator):hover{border-color:var(--ws-border-strong)}
+body.phase2-workspace .ws-project-information .ws-field :is(.ws-name,#ws-project-creator):focus{border-color:var(--ws-accent);outline:none}
+body.phase2-workspace .ws-step-card h2>span{font-size:12px;font-weight:500}
+/* Compact inspectors only: canvas text, exports and usage strip are unchanged. */
+body.phase2-workspace :is(.ws-inspector,.ws-step-card){font-size:12px;line-height:1.4}
+body.phase2-workspace :is(.ws-inspector,.ws-step-card) :is(button,label,input:not([type="range"]),select,textarea,.ws-field,.ws-section-title,.ws-note,.ws-status){font-size:12px;line-height:1.4}
+body.phase2-workspace :is(.ws-step-card h2,.ws-step-card h3,.ws-palette-summary h2,.ws-project-information #ws-project-info){font-size:13px;line-height:1.4}
+body.phase2-workspace .ws-step-card{padding:10px}
+body.phase2-workspace .ws-step-card h2{margin-bottom:7px;gap:6px}
+body.phase2-workspace .ws-project-information .ws-field :is(.ws-name,#ws-project-creator){height:28px;min-height:28px;font-size:12px;line-height:26px;padding-inline:7px}
+body.phase2-workspace .ws-project-information .ws-field{gap:4px;margin-bottom:6px}
+body.phase2-workspace .ws-project-information{padding-bottom:8px;margin-bottom:8px}
+/* Keep palette identities/counts readable; their strip geometry is unchanged. */
+body.phase2-workspace :is(.ws-usage-swatch,.ws-summary-chip,.ws-bead-picker button){font-variant-numeric:tabular-nums}
+/* Light inspector text; bead swatches and canvas/export lettering stay unchanged. */
+body.phase2-workspace :is(.ws-inspector,.ws-step-card,#ws-palette-summary) :is(button,label,input,select,textarea,output,p,span,strong,small,.ws-field,.ws-section-title,.ws-note,.ws-status):not(.ws-usage-swatch):not(.ws-usage-swatch *):not(.ws-summary-chip):not(.ws-summary-chip *):not(.ws-bead-picker *){font-weight:300!important}
+body.phase2-workspace :is(.ws-inspector,.ws-step-card,#ws-palette-summary) :is(h2,h3,h2>span){font-weight:400!important}
+body.phase2-workspace #ws-palette-summary #ws-project-info{font-weight:400!important}
+body.phase2-workspace #ws-usage-summary-inline{font-weight:300}
+body.phase2-workspace #ws-usage-summary-inline strong{font-weight:400}

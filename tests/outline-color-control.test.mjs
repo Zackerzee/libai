@@ -32,6 +32,7 @@ const panelNodes=(target)=>{
     '#ws-outline-thickness':{value:'1'},
     '#ws-outline-connectivity':{value:'4'},
     '#ws-outline-holes':{checked:false},
+    '#ws-outline-overwrite':{checked:true},
   };
   return nodes;
 };
@@ -44,6 +45,8 @@ test('quick outline uses chosen outline color, not the old brush color',()=>{
   assert.equal(seen.planned.thickness,1);
   assert.equal(seen.planned.connectivity,4);
   assert.equal(seen.planned.includeHoles,false);
+  assert.equal(seen.planned.overwrite,true,'覆盖周边颜色的勾选态必须进计划');
+  assert.equal(seen.patched.editor.outlinePreview.overwrite,true,'预览状态要带上 overwrite，摘要才能换成「覆盖原有 N 颗」的读法');
   assert.equal(seen.patched.editor.outlinePreview.targetPaletteId,'H07','描边色用选定的 H07，不是画笔色 H02');
   assert.equal(seen.patched.editor.outlinePreview.cells.length,2);
   assert.equal(seen.patched.editor.outlinePreview.candidateCount,3);
@@ -66,4 +69,13 @@ test('outline holes checkbox reaches the plan',()=>{
   const seen=runPreview(nodes);
   nodes.__click();
   assert.equal(seen.planned.includeHoles,true);
+});
+
+test('取消「覆盖周边颜色」后计划回到「只描空白」的旧语义',()=>{
+  const nodes=panelNodes('H07');
+  nodes['#ws-outline-overwrite'].checked=false;
+  const seen=runPreview(nodes);
+  nodes.__click();
+  assert.equal(seen.planned.overwrite,false);
+  assert.equal(seen.patched.editor.outlinePreview.overwrite,false);
 });

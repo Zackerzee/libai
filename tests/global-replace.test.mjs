@@ -40,6 +40,23 @@ function fixture() {
   return { grid, editor: createEditorService(bridge) };
 }
 
+test("用色条读取缓存中的工程原色，换色板后不显示假灰色或合并同 RGB 身份", () => {
+  const grid = [[{ ...A }, { ...TWIN }]];
+  const editor = createEditorService({
+    getResult: () => ({ grid, width: 2, height: 1 }),
+    getPaletteColors: () => [B],
+  });
+  assert.equal(editor.resolveColor(A.paletteId), null);
+  assert.deepEqual(editor.getUsedPaletteColor(A.paletteId), A);
+  assert.deepEqual(editor.getUsedPaletteColor(TWIN.paletteId), TWIN);
+  assert.equal(editor.getPaletteUsageCounts().size, 2);
+  assert.deepEqual(editor.historyDepth(), { undo: 0, redo: 0 });
+  grid[0][0] = { ...C };
+  editor.invalidateUsageCounts();
+  assert.equal(editor.getUsedPaletteColor(A.paletteId), null);
+  assert.deepEqual(editor.getUsedPaletteColor(C.paletteId), C);
+});
+
 test("§15 全局替换 = 一条 Undo，且一次 undo 全部还原", () => {
   const { grid, editor } = fixture();
   assert.deepEqual(editor.historyDepth(), { undo: 0, redo: 0 });
@@ -99,23 +116,29 @@ test("§16 相近颜色：带 ΔE 距离、排除自己、按距离升序", () =
   assert.ok(findSimilarPaletteColors(PALETTE, "brand:A", { limit: 1 }).length <= 1);
 });
 
-test("§14 三个巡检动作复用现有服务，源码里没有第二套替换/相近色实现", () => {
-  // 全局替换按钮只是把色号填进既有的 #ws-replace-from，不自己改图纸
-  assert.match(workspaceSource, /\$\("#ws-usage-replace"\)\.addEventListener/);
-  assert.match(workspaceSource, /\$\("#ws-replace-from"\)\.value = color\.code/);
+test("§14 底栏巡检按钮已移除，能力仍复用右栏现有服务（没有第二套替换/相近色实现）", () => {
+  // 底栏那五个入口（只看此色/取消高亮/画布选色/全局替换/相近颜色）与右栏「选择颜色」
+  // 区块的同名能力重复，已整体删除，只保留右栏这一处入口。
+  for (const id of ["ws-usage-only", "ws-usage-clear", "ws-usage-inspect", "ws-usage-replace", "ws-usage-similar"]) {
+    assert.doesNotMatch(workspaceSource, new RegExp(`id="${id}"`), `${id} 应从底栏移除`);
+  }
+  // 全局换色仍走既有的 #ws-replace-from / #ws-replace-to / #ws-replace-confirm
+  assert.match(workspaceSource, /\$\("#ws-replace-from"\)\.addEventListener/);
+  assert.match(workspaceSource, /\$\("#ws-replace-confirm"\)\.addEventListener/);
   // 真正的替换仍走 editorService.replaceColor
   assert.match(workspaceSource, /editorService\.replaceColor\(from, to, get\(\)\.editor\.selection\)/);
-  // 相近颜色复用 findSimilarPaletteColors
-  assert.match(workspaceSource, /editorService\.findSimilarPaletteColors\(usageSelected, \{ limit: 6 \}\)/);
-  // 只看此色复用既有同色高亮（渲染层 alpha），不新写渲染
-  assert.match(workspaceSource, /buildHighlightOnlyPatch\(usageSelected, \{ enabled: next \}\)/);
+  // 相近颜色复用 findSimilarPaletteColors（右栏 #ws-similar-colors）
+  assert.match(workspaceSource, /editorService\.findSimilarPaletteColors\(selectedPaletteId, \{ limit: 6 \}\)/);
+  // 同色高亮复用既有渲染层 alpha，不新写渲染
+  assert.match(workspaceSource, /buildHighlightOnlyPatch\(currentPaletteId\(\), \{ enabled: event\.target\.checked \}\)/);
   // 不得出现第二套替换实现
   assert.doesNotMatch(codeOnly(workspaceSource), /function replaceColor|const replaceColor/);
   assert.doesNotMatch(codeOnly(workspaceSource), /deltaE2000|rgbToLab/);
 });
 
 test("§16 相近色卡片带 ΔE 与图上已有用量（两段信息都要渲染出来）", () => {
+  // 底栏清单删除后，ΔE 与用量并进了右栏相近色卡片的 title，信息不丢。
   assert.match(workspaceSource, /ΔE \$\{delta\}/);
-  assert.match(workspaceSource, /const used = editorService\.getColorUsage\(id\)/);
-  assert.match(workspaceSource, /data-ws-similar="\$\{esc\(id\)\}"/);
+  assert.match(workspaceSource, /const used = editorService\.getColorUsage\(color\.paletteId\), delta = Number\(color\.distance \?\? 0\)\.toFixed\(1\)/);
+  assert.match(workspaceSource, /data-ws-similar-target="\$\{esc\(color\.paletteId\)\}"/);
 });

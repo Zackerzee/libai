@@ -30,6 +30,17 @@ const MAX_SIDE = 1600;
 const MARGIN_THRESHOLD = 3;
 /** 画布上每个豆格的最大像素边长。 */
 const CELL_PX_MAX = 30;
+/** 手动裁剪框的最小边长（raw 像素）。太小没有识别意义。 */
+const MIN_CROP = 8;
+/**
+ * 手柄命中半径（**CSS 像素**）。
+ * 必须按屏幕算：raw 恒定会让大图上的手柄抓不住 —— 900px 图 raw 14 ≈ 11 CSS px，
+ * 1600px 图只剩 6 CSS px，比看得见的 12px 手柄还小，用户自然觉得「选不中」。
+ * raw 半径 = HANDLE_HIT_CSS / 显示比例，见 handleAt。
+ */
+const HANDLE_HIT_CSS = 15;
+/** 拖动吸附半径（CSS 像素）：框边进入这个距离就吸到格线 / 图像边缘。 */
+const SNAP_CSS = 8;
 
 /* ============================================================================
  * 自动裁剪：去掉边框 / 图例 / 色号统计表，只留真正的豆格区
@@ -310,6 +321,7 @@ export function createPatternImportPanel({ bridge, getPaletteColors, notify, ask
     <div class="ws-pi-toolbar">
       <button type="button" class="ws-button ws-button-primary" data-pi-pick>选择图纸图片</button>
       <label><input type="checkbox" data-pi-autocrop checked>自动裁剪边框与图例</label>
+      <button type="button" class="ws-button" data-pi-adjust>手动调整</button>
       <label><input type="checkbox" data-pi-whitebg checked>白底留空</label>
       <span class="ws-pi-spacer"></span>
       <label class="ws-pi-cell">格子像素<input type="number" data-pi-cell min="3" max="200" step="1" disabled></label>
@@ -337,7 +349,7 @@ export function createPatternImportPanel({ bridge, getPaletteColors, notify, ask
 
   const $ = (selector) => dialog.querySelector(selector);
   const els = {
-    pick: $("[data-pi-pick]"), autocrop: $("[data-pi-autocrop]"), whitebg: $("[data-pi-whitebg]"),
+    pick: $("[data-pi-pick]"), autocrop: $("[data-pi-autocrop]"), adjust: $("[data-pi-adjust]"), whitebg: $("[data-pi-whitebg]"),
     cell: $("[data-pi-cell]"), reset: $("[data-pi-reset]"), status: $("[data-pi-status]"),
     body: $("[data-pi-body]"), canvas: $("[data-pi-canvas]"),
     sourceView: $('[data-pi-view="source"]'), beadsView: $('[data-pi-view="beads"]'),
@@ -355,7 +367,10 @@ export function createPatternImportPanel({ bridge, getPaletteColors, notify, ask
     image: null,              // 裁好的预览图（canvas）
     data: null, w: 0, h: 0,   // 识别用的像素（已裁剪）
     raw: null, rawW: 0, rawH: 0,
-    crop: null,
+    crop: null,               // 生效的裁剪框（自动结果或手动框）
+    cropMode: false,          // 手动调整态
+    manual: null,             // 手动裁剪框（raw 像素坐标 {x0,y0,x1,y1}）
+    manualDirty: false,       // 手动框被拖过（退出调整态时要补一次识别）
     rec: null,                // recognizePattern 的结果
     grid: null,               // 色号网格（可被手工修改）
     colors: null,             // 每格采样原色
@@ -363,6 +378,7 @@ export function createPatternImportPanel({ bridge, getPaletteColors, notify, ask
     selected: null,
     cellPx: 14,
     cellSize: null,           // 手工覆盖的格子像素
+    viewScale: 0,             // raw → CSS 的显示比例（画图时记录，命中/吸附按屏幕算要用）
     busy: false,
   };
 
@@ -389,6 +405,8 @@ export function createPatternImportPanel({ bridge, getPaletteColors, notify, ask
 
   /** 原图与网格：把裁剪结果和检测到的格子画出来，让用户确认裁对了、格数对。 */
   const drawSourceView = () => {
+    // 手动调整态画的是**整幅原图 + 裁剪框**，不是裁剪结果。
+    if (state.cropMode && state.raw && state.manual) { drawCropAdjustView(); return; }
     const { w, h } = state;
     fitCanvas(w, h);
     ctx.clearRect(0, 0, w, h);
@@ -403,6 +421,68 @@ export function createPatternImportPanel({ bridge, getPaletteColors, notify, ask
       for (let y = 0; y <= h; y += cell) { ctx.moveTo(0, y + .5); ctx.lineTo(w, y + .5); }
       ctx.stroke();
       ctx.restore();
+    }
+  };
+
+  /**
+   * 手动调整态：整幅原图上画裁剪框 —— 框外压暗、框线 + 8 手柄、框内画格线
+   * （格线从框原点起跳，与识别口径一致：识别看到的就是框内那一段）。
+   * 手柄尺寸按 fit 缩放换算，任何缩放下视觉大小恒定。
+   */
+  const drawCropAdjustView = () => {
+    const rw = state.rawW, rh = state.rawH;
+    const { scale } = fitCanvas(rw, rh);
+    state.viewScale = scale;   // 命中半径 / 吸附容差都按它换算到屏幕像素
+    ctx.clearRect(0, 0, rw, rh);
+    ctx.drawImage(state.raw, 0, 0, rw, rh);
+    const { x0, y0, x1, y1 } = state.manual;
+    // 框外压暗
+    ctx.fillStyle = "rgba(15, 23, 42, .45)";
+    ctx.fillRect(0, 0, rw, y0);
+    ctx.fillRect(0, y1, rw, rh - y1);
+    ctx.fillRect(0, y0, x0, y1 - y0);
+    ctx.fillRect(x1, y0, rw - x1, y1 - y0);
+    // 框内格线。**用绝对相位**（从图像原点起跳的 k*cell），不是从框原点起跳 ——
+    // 真实格线由图像内容决定，跟框挪到哪无关；也只有绝对相位才和拖动吸附
+    // （吸到 k*cell）落在同一批线上，用户看到「线在哪儿」和「框会吸到哪儿」才一致。
+    const cell = state.cellSize;
+    if (cell) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x0, y0, x1 - x0, y1 - y0);
+      ctx.clip();
+      ctx.strokeStyle = "rgba(249, 115, 22, .6)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = Math.ceil(x0 / cell) * cell; x <= x1; x += cell) { ctx.moveTo(x + .5, y0); ctx.lineTo(x + .5, y1); }
+      for (let y = Math.ceil(y0 / cell) * cell; y <= y1; y += cell) { ctx.moveTo(x0, y + .5); ctx.lineTo(x1, y + .5); }
+      ctx.stroke();
+      ctx.restore();
+    }
+    // 裁剪框
+    ctx.strokeStyle = "#f97316";
+    ctx.lineWidth = 2 / scale;
+    ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    // 8 手柄：视觉 15px（按 scale 换算，任何缩放下屏幕上一样大）。
+    // 先铺白底再描橙边，比原来 12px 更好抓；命中半径 HANDLE_HIT_CSS=15 与它同尺度，
+    // 「看得见的大小」= 「点得中的大小」。
+    const hs = 7.5 / scale;
+    const points = [
+      [x0, y0], [(x0 + x1) / 2, y0], [x1, y0], [x1, (y0 + y1) / 2],
+      [x1, y1], [(x0 + x1) / 2, y1], [x0, y1], [x0, (y0 + y1) / 2],
+    ];
+    ctx.fillStyle = "#ffffff";
+    for (const [hx, hy] of points) {
+      ctx.beginPath();
+      ctx.rect(hx - hs, hy - hs, hs * 2, hs * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = "#f97316";
+    ctx.lineWidth = 2.5 / scale;
+    for (const [hx, hy] of points) {
+      ctx.beginPath();
+      ctx.rect(hx - hs, hy - hs, hs * 2, hs * 2);
+      ctx.stroke();
     }
   };
 
@@ -558,6 +638,7 @@ export function createPatternImportPanel({ bridge, getPaletteColors, notify, ask
     Object.assign(state, {
       view: "beads", image: null, data: null, w: 0, h: 0,
       raw: null, rawW: 0, rawH: 0, crop: null,
+      cropMode: false, manual: null, manualDirty: false,
       rec: null, grid: null, colors: null, cellSize: null,
     });
     state.edits.clear();
@@ -569,6 +650,10 @@ export function createPatternImportPanel({ bridge, getPaletteColors, notify, ask
     els.reset.disabled = true;
     els.cell.disabled = true;
     els.cell.value = "";
+    els.adjust.classList.remove("ws-button-primary");
+    els.adjust.textContent = "手动调整";
+    els.autocrop.disabled = false;
+    dialog.classList.remove("ws-pi-adjusting");
     setStatus("请选择一张图纸图片。");
   };
 
@@ -601,6 +686,13 @@ export function createPatternImportPanel({ bridge, getPaletteColors, notify, ask
     state.raw = canvas;
     state.rawW = w; state.rawH = h;
     state.crop = null;
+    state.cropMode = false;
+    state.manual = null;
+    state.manualDirty = false;
+    els.adjust.classList.remove("ws-button-primary");
+    els.adjust.textContent = "手动调整";
+    els.autocrop.disabled = false;
+    dialog.classList.remove("ws-pi-adjusting");
     state.edits.clear();
     state.selected = null;
     recognize(true);
@@ -617,7 +709,10 @@ export function createPatternImportPanel({ bridge, getPaletteColors, notify, ask
       try {
         let source = state.raw, sw = state.rawW, sh = state.rawH;
         let crop = null;
-        if (fromImage && els.autocrop.checked) {
+        // 手动框优先于自动裁剪：用户拖过的框就是最终口径（自动结果只是初值种子）。
+        if (state.manual) {
+          crop = state.manual;
+        } else if (fromImage && els.autocrop.checked) {
           const data = source.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, sw, sh).data;
           crop = cropToGrid(data, sw, sh);
         }
@@ -661,7 +756,11 @@ export function createPatternImportPanel({ bridge, getPaletteColors, notify, ask
         els.cell.disabled = false;
         els.cell.value = String(rec.detectedCellSize || "");
         els.confirm.disabled = false;
-        setView("beads");
+        // 手动调整态：松手重识别后留在「原图 + 裁剪框」视图 —— 框还在，可以继续拖。
+        // 否则每次拖完框重识别都被切到色号图纸：裁剪框消失，pointerdown 的
+        // view !== "source" 早退让后续拖拽全部失效（用户拖一次就调不动了）。
+        if (!state.cropMode) setView("beads");
+        else draw();
         renderUsage();
         renderSummary();
       } catch (error) {
@@ -683,7 +782,10 @@ export function createPatternImportPanel({ bridge, getPaletteColors, notify, ask
     const parts = [`${cols} × ${rows} 格`, `${rec.colorCount} 色`, `${rec.beadCount} 颗`];
     if (openUncertain) parts.push(`待确认 ${openUncertain} 格`);
     if (state.crop) {
-      const r = state.crop.removed;
+      // 手动框没有 cropToGrid 的 removed 汇总，按 raw 尺寸现算，读数口径一致。
+      const r = state.manual === state.crop
+        ? { left: state.crop.x0, top: state.crop.y0, right: state.rawW - state.crop.x1, bottom: state.rawH - state.crop.y1 }
+        : state.crop.removed;
       parts.push(`已裁剪 左${r.left}/上${r.top}/右${r.right}/下${r.bottom} px`);
     }
     let message = parts.join(" · ");
@@ -719,6 +821,189 @@ export function createPatternImportPanel({ bridge, getPaletteColors, notify, ask
     state.selected = hit;
     renderEditor();
   });
+
+  /* ---------------------------------------------------------------- 手动裁剪框 */
+
+  /** 屏幕坐标 → raw 像素坐标（调整态画布显示的就是整幅原图，纯比例换算）。 */
+  const cssToRaw = (clientX, clientY) => {
+    const box = els.canvas.getBoundingClientRect();
+    return {
+      x: (clientX - box.left) * (state.rawW / Math.max(1, box.width)),
+      y: (clientY - box.top) * (state.rawH / Math.max(1, box.height)),
+    };
+  };
+
+  const cropClamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  /** raw → CSS 的显示比例（画布还没画过时按 DOM 实测现算）。 */
+  const rawToCssScale = () => {
+    if (state.viewScale > 0) return state.viewScale;
+    const w = els.canvas.getBoundingClientRect().width;
+    return w > 0 && state.rawW > 0 ? w / state.rawW : 1;
+  };
+
+  /** 命中半径换算回 raw —— 目标是屏幕上恒定 HANDLE_HIT_CSS，不随图片缩小。 */
+  const handleHitRaw = () => HANDLE_HIT_CSS / Math.max(0.02, rawToCssScale());
+
+  /** 命中测试：手柄名（角/边/move）、'new'（框外起新框）或 null（忽略）。 */
+  const handleAt = (rx, ry) => {
+    const { x0, y0, x1, y1 } = state.manual;
+    const hit = handleHitRaw();
+    const near = (a, b) => Math.abs(a - b) <= hit;
+    const left = near(rx, x0), right = near(rx, x1), top = near(ry, y0), bottom = near(ry, y1);
+    if ((left || right) && (top || bottom)) {
+      if (left && top) return "nw";
+      if (right && top) return "ne";
+      if (left && bottom) return "sw";
+      return "se";
+    }
+    if (left && ry >= y0 && ry <= y1) return "w";
+    if (right && ry >= y0 && ry <= y1) return "e";
+    if (top && rx >= x0 && rx <= x1) return "n";
+    if (bottom && rx >= x0 && rx <= x1) return "s";
+    if (rx > x0 && rx < x1 && ry > y0 && ry < y1) return "move";
+    if (rx < x0 - hit || rx > x1 + hit || ry < y0 - hit || ry > y1 + hit) return "new";
+    return null;
+  };
+
+  /** 按手柄语义算新框：角/边手柄只动自己那条边，move 整体平移，new 从落点起框。 */
+  const applyCropDrag = (handle, start, dx, dy) => {
+    const rw = state.rawW, rh = state.rawH;
+    const min = Math.min(MIN_CROP, Math.floor(Math.min(rw, rh) / 2));
+    if (handle === "new") {
+      const ax = cropClamp(start.ax, 0, rw), ay = cropClamp(start.ay, 0, rh);
+      const bx = cropClamp(start.ax + dx, 0, rw), by = cropClamp(start.ay + dy, 0, rh);
+      return { x0: Math.min(ax, bx), y0: Math.min(ay, by), x1: Math.max(ax, bx), y1: Math.max(ay, by) };
+    }
+    let { x0, y0, x1, y1 } = start.rect;
+    if (handle === "move") {
+      const w = x1 - x0, h = y1 - y0;
+      const nx = cropClamp(x0 + dx, 0, rw - w), ny = cropClamp(y0 + dy, 0, rh - h);
+      return { x0: nx, y0: ny, x1: nx + w, y1: ny + h };
+    }
+    if (handle.includes("w")) x0 = cropClamp(x0 + dx, 0, x1 - min);
+    if (handle.includes("e")) x1 = cropClamp(x1 + dx, x0 + min, rw);
+    if (handle.includes("n")) y0 = cropClamp(y0 + dy, 0, y1 - min);
+    if (handle.includes("s")) y1 = cropClamp(y1 + dy, y0 + min, rh);
+    return { x0, y0, x1, y1 };
+  };
+
+  /**
+   * 拖动吸附：把一条边吸到最近的目标 —— 0（左/上贴边）、图边 far（右/下贴边）、
+   * 或格线 k*cell（与框内格线同相位）。容差 SNAP_CSS 屏幕像素，同样不随缩放变。
+   */
+  const snapEdge = (v, far) => {
+    const tol = SNAP_CSS / Math.max(0.02, rawToCssScale());
+    if (v <= tol) return 0;
+    if (far != null && far - v <= tol) return far;
+    const cell = state.cellSize;
+    if (cell > 0) {
+      const g = Math.round(v / cell) * cell;
+      if (Math.abs(g - v) <= tol) return g;
+    }
+    return v;
+  };
+
+  /** 对拖动结果做吸附。'new' 不吸附（落点在哪就是哪）；move 吸左上角 + 右下角贴边。 */
+  const snapCropRect = (rect, handle) => {
+    if (handle === "new") return rect;
+    const rw = state.rawW, rh = state.rawH;
+    const min = Math.min(MIN_CROP, Math.floor(Math.min(rw, rh) / 2));
+    let { x0, y0, x1, y1 } = rect;
+    if (handle === "move") {
+      const w = x1 - x0, h = y1 - y0;
+      const tol = SNAP_CSS / Math.max(0.02, rawToCssScale());
+      x0 = rw - x1 <= tol ? rw - w : cropClamp(snapEdge(x0, null), 0, rw - w);
+      y0 = rh - y1 <= tol ? rh - h : cropClamp(snapEdge(y0, null), 0, rh - h);
+      return { x0, y0, x1: x0 + w, y1: y0 + h };
+    }
+    if (handle.includes("w")) x0 = cropClamp(snapEdge(x0, null), 0, x1 - min);
+    if (handle.includes("e")) x1 = cropClamp(snapEdge(x1, rw), x0 + min, rw);
+    if (handle.includes("n")) y0 = cropClamp(snapEdge(y0, null), 0, y1 - min);
+    if (handle.includes("s")) y1 = cropClamp(snapEdge(y1, rh), y0 + min, rh);
+    return { x0, y0, x1, y1 };
+  };
+
+  /** 手柄 → CSS 光标。悬停就换，用户不用猜哪里能拖。 */
+  const CURSOR_BY_HANDLE = {
+    nw: "nwse-resize", se: "nwse-resize",
+    ne: "nesw-resize", sw: "nesw-resize",
+    n: "ns-resize", s: "ns-resize",
+    w: "ew-resize", e: "ew-resize",
+    move: "move", new: "crosshair",
+  };
+
+  /** 悬停时按光标底下的手柄换方向光标；拖动中/不在调整态就不动。 */
+  const syncCropCursor = (event) => {
+    if (cropDrag || !state.cropMode || state.view !== "source" || !state.manual) return;
+    const p = cssToRaw(event.clientX, event.clientY);
+    const handle = handleAt(p.x, p.y);
+    els.canvas.style.cursor = handle ? CURSOR_BY_HANDLE[handle] || "" : "";
+  };
+
+  let cropDrag = null;
+  let cropRecogTimer = 0;
+
+  els.canvas.addEventListener("pointerdown", (event) => {
+    if (!state.cropMode || state.view !== "source" || !state.manual || event.button !== 0) return;
+    const p = cssToRaw(event.clientX, event.clientY);
+    const handle = handleAt(p.x, p.y);
+    if (!handle) return;
+    event.preventDefault();
+    els.canvas.setPointerCapture(event.pointerId);
+    els.canvas.style.cursor = CURSOR_BY_HANDLE[handle] || "";
+    cropDrag = { handle, start: handle === "new" ? { ax: p.x, ay: p.y } : { rect: { ...state.manual } }, x: event.clientX, y: event.clientY };
+  });
+
+  els.canvas.addEventListener("pointermove", (event) => {
+    if (!cropDrag) { syncCropCursor(event); return; }
+    const box = els.canvas.getBoundingClientRect();
+    const dx = (event.clientX - cropDrag.x) * (state.rawW / Math.max(1, box.width));
+    const dy = (event.clientY - cropDrag.y) * (state.rawH / Math.max(1, box.height));
+    const next = applyCropDrag(cropDrag.handle, cropDrag.start, dx, dy);
+    // 按住 Alt 临时关掉吸附 —— 需要像素级微调时留个逃生口。
+    state.manual = event.altKey ? next : snapCropRect(next, cropDrag.handle);
+    state.manualDirty = true;
+    draw();
+  });
+
+  els.canvas.addEventListener("pointerleave", () => { if (!cropDrag) els.canvas.style.cursor = ""; });
+
+  const endCropDrag = (event) => {
+    if (!cropDrag) return;
+    cropDrag = null;
+    els.canvas.style.cursor = "";
+    try { els.canvas.releasePointerCapture(event.pointerId); } catch {}
+    // 防抖：拖动中只重绘（便宜），松手后再跑识别（贵）。
+    clearTimeout(cropRecogTimer);
+    cropRecogTimer = setTimeout(() => { if (state.manualDirty && state.raw) recognize(false); }, 260);
+  };
+  els.canvas.addEventListener("pointerup", endCropDrag);
+  els.canvas.addEventListener("pointercancel", endCropDrag);
+
+  /** 进/出手动调整态。进入时框种子 = 自动裁剪结果（若有）或整图。 */
+  const setCropMode = (on) => {
+    if (!state.raw) return;
+    state.cropMode = on;
+    els.adjust.textContent = on ? "完成调整" : "手动调整";
+    els.adjust.classList.toggle("ws-button-primary", on);
+    dialog.classList.toggle("ws-pi-adjusting", on);
+    els.autocrop.disabled = on;   // 手动框优先，调整期间自动裁剪勾选不参与
+    if (on) {
+      state.manual = state.crop
+        ? { x0: state.crop.x0, y0: state.crop.y0, x1: state.crop.x1, y1: state.crop.y1 }
+        : { x0: 0, y0: 0, x1: state.rawW, y1: state.rawH };
+      state.manualDirty = false;
+      setView("source");
+      setStatus("拖动裁剪框调整范围（会吸附到格线与图边，按住 Alt 可关吸附），松手自动重新识别。");
+    } else {
+      // 快速「进入→拖动→退出」时防抖可能还没触发，退出时补一次识别。
+      els.canvas.style.cursor = "";
+      if (state.manualDirty && state.raw) recognize(false);
+      else draw();
+    }
+  };
+  els.adjust.addEventListener("click", () => setCropMode(!state.cropMode));
 
   const setCell = (r, c, code) => {
     if (!state.grid) return;
@@ -824,7 +1109,8 @@ export function createPatternImportPanel({ bridge, getPaletteColors, notify, ask
     }
     afterImport?.();
     const note = [`已导入 ${width} × ${height} 图纸`];
-    if (state.crop) note.push("已自动裁剪边框与图例");
+    if (state.manual) note.push("已按手动框选裁剪");
+    else if (state.crop) note.push("已自动裁剪边框与图例");
     if (unresolved) note.push(`${unresolved} 格色号不在当前色卡中，已留空`);
     notify(`${note.join(" · ")}。`);
     dialog.close();

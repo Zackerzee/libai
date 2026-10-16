@@ -131,5 +131,5 @@ test("export service refuses every format before a pattern exists", async () => 
 
 test("reference overlay defaults keep the tracing base image off until the user adds one", () => {
   const reference = createProjectStore().getState().reference;
-  assert.deepEqual(reference, { url:"",opacity:40,fit:"contain",visible:true,useSource:true,offsetX:0,offsetY:0,scale:1,smoothing:"smooth",displayMode:"normal",adjusting:false });
+  assert.deepEqual(reference, { url:"",opacity:40,fit:"contain",visible:false,useSource:false,offsetX:0,offsetY:0,scale:1,smoothing:"smooth",displayMode:"normal",adjusting:false });
 });

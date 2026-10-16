@@ -75,21 +75,28 @@ test('the horizontal toolbar is the existing toolbar host and the usage strip is
   // 这条守卫钉住「选色区有保底高度 + 参考图节不参与收缩」两个不变量，别退回纯 flex 挤压。
   assert.match(css, /#ws-palette-summary \.ws-summary-picker\{min-height:260px\}/);
   assert.match(css, /#ws-palette-summary \.ws-reference-group\{flex:0 0 auto\}/);
-  // 透明度只留竖向一个控件：横向那行与竖向滑杆是同一份 reference.opacity，
-  // 并排摆两个控件调同一个值是重复。节点与监听保留，只是加 hidden 不再露面。
-  // 注意：该选择器住在逗号分隔的 [hidden] 兜底块里，后面跟的是 "," 而不是 "{"。
-  assert.match(source, /referenceGroup\.querySelector\('#ws-ref-opacity'\)\?\.closest\('label'\)\?\.setAttribute\('hidden',''\)/);
+  // 参考图透明度搬到**顶栏工具行最右一列、横向摆放**（用户 2026-10-16 决策）。
+  // 节点与状态没换 —— 仍是同一个 #ws-ref-opacity / 同一份 reference.opacity，
+  // 只是从右栏最左侧那根竖向条搬到了顶栏。这里同时钉住「只剩一个控件」：
+  // 原先并存的竖向滑杆（#ws-ref-opacity-vertical）必须彻底消失，不能再留第二份视图。
+  assert.match(source, /refOpacityField\.removeAttribute\('hidden'\)/);
+  assert.match(source, /refOpacityTop\.id='ws-top-ref-opacity'/);
+  assert.match(source, /topControls\.append\(refOpacityTop\)/);
+  assert.doesNotMatch(source, /ws-ref-opacity-vertical/);
+  assert.match(css, /#ws-top-controls>#ws-top-ref-opacity\{grid-column:4!important;grid-row:1!important/);
+  assert.match(css, /#ws-top-ref-opacity \.ws-ref-opacity-field input\[type="range"\]\{width:88px/);
   assert.match(css, /#ws-palette-summary \.ws-reference-group label\[hidden\]/);
-  // 参考图必须画在豆格「之上」：透明度条调的是「参考图 ↔ 作品」的此消彼长，
+  // 参考图必须画在豆格「之上」：透明度调的是「参考图 ↔ 作品」的此消彼长，
   // 排在 base 之下时它只在空格处透出来，永远盖不住豆格，滑杆调到头也看不出作品变淡。
   const renderer = readFileSync(new URL('../ui/canvas-renderer.js', import.meta.url), 'utf8');
   assert.match(renderer, /const LAYER_NAMES = \["base", "reference", "grid", "codes", "overlay", "highlight"\]/);
-  // 透明度条 = 右栏最左侧的独立竖条（不是塞进内容流）；参考图整节撤出右栏内容区。
-  assert.match(source, /paletteSummary\.append\(opacityRail,paletteContent\)/);
+  // 右栏回到**单列内容**（竖向透明度条撤走）；参考图整节仍撤出右栏内容区。
+  assert.match(source, /paletteSummary\.append\(paletteContent\)/);
+  assert.doesNotMatch(source, /opacityRail/);
   assert.match(source, /referenceGroup\.hidden=true/);
   assert.match(css, /#ws-palette-summary\{flex-direction:row;gap:0;padding:0;overflow:hidden\}/);
   assert.match(css, /#ws-palette-summary \.ws-reference-group\{display:none!important\}/);
-  assert.match(css, /#ws-reference-opacity\{flex:0 0 auto;width:30px/);
+  assert.doesNotMatch(css, /#ws-reference-opacity\{flex:0 0 auto;width:30px/);
   // 「作品信息」必须进【内容列】而不是直接挂右栏：右栏已是横向两栏，直接挂上去它会被
   // 并排成一列（实测挤到 58px 宽，输入框没法用）。钉住它走 paletteContent。
   assert.match(source, /paletteContent\.prepend\(projectInfo\)/);

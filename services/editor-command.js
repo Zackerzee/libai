@@ -37,13 +37,13 @@ export function createEditorCommand({
 }
 
 export function createCellCommand(bridge, { type, label, changes, width, height }) {
-  const snapshot = changes.map(({ x, y, before, after }) => ({
+  const snapshot = changes.filter(({ x, y }) => !bridge.isCellLocked?.(x, y)).map(({ x, y, before, after }) => ({
     x,
     y,
     before: cloneColor(before),
     after: cloneColor(after),
   }));
-  const apply = (side) => Boolean(bridge.applyCellChanges(snapshot.map(({ x, y, [side]: color }) => ({
+  const apply = (side) => snapshot.length > 0 && Boolean(bridge.applyCellChanges(snapshot.map(({ x, y, [side]: color }) => ({
     x,
     y,
     after: cloneColor(color),

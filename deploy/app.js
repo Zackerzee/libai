@@ -904,7 +904,7 @@ function ensureGenerationRuntime() {
       import("./services/generation-size.mjs?v=20261001-stage-b0").then((mod) => { window.LibmsGenerationSize = mod; }),
       // query 必须与 processImage / processProductionV2 里的动态 import 完全一致，
       // 否则同一个模块会被实例化两份（两份模块级状态），这是很难查的隐性分叉。
-      import("./services/source-editor-service.js?v=20261014-transparent-1").then((mod) => { window.LibmsSourceEditor = mod; }),
+      import("./services/source-editor-service.js?v=20261015-source-preprocess-1").then((mod) => { window.LibmsSourceEditor = mod; }),
       import("./services/generation-request.mjs?v=20261001-stage-b0").then((mod) => { window.LibmsGenerationRequest = mod; }),
       import("./services/generation-job.mjs?v=20261014-fusion-production-1").then((mod) => { window.LibmsGenerationJob = mod; }),
       // Stage B0.1：尺寸权威链。结构化工程 / 人工标定 / 网格识别给出的尺寸是绝对值，
@@ -1002,7 +1002,7 @@ async function loadWorkspaceOnce() {
   if (workspaceMounted) return workspaceController;
   if (!workspaceLoadPromise) {
     setWorkspaceLoading("正在打开工作台…");
-workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261015-outline-1"), ensureGenerationRuntime()])
+workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261016-crop-ux-align-1"), ensureGenerationRuntime()])
       .then(([{ bootstrapWorkspace }]) => {
         workspaceLoaded = true;
         initializeWorkspaceRuntime();
@@ -1053,6 +1053,18 @@ function enterWorkspace(reason, payload = {}) {
   workspaceEntryQueue.push({ reason, payload });
   drainWorkspaceEntries();
   return workspaceLoadPromise;
+}
+
+function queueSourceImageImport(file) {
+  if (!file || !isImageFile(file)) return;
+  if (state.manualEdited && !state.importApproved) {
+    if (!window.confirm("导入新图片会替换当前作品，是否继续？")) return;
+    state.importApproved = true;
+  }
+  state.importMode = "photo";
+  state.autoProcessAfterLoad = true;
+  state.restoreAutoSizePending = false;
+  return enterWorkspace("image-upload", { file });
 }
 
 function init() {
@@ -1230,7 +1242,7 @@ function bindLandingCreationEvents() {
   els.fileInput?.addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (file) enterWorkspace("image-upload", { file });
+    if (file) queueSourceImageImport(file);
   });
   els.fileInput?.addEventListener("cancel", () => { state.importApproved = false; });
   els.uploadZone?.addEventListener("click", (event) => {
@@ -1248,9 +1260,28 @@ function bindLandingCreationEvents() {
   els.uploadZone?.addEventListener("drop", (event) => {
     event.preventDefault(); els.uploadZone.classList.remove("drag-over"); state.importMode = "photo";
     state.autoProcessAfterLoad = true; const file = event.dataTransfer?.files?.[0];
-    if (file) enterWorkspace("image-upload", { file });
+    if (file) queueSourceImageImport(file);
   });
   els.blankBoardButton?.addEventListener("click", openBlankBoardDialog);
+  // Same import path for file selection, whole-page drop and image clipboard.
+  // Text editing and already-handled drop zones retain their native behaviour.
+  const isTextTarget = target => Boolean(target?.closest?.('input,textarea,[contenteditable="true"]'));
+  document.addEventListener("dragover", event => {
+    if ([...(event.dataTransfer?.items || [])].some(item => item.kind === "file" && item.type.startsWith("image/"))) event.preventDefault();
+  });
+  document.addEventListener("drop", event => {
+    if (event.defaultPrevented || isTextTarget(event.target)) return;
+    const file = [...(event.dataTransfer?.files || [])].find(isImageFile);
+    if (!file) return;
+    event.preventDefault(); queueSourceImageImport(file);
+  });
+  document.addEventListener("paste", event => {
+    if (event.defaultPrevented || isTextTarget(event.target)) return;
+    const item = [...(event.clipboardData?.items || [])].find(entry => entry.type.startsWith("image/"));
+    const file = item?.getAsFile();
+    if (!file) return;
+    event.preventDefault(); queueSourceImageImport(file);
+  });
   els.blankBoardPresets.forEach((button) => button.addEventListener("click", () => {
     const [width, height] = String(button.dataset.size || "52,52").split(",").map(Number);
     els.blankBoardWidth.value = String(width); els.blankBoardHeight.value = String(height); updateBlankBoardSummary();
@@ -2047,6 +2078,7 @@ async function loadFile(file) {
     resetSourceDimensions("source-replaced");
     const loadedSource = await loadImage(prepared.dataUrl);
     if (uploadRevision !== artworkUploadRevision) return;
+    window.libmsStore?.patchState("patternState", { templateLockedMask: null });
     state.sourceNaturalWidth = loadedSource.naturalWidth;
     state.sourceNaturalHeight = loadedSource.naturalHeight;
     state.sourceName = file.name;
@@ -2784,7 +2816,7 @@ async function processProductionV2(options = {}) {
   setStatus("V2.5 正在生成");
   els.processButton.disabled = true;
   try {
-    const original = await loadImage(state.sourceDataUrl);
+    const original = await loadOriginalSourceImage(state.sourceDataUrl);
     const sourceEditor = await loadSourceEditor();
     if (isStaleGenerationRequest(options.requestId)) return false;
     state.processedSourceDataUrl = sourceEditor.hasSourceTransform(state.sourceTransform)
@@ -2859,13 +2891,13 @@ function bgsProtectionOptions() {
 /** 加载「与生产链路完全一致」的源图 imageData：同一份 sourceTransform 结果，两个引擎共用。 */
 async function loadProductionRaster() {
   if (!state.sourceDataUrl) throw new Error("请先上传图片");
-  const original = await loadImage(state.sourceDataUrl);
+  const original = await loadOriginalSourceImage(state.sourceDataUrl);
   const sourceEditor = await loadSourceEditor();
   state.processedSourceDataUrl = sourceEditor.hasSourceTransform(state.sourceTransform)
     ? sourceEditor.renderSourceTransform(original, state.sourceTransform).toDataURL("image/png") : state.sourceDataUrl;
   const image = state.processedSourceDataUrl === state.sourceDataUrl ? original : await loadImage(state.processedSourceDataUrl);
-  state.sourceNaturalWidth = image.naturalWidth;
-  state.sourceNaturalHeight = image.naturalHeight;
+  state.sourceNaturalWidth = original.naturalWidth;
+  state.sourceNaturalHeight = original.naturalHeight;
   return { image, imageData: imageToImageData(image) };
 }
 
@@ -3210,6 +3242,10 @@ async function processProductionPindou(options = {}) {
 }
 
 async function processImage(options = {}) {
+  if (window.libmsStore?.get("patternState", "templateLockedMask")?.some(row => row.some(Boolean))) {
+    setStatus("请先解除母版锁定，再重新生成图纸");
+    return false;
+  }
   if (state.generationEngine === "pindou") return processProductionPindou(options);
   // 算法引擎开关：只有显式选到新引擎才走新模块，否则完全落到原有分支。
   if (state.algorithmEngine === "pindou-workbench" || state.algorithmEngine === "hybrid-pw") {
@@ -3244,15 +3280,15 @@ async function processImage(options = {}) {
       state.sourceSafetyChecked = true;
     }
     if (isStaleGenerationRequest(options.requestId)) return false;
-    const originalImage = await loadImage(state.sourceDataUrl);
+    const originalImage = await loadOriginalSourceImage(state.sourceDataUrl);
     const sourceEditor = await loadSourceEditor();
     if (isStaleGenerationRequest(options.requestId)) return false;
     state.processedSourceDataUrl = sourceEditor.hasSourceTransform(state.sourceTransform)
       ? sourceEditor.renderSourceTransform(originalImage, state.sourceTransform).toDataURL("image/png") : state.sourceDataUrl;
     const image = state.processedSourceDataUrl === state.sourceDataUrl ? originalImage : await loadImage(state.processedSourceDataUrl);
     if (isStaleGenerationRequest(options.requestId)) return false;
-    state.sourceNaturalWidth = image.naturalWidth;
-    state.sourceNaturalHeight = image.naturalHeight;
+    state.sourceNaturalWidth = originalImage.naturalWidth;
+    state.sourceNaturalHeight = originalImage.naturalHeight;
     // 尺寸恢复**不在这里**做：它属于「载入源图」这一步，与生成引擎无关。
     // 留在这里等于只有选 legacy 引擎时才恢复尺寸（v2.5 默认走 processProductionV2，
     // 根本不经过本函数）—— 这正是 B0.1 之前 restore/OCR 尺寸失效的第二个原因。
@@ -3564,6 +3600,18 @@ function pickLikelyPixelCellSize(runLengths, maxDimension) {
   });
 
   return bestScore >= 80 ? bestCell : null;
+}
+
+let originalSourceImageCache = null;
+function loadOriginalSourceImage(url) {
+  if (originalSourceImageCache?.url === url) return originalSourceImageCache.promise;
+  const entry = { url, promise: null };
+  entry.promise = loadImage(url).catch(error => {
+    if (originalSourceImageCache === entry) originalSourceImageCache = null;
+    throw error;
+  });
+  originalSourceImageCache = entry;
+  return entry.promise;
 }
 
 function loadImage(src) {
@@ -3891,7 +3939,7 @@ function getGenerationLongEdge() {
  */
 async function loadSourceEditor() {
   if (window.LibmsSourceEditor) return window.LibmsSourceEditor;
-  const mod = await import("./services/source-editor-service.js?v=20261014-transparent-1");
+  const mod = await import("./services/source-editor-service.js?v=20261015-source-preprocess-1");
   window.LibmsSourceEditor = mod;
   return mod;
 }
@@ -6149,7 +6197,10 @@ function getExportGrid() {
   }
   const textLayers = globalThis.window?.libmsStore?.get?.("editorState", "textLayers") || [];
   const composed = globalThis.window?.LibmsTextLayers?.composeLockedTextGrid?.(grid, textLayers, getCurrentPalette()) || grid;
-  return isMirrorEnabled() ? mirrorGrid(composed) : composed;
+  const mask = globalThis.window?.libmsStore?.get?.("patternState", "templateLockedMask");
+  const protectedComposite = mask?.some(row => row.some(Boolean))
+    ? composed.map((row, y) => row.map((cell, x) => mask[y]?.[x] ? grid[y][x] : cell)) : composed;
+  return isMirrorEnabled() ? mirrorGrid(protectedComposite) : protectedComposite;
 }
 
 function recordLocalExportGrid(grid, kind, settings) {
@@ -7991,6 +8042,7 @@ function createBlankBoard(options = {}) {
     }
     return false;
   }
+  window.libmsStore?.patchState("patternState", { templateLockedMask: null });
   state.sourceDataUrl = "";
   state.sourceName = "blank-board";
   globalThis.window?.libmsStore?.patchState?.("documentState", { creator: "" });
@@ -8045,6 +8097,7 @@ function resetAll() {
 }
 
 function clearResult() {
+  window.libmsStore?.patchState("patternState", { templateLockedMask: null });
   state.grid = [];
   state.manualEdited = false;
   state.stats = [];
@@ -8141,12 +8194,32 @@ window.LibmsWorkspaceBridge = {
   getAvailablePaletteIds,
   setAvailablePaletteIds,
   getGenerationPaletteColors: () => getGenerationPaletteColors().map(cloneColor),
+  getTemplateLockMask: () => structuredClone(window.libmsStore?.get("patternState", "templateLockedMask") || null),
+  isCellLocked: (x, y) => window.libmsStore?.get("patternState", "templateLockedMask")?.[y]?.[x] === true,
+  applyTemplateSnapshot({ grid, width, height, templateLockedMask }) {
+    if (this.isGenerating()) { setStatus("请先等待生成完成，再操作母版"); return false; }
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1
+      || !Array.isArray(grid) || grid.length !== height || grid.some(row => !Array.isArray(row) || row.length !== width)) {
+      throw new Error("母版历史快照尺寸无效，未修改作品");
+    }
+    // A compound history snapshot: the store validates the complete payload before notifying.
+    window.libmsStore.patchState("patternState", {
+      grid: cloneGrid(grid), width, height, templateLockedMask: structuredClone(templateLockedMask),
+    });
+    state.manualEdited = true;
+    state.stats = calculateStats(state.grid);
+    refreshChartUrl();
+    updateResultUi();
+    window.dispatchEvent(new CustomEvent("libms:grid-edited", { detail: this.getResult() }));
+    return true;
+  },
   applyCellChanges(changes, { live = false, finalize = false } = {}) {
     if (!state.grid.length || !Array.isArray(changes)) return 0;
     let count = 0;
     for (const change of changes) {
       const x = Number(change.x), y = Number(change.y);
       if (!Number.isInteger(x) || !Number.isInteger(y) || !state.grid[y] || x < 0 || x >= state.grid[y].length) continue;
+      if (this.isCellLocked?.(x, y)) continue;
       const next = change.after ? cloneColor(change.after) : null;
       if (sameColor(state.grid[y][x], next)) continue;
       state.grid[y][x] = next;
@@ -8219,7 +8292,7 @@ window.LibmsWorkspaceBridge = {
   async previewBackgroundRemoval({ width, height, mode = "auto" } = {}) {
     if (!state.sourceDataUrl) return null;
     const previewModule = await import("./services/background-preview-service.mjs?v=20261015-stage3");
-    const original = await loadImage(state.sourceDataUrl);
+    const original = await loadOriginalSourceImage(state.sourceDataUrl);
     const sourceEditor = await loadSourceEditor();
     const processed = sourceEditor.hasSourceTransform(state.sourceTransform)
       ? sourceEditor.renderSourceTransform(original, state.sourceTransform).toDataURL("image/png")
@@ -8556,6 +8629,7 @@ window.LibmsWorkspaceBridge = {
    */
   getEffectiveSourceRatio: () => resolveEffectiveSourceRatio(),
   getSourceTransform: () => ({ ...state.sourceTransform, crop: state.sourceTransform.crop ? { ...state.sourceTransform.crop } : null, expand: { ...state.sourceTransform.expand } }),
+  loadSourceImage: () => loadOriginalSourceImage(state.sourceDataUrl),
   setSourceTransform(patch) {
     // Cancel old parameter work before writing the newest source transform.
     if (state.isProcessingImage || generationWorkerClient?.busy) cancelGeneration("画面调整参数已更新");
@@ -8700,6 +8774,9 @@ window.LibmsWorkspaceBridge = {
       grid: state.grid.map((row) => row.map((color) => (color ? color.code : null))),
       ...(state.grid.some((row) => row.some((color) => color?.paletteId)) ? { gridPaletteIds: state.grid.map((row) => row.map((color) => color?.paletteId || null)) } : {}),
       textObjects: JSON.parse(JSON.stringify(globalThis.window?.libmsStore?.get?.("editorState", "textLayers") || [])),
+      ...(globalThis.window?.libmsStore?.get?.("patternState", "templateLockedMask") ? {
+        templateLockedMask: JSON.parse(JSON.stringify(globalThis.window.libmsStore.get("patternState", "templateLockedMask"))),
+      } : {}),
     };
   },
   downloadProjectJson(projectName) {
@@ -8760,6 +8837,11 @@ window.LibmsWorkspaceBridge = {
       if (!Array.isArray(row) || row.length !== width) throw new Error("工程文件矩阵宽高与画布尺寸不一致");
       return row.map((code, columnIndex) => resolve(code, payload.gridPaletteIds?.[rowIndex]?.[columnIndex]));
     });
+    const templateLockedMask = payload.templateLockedMask ?? null;
+    if (templateLockedMask !== null && (!Array.isArray(templateLockedMask) || templateLockedMask.length !== height
+      || templateLockedMask.some(row => !Array.isArray(row) || row.length !== width || row.some(value => typeof value !== "boolean")))) {
+      throw new Error("工程文件的母版锁定区域无效，未替换当前作品");
+    }
     // 工程存档只包含图纸矩阵，不包含原始图片。清掉上一项目的源图，避免工作台仍在
     // 「原图」视图时显示旧图片，而 Navigator 已经显示刚载入的新图纸。
     state.sourceDataUrl = "";
@@ -8767,6 +8849,10 @@ window.LibmsWorkspaceBridge = {
     state.sourceNaturalWidth = 0;
     state.sourceNaturalHeight = 0;
     state.sourceName = String(payload.projectName || "导入工程");
+    // Opening a project is intentional document replacement, not an ordinary pixel edit.
+    if (globalThis.window?.libmsStore) globalThis.window.libmsStore.patchState("patternState", {
+      grid, width, height, templateLockedMask: JSON.parse(JSON.stringify(templateLockedMask)),
+    });
     if (!this.replaceGridStructure({ grid, width, height })) throw new Error("工程文件无法载入当前画布");
     globalThis.window?.libmsStore?.patchState?.("documentState", { creator: typeof payload.metadata?.creator === "string" ? payload.metadata.creator.trim() : "" });
     globalThis.window?.libmsStore?.patchState?.("editorState", { textLayers: JSON.parse(JSON.stringify(Array.isArray(payload.textObjects) ? payload.textObjects : [])), activeTextLayerId: null });

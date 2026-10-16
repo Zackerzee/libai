@@ -31,6 +31,14 @@ function normalizeCell(cell) {
   return { paletteId: String(paletteId) };
 }
 
+function copyTemplateLockedMask(mask, width, height) {
+  if (mask === undefined) return undefined;
+  if (!Array.isArray(mask) || mask.length !== height || Array.from(mask).some(row => !Array.isArray(row) || row.length !== width || Array.from(row).some(value => typeof value !== "boolean"))) {
+    throw new TypeError("模板锁定矩阵与画布尺寸不一致或不是布尔值");
+  }
+  return clone(mask);
+}
+
 /** Build the only payload shape accepted by persistence. */
 export function createAutoDraftRecord(project, { now = Date.now } = {}) {
   if (!project || typeof project !== "object") throw new TypeError("草稿工程不能为空");
@@ -40,6 +48,7 @@ export function createAutoDraftRecord(project, { now = Date.now } = {}) {
   if (!width || !height || !Array.isArray(sourceGrid) || sourceGrid.length !== height) {
     throw new TypeError("草稿画布尺寸或矩阵无效");
   }
+  const templateLockedMask = copyTemplateLockedMask(project.templateLockedMask, width, height);
   const grid = sourceGrid.map((row) => {
     if (!Array.isArray(row) || row.length !== width) throw new TypeError("草稿矩阵宽高不一致");
     return row.map(normalizeCell);
@@ -62,6 +71,7 @@ export function createAutoDraftRecord(project, { now = Date.now } = {}) {
       paletteId: paletteId == null ? null : String(paletteId),
       source: clone(source),
       metadata,
+      ...(templateLockedMask === undefined ? {} : { templateLockedMask }),
     },
   };
 }
@@ -74,6 +84,7 @@ async function createAutoDraftRecordAsync(project, { now, yieldControl, rowsPerS
   if (!width || !height || !Array.isArray(sourceGrid) || sourceGrid.length !== height) {
     throw new TypeError("草稿画布尺寸或矩阵无效");
   }
+  const templateLockedMask = copyTemplateLockedMask(project.templateLockedMask, width, height);
   const grid = new Array(height);
   for (let y = 0; y < height; y += 1) {
     const row = sourceGrid[y];
@@ -97,6 +108,7 @@ async function createAutoDraftRecordAsync(project, { now, yieldControl, rowsPerS
       paletteId: paletteId == null ? null : String(paletteId),
       source: clone(project.projectSource ?? project.source ?? { type: "unknown" }),
       metadata: project.metadata && typeof project.metadata === "object" ? clone(project.metadata) : {},
+      ...(templateLockedMask === undefined ? {} : { templateLockedMask }),
     },
   };
 }

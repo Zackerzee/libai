@@ -212,6 +212,11 @@
       highlightedColor: null,  // projectStore.editor.highlightedColor
       highlightedPaletteId: null,
       brushSize: 1,            // projectStore.editor.brushSize
+      // 擦除宽度**与画笔笔宽是两件独立的事**：用户把画笔调到 5 去画粗线，
+      // 再切橡皮时不该被顺手带到 5 —— 擦除通常要更细、更可控。
+      // 两个字段各有自己的控件（#ws-brush-size / #ws-eraser-size），
+      // 各自只在自己那个工具下露面（见 workspace.js 的 moveToolControls）。
+      eraserSize: 1,           // projectStore.editor.eraserSize
       pixelPerfect: true,       // 当前 1 格画笔笔迹的确定性转角清理
       wandTolerance: 12,       // projectStore.editor.wandTolerance
       shapeFilled: false,      // projectStore.editor.shapeFilled
@@ -508,6 +513,24 @@
     // 内部：合并 patch 到某命名空间并通知
     function applyPatch(ns, patch) {
       validateNs(ns);
+      if (ns === "patternState") {
+        const current = data[ns], next = { ...current, ...patch };
+        if (Object.prototype.hasOwnProperty.call(patch, "templateLockedMask")) {
+          const mask = patch.templateLockedMask;
+          if (mask !== null && (!Array.isArray(mask) || mask.length !== next.height
+            || Array.from(mask).some(row => !Array.isArray(row) || row.length !== next.width || Array.from(row).some(value => typeof value !== "boolean")))) {
+            throw new Error("模板锁定范围与图纸尺寸不一致");
+          }
+        } else if (current.templateLockedMask?.some(row => row.some(Boolean))) {
+          const sameCell = (a, b) => a === b || (a != null && b != null
+            && (a.paletteId ?? a.code) === (b.paletteId ?? b.code)
+            && [0, 1, 2].every(index => a.rgb?.[index] === b.rgb?.[index]));
+          if (next.width !== current.width || next.height !== current.height
+            || current.templateLockedMask.some((row, y) => row.some((locked, x) => locked && !sameCell(current.grid[y]?.[x], next.grid[y]?.[x])))) {
+            throw new Error("请先解锁模板，再修改锁定区域或图纸尺寸");
+          }
+        }
+      }
       Object.assign(data[ns], patch);
       notify(ns);
     }
@@ -536,8 +559,7 @@
         const ns = path.slice(0, dot);
         const field = path.slice(dot + 1);
         validateNs(ns);
-        data[ns][field] = value;
-        notify(ns);
+        applyPatch(ns, { [field]: value });
         return value;
       },
 

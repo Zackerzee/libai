@@ -11,7 +11,7 @@ export function computeExternalEmpty(sourceCells, width, height) {
   return external;
 }
 
-export function computeOuterOutline(sourceCells, grid, { thickness=1, connectivity=4, includeHoles=false }={}) {
+export function computeOuterOutline(sourceCells, grid, { thickness=1, connectivity=4, includeHoles=false, overwrite=false }={}) {
   const height=grid.length,width=grid[0]?.length||0,source=new Set(sourceCells.map(({x,y})=>key(x,y)));
   // All occupied colors form the silhouette: a hole remains internal even
   // when its boundary contains colors outside the selected component.
@@ -25,11 +25,22 @@ export function computeOuterOutline(sourceCells, grid, { thickness=1, connectivi
   let frontier=new Set(source), grown=new Set(source), candidates=new Map();
   for(let layer=0;layer<Math.max(1,Math.min(3,thickness));layer++){
     const next=new Set();
-    for(const id of frontier){const [x,y]=id.split(",").map(Number);for(const [dx,dy] of offsets){const nx=x+dx,ny=y+dy,nid=key(nx,ny);if(nx<0||ny<0||nx>=width||ny>=height||grown.has(nid))continue;grown.add(nid);if(grid[ny][nx]!=null){candidates.set(nid,{x:nx,y:ny});continue;}if(includeHoles||external.has(nid)){next.add(nid);candidates.set(nid,{x:nx,y:ny});}}}
+    for(const id of frontier){const [x,y]=id.split(",").map(Number);for(const [dx,dy] of offsets){const nx=x+dx,ny=y+dy,nid=key(nx,ny);if(nx<0||ny<0||nx>=width||ny>=height||grown.has(nid))continue;grown.add(nid);if(grid[ny][nx]!=null){candidates.set(nid,{x:nx,y:ny});if(overwrite)next.add(nid);continue;}if(includeHoles||external.has(nid)){next.add(nid);candidates.set(nid,{x:nx,y:ny});}}}
     frontier=next;
   }
+  // 候选位置的归属由 overwrite 决定：
+  //   false（默认）—— 已有颜色一律「阻挡」：只报告、不落色，外轮廓绝不覆盖别人。
+  //   true        —— 已有颜色也照描（被描边色替换），并且和空格一样继续向外推进，
+  //                  于是「厚度」在两种模式下都等于圈数。blockedCells 仍照常记录，
+  //                  供 UI 显示「其中覆盖原有 N 颗」。
+  // 在作品内部框选一块要描边时，选区四周必然全是别的颜色 —— 这正是需要 overwrite 的场景；
+  // 而「整个作品」来源的候选位置只可能是空格，两种取值结果一致。
   const outlineCells=[],blockedCells=[];
-  for(const cell of ordered(candidates.values())) (grid[cell.y]?.[cell.x]==null?outlineCells:blockedCells).push(cell);
+  for(const cell of ordered(candidates.values())){
+    const occupied=grid[cell.y]?.[cell.x]!=null;
+    if(occupied)blockedCells.push(cell);
+    if(!occupied||overwrite)outlineCells.push(cell);
+  }
   let bounds=null;
   for(const {x,y} of sourceCells){
     if(!bounds) bounds={x0:x,y0:y,x1:x,y1:y};

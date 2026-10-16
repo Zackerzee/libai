@@ -27,7 +27,7 @@ export function createExportService(bridge, store) {
       if (type === "pattern-png") return bridge.downloadPattern({ split: false, settings: state.exportSettings.pattern });
       if (type === "pattern-jpg") return bridge.downloadPatternJpg(state.exportSettings.pattern);
       if (type === "usage-csv") return bridge.downloadUsageCsv();
-      if (type === "project-json") return bridge.downloadProjectJson();
+      if (type === "project-json") return bridge.downloadProjectJson(state.project?.name);
       return bridge.downloadPattern({ split: true });
     },
   };

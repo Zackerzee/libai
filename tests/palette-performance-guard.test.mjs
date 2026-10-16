@@ -72,7 +72,8 @@ test("§21 清单带系列信息，纯数字色号也能看出属于哪个系列
 });
 
 test("§21 唯一保留的 select 是来源色多选，它的选项来自「图上用到的颜色」而非整份色板", () => {
-  assert.match(workspaceSource, /<select id="ws-merge-sources" multiple size="5"><\/select>/);
+  assert.match(workspaceSource, /<select id="ws-merge-sources" multiple size="5" hidden><\/select>/);
+  assert.match(workspaceSource, /data-ws-merge-source/);
   // 它的选项来自 state.stats.colors（用到的颜色，通常几十个）
   assert.match(workspaceSource, /const mergeOptions=state\.stats\.colors\.map\(/);
   assert.doesNotMatch(workspaceSource, /#ws-merge-sources"\)\.innerHTML=[^;]*getPaletteColors/);

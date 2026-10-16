@@ -1,14 +1,22 @@
-import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEPS, zoomToSlider, sliderToZoom } from "../services/viewport-service.js?v=20260924-text";
+import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEPS, zoomToSlider, sliderToZoom } from "../services/viewport-service.js?v=20261015-dynamic-zoom-1";
 
 // 「−」「+」按共享的 ZOOM_STEPS 跳档。
 // 原来固定 ±25 个百分点：在 25% 下限时代已经够粗，下限降到 2% 后更是没法用
 // （2% 按一次变 27%，等于直接跳过整个「看整幅」区间）。走档位表各区间手感才一致。
-const stepFrom = (percent, direction) => {
+// floor 是动态下限（大作品能缩到适屏比例，小作品仍是 20%）——
+// 档位表里低于 floor 的档位要过滤掉，否则「−」按下去读数原地不动，像按钮坏了。
+// 没有更低的档位时**落到下限**（fit 出来的 3.52% 这类非档位值要能回到下限），
+// 绝不允许回退到 `current`——读数 4% 是 3.52% 取整来的，按「−」却跳到 4%
+// 等于越按越大，那就把「缩小」按钮变成了「放大」按钮。
+export const stepFrom = (percent, direction, floor) => {
   const current = percent / 100;
+  const steps = ZOOM_STEPS.filter((value) => value >= floor / 100 - 0.0001);
   const next = direction < 0
-    ? [...ZOOM_STEPS].reverse().find((value) => value < current - 0.001)
-    : ZOOM_STEPS.find((value) => value > current + 0.001);
-  return (next ?? current) * 100;
+    ? [...steps].reverse().find((value) => value < current - 0.001)
+    : steps.find((value) => value > current + 0.001);
+  if (next != null) return next * 100;
+  if (direction < 0 && current > floor / 100 + 0.0001) return floor;
+  return percent;
 };
 
 export class ZoomControls {
@@ -18,6 +26,9 @@ export class ZoomControls {
     // 一旦 setZoom 夹的区间比 fitToViewport 允许的更窄，读数就会和真实缩放对不上。
     min = MIN_ZOOM * 100,
     max = MAX_ZOOM * 100,
+    // floor：动态下限（百分数）。可以是数字，也可以是 getter —— 大作品的
+    // 下限随适屏比例走，每次交互都得重新问一次，所以用 getter。
+    floor = MIN_ZOOM * 100,
     value = 100,
     onChange = () => {},
     onFit = () => {}
@@ -29,6 +40,7 @@ export class ZoomControls {
 
     this.min = min;
     this.max = max;
+    this.floor = floor;
     this.value = value;
 
     this.onChange = onChange;
@@ -36,6 +48,11 @@ export class ZoomControls {
 
     this.render();
     this.bindEvents();
+  }
+
+  // 当前下限（百分数）。getter 每次都求值，静态数字也能用。
+  currentFloor() {
+    return typeof this.floor === "function" ? Number(this.floor()) : Number(this.floor);
   }
 
   render() {
@@ -83,7 +100,7 @@ export class ZoomControls {
           min="0"
           max="100"
           step="1"
-          value="${zoomToSlider(this.value / 100)}"
+          value="${zoomToSlider(this.value / 100, this.currentFloor() / 100)}"
           data-role="zoom-slider"
           aria-label="缩放"
         />
@@ -104,11 +121,11 @@ export class ZoomControls {
           break;
 
         case "zoom-out":
-          this.setZoom(stepFrom(this.value, -1));
+          this.setZoom(stepFrom(this.value, -1, this.currentFloor()));
           break;
 
         case "zoom-in":
-          this.setZoom(stepFrom(this.value, 1));
+          this.setZoom(stepFrom(this.value, 1, this.currentFloor()));
           break;
       }
     });
@@ -119,14 +136,14 @@ export class ZoomControls {
       .querySelector('[data-role="zoom-slider"]')
       .addEventListener("input", event => {
         this.setZoom(
-          sliderToZoom(Number(event.target.value)) * 100
+          sliderToZoom(Number(event.target.value), this.currentFloor() / 100) * 100
         );
       });
   }
 
   setZoom(value, emit = true) {
     this.value = Math.max(
-      this.min,
+      Math.max(this.min, this.currentFloor()),
       Math.min(this.max, value)
     );
 
@@ -136,7 +153,7 @@ export class ZoomControls {
 
     this.root.querySelector(
       '[data-role="zoom-slider"]'
-    ).value = zoomToSlider(this.value / 100);
+    ).value = zoomToSlider(this.value / 100, this.currentFloor() / 100);
 
     if (emit) {
       this.onChange(this.value);

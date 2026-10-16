@@ -63,7 +63,7 @@ test("§10 惰性渲染：一屏上限 + 「显示其余 N 色」，且不是一
 });
 
 test("§10 签名守卫：签名不变就不重建色格墙（paint 会被高频调用）", () => {
-  assert.match(workspaceSource, /const signature = `\$\{palette\.length\}\|\$\{series\}\|\$\{query\}\|\$\{selectedId\}\|\$\{pickerExpanded\}`/);
+  assert.match(workspaceSource, /const signature = `\$\{palettes\.getActivePalette\(\)\.key\}\|\$\{palette\.length\}\|\$\{series\}\|\$\{query\}\|\$\{selectedId\}\|\$\{pickerExpanded\}\|\$\{gridRevision\}/);
   assert.match(workspaceSource, /if \(signature === pickerSignature\) return;/);
 });
 

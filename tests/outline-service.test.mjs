@@ -112,3 +112,38 @@ test("artwork 空白图纸产出空计划而不是报错",()=>{
   const plan=artworkEditor(g,4,4).planOutline({sourceMode:"artwork"});
   assert.deepEqual(plan.sourceCells,[]);assert.deepEqual(plan.outlineCells,[]);assert.equal(plan.bounds,null);
 });
+
+/* ── overwrite：在作品内部描边必须能把周边的色替换掉 ──────────────────
+ * 用户报的问题：在作品里框选一部分要外描边，预览出来一颗都没有（应用按钮灰着）。
+ * 根因是候选位置「已有颜色」就一律算阻挡。选区在作品内部时四周必然全是颜色，
+ * 于是永远描不到。overwrite 打开后这些位置照描（被描边色替换）。 */
+test("overwrite 把被占用的候选位置一起描掉，blockedCells 仍记录覆盖颗数",()=>{
+  const g=grid(5,5,[{x:2,y:2,id:"A"},{x:1,y:2,id:"B"},{x:3,y:2,id:"B"},{x:2,y:1,id:"B"},{x:2,y:3,id:"B"}]);
+  const source=[{x:2,y:2}];
+  const off=computeOuterOutline(source,g);
+  assert.equal(off.outlineCells.length,0,"四周全是别的颜色时不覆盖就一颗都描不到");
+  assert.deepEqual(ids(off.blockedCells),["1,2","2,1","2,3","3,2"]);
+  const on=computeOuterOutline(source,g,{overwrite:true});
+  assert.deepEqual(ids(on.outlineCells),["1,2","2,1","2,3","3,2"],"覆盖模式下这四颗就是描边落点");
+  assert.deepEqual(ids(on.blockedCells),["1,2","2,1","2,3","3,2"],"blockedCells 仍照常记录，供 UI 显示「覆盖原有 N 颗」");
+  const two=computeOuterOutline(source,g,{overwrite:true,thickness:2});
+  assert.ok(two.outlineCells.length>on.outlineCells.length,"覆盖层也要继续向外推进，厚度才等于圈数");
+});
+
+test("作品内部选区描边：旧语义描不到，开覆盖后把周边色替换掉",()=>{
+  const cells=[];for(let y=0;y<3;y++)for(let x=0;x<3;x++)cells.push({x,y,id:"A"});
+  const g=grid(5,5,cells),editor=artworkEditor(g,5,5);
+  const selection={x0:1,y0:1,x1:1,y1:1,mask:new Set(["1,1"])};
+  const off=editor.planOutline({sourceMode:"selection",selection});
+  assert.equal(off.outlineCells.length,0,"四周都是别的颜色 → 旧语义一颗都描不到，这正是用户报的「被拒绝」");
+  assert.equal(off.blockedCells.length,4);
+  const on=editor.planOutline({sourceMode:"selection",selection,overwrite:true});
+  assert.deepEqual(ids(on.outlineCells),["0,1","1,0","1,2","2,1"]);
+});
+
+test("artwork 来源下 overwrite 不改变结果（候选位置只可能是空格）",()=>{
+  const g=grid(9,9,[{x:1,y:1,id:"A"},{x:6,y:6,id:"B"}]),editor=artworkEditor(g,9,9);
+  const off=editor.planOutline({sourceMode:"artwork"}),on=editor.planOutline({sourceMode:"artwork",overwrite:true});
+  assert.deepEqual(ids(on.outlineCells),ids(off.outlineCells));
+  assert.equal(on.blockedCells.length,0);
+});

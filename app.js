@@ -1002,7 +1002,7 @@ async function loadWorkspaceOnce() {
   if (workspaceMounted) return workspaceController;
   if (!workspaceLoadPromise) {
     setWorkspaceLoading("正在打开工作台…");
-workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261015-source-preprocess-1"), ensureGenerationRuntime()])
+workspaceLoadPromise = Promise.all([import("./ui/workspace-bootstrap.js?v=20261016-crop-ux-align-1"), ensureGenerationRuntime()])
       .then(([{ bootstrapWorkspace }]) => {
         workspaceLoaded = true;
         initializeWorkspaceRuntime();
@@ -2078,6 +2078,7 @@ async function loadFile(file) {
     resetSourceDimensions("source-replaced");
     const loadedSource = await loadImage(prepared.dataUrl);
     if (uploadRevision !== artworkUploadRevision) return;
+    window.libmsStore?.patchState("patternState", { templateLockedMask: null });
     state.sourceNaturalWidth = loadedSource.naturalWidth;
     state.sourceNaturalHeight = loadedSource.naturalHeight;
     state.sourceName = file.name;
@@ -3241,6 +3242,10 @@ async function processProductionPindou(options = {}) {
 }
 
 async function processImage(options = {}) {
+  if (window.libmsStore?.get("patternState", "templateLockedMask")?.some(row => row.some(Boolean))) {
+    setStatus("请先解除母版锁定，再重新生成图纸");
+    return false;
+  }
   if (state.generationEngine === "pindou") return processProductionPindou(options);
   // 算法引擎开关：只有显式选到新引擎才走新模块，否则完全落到原有分支。
   if (state.algorithmEngine === "pindou-workbench" || state.algorithmEngine === "hybrid-pw") {
@@ -6192,7 +6197,10 @@ function getExportGrid() {
   }
   const textLayers = globalThis.window?.libmsStore?.get?.("editorState", "textLayers") || [];
   const composed = globalThis.window?.LibmsTextLayers?.composeLockedTextGrid?.(grid, textLayers, getCurrentPalette()) || grid;
-  return isMirrorEnabled() ? mirrorGrid(composed) : composed;
+  const mask = globalThis.window?.libmsStore?.get?.("patternState", "templateLockedMask");
+  const protectedComposite = mask?.some(row => row.some(Boolean))
+    ? composed.map((row, y) => row.map((cell, x) => mask[y]?.[x] ? grid[y][x] : cell)) : composed;
+  return isMirrorEnabled() ? mirrorGrid(protectedComposite) : protectedComposite;
 }
 
 function recordLocalExportGrid(grid, kind, settings) {
@@ -8034,6 +8042,7 @@ function createBlankBoard(options = {}) {
     }
     return false;
   }
+  window.libmsStore?.patchState("patternState", { templateLockedMask: null });
   state.sourceDataUrl = "";
   state.sourceName = "blank-board";
   globalThis.window?.libmsStore?.patchState?.("documentState", { creator: "" });
@@ -8088,6 +8097,7 @@ function resetAll() {
 }
 
 function clearResult() {
+  window.libmsStore?.patchState("patternState", { templateLockedMask: null });
   state.grid = [];
   state.manualEdited = false;
   state.stats = [];
@@ -8184,12 +8194,32 @@ window.LibmsWorkspaceBridge = {
   getAvailablePaletteIds,
   setAvailablePaletteIds,
   getGenerationPaletteColors: () => getGenerationPaletteColors().map(cloneColor),
+  getTemplateLockMask: () => structuredClone(window.libmsStore?.get("patternState", "templateLockedMask") || null),
+  isCellLocked: (x, y) => window.libmsStore?.get("patternState", "templateLockedMask")?.[y]?.[x] === true,
+  applyTemplateSnapshot({ grid, width, height, templateLockedMask }) {
+    if (this.isGenerating()) { setStatus("请先等待生成完成，再操作母版"); return false; }
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1
+      || !Array.isArray(grid) || grid.length !== height || grid.some(row => !Array.isArray(row) || row.length !== width)) {
+      throw new Error("母版历史快照尺寸无效，未修改作品");
+    }
+    // A compound history snapshot: the store validates the complete payload before notifying.
+    window.libmsStore.patchState("patternState", {
+      grid: cloneGrid(grid), width, height, templateLockedMask: structuredClone(templateLockedMask),
+    });
+    state.manualEdited = true;
+    state.stats = calculateStats(state.grid);
+    refreshChartUrl();
+    updateResultUi();
+    window.dispatchEvent(new CustomEvent("libms:grid-edited", { detail: this.getResult() }));
+    return true;
+  },
   applyCellChanges(changes, { live = false, finalize = false } = {}) {
     if (!state.grid.length || !Array.isArray(changes)) return 0;
     let count = 0;
     for (const change of changes) {
       const x = Number(change.x), y = Number(change.y);
       if (!Number.isInteger(x) || !Number.isInteger(y) || !state.grid[y] || x < 0 || x >= state.grid[y].length) continue;
+      if (this.isCellLocked?.(x, y)) continue;
       const next = change.after ? cloneColor(change.after) : null;
       if (sameColor(state.grid[y][x], next)) continue;
       state.grid[y][x] = next;
@@ -8744,6 +8774,9 @@ window.LibmsWorkspaceBridge = {
       grid: state.grid.map((row) => row.map((color) => (color ? color.code : null))),
       ...(state.grid.some((row) => row.some((color) => color?.paletteId)) ? { gridPaletteIds: state.grid.map((row) => row.map((color) => color?.paletteId || null)) } : {}),
       textObjects: JSON.parse(JSON.stringify(globalThis.window?.libmsStore?.get?.("editorState", "textLayers") || [])),
+      ...(globalThis.window?.libmsStore?.get?.("patternState", "templateLockedMask") ? {
+        templateLockedMask: JSON.parse(JSON.stringify(globalThis.window.libmsStore.get("patternState", "templateLockedMask"))),
+      } : {}),
     };
   },
   downloadProjectJson(projectName) {
@@ -8804,6 +8837,11 @@ window.LibmsWorkspaceBridge = {
       if (!Array.isArray(row) || row.length !== width) throw new Error("工程文件矩阵宽高与画布尺寸不一致");
       return row.map((code, columnIndex) => resolve(code, payload.gridPaletteIds?.[rowIndex]?.[columnIndex]));
     });
+    const templateLockedMask = payload.templateLockedMask ?? null;
+    if (templateLockedMask !== null && (!Array.isArray(templateLockedMask) || templateLockedMask.length !== height
+      || templateLockedMask.some(row => !Array.isArray(row) || row.length !== width || row.some(value => typeof value !== "boolean")))) {
+      throw new Error("工程文件的母版锁定区域无效，未替换当前作品");
+    }
     // 工程存档只包含图纸矩阵，不包含原始图片。清掉上一项目的源图，避免工作台仍在
     // 「原图」视图时显示旧图片，而 Navigator 已经显示刚载入的新图纸。
     state.sourceDataUrl = "";
@@ -8811,6 +8849,10 @@ window.LibmsWorkspaceBridge = {
     state.sourceNaturalWidth = 0;
     state.sourceNaturalHeight = 0;
     state.sourceName = String(payload.projectName || "导入工程");
+    // Opening a project is intentional document replacement, not an ordinary pixel edit.
+    if (globalThis.window?.libmsStore) globalThis.window.libmsStore.patchState("patternState", {
+      grid, width, height, templateLockedMask: JSON.parse(JSON.stringify(templateLockedMask)),
+    });
     if (!this.replaceGridStructure({ grid, width, height })) throw new Error("工程文件无法载入当前画布");
     globalThis.window?.libmsStore?.patchState?.("documentState", { creator: typeof payload.metadata?.creator === "string" ? payload.metadata.creator.trim() : "" });
     globalThis.window?.libmsStore?.patchState?.("editorState", { textLayers: JSON.parse(JSON.stringify(Array.isArray(payload.textObjects) ? payload.textObjects : [])), activeTextLayerId: null });
