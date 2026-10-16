@@ -45,6 +45,9 @@ import { createOcrService } from "../services/ocr-service.js?v=20260917-inventor
 import { createLegendRecognitionService } from "../services/legend-recognition-service.js?v=20260917-inventory";
 import { InventoryPanel } from "./inventory-panel.js?v=20260917-inventory";
 import { UsageDialog } from "./usage-dialog.js?v=20260917-inventory";
+// 「导入带色号的图纸」：从图纸图片识别色号网格（含边框/图例/色号统计的自动裁剪）。
+// 算法在 vendor/bead-pattern/bead-pattern-core.js，界面按本项目令牌自绘（见模块头注释）。
+import { createPatternImportPanel } from "./pattern-import-panel.js?v=20261016-pattern-import-1";
 import { resolveScreenRenderPolicy } from "../smart-preprocessing/render-policy.mjs?v=20260928-v3";
 import { paletteIdOf } from "../services/palette-identity.js";
 // Stage B1：系列的唯一真源（不再用 code.match(/^[A-Z]+/) 现猜系列）。
@@ -143,7 +146,7 @@ export function mountWorkspace(bridge) {
     <div class="ws-project-identity"><input class="ws-name" id="ws-project-name" aria-label="作品名称" value="未命名作品" maxlength="40" title="点击编辑作品名称"><span id="ws-project-meta">尚未创建图纸</span><span class="ws-status" id="ws-status">未开始</span></div>
     <span class="ws-topbar-spacer"></span>
     <div class="ws-history-actions" aria-label="编辑历史"><button type="button" id="ws-undo" aria-label="撤销" title="撤销 · Ctrl/Cmd+Z" disabled>${workspaceIcon('undo')}</button><button type="button" id="ws-redo" aria-label="重做" title="重做 · Ctrl/Cmd+Shift+Z" disabled>${workspaceIcon('redo')}</button></div>
-    <details class="ws-project-menu"><summary class="ws-button" aria-label="新建或导入项目">新建 / 导入</summary><div class="ws-project-popover" role="menu"><button type="button" id="ws-new-blank" role="menuitem">新建空白图纸<small>从空白画布开始</small></button><button type="button" id="ws-import-again" role="menuitem">导入图片<small>生成新的拼豆图纸</small></button><button type="button" id="ws-import-pattern" role="menuitem">导入现成图纸<small>识别已有色号图</small></button><button type="button" id="ws-project-import" role="menuitem">打开工程<small>LIBMS / Pixler</small></button></div></details>
+    <details class="ws-project-menu"><summary class="ws-button" aria-label="新建或导入项目">新建 / 导入</summary><div class="ws-project-popover" role="menu"><button type="button" id="ws-new-blank" role="menuitem">新建空白图纸<small>从空白画布开始</small></button><button type="button" id="ws-import-again" role="menuitem">导入图片<small>生成新的拼豆图纸</small></button><button type="button" id="ws-import-pattern" role="menuitem">导入现成图纸<small>识别带色号的图纸图片</small></button><button type="button" id="ws-project-import" role="menuitem">打开工程<small>LIBMS / Pixler</small></button></div></details>
     <input type="file" id="ws-project-file" accept="application/json,.json,.pixler" hidden>
     <button type="button" class="ws-button" id="ws-save-project">保存工程</button>
     <button type="button" class="ws-button ws-button-primary" id="ws-export" disabled>导出</button>
@@ -1157,7 +1160,11 @@ const steps=new Map(stepSpecs.map(([number,label],index)=>{const section=documen
   });
   $("#ws-source-open").addEventListener("click", () => openSourcePreprocessing());
   $("#ws-new-blank").addEventListener("click", () => document.querySelector("#blank-board-modal")?.showModal());
-  $("#ws-import-pattern").addEventListener("click", () => document.querySelector("#direct-pattern-file-input")?.click());
+  // 「导入现成图纸」现在走新的图纸识别面板（色号网格 + 自动裁剪边框/图例/色号统计）。
+  // 落地页「智能工具 → 直接导入图纸」仍走旧的 #direct-pattern-file-input 链路，那条不动。
+  // 面板在文件后段才构造（要用到 notify / askConfirmation），所以这里先挂一个延迟解析的引用。
+  let patternImportPanel = null;
+  $("#ws-import-pattern").addEventListener("click", () => patternImportPanel?.open());
   $("#ws-save-project").addEventListener("click", () => { if (get().status.hasPattern) bridge.downloadProjectJson(get().project.name); });
   const railPreferenceKey = "libms.workspace.toolRail.collapsed";
   const setRailCollapsed = (collapsed) => {
@@ -3799,6 +3806,34 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     getPaletteCodes: () => new Set(bridge.getPaletteColors().map((color) => color.code)),
     askConfirmation,
     onNotify: notify,
+  });
+
+  // ===================== 导入带色号的图纸（顶栏「新建 / 导入」） =====================
+  // 为什么在这里构造：要用 notify / askConfirmation（都在本函数后段定义），
+  // 而菜单点击处理在上面已经挂了延迟引用的 patternImportPanel。
+  patternImportPanel = createPatternImportPanel({
+    bridge,
+    getPaletteColors: () => editorService.getPaletteColors(),
+    notify,
+    askConfirmation,
+    // 灌入成功后的工作台收尾，与「打开工程」(applyLoadedProject) 保持同一套口径：
+    // 清历史、清源图与文字/二维码图层、停在施工图视图、重读尺寸输入、适配视口。
+    afterImport: () => {
+      editorService.clearHistory();
+      store.setState({
+        source: { image: "", width: 0, height: 0 },
+        status: { hasSource: false, hasPattern: true, dirty: true, generationError: null },
+        view: { mode: "pattern" },
+        editor: {
+          tool: "select", selectedCell: null, ...buildClearPalettePatch(),
+          selection: null, hoveredCell: null,
+          textLayers: [], activeTextLayerId: null, qrLayers: [], activeQrLayerId: null,
+        },
+        ui: { exportDrawerOpen: false },
+      });
+      syncResizeInputs();
+      viewport.fitToViewport();
+    },
   });
 
   // ===================== 施工模式（参照 Pixler /build） =====================

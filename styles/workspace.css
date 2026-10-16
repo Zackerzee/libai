@@ -1663,3 +1663,57 @@ body.phase2-workspace #ws-export-drawer.ws-export-compact .ws-export-build-split
 body.phase2-workspace #ws-export-drawer.ws-export-compact .ws-export-build-split .ws-stepper{display:flex;gap:6px;align-items:center}
 body.phase2-workspace #ws-export-drawer.ws-export-compact .ws-export-build-split p{flex-basis:100%;margin:0;font-size:11px}
 @media(max-width:600px){body.phase2-workspace #ws-export-drawer.ws-export-compact{width:calc(100vw - 16px);height:calc(100dvh - 16px);max-height:calc(100dvh - 16px);padding:14px}body.phase2-workspace #ws-export-drawer.ws-export-compact .ws-export-common-preview .ws-export-preview-image{height:clamp(150px,27dvh,250px)}body.phase2-workspace #ws-export-drawer.ws-export-compact .ws-export-poster-settings{grid-template-columns:1fr}body.phase2-workspace #ws-export-drawer.ws-export-compact .ws-export-toggles{gap:5px}body.phase2-workspace #ws-export-drawer.ws-export-compact .ws-export-toggle{padding-inline:8px;font-size:12px}body.phase2-workspace #ws-export-drawer.ws-export-compact [data-output-panel="project"] .ws-export-choice{padding-inline:4px;font-size:11px}body.phase2-workspace #ws-export-drawer.ws-export-compact [data-output-panel="project"] .ws-export-choice strong{font-size:12px}}
+/* ============================================================================
+   导入带色号的图纸（顶栏「新建 / 导入」→ 导入现成图纸）
+   布局：工具行 → 状态行 → [左：原图/色号图纸预览 + 视图切换 | 右：改色卡 + 用量]
+   全部颜色走 --ds-* / --ws-* 令牌，暗色由 :root[data-theme="dark"] 那条
+   .ws-help-dialog 规则统一翻面，这里不写死任何亮暗色（豆格色块除外 —— 那是作品数据）。
+   ==========================================================================*/
+/* <dialog> 未打开时靠 UA 的 dialog:not([open]){display:none} 隐藏，而**作者样式
+   优先级永远高于 UA 样式** —— 一旦给 .ws-pattern-import 写了 display:flex，
+   没打开的对话框就会一直挂在画布上。所以未打开态必须显式写死 display:none。
+   选择器带上 .ws-help-dialog 是为了压过 generation-editor.css 里那条
+   .phase2-workspace .ws-help-dialog{width:min(760px,92vw)}（那条加载在后面）。 */
+.phase2-workspace .ws-help-dialog.ws-pattern-import:not([open]){display:none}
+.phase2-workspace .ws-help-dialog.ws-pattern-import{width:min(1080px,94vw);max-height:88vh;display:flex;flex-direction:column}
+.phase2-workspace .ws-pattern-import .ws-note{margin:12px 18px 0;font-size:12px;color:var(--ds-color-text-tertiary)}
+/* 工具行：选图 / 两个开关 / 占位 / 格子像素 / 重新选择 */
+.phase2-workspace .ws-pattern-import .ws-pi-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:12px 18px 0;padding:9px 12px;border:1px solid var(--ws-border);border-radius:10px;background:var(--ds-color-surface-soft)}
+.phase2-workspace .ws-pattern-import .ws-pi-toolbar label{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ds-color-text-secondary);white-space:nowrap}
+.phase2-workspace .ws-pattern-import .ws-pi-spacer{flex:1 1 auto}
+.phase2-workspace .ws-pattern-import .ws-pi-cell{display:inline-flex;align-items:center;gap:6px}
+.phase2-workspace .ws-pattern-import .ws-pi-cell input{width:64px;min-height:28px;padding:2px 6px;border:1px solid var(--ws-border);border-radius:6px;background:var(--ds-color-surface);color:var(--ds-color-text);font-size:12px}
+.phase2-workspace .ws-pattern-import .ws-pi-cell input:disabled{opacity:.5}
+/* 状态行：识别摘要 + 告警。warn 用 danger 色而不是自己造一个警告色。 */
+.phase2-workspace .ws-pattern-import .ws-pi-status{margin:10px 18px 0;font-size:12px;line-height:1.5;color:var(--ds-color-text-secondary)}
+.phase2-workspace .ws-pattern-import .ws-pi-status[data-tone="warn"]{color:var(--ds-color-danger)}
+.phase2-workspace .ws-pattern-import .ws-pi-body{display:grid;grid-template-columns:minmax(0,1fr) 296px;gap:14px;padding:12px 18px 0;min-height:0;overflow:hidden}
+@media(max-width:860px){.phase2-workspace .ws-pattern-import .ws-pi-body{grid-template-columns:1fr;overflow-y:auto}}
+/* 左：画布 + 视图切换 */
+.phase2-workspace .ws-pattern-import .ws-pi-view{display:flex;flex-direction:column;gap:8px;min-width:0}
+.phase2-workspace .ws-pattern-import .ws-pi-canvas-box{flex:1 1 auto;min-height:220px;max-height:52vh;overflow:auto;border:1px solid var(--ws-border);border-radius:10px;background:var(--ds-color-canvas);padding:6px}
+.phase2-workspace .ws-pattern-import .ws-pi-canvas-box canvas{display:block;margin:0 auto;image-rendering:pixelated}
+.phase2-workspace .ws-pattern-import .ws-pi-view-switch{display:flex;gap:8px}
+/* 右：改色卡 + 用量 */
+.phase2-workspace .ws-pattern-import .ws-pi-side{display:flex;flex-direction:column;gap:12px;min-width:0;overflow-y:auto;padding-right:2px}
+.phase2-workspace .ws-pattern-import .ws-pi-editor,.phase2-workspace .ws-pattern-import .ws-pi-usage{border:1px solid var(--ws-border);border-radius:10px;background:var(--ds-color-surface-soft);padding:10px 12px}
+.phase2-workspace .ws-pattern-import .ws-pi-editor-head,.phase2-workspace .ws-pattern-import .ws-pi-usage-head{font-size:12px;font-weight:650;color:var(--ds-color-text-strong);margin-bottom:8px}
+.phase2-workspace .ws-pattern-import .ws-pi-kv{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:2px 0;color:var(--ds-color-text-tertiary)}
+.phase2-workspace .ws-pattern-import .ws-pi-kv b{color:var(--ds-color-text);font-weight:600}
+/* 候选色号：4 列小卡，色块 + 色号 + 色差 */
+.phase2-workspace .ws-pattern-import .ws-pi-cands{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:8px}
+.phase2-workspace .ws-pattern-import .ws-pi-cand{display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 2px;border:1px solid var(--ws-border);border-radius:7px;background:var(--ds-color-surface);cursor:pointer;font-size:11px;color:var(--ds-color-text)}
+.phase2-workspace .ws-pattern-import .ws-pi-cand:hover{border-color:var(--ds-color-accent)}
+.phase2-workspace .ws-pattern-import .ws-pi-cand.is-on{border-color:var(--ds-color-accent);box-shadow:0 0 0 2px var(--ds-color-accent-soft)}
+.phase2-workspace .ws-pattern-import .ws-pi-cand i{display:block;width:100%;height:20px;border-radius:4px;border:1px solid rgba(0,0,0,.12)}
+.phase2-workspace .ws-pattern-import .ws-pi-cand span{font-weight:600}
+.phase2-workspace .ws-pattern-import .ws-pi-cand small{color:var(--ds-color-text-tertiary);font-variant-numeric:tabular-nums}
+.phase2-workspace .ws-pattern-import .ws-pi-editor-actions{display:flex;gap:8px;margin-top:9px}
+/* 用量列表 */
+.phase2-workspace .ws-pattern-import .ws-pi-usage-list{max-height:30vh;overflow-y:auto}
+.phase2-workspace .ws-pattern-import .ws-pi-usage-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;border-bottom:1px solid var(--ds-color-border-soft)}
+.phase2-workspace .ws-pattern-import .ws-pi-usage-row i{width:16px;height:16px;border-radius:4px;border:1px solid var(--ds-color-border);flex:0 0 auto}
+.phase2-workspace .ws-pattern-import .ws-pi-usage-row b{font-weight:600;color:var(--ds-color-text)}
+.phase2-workspace .ws-pattern-import .ws-pi-usage-row span{margin-left:auto;color:var(--ds-color-text-tertiary);font-variant-numeric:tabular-nums}
+/* 底部动作条：吸底 */
+.phase2-workspace .ws-pattern-import .ws-help-foot{display:flex;justify-content:flex-end;gap:10px;padding:12px 18px 14px;border-top:1px solid var(--ws-border);background:var(--ds-color-surface)}
