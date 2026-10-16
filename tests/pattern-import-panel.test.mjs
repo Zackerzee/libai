@@ -71,16 +71,29 @@ test('替换前会确认覆盖（当前作品有手动编辑时）', () => {
 
 test('workspace.js 与 workspace.css 的缓存戳同步到本轮', () => {
   assert.match(bootstrap, /\.\/workspace\.js\?v=20261016-pattern-import-1/);
-  assert.match(html, /\.\/styles\/workspace\.css\?v=20261016-pattern-import-1/);
+  assert.match(html, /\.\/styles\/workspace\.css\?v=20261016-panel-position-1/);
   assert.match(workspace, /pattern-import-panel\.js\?v=20261016-pattern-import-1/);
 });
 
 /* ── 五、样式：走设计令牌，不新造颜色 ───────────────────────────────── */
 
 test('面板样式挂在 .ws-help-dialog 上（暗色由既有规则统一翻面）', () => {
-  assert.match(css, /\.phase2-workspace \.ws-help-dialog\.ws-pattern-import\{width:min\(1080px,94vw\)/);
+  assert.match(css, /\.phase2-workspace \.ws-help-dialog\.ws-pattern-import\{position:fixed;top:50%;left:50%;transform:translate\(-50%,-50%\);margin:0;width:min\(1080px,94vw\)/);
   // 面板本体必须复用 .ws-help-dialog，否则暗色主题那条规则覆盖不到。
   assert.match(panel, /className = "ws-help-dialog ws-pattern-import"/);
+});
+
+test('面板定位显式钉死居中，不依赖 <dialog> 的 UA 居中，且不设 bottom/right', () => {
+  // 用户实测「导入带色号的图纸压住了工具栏」：Chrome 的 dialog:modal UA 样式
+  // 是 margin:auto 垂直居中，但 Safari 等浏览器会把模态对话框摆在 top:0
+  // —— 标题行与顶栏同行、说明文字与工具栏图标行重叠。修复必须自己钉死
+  // position:fixed + top/left 50% + translate(-50%,-50%) + margin:0。
+  assert.match(css, /\.phase2-workspace \.ws-help-dialog\.ws-pattern-import\{position:fixed;top:50%;left:50%;transform:translate\(-50%,-50%\);margin:0/);
+  // 不设 bottom/right —— 否则浏览器把高度拉满（如 Safari 的 dialog 拉伸行为）
+  // 时面板会被纵向/横向拉变形， justify-content:flex-start 也钉住内部分配。
+  const rule = css.match(/\.phase2-workspace \.ws-help-dialog\.ws-pattern-import\{[^}]+\}/)?.[0] || '';
+  assert.doesNotMatch(rule, /bottom:/, '面板不应设置 bottom（防拉伸）');
+  assert.doesNotMatch(rule, /right:/, '面板不应设置 right（防拉伸）');
 });
 
 test('面板未打开时必须真的隐藏 —— 作者 display:flex 会压过 UA 的 dialog:not([open])', () => {

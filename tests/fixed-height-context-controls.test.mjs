@@ -77,7 +77,13 @@ test('three-panel layout repositions real inspector and shares palette identity 
 });
 
 test('usage and selection cannot resize canvas and mobile summaries have explicit close',()=>{
-  assert.match(css,/height:80px;min-height:80px;max-height:80px;box-sizing:border-box;overflow:visible/);
+  // 用量带高度契约 2026-10-16 起改为**内容驱动**（原 80px 固定两行）：
+  // 用户反馈「高度过高、占据位置过多」——空态时色块条只有一行提示文字，
+  // 固定 80px 下面全是空白。现在 height:auto + min-height:38px，
+  // 真机实测有颜色时 41px。仍是「不能撑大画布」：auto 行 + 横向滚动的色块条。
+  assert.match(css,/body\.phase2-workspace #ws-canvas-stats\.ws-usage-band\{height:auto;min-height:38px;box-sizing:border-box;overflow:visible/);
+  // 单行：色块条（左，1fr 横向滚动）+ 排序组（右）同行 —— 不再是两列两行。
+  assert.match(css,/#ws-canvas-stats\.ws-usage-band\{grid-template-columns:minmax\(0,1fr\) auto\}/);
   assert.match(css,/#ws-selection-actionbar\{position:absolute/);
   assert.match(workspace,/关闭配色清单/);
   assert.match(workspace,/summaryCloseButton\.addEventListener\('click'/);

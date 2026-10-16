@@ -672,7 +672,7 @@ body.phase2-workspace .sl-panel-section > button:not([class]):hover,
 body.phase2-workspace .sl-generation-panel button:not([class]):hover,
 body.phase2-workspace .ws-project-information button:not([class]):hover,
 body.phase2-workspace .ws-color-picker button:not([class]):hover { border-color: var(--ds-color-border-strong); background: var(--ds-color-surface-soft); }
-#ws-canvas-stats.ws-usage-band { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 12px; justify-content: stretch; padding: 8px 12px; background: var(--ws-surface); border-top: 1px solid var(--ws-border); }
+#ws-canvas-stats.ws-usage-band { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 12px; justify-content: stretch; padding: 6px 12px; background: var(--ws-surface); border-top: 1px solid var(--ws-border); }
 .ws-usage-band .ws-usage-totals { display: flex; align-items: baseline; gap: 5px; white-space: nowrap; font-size: 13px; }
 .ws-usage-band .ws-usage-totals strong { font-size: 14px; }
 .ws-usage-band .ws-usage-band-tools { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; min-width: 0; }
@@ -1036,8 +1036,14 @@ body.phase2-workspace .workspace-grid>.ws-rail{grid-column:2;grid-row:1}
 #ws-summary-usage{flex:1 1 0;min-height:0;overflow:auto;overscroll-behavior:contain}#ws-summary-usage .ws-color-row{min-height:40px;border-bottom:1px solid var(--ws-border)}
 .ws-summary-mobile-open{display:none}
 .ws-summary-mobile-close{display:none;float:right;padding:4px 8px;border:1px solid var(--ws-border);border-radius:6px;background:var(--ws-surface);color:var(--ws-text)}
-body.phase2-workspace #ws-canvas-stats.ws-usage-band{height:80px;min-height:80px;max-height:80px;box-sizing:border-box;overflow:visible;align-content:start;position:relative}
-body.phase2-workspace .ws-canvas-area:has(#ws-selection-actionbar){grid-template-rows:minmax(0,1fr) 80px 0 26px}
+/* 用量带高度改为内容驱动（约 36~46px），不再固定 80px 两行布局 —— 用户反馈
+   「高度过高、占据位置过多」：空态时色块条只有一行提示文字，下面全是空白。
+   单行布局：左＝色块条（横向滚动），右＝排序组，两者同行。 */
+body.phase2-workspace #ws-canvas-stats.ws-usage-band{height:auto;min-height:38px;box-sizing:border-box;overflow:visible;align-content:center;position:relative}
+/* 画布区行轨：带子行改 auto（内容驱动）；末行 26px 是画布提示行的残留模板
+   （#ws-canvas-hint 挂载后即被 .ws-canvas-secondary-hint 永久隐藏），
+   改 auto 让它收起，不再白占 26px。bg-preview 是绝对定位，0 行无影响。 */
+body.phase2-workspace .ws-canvas-area:has(#ws-selection-actionbar){grid-template-rows:minmax(0,1fr) auto 0 auto}
 body.phase2-workspace #ws-selection-actionbar{position:absolute;z-index:6;top:8px;left:8px;right:8px;max-height:90px;overflow:auto;box-sizing:border-box;border:1px solid var(--ws-border);border-radius:8px;box-shadow:0 3px 12px #0001}
 body.phase2-workspace #ws-bg-preview{position:absolute;z-index:6;bottom:110px;left:8px;right:8px;max-height:100px;overflow:auto}
 #ws-summary-grid{font-size:16px;white-space:nowrap}.ws-summary-totals #ws-physical-size{padding:0;border:0;font-size:12px;line-height:1.5;background:transparent;white-space:nowrap}
@@ -1246,8 +1252,9 @@ body.phase2-workspace #ws-major-grid-interval[hidden],
 #ws-color-neighbors[hidden],
 #ws-reference-opacity[hidden]{display:none!important}
 
-/* ① 底栏两列：左＝配色清单（跨两行），右＝色块条 + 排序组 */
-#ws-canvas-stats.ws-usage-band{grid-template-columns:minmax(0,max-content) minmax(0,1fr)}
+/* ① 底栏单行：左＝色块条（横向滚动），右＝排序组。配色清单已搬进下方坞的最左，
+   带子不再需要两列两行。 */
+#ws-canvas-stats.ws-usage-band{grid-template-columns:minmax(0,1fr) auto}
 #ws-usage-summary-inline{grid-column:1;grid-row:1/span 2;display:flex;flex-wrap:wrap;align-items:center;align-content:center;gap:2px 12px;max-width:min(560px,44vw);font-size:11px;line-height:1.4;color:var(--ws-text-secondary)}
 #ws-usage-summary-inline .ws-summary-palette{display:flex;flex-direction:row;align-items:baseline;gap:6px}
 #ws-usage-summary-inline .ws-summary-palette strong{font-size:12px;color:var(--ws-text)}
@@ -1263,8 +1270,8 @@ body.phase2-workspace #ws-dock-view #ws-usage-summary-inline{flex:1 1 auto;max-w
 body.phase2-workspace #ws-dock-view #ws-usage-summary-inline #ws-summary-specs{display:none}
 body.phase2-workspace #ws-dock-view #ws-usage-summary-inline .ws-summary-totals>div{min-height:0;white-space:nowrap}
 body.phase2-workspace #ws-dock-view #ws-usage-actions{margin-left:8px}
-#ws-canvas-stats.ws-usage-band #ws-usage-strip{grid-column:2;grid-row:1;padding:2px 0}
-#ws-canvas-stats.ws-usage-band .ws-usage-band-tools{grid-column:2;grid-row:2;justify-content:flex-end;flex-wrap:nowrap}
+#ws-canvas-stats.ws-usage-band #ws-usage-strip{grid-column:1;grid-row:1;padding:2px 0}
+#ws-canvas-stats.ws-usage-band .ws-usage-band-tools{grid-column:2;grid-row:1;justify-content:flex-end;flex-wrap:nowrap}
 
 /* ② 色块条的横向滚动条撤掉：中键拖拽/滚轮平移已经够用，滚动条只是多一层视觉噪音。
      滚动能力本身保留（overflow-x 仍是 auto），只是不再画那根杆。 */
@@ -1673,9 +1680,17 @@ body.phase2-workspace #ws-export-drawer.ws-export-compact .ws-export-build-split
    优先级永远高于 UA 样式** —— 一旦给 .ws-pattern-import 写了 display:flex，
    没打开的对话框就会一直挂在画布上。所以未打开态必须显式写死 display:none。
    选择器带上 .ws-help-dialog 是为了压过 generation-editor.css 里那条
-   .phase2-workspace .ws-help-dialog{width:min(760px,92vw)}（那条加载在后面）。 */
+   .phase2-workspace .ws-help-dialog{width:min(760px,92vw)}（那条加载在后面）。
+
+   **定位必须自己钉死，不能靠 UA 的 dialog:modal 居中**：UA 的居中规则
+   （margin:auto）在 Chrome 生效，但 Safari 等浏览器会把模态对话框摆在
+   top:0 甚至拉高 —— 用户实测「面板压住工具栏」就是这么来的（标题行与顶栏
+   同行、说明文字与工具栏图标行重叠）。写法：position:fixed + top/left 50%
+   + translate(-50%,-50%)，不设 bottom/right（高度 = 内容，任何浏览器都
+   拉不高），margin:0 顶掉 UA 的 auto 边距，justify-content:flex-start
+   钉死内部分配（万一被拉高也不把页脚推到底部）。 */
 .phase2-workspace .ws-help-dialog.ws-pattern-import:not([open]){display:none}
-.phase2-workspace .ws-help-dialog.ws-pattern-import{width:min(1080px,94vw);max-height:88vh;display:flex;flex-direction:column}
+.phase2-workspace .ws-help-dialog.ws-pattern-import{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);margin:0;width:min(1080px,94vw);max-height:88vh;display:flex;flex-direction:column;justify-content:flex-start}
 .phase2-workspace .ws-pattern-import .ws-note{margin:12px 18px 0;font-size:12px;color:var(--ds-color-text-tertiary)}
 /* 工具行：选图 / 两个开关 / 占位 / 格子像素 / 重新选择 */
 .phase2-workspace .ws-pattern-import .ws-pi-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:12px 18px 0;padding:9px 12px;border:1px solid var(--ws-border);border-radius:10px;background:var(--ds-color-surface-soft)}
