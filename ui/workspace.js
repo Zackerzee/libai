@@ -1,5 +1,8 @@
 import { attachWorkspaceV3Layout } from './workspace-v3-layout.mjs?v=20261013-toolbar-confirm-1';
 import { attachTemplatePanel } from './template-panel.mjs';
+import { createCreativeToolsPanel } from './creative-tools-panel.mjs';
+import { creativePaletteFingerprint, validateCreativeResult } from '../services/creative-tool-result.mjs';
+import { textColorTargetPatch } from '../services/text-color-target.mjs';
 import { bindPindouControls } from './pindou-full-controls.mjs?v=20261014-shared-presets-1';
 import { attachCompactExportPanel } from './export-options-panel.mjs?v=20261013-export-compact-1';
 import { attachSelectionContextControls, selectionCombineMode } from './selection-context-controls.mjs';
@@ -33,7 +36,7 @@ import { recommendAutomaticSize, isCurrentSizeSource } from "../services/automat
 import { ZoomControls } from "./zoom-controls.js?v=20261015-dynamic-zoom-1";
 import { createInspectionState, currentInspectionIssue, setInspectionIssues, startInspection, stopInspection, nextInspectionIssue, previousInspectionIssue, nextInspectionCell, previousInspectionCell } from "../services/inspection-service.js?v=20260929-editor-phase3";
 import { TextPanel, textPaletteChoices } from "./text-panel.js?v=20261014-text-palette-2";
-import { createTextLayer, rasterizeTextCached, layerContainsCell, cellsBox, composeLockedTextGrid } from "../services/text-layer-service.js?v=20261013-text-controls-1";
+import { createTextLayer, rasterizeTextCached, layerContainsCell, cellsBox, composeLockedTextGrid, textLayerValidationMessage } from "../services/text-layer-service.js?v=20261013-text-controls-1";
 import { QrPanel } from "./qr-panel.js?v=20261015-qr-1";
 // 二维码图层的 query string 必须与 canvas-renderer.js / qr-panel.js 逐字一致：
 // 不一致就是三个模块实例，rasterizeQrCached 的缓存会被拆成三份，
@@ -611,6 +614,19 @@ export function mountWorkspace(bridge) {
   // 一次性删字段的回归面太大。所以 currentPaletteId 是真源，
   // selectedPaletteId 降级为**只由这里写**的镜像。
   const paletteColors = () => editorService.getPaletteColors();
+  let textColorTarget = null;
+  function applyTextColorTarget(color) {
+    if (!textColorTarget) return false;
+    const target = textColorTarget;
+    textColorTarget = null;
+    try {
+      const layer = currentTextLayers().find(item=>item.id===target.id);
+      if (get().editor.tool !== 'text' || get().editor.activeTextLayerId !== target.id) throw new Error('文字选择已改变，请重新点击需要选色的项目');
+      patchTextObject(target.id,textColorTargetPatch(layer,target,color,bridge.getGenerationPaletteColors()));
+      renderer.requestDraw();notify(`已设置${target.role === 'gradient' ? '渐变色点' : '文字效果颜色'}：${color.code}`);
+    } catch(error) { notify(error.message); }
+    return true;
+  }
   /** 只设当前颜色，不动高亮。paletteId = null → 未选色（＝橡皮擦，§8）。 */
   const setCurrentPalette = (paletteId, extra = {}) => store.setState({ editor: { ...buildCurrentPalettePatch(paletteId, paletteColors()), ...extra } });
   /** 设当前颜色并把同色高亮一起指过去（选色格、用色统计卡、吸管都走它）。 */
@@ -1565,7 +1581,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     if (!get().status.hasPattern) { notify("先创建或打开图纸，再添加文字。"); return null; }
     // 当前色走真源；真源为空时退到色板第一色（保留原行为）。
     // 图层保存真实 paletteId，显示色号由现有色板解析。
-    const fallback = editorService.getPaletteColors()[0];
+    const fallback = bridge.getGenerationPaletteColors()[0];
     const id = currentPaletteId() || (fallback ? paletteIdOf(fallback) : "");
     const layer = createTextLayer({ x: at.x, y: at.y, color: id || "", paletteId: id || "" });
     commitTextObjects("TEXT_ADD", "添加文字", currentTextLayers(), [...currentTextLayers(), layer], get().editor.activeTextLayerId, layer.id);
@@ -2958,12 +2974,13 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
   $("#ws-palette-categories").addEventListener("click", (event) => { const button = event.target.closest("[data-ws-category]"); if (button) { pickerExpanded = false; store.setState({ editor: { paletteCategory: button.dataset.wsCategory } }); } });
   const activateColor = (code) => {
     const color = editorService.resolveColor(code); if (!color) return;
+    if (applyTextColorTarget(color)) return true;
     // 选色只选色：不能把查看工具切成涂色工具，更不能暗中修改之前选中的豆格。
     store.setState({ editor: { ...buildActivateColorPatch(paletteIdOf(color), paletteColors(), { highlight: false }), recentColors:[color.code,...get().editor.recentColors.filter((item)=>item!==color.code)].slice(0,10) } });
   };
   function pickCurrentColor(id) {
     const color = editorService.resolveColor(id); if (!color) return false;
-    activateColor(paletteIdOf(color));
+    if (activateColor(paletteIdOf(color)) === true) return true;
     syncPickedReplacementTarget(color);
     notify(`已取色 ${color.code}`);
     return true;
@@ -3267,8 +3284,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
       const releaseSelection = ["bead", "brush", "eraser", "fill", "line", "rect", "ellipse", "heart", "diamond", "star", "text"].includes(tool);
       store.setState({ editor: { tool, ...(releaseSelection ? { selection: null, selectedCell: null, shapePreview: null, ...buildHighlightOnlyPatch(null, { enabled: false }) } : {}) }, ui: { activePanel: tool === "source-eyedropper" ? "source" : tool === "replace" ? "color" : inspectionState.active ? get().ui.activePanel : "edit" },...(get().view.mode==='blocks'&&EDIT_OVERLAY_TOOLS.includes(tool)?{view:{mode:'pattern'}}:{}) });
       if (tool === "text") requestAnimationFrame(() => {
-        right.classList.add("is-mobile-panel-open");
-        $("#textPanel").scrollIntoView({ block: "start", inline: "nearest" });
+        openCreativeText();
       });
   };
   const gridToolbar = new GridEditorToolbar({
@@ -3822,7 +3838,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     textPanel.render({
       layers,
       activeId: active?.id || null,
-      palette: textPaletteChoices(editorService.getPaletteColors(), bridge.getResult().grid || []),
+      palette: bridge.getGenerationPaletteColors(),
       recent: state.editor.textRecentColors || [],
       // 落豆数与画布预览、与合并写进去的格子来自同一次栅格化（带缓存），三处必然一致。
       cells: active ? rasterizeTextCached(active, w, h).cells.length : 0,
@@ -3831,10 +3847,26 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
   textPanel = new TextPanel({
     root: "#textPanel",
     onAdd: () => addTextLayer(),
+    onColorTarget: (id,role,index) => {
+      textColorTarget = {id,role,index};
+      notify('请在左侧共用色卡点选颜色，将应用到当前文字项目');
+    },
     onPatch: (id, patch) => {
       if (!id) return;
       const target = currentTextLayers().find(layer => layer.id === id);
       if (target?.locked && !Object.prototype.hasOwnProperty.call(patch, "locked")) return;
+      const validation = textLayerValidationMessage({...target,...patch});
+      if (validation) {
+        if (patch.font && $('#ws-text-font')) $('#ws-text-font').value=target.font;
+        if (patch.text !== undefined && $('#ws-text-content')) $('#ws-text-content').value=target.text;
+        notify(validation);return;
+      }
+      if (patch.colorMode === 'gradient' && !(target?.gradientStops?.length >= 2)) {
+        const colors=bridge.getGenerationPaletteColors();
+        if (colors.length < 2) { notify('渐变至少需要两种可用色卡颜色');return; }
+        patch={...patch,gradientStops:colors.slice(0,2).map(color=>({paletteId:paletteIdOf(color),code:color.code,
+          hex:'#'+color.rgb.map(v=>v.toString(16).padStart(2,'0')).join('')}))};
+      }
       patchTextObject(id,patch);
       renderer.requestDraw();
     },
@@ -3850,7 +3882,9 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
       try {
         const face = new FontFace(family, `url(${JSON.stringify(fontData)})`);
         await face.load(); document.fonts.add(face);
-        patchTextObject(id, { fontFamily: family, fontData });
+        const current = currentTextLayers().find(layer=>layer.id===id);
+        if (!current || current.locked) { notify('图层已删除或锁定，未更改字体');return; }
+        patchTextObject(id, { font:'system',fontFamily: family, fontData });
         renderer.requestDraw(); notify(`已加载本地字体：${family}`);
       } catch { notify("字体加载失败，请尝试 TTF、OTF 或 WOFF 字体文件。"); }
     },
@@ -3900,6 +3934,62 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     },
   });
 
+  // Creative results are objects, never flattened into the editable base grid.
+  const creativePalette = () => bridge.getGenerationPaletteColors();
+  const creativeUiPalette = () => creativePalette().map(color => ({
+    code: color.code,
+    hex: '#' + color.rgb.map(value => value.toString(16).padStart(2, '0')).join(''),
+    name: color.name || color.code,
+  }));
+  let creativeOpening = null;
+  const creativeTools = createCreativeToolsPanel({
+    getPalette: creativeUiPalette,
+    onOpenText: openCreativeText,
+    onConfirm: async (result, kind) => {
+      const assertCurrent = () => {
+        if (bridge.isGenerating()) throw new Error('请等待生成完成后再应用');
+        if (!creativeOpening || creativeOpening.revision !== gridRevision
+          || creativeOpening.palette !== creativePaletteFingerprint(creativePalette())) {
+          throw new Error('作品或可用色卡已改变，请关闭后重新打开创意工具');
+        }
+      };
+      assertCurrent();
+      if (kind !== 'pattern') throw new Error('请使用统一创意文字面板添加文字图层');
+      const current = bridge.getResult();
+      const imported = validateCreativeResult(result,creativePalette());
+      const message = `将 ${imported.width} × ${imported.height} 识别图纸添加为独立图层，不改变底图；可移动、缩放、旋转与撤销。继续吗？`;
+      if (!await askConfirmation(message)) throw new Error('已取消，当前作品未改变');
+      assertCurrent();
+      const layer=createTextLayer({text:'图纸图片',rasterGrid:imported.grid,
+        x:current.width/2,y:current.height/2,
+        scale:Math.max(10,Math.floor(Math.min(1,current.width/imported.width,current.height/imported.height)*100))});
+      if (!commitTextObjects('CREATIVE_LAYER','添加创意图层',currentTextLayers(),[...currentTextLayers(),layer],get().editor.activeTextLayerId,layer.id)) throw new Error('图层未添加，请稍后重试');
+      store.setState({editor:{tool:'text'},ui:{activePanel:'edit'}});
+      notify('已添加独立图层；锁定后参与导出，底图未改变');
+    },
+  });
+  const creativeEntries = document.createElement('div');
+  creativeEntries.id = 'ws-creative-tools'; creativeEntries.className = 'ws-source-buttons';
+  function openCreativeText() {
+    if (!currentTextLayers().length) addTextLayer();
+    else store.setState({editor:{tool:'text',activeTextLayerId:get().editor.activeTextLayerId||currentTextLayers()[0].id},ui:{activePanel:'edit'}});
+    right.classList.add('is-mobile-panel-open');
+    $('#textPanel').scrollIntoView({block:'nearest',inline:'nearest'});
+  }
+  for (const [kind, title] of [['pattern','图纸图片识别'],['text','添加文字图层']]) {
+    const button = document.createElement('button'); button.type = 'button'; button.textContent = title;
+    button.addEventListener('click', () => {
+      try {
+        if (bridge.isGenerating()) throw new Error('请等待生成完成后再打开创意工具');
+        if (kind === 'text') { addTextLayer();return; }
+        creativeOpening = {revision:gridRevision,palette:creativePaletteFingerprint(creativePalette())};
+        void creativeTools.open(kind);
+      } catch (error) { notify(error.message); }
+    });
+    creativeEntries.append(button);
+  }
+  $('#textPanel').before(creativeEntries);
+
   /* ======================== 二维码素材（独立图层） ======================== */
   // 与文字同一套模型：对象独立保存在 editor.qrLayers，画布预览与导出共用同一次栅格化。
   // 差别只有一处 —— 二维码不能「向下合并」：烧进底版就再也不能改内容了，
@@ -3947,6 +4037,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     const showQr = Boolean((state.editor.qrLayers || []).length || tool === "qr");
     const textHost = $("#textPanel"), qrHost = $("#qrPanel"), qrContext = $("#ws-context-qr");
     if (textHost) textHost.hidden = !((state.editor.textLayers || []).length || tool === "text");
+    creativeEntries.hidden = textHost?.hidden ?? true;
     if (qrHost) qrHost.hidden = !showQr;
     if (qrContext) qrContext.hidden = !showQr;
   }

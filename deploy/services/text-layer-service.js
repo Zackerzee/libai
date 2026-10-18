@@ -24,6 +24,16 @@
  * 这个站点全程不依赖境外 CDN 兜底，为了一个文字功能再加一份 web font 不划算。
  * 非 macOS 平台上这些中文字体名会落空，浏览器按栈顺序回退到后面的通用族，仍能正常显示。
  */
+import * as pixelBundle from "../vendor/creative-tools/bead-text-tool.js";
+const pixelText = globalThis.BeadText || pixelBundle.default?.BeadText;
+
+export function textLayerValidationMessage(layer) {
+  const font = pixelText?.getBitmapFont?.(layer?.font);
+  if (!font || layer?.rasterGrid) return '';
+  const missing = pixelText.findUnsupportedChars(font, String(layer.text || ''));
+  return missing.length ? `此点阵字体缺少：${missing.join(' ')}。中文请选择复古像素、系统字体或导入本地字体。` : '';
+}
+
 export const TEXT_FONTS = [
   { id: "system", label: "系统默认", stack: 'system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif' },
   { id: "pixel", label: "复古像素", stack: '"Fusion Pixel 12px Monospaced Simplified Chinese", ui-monospace, Menlo, monospace' },
@@ -64,6 +74,11 @@ export function createTextLayer(overrides = {}) {
     italic: false,
     scale: 100,
     spacing: 0,
+    writingMode: "horizontal",
+    lineHeight: 1.18,
+    colorMode: "solid",
+    gradientStops: [],
+    gradientDirection: "horizontal",
     rotation: 0,
     textHex: "",
     shadowEnabled: false,
@@ -142,13 +157,16 @@ export function rasterizeText(layer, gridWidth, gridHeight, options = {}) {
   const height = Math.max(1, Math.round(Number(gridHeight) || 0));
   const empty = { cells: [], width: 0, height: 0 };
   const text = String(layer?.text ?? "");
+  if (Array.isArray(layer?.rasterGrid)) return rasterizeImportedGrid(layer, width, height);
   if (!text.trim()) return empty;
+  const bitmap = pixelText?.getBitmapFont?.(layer.font);
+  if (bitmap) return rasterizeBitmap(layer, bitmap, width, height);
   const canvas = options.canvas || scratchCanvas(width, height);
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return empty;
 
   const size = Math.max(3, Math.round(baseFontSize(width, height) * (Number(layer.scale) || 100) / 100));
-  const lineHeight = Math.max(size, Math.round(size * LINE_HEIGHT_RATIO));
+  const lineHeight = Math.max(size, Math.round(size * (Number(layer.lineHeight) || LINE_HEIGHT_RATIO)));
   const lines = text.split("\n");
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -165,8 +183,20 @@ export function rasterizeText(layer, gridWidth, gridHeight, options = {}) {
   let widest = 0;
   lines.forEach((line, index) => {
     const offset = (index - (lines.length - 1) / 2) * lineHeight;
-    ctx.fillText(line, 0, offset);
-    widest = Math.max(widest, ctx.measureText(line).width);
+    const chars = [...line], spacing = Number(layer.spacing) || 0;
+    if (layer.writingMode === "vertical") {
+      chars.forEach((char, row) => ctx.fillText(char, -offset, (row - (chars.length - 1) / 2) * (size + spacing)));
+      widest = Math.max(widest, chars.length * (size + spacing));
+    } else if (spacing && !("letterSpacing" in ctx)) {
+      const advances = chars.map(char => ctx.measureText(char).width);
+      const total = advances.reduce((a, b) => a + b, 0) + Math.max(0, chars.length - 1) * spacing;
+      let left = -total / 2;
+      chars.forEach((char, i) => { ctx.fillText(char, left + advances[i] / 2, offset); left += advances[i] + spacing; });
+      widest = Math.max(widest, total);
+    } else {
+      ctx.fillText(line, 0, offset);
+      widest = Math.max(widest, ctx.measureText(line).width);
+    }
   });
   ctx.restore();
 
@@ -177,13 +207,15 @@ export function rasterizeText(layer, gridWidth, gridHeight, options = {}) {
       if (data[(y * width + x) * 4 + 3] >= INK_ALPHA) cells.push({ x, y });
     }
   }
-  const textCells = cells;
+  return decorateTextCells(layer, cells, width, height, layer.writingMode === "vertical" ? lines.length * lineHeight : widest, layer.writingMode === "vertical" ? widest : lines.length * lineHeight);
+}
+
+function decorateTextCells(layer, textCells, width, height, measuredWidth, measuredHeight) {
   const layers = [];
   const box = cellsBox(textCells);
   const addLayer = (role, color, opacity, layerCells) => {
     if (layerCells.length) layers.push({ role, color, opacity: Math.max(0, Math.min(100, Number(opacity) || 0)) / 100, cells: layerCells });
   };
-  const textColor = String(layer.textHex || "").trim();
   if (layer.backplateEnabled && box) {
     const plate = [];
     for (let y = Math.max(0, box.y0 - 1); y <= Math.min(height - 1, box.y1 + 1); y++)
@@ -216,10 +248,78 @@ export function rasterizeText(layer, gridWidth, gridHeight, options = {}) {
     }
     addLayer("border", layer.borderHex, layer.borderOpacity, border);
   }
-  addLayer("text", textColor, 100, textCells);
+  layers.push(...textPaintGroups(layer, textCells));
   const merged = new Map();
   for (const paintLayer of layers) for (const cell of paintLayer.cells) merged.set(`${cell.x},${cell.y}`, cell);
-  return { cells: [...merged.values()], paintLayers: layers, width: widest, height: lines.length * lineHeight };
+  return { cells: [...merged.values()], paintLayers: layers, width: measuredWidth, height: measuredHeight };
+}
+
+function textPaintGroups(layer, cells) {
+  const stops = Array.isArray(layer.gradientStops) ? layer.gradientStops.filter(stop => parseHex(stop.hex)) : [];
+  if (layer.colorMode !== "gradient" || stops.length < 2 || !cells.length) return [{ role: "text", color: layer.textHex || "", paletteId: layer.paletteId, code: layer.color, opacity: 1, cells }];
+  // Work in unrotated text coordinates: rotating a layer rotates its gradient too.
+  const angle = -(Number(layer.rotation) || 0) * Math.PI / 180;
+  const local = cells.map(({ x, y }) => ({ x: x * Math.cos(angle) - y * Math.sin(angle), y: x * Math.sin(angle) + y * Math.cos(angle) }));
+  const projection = local.map(({ x, y }) => layer.gradientDirection === "vertical" ? y : layer.gradientDirection === "diagonal" ? x + y : x);
+  const min = projection.reduce((a, b) => Math.min(a, b), Infinity), span = projection.reduce((a, b) => Math.max(a, b), -Infinity) - min || 1;
+  const groups = stops.map(stop => ({ role: "text", color: stop.hex, paletteId: stop.paletteId, code: stop.code, opacity: 1, cells: [] }));
+  cells.forEach((cell, i) => groups[Math.min(stops.length - 1, Math.round((projection[i] - min) / span * (stops.length - 1)))].cells.push(cell));
+  return groups.filter(group => group.cells.length);
+}
+
+function transformLocalCells(cells, layer, width, height, localWidth, localHeight, scale = 1) {
+  const angle = (Number(layer.rotation) || 0) * Math.PI / 180, cos = Math.cos(angle), sin = Math.sin(angle);
+  if (!cells.length || !localWidth || !localHeight || !Number.isFinite(scale) || scale <= 0) return [];
+  const cx = Number(layer.x) || 0, cy = Number(layer.y) || 0;
+  const halfWidth = Math.abs(localWidth * scale * cos) / 2 + Math.abs(localHeight * scale * sin) / 2;
+  const halfHeight = Math.abs(localWidth * scale * sin) / 2 + Math.abs(localHeight * scale * cos) / 2;
+  const x0 = Math.max(0, Math.floor(cx - halfWidth)), x1 = Math.min(width - 1, Math.ceil(cx + halfWidth));
+  const y0 = Math.max(0, Math.floor(cy - halfHeight)), y1 = Math.min(height - 1, Math.ceil(cy + halfHeight));
+  if (x0 > x1 || y0 > y1) return [];
+  const source = new Map(cells.map(cell => [cell.y * localWidth + cell.x, cell]));
+  const output = [];
+  // Inverse nearest-neighbour sampling visits each visible destination cell once,
+  // independent of enlargement; a large offscreen layer cannot expand into millions of samples.
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const dx = x + .5 - cx, dy = y + .5 - cy;
+    const sx = Math.floor((dx * cos + dy * sin) / scale + localWidth / 2);
+    const sy = Math.floor((-dx * sin + dy * cos) / scale + localHeight / 2);
+    if (sx < 0 || sy < 0 || sx >= localWidth || sy >= localHeight) continue;
+    const cell = source.get(sy * localWidth + sx);
+    if (cell) output.push({ ...cell, x, y });
+  }
+  return output;
+}
+
+function rasterizeImportedGrid(layer, width, height) {
+  const grid = layer.rasterGrid, h = grid.length, w = grid[0]?.length || 0;
+  const source = [];
+  grid.forEach((row, y) => row.forEach((color, x) => { if (color) source.push({ x, y, sourceColor: color }); }));
+  const scale = Math.max(.1, (Number(layer.scale) || 100) / 100);
+  const transformed = transformLocalCells(source, layer, width, height, w, h, scale);
+  const groups = new Map();
+  for (const { x, y, sourceColor: color } of transformed) {
+    const key = color.paletteId || color.code;
+    if (!groups.has(key)) groups.set(key, { role: "text", paletteId: color.paletteId, code: color.code, color: color.hex || (color.rgb ? `#${color.rgb.map(n => n.toString(16).padStart(2, "0")).join("")}` : ""), opacity: 1, cells: [] });
+    groups.get(key).cells.push({ x, y });
+  }
+  return { cells: transformed.map(({ x, y }) => ({ x, y })), paintLayers: [...groups.values()], width: w * scale, height: h * scale };
+}
+
+function rasterizeBitmap(layer, font, width, height) {
+  const lines = String(layer.text).split("\n"), spacing = font.spacing + (Number(layer.spacing) || 0);
+  const advance = Math.max(1, font.gw + spacing), lineAdvance = Math.max(font.gh, Math.round(font.gh * (Number(layer.lineHeight) || 1.18)));
+  const longest = Math.max(...lines.map(line => [...line].length)), vertical = layer.writingMode === "vertical";
+  const w = vertical ? (lines.length - 1) * lineAdvance + font.gw : Math.max(0, longest - 1) * advance + font.gw;
+  const h = vertical ? Math.max(0, longest - 1) * (font.gh + spacing) + font.gh : (lines.length - 1) * lineAdvance + font.gh;
+  const source = [];
+  lines.forEach((line, index) => [...line].forEach((char, col) => {
+    const glyph = font.glyphs[char] || font.glyphs[char.toUpperCase()];
+    if (!glyph) return;
+    glyph.forEach((row, y) => [...String(row)].forEach((bit, x) => { if (bit === "1" || bit === "#") source.push({ x: x + (vertical ? index * lineAdvance : col * advance), y: y + (vertical ? col * (font.gh + spacing) : index * lineAdvance) }); }));
+  }));
+  const scale = Math.max(.1, (Number(layer.scale) || 100) / 100), cells = transformLocalCells(source, layer, width, height, w, h, scale);
+  return decorateTextCells(layer, cells, width, height, w * scale, h * scale);
 }
 
 /**
@@ -232,6 +332,7 @@ export function rasterizeTextCached(layer, gridWidth, gridHeight) {
   if (!layer) return { cells: [], width: 0, height: 0 };
   const key = [
     layer.text, layer.font, layer.bold, layer.italic, layer.scale, layer.spacing, layer.rotation,
+    layer.writingMode, layer.lineHeight, layer.colorMode, layer.gradientDirection, JSON.stringify(layer.gradientStops), JSON.stringify(layer.rasterGrid), layer.paletteId, layer.color,
     layer.x, layer.y, layer.fontFamily, layer.fontData, layer.textHex, layer.shadowEnabled, layer.shadowHex, layer.shadowStrength,
     layer.backplateEnabled, layer.backplateHex, layer.backplateOpacity, layer.borderStyle, layer.borderWidth, layer.borderHex, layer.borderOpacity,
     layer.glowEnabled, layer.glowHex, layer.glowStrength, gridWidth, gridHeight,
@@ -268,8 +369,13 @@ export function composeLockedTextGrid(grid, layers = [], palette = [], { rasteri
     const { paintLayers, cells } = rasterize(layer, width, height);
     const groups = paintLayers?.length ? paintLayers : [{ role: "text", color: layer.textHex, cells }];
     for (const group of groups) {
-      const identity = group.role === 'text' ? layer.paletteId : layer[`${group.role}PaletteId`];
-      const exact = identity && palette.find(color => color.paletteId === identity);
+      const identity = group.paletteId || (group.role === 'text' ? layer.paletteId : layer[`${group.role}PaletteId`]);
+      const explicitIdentity = group.paletteId || group.code;
+      const exact = explicitIdentity
+        ? palette.find(color => group.paletteId ? color.paletteId === group.paletteId : color.code === group.code)
+        : identity && palette.find(color => color.paletteId === identity);
+      // A saved/imported color identity is authoritative: never silently recolor it.
+      if (explicitIdentity && !exact) continue;
       const target = exact || (group.role === "text" && !layer.textHex
         ? palette.find((color) => color.paletteId === layer.paletteId || color.code === layer.color)
         : closestPaletteColor(group.color || layer.textHex, palette, layer.paletteId || layer.color));

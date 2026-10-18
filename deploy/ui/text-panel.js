@@ -43,6 +43,7 @@ export class TextPanel {
     onUseCurrentColor = () => {},
     onAddCurrentColor = () => {},
     onLoadLocalFont = () => {},
+    onColorTarget = () => {},
   }) {
     this.root = typeof root === "string" ? document.querySelector(root) : root;
     if (!this.root) throw new Error("TextPanel: root element not found.");
@@ -55,6 +56,7 @@ export class TextPanel {
     this.onUseCurrentColor = onUseCurrentColor;
     this.onAddCurrentColor = onAddCurrentColor;
     this.onLoadLocalFont = onLoadLocalFont;
+    this.onColorTarget = onColorTarget;
     this._signature = null;
     this.bindEvents();
     if (typeof window !== 'undefined') window.addEventListener('resize', () => this.layoutContextControls());
@@ -65,6 +67,17 @@ export class TextPanel {
     eventRoot.addEventListener("click", (event) => {
       const action = event.target.closest("[data-text-action]")?.dataset.textAction;
       if (action === "add") { this.onAdd(); return; }
+      const colorTarget = event.target.closest('[data-text-color-target]');
+      if (colorTarget) { this.onColorTarget(this._activeId, colorTarget.dataset.textColorTarget, Number(colorTarget.dataset.stopIndex || 0)); return; }
+      if (action === 'add-gradient-stop' || action === 'remove-gradient-stop') {
+        const stops = this.gradientStops(this._activeLayer);
+        if (action === 'add-gradient-stop' && stops.length < 4) {
+          const color = this._palette.find(item => !stops.some(stop => stop.paletteId === paletteIdOf(item))) || this._palette[0];
+          if (color) stops.push({ paletteId: paletteIdOf(color), code: color.code, hex: colorHex(color) });
+        }
+        if (action === 'remove-gradient-stop' && stops.length > 2) stops.pop();
+        this.onPatch(this._activeId, { gradientStops: stops }); return;
+      }
       if (action === "delete-object") { this.onDelete(event.target.closest("[data-text-layer]")?.dataset.textLayer); return; }
       const layerRow = event.target.closest("[data-text-layer]");
       if (layerRow) { this.onSelect(layerRow.dataset.textLayer); return; }
@@ -114,6 +127,9 @@ export class TextPanel {
         return;
       }
       if (target.id === "ws-text-font") this.onPatch(this._activeId, { font: target.value });
+      if (target.id === "ws-text-writing-mode") this.onPatch(this._activeId, { writingMode: target.value });
+      if (target.id === "ws-text-color-mode") this.onPatch(this._activeId, { colorMode: target.value });
+      if (target.id === "ws-text-gradient-direction") this.onPatch(this._activeId, { gradientDirection: target.value });
       if (target.id === "ws-text-font-family") this.onPatch(this._activeId, { fontFamily: target.value.trim() });
       if (target.matches("[data-text-style][type=checkbox]")) this.onPatch(this._activeId, { [target.dataset.textStyle]: target.checked });
       if (target.id === "ws-text-local-font" && target.files?.[0]) this.onLoadLocalFont(this._activeId, target.files[0]);
@@ -130,7 +146,7 @@ export class TextPanel {
     // 结构签名：图层集合、当前图层、色卡内容、最近用色。任一变化才重建 DOM。
     // 色卡要按「色号序列」而不是「长度」入签名：换品牌后长度常常不变（都是 291 色），
     // 只看长度会让色块停在旧品牌上，点下去却是新品牌的色号。
-    const signature = `${layers.map((layer) => `${layer.id}:${Boolean(layer.locked)}`).join(",")}|${activeId}|${(view.palette || []).map(paletteIdOf).join(",")}`;
+    const signature = `${layers.map((layer) => `${layer.id}:${Boolean(layer.locked)}:${Boolean(layer.rasterGrid)}`).join(",")}|${activeId}|${this._activeLayer?.colorMode || 'solid'}:${this._activeLayer?.gradientStops?.length || 2}|${(view.palette || []).map(paletteIdOf).join(",")}`;
     if (signature !== this._signature) { this._signature = signature; this.build(view); }
     this.sync(view);
   }
@@ -140,13 +156,7 @@ export class TextPanel {
     const layers = view.layers || [];
     const active = layers.find((layer) => layer.id === view.activeId) || null;
     const palette = view.palette || [];
-    const picker = (role, label) => `<select data-text-palette-role="${role}" aria-label="${label}"><option value="">选择色卡颜色</option>${palette.map(color => `<option value="${esc(paletteIdOf(color))}">${esc(color.code)}</option>`).join('')}</select>`;
-    const recent = (view.recent || []).length ? view.recent : palette.slice(0, 4).map((color) => color.code);
-    const swatches = recent.map((code) => {
-      const color = palette.find((item) => item.code === code);
-      const hex = color?.hex || "#cccccc";
-      return `<button type="button" class="ws-text-swatch" style="background:${esc(hex)};color:${colorLabelInk(color)}" ${color?`data-ws-color-pick="${esc(paletteIdOf(color))}"`:''} data-text-color="${esc(code)}" data-text-palette-id="${esc(color ? paletteIdOf(color) : "")}" title="${esc(code)}" aria-label="文字颜色 ${esc(code)}"><span>${esc(code)}</span></button>`;
-    }).join("");
+    const picker = (role, label, stopIndex) => `<button type="button" class="ws-button ws-text-color-target" data-text-color-target="${role}"${stopIndex === undefined ? '' : ` data-stop-index="${stopIndex}"`} title="${label}：点击后在左侧色卡选色" aria-label="${label}：在左侧色卡选色">${label}</button>`;
 
     this.root.innerHTML = `
       <div class="ws-text-layers">
@@ -163,10 +173,14 @@ export class TextPanel {
       </div>
       ${active ? `
       <div class="ws-text-editor">
-        <div class="ws-section-title">编辑文字素材</div>
+        <div class="ws-section-title">创意工具</div>
         <label class="ws-field">文字内容<textarea id="ws-text-content" maxlength="240" rows="3" placeholder="支持换行，输入多行文字">${esc(active.text)}</textarea></label>
-        <div class="ws-text-font-row"><label class="ws-field">字体<select id="ws-text-font">${TEXT_FONTS.map((font) => `<option value="${esc(font.id)}"${font.id === active.font ? " selected" : ""}>${esc(font.label)}</option>`).join("")}</select></label><label class="ws-button ws-text-font-load">读取本地字体<input id="ws-text-local-font" type="file" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" aria-label="读取本地字体"></label></div>
+        <div class="ws-text-font-row"><label class="ws-field">字体<select id="ws-text-font">${[...TEXT_FONTS, {id:'pixel-5x7',label:'像素字 5×7'}, {id:'pixel-3x5',label:'像素字 3×5'}].filter((font,index,fonts) => fonts.findIndex(item => item.id === font.id) === index).map((font) => `<option value="${esc(font.id)}"${font.id === active.font ? " selected" : ""}>${esc(font.label)}</option>`).join("")}</select></label><label class="ws-button ws-text-font-load">读取本地字体<input id="ws-text-local-font" type="file" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" aria-label="读取本地字体"></label></div>
         <label class="ws-field">自定义字体<input id="ws-text-font-family" type="text" value="${esc(active.fontFamily || "")}" placeholder="填写字体名称，或读取本地字体"></label>
+        <label class="ws-field">排列方向<select id="ws-text-writing-mode"><option value="horizontal">横排</option><option value="vertical">竖排</option></select></label>
+        <label class="ws-field">行间距<input type="number" data-text-style="lineHeight" min="0.5" max="4" step="0.1" value="${active.lineHeight ?? 1.2}" aria-label="文字行间距"></label>
+        <label class="ws-field">文字配色<select id="ws-text-color-mode"><option value="solid">纯色</option><option value="gradient">渐变</option></select></label>
+        ${active.colorMode === 'gradient' ? `<fieldset class="ws-text-effect-group"><legend>渐变色点 · 点击后在左侧选色</legend>${this.gradientStops(active).map((_, index) => picker('gradient', `色点 ${index + 1}`, index)).join('')}<button type="button" class="ws-button" data-text-action="add-gradient-stop"${this.gradientStops(active).length >= 4 ? ' disabled' : ''}>增加色点</button><button type="button" class="ws-button" data-text-action="remove-gradient-stop"${this.gradientStops(active).length <= 2 ? ' disabled' : ''}>减少色点</button><select id="ws-text-gradient-direction" aria-label="渐变方向"><option value="horizontal">横向渐变</option><option value="vertical">纵向渐变</option><option value="diagonal">斜向渐变</option></select></fieldset>` : ''}
         <div class="ws-text-style">
           <button type="button" class="ws-text-toggle" data-text-toggle="bold" aria-label="加粗"><b>B</b></button>
           <button type="button" class="ws-text-toggle" data-text-toggle="italic" aria-label="倾斜"><i>I</i></button>
@@ -193,6 +207,9 @@ export class TextPanel {
         if (control.dataset.textAction !== "toggle-lock" && control.dataset.textAction !== "delete") control.disabled = true;
       });
     }
+    if (active?.rasterGrid) {
+      this.root.querySelectorAll('#ws-text-content,#ws-text-font,#ws-text-local-font,#ws-text-font-family,#ws-text-spacing,#ws-text-writing-mode,#ws-text-color-mode,[data-text-style],[data-text-toggle],[data-text-color-target],#ws-text-gradient-direction,[data-text-action="add-gradient-stop"],[data-text-action="remove-gradient-stop"]').forEach(control => { control.disabled = true; });
+    }
     this.layoutContextControls();
   }
 
@@ -215,6 +232,12 @@ export class TextPanel {
   }
 
   find(selector) { return this.root.querySelector(selector) || this.contextHost?.querySelector(selector); }
+  gradientStops(layer) {
+    if (Array.isArray(layer?.gradientStops) && layer.gradientStops.length >= 2) return layer.gradientStops.slice(0, 4).map(stop => ({ ...stop }));
+    const colors = (this._palette || []).slice(0, 2);
+    if (colors.length === 1) colors.push(colors[0]);
+    return colors.map(color => ({ paletteId: paletteIdOf(color), code: color.code, hex: colorHex(color) }));
+  }
   findAll(selector) { return [...this.root.querySelectorAll(selector), ...(this.contextHost?.querySelectorAll(selector) || [])]; }
 
   sync(view) {
@@ -238,6 +261,9 @@ export class TextPanel {
     };
     setValue("ws-text-content", active.text);
     setValue("ws-text-font", active.font);
+    setValue("ws-text-writing-mode", active.writingMode || 'horizontal');
+    setValue("ws-text-color-mode", active.colorMode || 'solid');
+    setValue("ws-text-gradient-direction", active.gradientDirection || 'horizontal');
     setValue("ws-text-scale", active.scale);
     setValue("ws-text-scale-number", active.scale);
     setValue("ws-text-rotation", active.rotation || 0);
@@ -255,11 +281,22 @@ export class TextPanel {
     if (spacingValue) spacingValue.textContent = String(active.spacing || 0);
     this.findAll("[data-text-toggle]").forEach((button) => {
       button.classList.toggle("is-on", Boolean(active[button.dataset.textToggle]));
+      button.disabled = Boolean(active.locked || active.rasterGrid || ['pixel-5x7','pixel-3x5'].includes(active.font));
+      button.title = ['pixel-5x7','pixel-3x5'].includes(active.font) ? '点阵字形固定，不支持加粗或倾斜' : '';
     });
     this.findAll("[data-text-style]").forEach((control) => {
       const value = active[control.dataset.textStyle];
       if (control.type === "checkbox") control.checked = Boolean(value);
       else if (control !== focused && value !== undefined) control.value = String(value);
+    });
+    this.findAll('[data-text-color-target]').forEach(control => {
+      const role = control.dataset.textColorTarget;
+      const stop = role === 'gradient' ? this.gradientStops(active)[Number(control.dataset.stopIndex)] : null;
+      const identity = stop?.paletteId || (role === 'text' ? active.paletteId : active[`${role}PaletteId`]);
+      const code = stop?.code || (role === 'text' ? active.color : '');
+      const color = this._palette.find(item => paletteIdOf(item) === identity) || this._palette.find(item => item.code === code);
+      const hex = color ? colorHex(color) : stop?.hex || active[`${role}Hex`] || 'transparent';
+      control.innerHTML = `<span aria-hidden="true" style="display:inline-block;width:14px;height:14px;border:1px solid currentColor;background:${esc(hex)}"></span> ${esc(color?.code || code || '选色')}`;
     });
     this.findAll('[data-text-palette-role]').forEach(control => {
       if (control === focused) return;

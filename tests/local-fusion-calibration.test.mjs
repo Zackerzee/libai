@@ -7,17 +7,17 @@ import { analyzeLocalFusionEvidence, evaluateLocalFlatStructure } from '../servi
 import { runLocalFusionEngine } from '../services/local-fusion-engine.mjs';
 
 const palette = [{ code: 'black', paletteId: 'test:black', rgb: [0, 0, 0] }, { code: 'white', paletteId: 'test:white', rgb: [255, 255, 255] }, { code: 'orange', paletteId: 'test:orange', rgb: [245, 100, 30] }];
-test('real decoded logo selects structural dominant with original classification intact', async () => {
+test('real decoded logo selects integrated image-to-pixel with original classification intact', async () => {
   const { image } = await decode(new URL('../assets/brand/shiliber-mark-256.png', import.meta.url).pathname), before = image.data.slice();
   const evidence = analyzeLocalFusionEvidence(image);
   assert.deepEqual(evidence.routing, analyzeRoutingEvidence(image).routing);
   assert.equal(evidence.routing.mode, 'illustration');
   const request = { image, size: { width: 13, height: 13 }, palette };
   const result = runLocalFusionEngine(request);
-  assert.equal(result.fusion.strategy, 'fusion-pindou-dominant');
+  assert.equal(result.fusion.strategy, 'fusion-image-to-pixel');
   assert.equal(result.fusion.policy.category, 'clean-flat-structure');
   assert.match(result.fusion.policy.scoreKind, /not-probability/);
-  assert.deepEqual(result.grid, runLocalFusionEngine({ ...request, sampler: 'fusion-pindou-dominant' }).grid);
+  assert.deepEqual(result.grid, runLocalFusionEngine({ ...request, sampler: 'fusion-image-to-pixel' }).grid);
   assert.deepEqual(result.grid, runLocalFusionEngine(request).grid);
   assert.equal(result.grid.length, 13); assert.ok(result.grid.every(r => r.length === 13));
   assert.deepEqual(image.data, before);
@@ -32,15 +32,16 @@ test('real fantasy and textured sign keep exact previous-auto and production out
     assert.deepEqual(result.grid, runGenerationPipeline(request).grid);
   }
 });
-test('all 25 existing sources retain previous-auto selections; synthetic photos are not real photos', () => {
+test('all 25 sources keep conservative gate; eligible images use integrated samplers', () => {
   const rows = buildDataset(); assert.equal(rows.length, 25);
   for (const row of rows) {
     const e = analyzeLocalFusionEvidence(row.source), old = ['pixel', 'logo'].includes(e.routing.mode) && e.routing.confidence >= .75;
     assert.equal(evaluateLocalFlatStructure(e.fusionSignals).eligible, false, row.id);
     const request = { image: row.source, size: { width: 7, height: 7 }, palette };
     const result = runLocalFusionEngine(request);
-    assert.equal(result.fusion.strategy, old ? 'fusion-pindou-dominant' : 'v2-baseline', row.id);
-    assert.deepEqual(result.grid, runPreviousAuto(request).grid, row.id);
+    const sampler=e.routing.mode==='pixel' ? 'fusion-pixel-art-fixer' : 'fusion-image-to-pixel';
+    assert.equal(result.fusion.strategy, old ? sampler : 'v2-baseline', row.id);
+    assert.deepEqual(result.grid, old ? runLocalFusionEngine({...request,sampler}).grid : runPreviousAuto(request).grid, row.id);
   }
 });
 test('missing signals, uniform colors and thin strokes cannot pass the structural gate', () => {
@@ -50,15 +51,15 @@ test('missing signals, uniform colors and thin strokes cannot pass the structura
   for (const [key, value] of [['structureThickness', .1], ['paletteSize95', 1], ['shadingCoverage', .8], ['magnificationTrace', 1], ['edgeDensity', 0]]) assert.equal(evaluateLocalFlatStructure({ ...good, [key]: value }).eligible, false, key);
   for (const key of Object.keys(good)) assert.equal(evaluateLocalFlatStructure({ ...good, [key]: undefined }).eligible, false, key);
 });
-test('real pixel-structured preview routes dominant through the native pixel gate', async () => {
+test('real pixel-structured preview routes fixer reconstruction through the existing pixel gate', async () => {
   const { image } = await decode('/Users/gongzhenyan/Downloads/02_国清寺_46x46_10x预览.png'), before = image.data.slice();
   const evidence = analyzeLocalFusionEvidence(image);
   assert.equal(evidence.routing.mode, 'pixel');
   assert.ok(evidence.routing.confidence >= .75, `像素门置信度不足：${evidence.routing.confidence}`);
   const request = { image, size: { width: 13, height: 13 }, palette };
   const result = runLocalFusionEngine(request);
-  assert.equal(result.fusion.strategy, 'fusion-pindou-dominant');
-  assert.deepEqual(result.grid, runLocalFusionEngine({ ...request, sampler: 'fusion-pindou-dominant' }).grid);
+  assert.equal(result.fusion.strategy, 'fusion-pixel-art-fixer');
+  assert.deepEqual(result.grid, runLocalFusionEngine({ ...request, sampler: 'fusion-pixel-art-fixer' }).grid);
   assert.deepEqual(image.data, before);
 });
 test('real text and document samples keep conservative baseline (dominant would destroy strokes)', async () => {

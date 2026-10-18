@@ -12,7 +12,7 @@ test('actual classifier pixel evidence selects native sampling, not fabricated r
  assert.equal(evidence.routing.mode,'pixel');
  assert.ok(evidence.routing.confidence>=0.75);
  const result=runLocalFusionEngine({image,size:{width:10,height:10},palette});
- assert.equal(result.fusion.strategy,'fusion-pindou-dominant');
+ assert.equal(result.fusion.strategy,'fusion-pixel-art-fixer');
  assert.deepEqual(result.fusion.evidence.routing,result.pipeline.analysis.routing);
 });
 test('actual hard-logo rule below fusion confidence gate remains V2 baseline',()=>{

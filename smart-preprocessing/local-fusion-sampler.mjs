@@ -1,18 +1,23 @@
 /** Opt-in raw sampling only: palette matching and cleanup remain owned by V2. */
 import { downsample } from '../src/algorithms/pindou-full/quantize.mjs';
 import { cellBounds, extractCellFeatures, SamplingMode, SamplingModeIndex } from './sampling-engine-v2.mjs';
+import { samplePixelArtFixer } from './pixel-art-fixer-sampler.mjs';
+import { sampleImageToPixel } from './image-to-pixel-sampler.mjs';
 
 export const LOCAL_FUSION_SAMPLERS = Object.freeze(['area', 'nearest', 'dominant', 'edge', 'dpid', 'ssim'].map(mode => `fusion-pindou-${mode}`));
-export function isLocalFusionSampler(name) { return LOCAL_FUSION_SAMPLERS.includes(name); }
+export const EXTERNAL_PIXEL_SAMPLERS = Object.freeze(['fusion-pixel-art-fixer','fusion-image-to-pixel']);
+export function isLocalFusionSampler(name) { return LOCAL_FUSION_SAMPLERS.includes(name) || EXTERNAL_PIXEL_SAMPLERS.includes(name); }
 
 export function sampleGridLocalFusion(source, width, height, name, config = {}) {
   if (!isLocalFusionSampler(name)) throw new RangeError(`Unknown local fusion sampler: ${name}`);
   if (![source?.width, source?.height, width, height].every(n => Number.isInteger(n) && n > 0) || source.data?.length !== source.width * source.height * 4) throw new TypeError('Local fusion sampling requires valid RGBA dimensions');
-  const nativeMode = name.slice('fusion-pindou-'.length);
-  // Native texture default = 100 / 100. No native remap/refine/adjust runs here.
-  const rgba = downsample(source.data, source.width, source.height, width, height, nativeMode, 1);
-  const colors = [], features = [];
+  const external = EXTERNAL_PIXEL_SAMPLERS.includes(name);
   const alphaThreshold = config.extraction?.alphaThreshold ?? 8;
+  const nativeMode = external ? name.slice('fusion-'.length) : name.slice('fusion-pindou-'.length);
+  // Native texture default = 100 / 100. No native remap/refine/adjust runs here.
+  const externalResult = external ? (name === 'fusion-pixel-art-fixer' ? samplePixelArtFixer : sampleImageToPixel)(source,width,height,{alphaThreshold}) : null;
+  const rgba = externalResult?.rgba ?? downsample(source.data, source.width, source.height, width, height, nativeMode, 1);
+  const colors = [], features = [];
   // Cleanup recognizes only the established V2 numeric categories. Advanced
   // native modes use edge-aware cleanup policy; this is not a pixel parity claim.
   const policy = nativeMode === 'nearest' ? [SamplingMode.CENTER, SamplingModeIndex.CENTER]
@@ -31,5 +36,6 @@ export function sampleGridLocalFusion(source, width, height, name, config = {}) 
     }
   }
   return { colors, features, resolvedMode: policy[0], modeMap: new Uint8Array(width * height).fill(policy[1]),
-    diagnostics: { id: name, nativeMode, alphaThreshold, alphaPolicy: 'native-sampled-alpha', cleanupPolicy: policy[0], quantization: 'v2-palette-engine-only' } };
+    diagnostics: { id: name, nativeMode, alphaThreshold, alphaPolicy: 'native-sampled-alpha', cleanupPolicy: policy[0], quantization: 'v2-palette-engine-only',
+      ...(externalResult ? {external:externalResult.diagnostics,targetWidth:width,targetHeight:height} : {}) } };
 }

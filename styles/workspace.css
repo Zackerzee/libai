@@ -1753,6 +1753,55 @@ body.phase2-workspace #ws-top-ref-opacity #ws-ref-remove:hover{background:var(--
 .phase2-workspace .ws-pattern-import .ws-pi-cand span{font-weight:600}
 .phase2-workspace .ws-pattern-import .ws-pi-cand small{color:var(--ds-color-text-tertiary);font-variant-numeric:tabular-nums}
 .phase2-workspace .ws-pattern-import .ws-pi-editor-actions{display:flex;gap:8px;margin-top:9px}
+/* Stable tool shelf: reserve the parameter row even when its contents close.
+   Complex text/object settings continue to use the existing inspector. */
+body.phase2-workspace #ws-top-controls{
+  box-sizing:border-box!important;
+  height:76px!important;min-height:76px!important;max-height:76px!important;
+  grid-template-rows:34px 34px!important;
+  row-gap:2px!important;padding-block:2px!important;
+  flex-shrink:0;align-content:start!important;
+}
+body.phase2-workspace #ws-top-controls>#ws-tool-options:not([hidden]){
+  box-sizing:border-box!important;height:34px!important;
+  min-height:34px!important;max-height:34px!important;
+  min-width:0;width:100%;align-self:stretch!important;
+  flex-wrap:nowrap!important;overflow-x:auto!important;overflow-y:hidden!important;
+  scrollbar-width:thin;
+  padding-block:0!important;
+}
+body.phase2-workspace #ws-tool-options :is(button,label,select){flex-shrink:0;white-space:nowrap}
+body.phase2-workspace #ws-top-controls>#gridEditorToolbar{
+  min-height:0!important;height:34px!important;align-self:center;
+}
+body.phase2-workspace #ws-top-controls #gridEditorToolbar .sl-grid-toolbar-rail{
+  height:34px!important;min-height:0!important;gap:3px;padding-block:0!important;
+}
+body.phase2-workspace #ws-top-controls #gridEditorToolbar .sl-tool-button{
+  box-sizing:border-box;height:26px!important;min-height:26px!important;
+  padding:2px 5px!important;border-radius:5px!important;
+}
+body.phase2-workspace #ws-top-controls #gridEditorToolbar .sl-tool-icon svg{width:18px!important;height:18px!important}
+body.phase2-workspace #ws-top-controls #gridEditorToolbar .sl-tool-label{font-size:12px!important;line-height:1!important;font-weight:500}
+body.phase2-workspace #ws-top-controls #gridEditorToolbar .sl-toolbar-divider{height:18px!important;margin-inline:3px}
+body.phase2-workspace #ws-tool-options{font-size:12px;line-height:1.2;gap:6px}
+body.phase2-workspace #ws-tool-options :is(button,select,input[type="number"]){
+  box-sizing:border-box;height:26px!important;min-height:26px!important;
+  padding:2px 6px!important;font-size:12px!important;line-height:1.2!important;border-radius:5px;
+}
+body.phase2-workspace #ws-top-controls>:is(.ws-v3-shortcuts,.ws-history-actions,#zoomControls,#ws-top-ref-opacity){
+  height:34px!important;min-height:0!important;align-items:center;
+}
+body.phase2-workspace #ws-top-controls>:is(.ws-v3-shortcuts,.ws-history-actions,#zoomControls,#ws-top-ref-opacity) button{
+  box-sizing:border-box;height:28px!important;min-height:28px!important;padding-block:2px!important;font-size:12px;
+}
+@media(pointer:coarse){
+  body.phase2-workspace #ws-top-controls{height:88px!important;min-height:88px!important;max-height:88px!important;grid-template-rows:40px 40px!important}
+  body.phase2-workspace #ws-top-controls>#ws-tool-options:not([hidden]){height:40px!important;min-height:40px!important;max-height:40px!important}
+  body.phase2-workspace #ws-top-controls #gridEditorToolbar .sl-tool-button,
+  body.phase2-workspace #ws-tool-options :is(button,select,input[type="number"]){height:32px!important;min-height:32px!important}
+}
+
 /* 用量列表 */
 .phase2-workspace .ws-pattern-import .ws-pi-usage-list{max-height:30vh;overflow-y:auto}
 .phase2-workspace .ws-pattern-import .ws-pi-usage-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;border-bottom:1px solid var(--ds-color-border-soft)}

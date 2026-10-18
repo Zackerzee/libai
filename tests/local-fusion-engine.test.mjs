@@ -50,7 +50,7 @@ test('explicit baseline equals existing pipeline, and auto is confidence gated',
   const request = { image: fixture(), size: { width: 4, height: 3 }, palette };
   assert.deepEqual(runLocalFusionEngine({ ...request, sampler: 'v2-baseline' }).grid, runGenerationPipeline(request).grid);
   for (const mode of ['pixel', 'logo']) {
-    assert.equal(selectLocalFusionStrategy({ routing: { mode, confidence: 0.75 } }).sampler, 'fusion-pindou-dominant');
+    assert.equal(selectLocalFusionStrategy({ routing: { mode, confidence: 0.75 } }).sampler, mode === 'pixel' ? 'fusion-pixel-art-fixer' : 'fusion-image-to-pixel');
     assert.equal(selectLocalFusionStrategy({ routing: { mode, confidence: 0.74 } }).sampler, null);
   }
   for (const mode of ['portrait', 'anime', 'illustration', 'photo', 'auto']) assert.equal(selectLocalFusionStrategy({ routing: { mode, confidence: 1 } }).sampler, null);

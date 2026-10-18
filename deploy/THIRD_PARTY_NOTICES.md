@@ -124,7 +124,21 @@
 
 ---
 
-## 四、免责说明
+## 四、新增像素采样核心（2026-10-18）
+
+- Retro-Diffusion/pixel-art-fixer，MIT，Copyright (c) 2026 Astropulse, LLC。
+  固定版本 `ef376e57e1c272633ca2dbf5f29ec3fcf6596465`。
+  选取 `adaptive_k`、`two_stage_pack` 重建方法做确定性浏览器 JavaScript 适配；
+  不包含完整网格检测器、神经网络或 Rust 运行时。
+  完整许可与差异说明见 `vendor/pixel-art-fixer/LICENSE`、`PROVENANCE.md`。
+- Tezumie/Image-to-Pixel，MIT，Copyright (c) 2023-2026 Tezumie。
+  固定版本 `3dc4cf82c52b7bcdfc3866a88a8c417d83c3a064`。
+  原样复用 CPU `resample` 函数；不引入编辑器、内置色卡、GPU 或视频功能。
+  完整许可与来源见 `vendor/image-to-pixel/LICENSE`、`README.md`。
+
+以上模块仅输出中间 RGBA。LIBMS 指定目标尺寸，最终颜色与身份由现有品牌色卡匹配阶段决定。
+
+## 五、免责说明
 
 本文件是来源与许可的记录，不是法律意见。
 每个第三方组件的完整许可条款以其上游许可文本为准。
