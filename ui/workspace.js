@@ -3052,7 +3052,7 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
   });
 
   // 「有没有参考图」和「有没有原图」是两个不同的判定，别混：
-  //   hasReference      = 已上传的参考图（reference.url）—— 只有它才该出现透明度条；
+  //   hasReference      = 已上传的独立参考图（reference.url）；
   //   hasSourceImage    = 上传照片生成的图纸才有的原图（source.image）—— 按住「对照」看它；
   //   hasReferenceImage = 两者任一 —— 「对照」是否可用的总闸（也是「点击即上传」的闸门）。
   // 三个都不能用 status.hasSource：导入 .pixler/JSON 工程时它同样为 true，但那种情况
@@ -3066,8 +3066,8 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
     $("#ws-ref-fit").value = state.reference.fit;
     $("#ws-ref-opacity").value = String(state.reference.opacity);
     $("#ws-ref-opacity-value").textContent = `${state.reference.opacity}%`;
-    // 透明度控件只在真的上传了参考图时出现 —— 没有参考图时它没有可调的对象。
-    const opacityControl=$("#ws-top-ref-opacity");if(opacityControl)opacityControl.hidden=!hasRef;
+    // 已有原图也可直接作为描画参考，不要求再次上传。
+    const opacityControl=$("#ws-top-ref-opacity");if(opacityControl)opacityControl.hidden=!hasReferenceImage(state);
     // 调整态浮动工具条：只有「有参考图 + adjusting」时才浮出（完成后自动收起）。
     const adjustBar=$("#ws-ref-adjustbar");if(adjustBar)adjustBar.hidden=!(hasReferenceImage(state)&&Boolean(state.reference.adjusting));
     // 「对照」按钮的三副面孔：
@@ -3110,7 +3110,13 @@ let showMajorGrid=Boolean(readEditorPreference('majorGrid',true)),showCoordinate
   $("#ws-ref-opacity").addEventListener("input", (event) => {
     const value = clamp(Math.round(Number(event.target.value) || 0), 0, 100);
     $("#ws-ref-opacity-value").textContent = `${value}%`;
-    store.setState({ reference: { opacity: value } });
+    const state = get();
+    store.setState({ reference: { opacity: value,
+      ...(hasReferenceImage(state) ? { visible: true,
+        ...(!hasReference(state) ? { useSource: true } : {}),
+        ...(state.reference.displayMode !== "reference-only" ? { displayMode: "normal" } : {}),
+      } : {}),
+    }, ...(hasReferenceImage(state) && state.reference.displayMode !== "reference-only" && state.view.mode === "blocks" ? { view: { mode: "pattern" } } : {}) });
   });
   // 没有对照图时，「对照」按钮就是上传入口（hasCompareArtwork 在后面定义，点击时才求值）。
   $("#ws-compare").addEventListener("click", () => { if (hasCompareArtwork()) return; referenceInput.click(); });
